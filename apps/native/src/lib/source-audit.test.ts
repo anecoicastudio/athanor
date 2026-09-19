@@ -4218,3 +4218,39 @@ describe('logical inline spacing never reaches a node that drops it (#749)', () 
     expect(hits, 'use the physical pair (#749)').toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 41 — the consent notice is shown wherever this screen can create an account (#777)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A first sign-in with a provider CREATES the account, and OAuth cannot tell which it is — so the
+ * sign-in mode, whose Google button is live for real members, creates accounts too. Until #777
+ * the notice rendered under `!login` only, and a store reviewer signing in with Google from
+ * «Accedi» joined without seeing the terms they were said to accept. Play's UGC policy asks for
+ * exactly that acceptance before anyone can post.
+ *
+ * A source pin, because no render harness reaches this screen: each mode has its own notice, the
+ * sign-in one inside the provider block it is about. It cannot see layout — whether the notice is
+ * on screen next to the buttons is the device walk's to prove.
+ */
+describe('the consent notice is shown wherever an account can be created (#777)', () => {
+  const screen = () => stripComments(read(`${SRC}app/(auth)/welcome.tsx`));
+
+  it('the sign-in mode shows its own notice, inside the provider block', () => {
+    const src = screen();
+    const block = src.slice(src.indexOf('{anyOauth ? ('), src.indexOf("t('auth.orEmail'"));
+    expect(
+      /\{login \? \(\s*<LegalNotice text=\{oauthNotice\}/.test(block),
+      'the sign-in mode no longer renders `auth.legal.oauthNotice` under the provider buttons — a ' +
+        'first Google sign-in there creates an account with no notice shown (#777).',
+    ).toBe(true);
+    expect(src).toMatch(/t\('auth\.legal\.oauthNotice', locale/);
+  });
+
+  it('the signup mode keeps its notice by the CTA', () => {
+    expect(screen()).toMatch(
+      /\{!login \? \(\s*<LegalNotice\s+text=\{t\('auth\.legal\.notice', locale\)\}/,
+    );
+  });
+});

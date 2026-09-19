@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useRef, useState } from 'react';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t, type Locale, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View, type TextInputRef } from '@/tw';
 import { Button } from '@/components/Button';
@@ -68,6 +68,47 @@ const GOOGLE_ENABLED = true;
 
 const PROVIDER_LABEL: Record<'apple' | 'google', string> = { apple: 'Apple', google: 'Google' };
 
+/**
+ * The consent notice and its two links (#632) — one component for the two places an account can
+ * be created here (#777): under the signup CTA, and under the provider buttons on the sign-in
+ * mode, where a first sign-in with a provider creates the account. The links reuse settings'
+ * labels and URLs so the words match the screen that also carries them.
+ */
+function LegalNotice({
+  text,
+  locale,
+  onError,
+}: {
+  text: string;
+  locale: Locale;
+  onError: () => void;
+}) {
+  return (
+    <View className="gap-1">
+      <Text className="text-center text-xs leading-4 text-muted-foreground">{text}</Text>
+      <View className="flex-row items-center justify-center gap-6">
+        {(
+          [
+            ['settings.legal.terms', legalUrl('terms', locale)],
+            ['settings.legal.privacy', legalUrl('privacy', locale)],
+          ] as const
+        ).map(([key, url]) => (
+          <Pressable
+            key={key}
+            className="min-h-[44px] justify-center"
+            accessibilityRole="link"
+            onPress={() => {
+              WebBrowser.openBrowserAsync(url).catch(onError);
+            }}
+          >
+            <Text className="text-xs text-muted-foreground underline">{t(key, locale)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function WelcomeScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const login = mode === 'login'; // existing-user sign-in vs new-account creation
@@ -103,6 +144,18 @@ export default function WelcomeScreen() {
   // region gate — the divider follows the flag instead of a constant, and «oppure con email»
   // never ends up separating the email form from nothing.
   const anyOauth = appleEnabled || GOOGLE_ENABLED;
+  // #777: the sign-in mode's notice names the providers it sits under, in button order, so the
+  // day the Apple flag flips on it says «Apple o Google» without a release.
+  const [firstProvider, secondProvider] = [
+    ...(appleEnabled ? [PROVIDER_LABEL.apple] : []),
+    ...(GOOGLE_ENABLED ? [PROVIDER_LABEL.google] : []),
+  ];
+  const oauthNotice = t('auth.legal.oauthNotice', locale, {
+    provider: secondProvider
+      ? t('auth.legal.providerOr', locale, { a: firstProvider ?? '', b: secondProvider })
+      : (firstProvider ?? ''),
+  });
+  const legalError = () => setError(t('settings.legal.error', locale));
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
@@ -378,6 +431,14 @@ export default function WelcomeScreen() {
                         onPress={() => handleOAuth('google')}
                       />
                     ) : null}
+
+                    {/* #777: a first sign-in with a provider CREATES the account, and OAuth
+                      cannot tell which it is — so the sign-in mode shows the notice too, here,
+                      under the buttons it is about. Not by the «Accedi» CTA: the email sign-in
+                      below creates nothing. Signup's notice stays by its own CTA. */}
+                    {login ? (
+                      <LegalNotice text={oauthNotice} locale={locale} onError={legalError} />
+                    ) : null}
                   </View>
 
                   <View className="my-6 flex-row items-center gap-3">
@@ -568,38 +629,14 @@ export default function WelcomeScreen() {
                   </Text>
                 ) : null}
                 {/* #632: the point of collection is the point of consent — GDPR-scoped
-                  product collecting a name, an email and a dream. Signup only; sign-in
-                  agreed at signup. The two links reuse settings' labels and URLs so the
-                  words match the screen that also carries them. */}
+                  product collecting a name, an email and a dream. The sign-in mode carries
+                  its own, under the provider buttons (#777): its email CTA creates nothing. */}
                 {!login ? (
-                  <View className="gap-1">
-                    <Text className="text-center text-xs leading-4 text-muted-foreground">
-                      {t('auth.legal.notice', locale)}
-                    </Text>
-                    <View className="flex-row items-center justify-center gap-6">
-                      {(
-                        [
-                          ['settings.legal.terms', legalUrl('terms', locale)],
-                          ['settings.legal.privacy', legalUrl('privacy', locale)],
-                        ] as const
-                      ).map(([key, url]) => (
-                        <Pressable
-                          key={key}
-                          className="min-h-[44px] justify-center"
-                          accessibilityRole="link"
-                          onPress={() => {
-                            WebBrowser.openBrowserAsync(url).catch(() =>
-                              setError(t('settings.legal.error', locale)),
-                            );
-                          }}
-                        >
-                          <Text className="text-xs text-muted-foreground underline">
-                            {t(key, locale)}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
+                  <LegalNotice
+                    text={t('auth.legal.notice', locale)}
+                    locale={locale}
+                    onError={legalError}
+                  />
                 ) : null}
               </View>
 

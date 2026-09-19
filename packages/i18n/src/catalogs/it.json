@@ -266,6 +266,8 @@
   "auth.confirm.hint": "Se non lo trovi, guarda anche nello spam.",
   "auth.confirm.changeEmail": "Non è la tua email? Torna indietro",
   "auth.legal.notice": "Creando un account accetti i Termini di servizio e l'Informativa privacy.",
+  "auth.legal.oauthNotice": "Non hai ancora un account? Continuando con {provider} ne crei uno, e accetti i Termini di servizio e l'Informativa privacy.",
+  "auth.legal.providerOr": "{a} o {b}",
   "auth.forgot.link": "Password dimenticata?",
   "auth.forgot.eyebrow": "Un nuovo varco",
   "auth.forgot.display": "Ritroviamo l'accesso.",
