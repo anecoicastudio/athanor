@@ -2331,8 +2331,8 @@ before relying on it for a new column.
 ## `20260617104656_aura_scores.sql` — "anon … read any row" and «World-readable» are superseded
 
 The header (`:1-2`) says anon and authenticated "read any row", and the table comment (`:15-16`)
-called the snapshot «World-readable». Both described the table-level anon SELECT that
-`20260617105734:8` granted. Since `20260919174008` (#782) anon holds SELECT on `profile_id` and
+called the snapshot «World-readable». Both described the table-level anon SELECT granted at
+`:18` (and re-granted after a `revoke all` by `20260617105734:8`). Since `20260919174008` (#782) anon holds SELECT on `profile_id` and
 `score` only — the breakdown by kind of action, the peak and the two dates are for members — and
 the table comment was rewritten there with the #180 marker kept. The row policy is unchanged:
 anon still sees every ROW, just not every column.
