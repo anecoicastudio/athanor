@@ -85,6 +85,23 @@ describe.each(docs)('%s', (_name, doc) => {
     expect(monthYear(doc.en.updated)).toEqual(monthYear(doc.it.updated));
   });
 
+  it.each(['it', 'en'] as const)('%s gives the renderer unique keys', (loc) => {
+    // components/legal-doc.tsx keys a section by its heading and a paragraph by its first 24
+    // characters. A duplicate renders with a React key warning and can drop or reorder
+    // paragraphs on a locale switch — on a legal page, a paragraph that silently disappears.
+    const headings = doc[loc].sections.map((s) => s.heading);
+    expect(new Set(headings).size).toBe(headings.length);
+    for (const section of doc[loc].sections) {
+      const keys = section.body.map((p) => p.slice(0, 24));
+      expect(new Set(keys).size, section.heading).toBe(keys.length);
+    }
+  });
+
+  it.each(['it', 'en'] as const)('%s never says «utenti» or "engagement"', (loc) => {
+    // i18n.md: people are not metrics, and the legal copy holds the same line as the UI.
+    expect(JSON.stringify(doc[loc])).not.toMatch(/\butent[ei]\b|engagement/i);
+  });
+
   it('is genuinely translated, not IT text copied into the EN slot', () => {
     // The failure this catches is a placeholder EN doc that renders Italian to an English
     // reader. Headings are the shortest reliable signal; a handful may legitimately match
@@ -224,6 +241,12 @@ describe('deleteAccount', () => {
     expect(ledger('en')).not.toMatch(/years/);
   });
 
+  it('points to the privacy policy for everything, not for site visitors only', () => {
+    // Before #774 the policy covered the site alone, so this note sent app members elsewhere.
+    expect(deleteAccount.it.reviewNote).not.toMatch(/chi visita questo sito/);
+    expect(deleteAccount.en.reviewNote).not.toMatch(/people who visit this site/);
+  });
+
   it('names the one ledger event the redaction cannot reach, until something closes it', () => {
     // 20260912070533's accepted limit: a fund contribution's refund or dispute already in the
     // ledger at erasure time keeps its billing details. «We remove your identifying details»
@@ -231,5 +254,122 @@ describe('deleteAccount', () => {
     const ledger = (loc: 'it' | 'en') => deleteAccount[loc].sections.at(-1)!.body.at(-1)!;
     expect(ledger('it')).toMatch(/tranne[^.]*rimborso[^.]*contributo al fondo/);
     expect(ledger('en')).toMatch(/except[^.]*refund[^.]*fund contribution/);
+  });
+});
+
+/**
+ * /privacy is ONE policy for the app and this site (#774): the app links it from Settings,
+ * sign-up and the Circle screen, and it is the URL in the Play Console's privacy field. Until
+ * #774 it said it covered the site only and that the app would get its own policy — which never
+ * existed. What these pin is the part that must not drift: the scope, the labels a person has to
+ * find in the app (read from the catalog, as /delete-account does), and the retention sentences
+ * that /delete-account already states — the same words, not a second paraphrase of the cascade.
+ * The minimum age follows `MIN_MEMBER_AGE` (see legal-content.age.test.ts).
+ */
+describe('privacy', () => {
+  const locales = ['it', 'en'] as const;
+  const paragraphs = (loc: 'it' | 'en') => privacy[loc].sections.flatMap((s) => s.body);
+  const all = (loc: 'it' | 'en') =>
+    [privacy[loc].intro, ...privacy[loc].sections.flatMap((s) => [s.heading, ...s.body])].join(
+      '\n',
+    );
+
+  it('no longer says it covers the site only, or that the app will get its own policy', () => {
+    expect(all('it')).not.toMatch(/solo questo sito|una propria informativa|non in questa/i);
+    expect(all('en')).not.toMatch(/this site only|its own policy|not this one/i);
+  });
+
+  it.each(locales)('%s names the app as the store listing does, and the site', (loc) => {
+    expect(privacy[loc].intro).toContain(t('store.name', loc));
+    expect(privacy[loc].intro).toMatch(loc === 'it' ? /questo sito/ : /this site/);
+  });
+
+  it.each(locales)('%s has an app part followed by a site part', (loc) => {
+    const headings = privacy[loc].sections.map((s) => s.heading);
+    const app = loc === 'it' ? "Nell'app:" : 'In the app:';
+    const site = loc === 'it' ? 'Sul sito:' : 'On the site:';
+    const lastApp = headings.findLastIndex((h) => h.startsWith(app));
+    const firstSite = headings.findIndex((h) => h.startsWith(site));
+    expect(headings.findIndex((h) => h.startsWith(app))).toBeGreaterThan(0);
+    expect(firstSite).toBeGreaterThan(lastApp);
+  });
+
+  it.each(locales)("%s walks people to the app's own labels", (loc) => {
+    const text = all(loc);
+    for (const key of [
+      'settings.title',
+      'settings.section.privacy',
+      'settings.export.title',
+      'account.delete.row',
+      'account.delete.title',
+      'settings.trust.title',
+      'gdpr.consent.section',
+      'gdpr.consent.diagnostics',
+      'settings.notif.title',
+      'profile.visibility.label',
+      'visibility.public',
+      'visibility.members',
+      'visibility.private',
+      'story.own.pin',
+      'live.tab.vicino',
+      'momenti.title',
+    ] as const) {
+      expect(text, key).toContain(t(key, loc));
+    }
+  });
+
+  it.each(locales)(
+    "%s states retention in /delete-account's words and the app's own deferral line",
+    (loc) => {
+      const ps = paragraphs(loc);
+      expect(ps).toContain(t('account.delete.deferred', loc));
+      const [deleted, kept] = deleteAccount[loc].sections.slice(-2);
+      // `deleted.body[0]` IS the deferral line, asserted above by key.
+      for (const p of [...deleted!.body.slice(1), ...kept!.body]) expect(ps).toContain(p);
+    },
+  );
+
+  it.each(locales)('%s never gives the payment-notification log a retention window', (loc) => {
+    // MIGRATIONS-ERRATA: stripe_webhook_events has NO retention window; the ten years belong to
+    // the three payment tables only. Every paragraph about Stripe's notifications must say so.
+    const ledger = paragraphs(loc).filter((p) => /Stripe/.test(p) && /notific/i.test(p));
+    expect(ledger.length).toBeGreaterThanOrEqual(2);
+    for (const p of ledger) expect(p).not.toMatch(/anni|years/);
+  });
+
+  it.each(locales)(
+    '%s states the ten-year retention as a fact about us, not a legal duty',
+    (loc) => {
+      // Marco's ruling on PR 773 holds here too. The in-app deferral line, quoted verbatim, is the
+      // one sentence allowed to name the law, and it names no period.
+      const tenYears = paragraphs(loc).filter((p) => /dieci anni|ten years/.test(p));
+      expect(tenYears.length).toBeGreaterThan(0);
+      for (const p of tenYears) expect(p).not.toMatch(/la legge|the law/);
+    },
+  );
+
+  it.each(locales)("%s publishes one contact address — the controller's", (loc) => {
+    // GDPR Art. 13(1)(b), and the address /delete-account sends people to. The app's support
+    // mailbox is a different address and must not appear here as a second way in.
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(found.length).toBeGreaterThan(0);
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+  });
+
+  it('claims no parental consent — the app performs no such step', () => {
+    expect(all('it')).not.toMatch(/genitor|tutore|responsabilità genitoriale/i);
+    expect(all('en')).not.toMatch(/parent|guardian/i);
+  });
+
+  it('says a Circle subscription and fund contributions buy no Aura (rule 1)', () => {
+    expect(all('it')).toMatch(/Circle[^.]*contributi al fondo non danno punti/);
+    expect(all('en')).toMatch(/Circle[^.]*fund contributions earn no points/);
+  });
+
+  it('does not present the fund as open', () => {
+    // The fund is OFF on production for this release (#249). Contribution records are
+    // described as what we keep WHEN it is open — never as a live feature.
+    expect(all('it')).toMatch(/Quando il fondo è aperto/);
+    expect(all('en')).toMatch(/When the fund is open/);
   });
 });
