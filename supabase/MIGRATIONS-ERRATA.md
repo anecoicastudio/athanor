@@ -2349,18 +2349,18 @@ written; `20260919174008_handle_rename_cooldown_and_anon_aura_score.sql` (#782) 
 column, never `revoke all on table` — holds for every one of the tables; only the number moved, so
 read "seven" as "eight" in each of:
 
-| Migration                                                                  | Line | Note                                                                         |
-| -------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------- |
-| `20260816164834_hosted_grant_sweep.sql`                                    | 28   | Names the seven. The list was right on its date; `aura_scores` joined later. |
-| `20260818190348_organiser_settlement_ack.sql`                              | 35   |                                                                              |
-| `20260819041755_events_column_scoped_client_grants.sql`                    | 21   |                                                                              |
-| `20260819041755_events_column_scoped_client_grants.sql`                    | 23   | «0121's count of seven» — 0121 pins 8 now.                                   |
-| `20260821164731_notifications_touch_trigger_and_convention_exemptions.sql` | 43   |                                                                              |
-| `20260823121933_fund_broadcast_notifications.sql`                          | 56   |                                                                              |
-| `20260823141316_momento_suggestions.sql`                                   | 45   | «would have made it eight» — `aura_scores` did, in `20260919174008`.         |
-| `20260908133119_gdpr_erasure_claim_lease_fences.sql`                       | 38   | «0121 pins that count» — it pins 8 now.                                      |
-| `20260908152740_gdpr_export_claim_lease.sql`                               | 115  | `gdpr_export_jobs` is still not one of them.                                 |
-| `20260919124730_event_geo_grid.sql`                                        | 51   |                                                                              |
+| Migration                                                                  | Line  | Note                                                                         |
+| -------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------- |
+| `20260816164834_hosted_grant_sweep.sql`                                    | 28    | Names the seven. The list was right on its date; `aura_scores` joined later. |
+| `20260818190348_organiser_settlement_ack.sql`                              | 35    |                                                                              |
+| `20260819041755_events_column_scoped_client_grants.sql`                    | 21    |                                                                              |
+| `20260819041755_events_column_scoped_client_grants.sql`                    | 23    | «0121's count of seven» — 0121 pins 8 now.                                   |
+| `20260821164731_notifications_touch_trigger_and_convention_exemptions.sql` | 43    |                                                                              |
+| `20260823121933_fund_broadcast_notifications.sql`                          | 56    |                                                                              |
+| `20260823141316_momento_suggestions.sql`                                   | 45-46 | «would have made it eight» — `aura_scores` did, in `20260919174008`.         |
+| `20260908133119_gdpr_erasure_claim_lease_fences.sql`                       | 38    | «0121 pins that count» — it pins 8 now.                                      |
+| `20260908152740_gdpr_export_claim_lease.sql`                               | 115   | `gdpr_export_jobs` is still not one of them.                                 |
+| `20260919124730_event_geo_grid.sql`                                        | 51    |                                                                              |
 
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` (the count of tables carrying
 column-level ACLs, pinned at 8).
