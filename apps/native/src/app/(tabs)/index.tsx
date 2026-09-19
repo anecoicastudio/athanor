@@ -10,7 +10,6 @@ import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Screen } from '@/components/Screen';
-import { ComingSoonSection } from '@/components/home/ComingSoonSection';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { FavorNudgeCard } from '@/components/home/FavorNudgeCard';
 import { TodaySection } from '@/components/home/TodaySection';
@@ -28,8 +27,8 @@ import { useLocale } from '@/hooks/use-locale';
 /**
  * Home — the assembly host (PRD 01-m1-identity §3.2). M1 shipped the shell in
  * prototype order and each milestone swaps its «Presto qui» placeholder for the
- * real block. ONE placeholder remains, as a `fallback` prop: Esplora Fase2/M8
- * (`PrimeStelleCard`). The countdown slot's M7 shipped, so its no-data state is a
+ * real block. NO placeholder remains: the last, Esplora Fase2/M8 (`PrimeStelleCard`),
+ * collapses while its flag is off (#749). The countdown slot's M7 shipped, so its no-data state is a
  * real state now — `DreamHeroCard` owns it (#224): a confirmed no-cycle read
  * renders the first cycle's announcement, loading/error collapse. Everything else
  * on this screen has landed and renders real data.
@@ -135,13 +134,11 @@ export default function HomeScreen() {
           states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
           week alike, over a feature that shipped in M6. */}
         <WeekSlot locale={locale} />
-        {/* Block 4: Esplora slot — Prime Stelle launch card while the flag is on (P4.2); honest
-          placeholder otherwise. BELOW the week recap (#640): a marketing card must not sit in
-          fold 1 outranking «Hai un Momento», and its CTA is ghost for the same reason. */}
-        <PrimeStelleCard
-          locale={locale}
-          fallback={<ComingSoonSection title={t('home.section.explore', locale)} locale={locale} />}
-        />
+        {/* Block 4: Esplora slot — Prime Stelle launch card while the flag is on (P4.2), nothing
+          otherwise (#749: no «Presto qui» placeholder at launch). BELOW the week recap (#640): a
+          marketing card must not sit in fold 1 outranking «Hai un Momento», and its CTA is ghost
+          for the same reason. */}
+        <PrimeStelleCard locale={locale} />
         {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
           nothing when no need is open, like block 2b and for the same reason (#99). */}
         <FavorNudgeCard locale={locale} />

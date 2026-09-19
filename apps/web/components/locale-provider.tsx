@@ -15,6 +15,18 @@ export function readCookieLocale(cookie: string): Locale | null {
   return match ? (match[1] as Locale) : null;
 }
 
+/**
+ * Reads a `?lang=it|en` hint out of a search string (`location.search` shape) (#749).
+ *
+ * The app links to /privacy and /terms with it: a prerendered page cannot learn the member's
+ * language any other way, since the server always renders IT and the cookie belongs to the
+ * browser, not to the app. Anything else — absent, `fr`, `EN` — is no hint at all.
+ */
+export function readLangParam(search: string): Locale | null {
+  const lang = new URLSearchParams(search).get('lang');
+  return lang === 'it' || lang === 'en' ? lang : null;
+}
+
 type LocaleContextValue = {
   locale: Locale;
   setLocale: (next: Locale) => void;
@@ -37,13 +49,18 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
   useEffect(() => {
-    const stored = readCookieLocale(document.cookie);
+    // A `?lang=` hint outranks the cookie for this visit and is NOT written back: it states the
+    // language of the link that was followed, not a choice made on this site. Read from
+    // `location` inside this post-hydration effect rather than through `useSearchParams`, which
+    // on a prerendered route client-renders everything up to the nearest Suspense boundary —
+    // from a provider in the root layout, that is the whole page.
+    const initial = readLangParam(window.location.search) ?? readCookieLocale(document.cookie);
     // Deferred for the same reason as cookie-notice.tsx: a synchronous setState
     // in an effect trips react-hooks/set-state-in-effect.
-    if (stored && stored !== DEFAULT_LOCALE) {
+    if (initial && initial !== DEFAULT_LOCALE) {
       queueMicrotask(() => {
-        setLocaleState(stored);
-        document.documentElement.lang = stored;
+        setLocaleState(initial);
+        document.documentElement.lang = initial;
       });
     }
   }, []);

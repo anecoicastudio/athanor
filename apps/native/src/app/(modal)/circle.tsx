@@ -5,11 +5,13 @@ import * as Linking from 'expo-linking';
 import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  CircleCheckoutError,
   circleKeys,
   entitlementKeys,
   getCirclePrices,
   getMyMembership,
   openCustomerPortal,
+  remoteConfigKeys,
   startCheckout,
 } from '@athanor/api';
 import { semantic } from '@athanor/config';
@@ -19,6 +21,7 @@ import type { CirclePlan } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
+import { useCircleCheckoutGate } from '@/hooks/use-remote-config';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -30,7 +33,7 @@ import { PriceToggle } from '@/components/circle/PriceToggle';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SubscriptionStatusCard } from '@/components/circle/SubscriptionStatusCard';
 import { useAuth } from '@/lib/auth-context';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
+import { legalUrl } from '@/lib/links';
 import { devWarn } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -58,6 +61,12 @@ export default function CircleScreen() {
   const [checkoutPhase, setCheckoutPhase] = useState<'idle' | 'opening' | 'portal'>('idle');
   const [checkoutError, setCheckoutError] = useState(false);
   const [portalError, setPortalError] = useState(false);
+  // The server said checkout is closed (#747) — its answer outranks a client read that said open
+  // (a flag flipped off inside the read's 60s staleness window). Same closed line, no error.
+  const [serverClosed, setServerClosed] = useState(false);
+  // The server found a live subscription on Stripe (#759) — the Join CTA gives way to the way
+  // into the portal. Latches for this mount, like `serverClosed`.
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
 
   // ── Entitlements query ──────────────────────────────────────────────────────
   // Shares the canonical EntitlementView shape + cache key with CircleGate's
@@ -68,6 +77,19 @@ export default function CircleScreen() {
 
   const isMember = entQuery.data?.isMember ?? false;
 
+  // ── Checkout readiness (#747) ───────────────────────────────────────────────
+  // Two gates, both required before anything on this screen offers a subscription. The iOS
+  // one is Apple 3.1.1 / S-IAP-1 (below). The remote one is `circle_checkout_enabled`: it
+  // stays absent on production until the Stripe cutover (RELEASE-RUNBOOK §4.2), because a
+  // live CTA against test-mode keys takes a member to a Checkout that cannot complete. It
+  // fails closed — see useCircleCheckoutGate. Only the purchase controls hang off it; the
+  // pitch, the benefits, the legal links and a member's Manage button stay.
+  const clientGate = useCircleCheckoutGate();
+  const checkoutGate = serverClosed ? 'closed' : clientGate;
+  // #759 — once the server has refused a second subscription, nothing on this screen offers one:
+  // no plan picker, no price, no renewal line. The refusal arm below is keyed on its own state.
+  const canSubscribe = Platform.OS !== 'ios' && checkoutGate === 'open' && !alreadySubscribed;
+
   // ── Live Stripe amounts (#644) ──────────────────────────────────────────────
   // The catalog used to carry «€12/mese» and «€99/anno» as literals while the charge came
   // from Stripe Price ids, so a Dashboard edit shipped an app that quoted one number and
@@ -75,7 +97,7 @@ export default function CircleScreen() {
   // the template. There is deliberately NO fallback literal: until they arrive the CTA slot
   // shows a spinner, and if the read fails it shows a retry — a quoted price that is not the
   // charged one is the defect this closes.
-  // `enabled` skips the surfaces that render no price: iOS hides the whole purchase block
+  // `enabled` skips the surfaces that render no price: iOS and a closed checkout (#747) hide the whole purchase block
   // (Apple 3.1.1 / S-IAP-1), and a member sees their plan instead of the toggle. `isMember`
   // is false until entitlements land, so a member's first render can still fire one read —
   // deliberately, rather than serialising two round trips for the people who came to see a
@@ -89,7 +111,7 @@ export default function CircleScreen() {
   const pricesQuery = useQuery({
     queryKey: circleKeys.plans(),
     queryFn: () => getCirclePrices(supabase),
-    enabled: !isMember && Platform.OS !== 'ios',
+    enabled: !isMember && canSubscribe,
     staleTime: 5 * 60_000,
     meta: { persist: false },
   });
@@ -156,10 +178,26 @@ export default function CircleScreen() {
         devWarn('[circle] startCheckout', 'returned kind=iap — StoreKit path not implemented');
         setCheckoutError(true);
       }
-    } catch {
-      // Checkout-session failure happens before any subscription exists, so the query
-      // error state never fires — surface it inline instead.
-      setCheckoutError(true);
+    } catch (e) {
+      if (e instanceof CircleCheckoutError && e.code === 'circle checkout closed') {
+        // #747 — not a failure: checkout is closed server-side. Show the closed line.
+        // `serverClosed` latches for this mount; the invalidate is for the NEXT mount, so it
+        // re-reads the flag instead of reusing the cached `true` that let this tap through.
+        setServerClosed(true);
+        void qc.invalidateQueries({ queryKey: remoteConfigKeys.live() });
+      } else if (e instanceof CircleCheckoutError && e.code === 'circle already subscribed') {
+        // #759 — not a failure either: Stripe already holds a live subscription for this member,
+        // and a second Checkout would bill them twice. Offer the portal instead. The cached row
+        // may simply not have caught up (a webhook in flight), so re-read it: once it says
+        // `active` or `past_due` the screen flips to the member state on its own.
+        setAlreadySubscribed(true);
+        void qc.invalidateQueries({ queryKey: entitlementKeys.me() });
+        void qc.invalidateQueries({ queryKey: circleKeys.subscription(profileId) });
+      } else {
+        // Checkout-session failure happens before any subscription exists, so the query
+        // error state never fires — surface it inline instead.
+        setCheckoutError(true);
+      }
     } finally {
       setCheckoutPhase('idle');
     }
@@ -280,10 +318,13 @@ export default function CircleScreen() {
             </Text>
           ) : (
             <Button
-              label={checkoutPhase === 'portal' ? '…' : t('circle.member.manage', locale)}
+              label={t('circle.member.manage', locale)}
               onPress={() => void onManage()}
               variant="ghost"
               disabled={checkoutPhase !== 'idle'}
+              // `loading`, not a '…' label swap — the #632 finding the Join CTA already follows:
+              // «…» is unpronounceable to a screen reader and hides what is loading.
+              loading={checkoutPhase === 'portal'}
             />
           )}
           {portalError ? (
@@ -325,13 +366,13 @@ export default function CircleScreen() {
           </Text>
         </View>
 
-        {/* 2. Price toggle — hidden on iOS (Apple 3.1.1 / S-IAP-1: no in-app subscribe).
+        {/* 2. Price toggle — hidden unless canSubscribe (iOS: Apple 3.1.1 / S-IAP-1; #747 flag).
             Each segment carries its live amount (#675), and the savings line sits under the
             toggle whenever the annual plan actually saves something — from the DEFAULT
             (monthly) state too, so the reason to pick annual is visible before it is picked.
             It used to appear only once annual was selected, which also made the CTA jump
             under the thumb on every toggle (run 12). Numerals: tabular, no tracking. */}
-        {Platform.OS !== 'ios' ? (
+        {canSubscribe ? (
           <View className="gap-2">
             <PriceToggle value={plan} onChange={setPlan} locale={locale} prices={prices} />
             {priceState === 'ready' && savings ? (
@@ -361,6 +402,37 @@ export default function CircleScreen() {
         {Platform.OS === 'ios' ? (
           <Text className="text-[13px] leading-5 text-muted-foreground">
             {t('circle.iosUnavailable', locale)}
+          </Text>
+        ) : alreadySubscribed ? (
+          // #759 — the server refused a second subscription. A quiet refusal line, like the closed
+          // line beside it, and the portal action: the portal is where a live subscription is
+          // managed, whatever state the cached row shows. Non-iOS only, like every portal entry.
+          <View className="gap-2">
+            <Text className="text-[13px] leading-5 text-muted-foreground">
+              {t('circle.alreadySubscribed', locale)}
+            </Text>
+            <Button
+              label={t('circle.member.manage', locale)}
+              onPress={() => void onManage()}
+              variant="ghost"
+              disabled={checkoutPhase !== 'idle'}
+              loading={checkoutPhase === 'portal'}
+            />
+            {portalError ? (
+              <Text className="text-center text-[13px] text-error">
+                {t('circle.portal.error', locale)}
+              </Text>
+            ) : null}
+          </View>
+        ) : checkoutGate === 'loading' ? (
+          <View className="items-center py-2">
+            <ActivityIndicator color={semantic.aura} />
+          </View>
+        ) : checkoutGate === 'closed' ? (
+          // Checkout not open yet (#747): the same quiet line as the iOS arm, no button, no
+          // glow — the screen still explains the Circle, it just offers nothing to buy.
+          <Text className="text-[13px] leading-5 text-muted-foreground">
+            {t('circle.checkoutClosed', locale)}
           </Text>
         ) : priceState === 'ready' && prices ? (
           <Button
@@ -398,8 +470,8 @@ export default function CircleScreen() {
             links. App Store 3.1.2 and EU consumer law both want these before the order
             button's screen ends — and a screen that leads with «la visibilità non si
             compra» owes the reader the way out in the same breath. The renewal sentence
-            renders only where subscribing is possible (non-iOS); the links always. */}
-        {Platform.OS !== 'ios' ? (
+            renders only where subscribing is possible (canSubscribe); the links always. */}
+        {canSubscribe ? (
           <Text className="text-[13px] leading-5 text-muted-foreground">
             {t('circle.legal.renewal', locale)}
           </Text>
@@ -407,8 +479,8 @@ export default function CircleScreen() {
         <View className="flex-row items-center gap-6">
           {(
             [
-              ['settings.legal.terms', LEGAL_TERMS_URL],
-              ['settings.legal.privacy', LEGAL_PRIVACY_URL],
+              ['settings.legal.terms', legalUrl('terms', locale)],
+              ['settings.legal.privacy', legalUrl('privacy', locale)],
             ] as const
           ).map(([key, url]) => (
             <Pressable

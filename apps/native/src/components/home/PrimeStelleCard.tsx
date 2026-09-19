@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '@athanor/i18n';
@@ -15,7 +15,9 @@ import { useReferralCode } from '@/hooks/use-referral-code';
 /**
  * «Le Prime Stelle» — founding-cohort launch card (frontend 10 §3.6 PS-4/PS-5),
  * Home Esplora slot. Gated by remote_config.prime_stelle_enabled so it can be
- * retired post-launch without an app release; renders `fallback` when off.
+ * retired post-launch without an app release; renders NOTHING when off — the slot used to
+ * fall back to a «Presto qui» card, which put "Coming soon" on production Home while the
+ * flag was off (#749, ruled 2026-09-18: no placeholder at launch).
  * CTA = the invite/apply flow: shares the caller's personal referral link
  * (PS-1 — founding invites reuse the P4.1 referral mechanism).
  * PS-5 (rule #1): copy states the zero-score guarantee (`prime.note`);
@@ -29,7 +31,7 @@ import { useReferralCode } from '@/hooks/use-referral-code';
  */
 const DISMISSED_KEY = 'primeStelle.dismissed';
 
-export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback?: ReactNode }) {
+export function PrimeStelleCard({ locale }: { locale: Locale }) {
   const enabled = useFeatureFlags().prime_stelle_enabled === true;
   const { showToast } = useToast();
 
@@ -48,7 +50,7 @@ export function PrimeStelleCard({ locale, fallback }: { locale: Locale; fallback
     };
   }, []);
 
-  if (!enabled) return fallback ?? null;
+  if (!enabled) return null;
   if (dismissed !== false) return null;
 
   const invite = async () => {

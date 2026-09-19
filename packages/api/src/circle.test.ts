@@ -2,6 +2,7 @@ import { expect, test, vi } from 'vitest';
 import { makeFakeClient } from './test-support/fake-client';
 import type { AthanorClient } from './client';
 import {
+  CircleCheckoutError,
   circleKeys,
   entitlementKeys,
   getCirclePrices,
@@ -237,4 +238,37 @@ test('no exported call writes the membership cache (rule #6)', async () => {
   await openCustomerPortal(client);
 
   expect(fake.calls.every((c) => c.op === 'select')).toBe(true);
+});
+
+// #747 — the server refuses a closed checkout with a stable code; the screen maps it.
+const httpError = (status: number, body: unknown) =>
+  Object.assign(new Error('Edge Function returned a non-2xx status code'), {
+    context: {
+      status,
+      json: () => (body instanceof Error ? Promise.reject(body) : Promise.resolve(body)),
+    },
+  });
+
+test('startCheckout carries a server refusal as CircleCheckoutError (#747)', async () => {
+  const invoke = vi
+    .fn()
+    .mockResolvedValue({ data: null, error: httpError(403, { error: 'circle checkout closed' }) });
+  const { client } = withFn(invoke);
+  const err = await startCheckout(client, { plan: 'monthly' }).catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(CircleCheckoutError);
+  expect(err).toMatchObject({ code: 'circle checkout closed', status: 403 });
+});
+
+test('startCheckout rethrows the raw error when the body is unreadable', async () => {
+  const raw = httpError(500, new Error('not json'));
+  const invoke = vi.fn().mockResolvedValue({ data: null, error: raw });
+  const { client } = withFn(invoke);
+  await expect(startCheckout(client, { plan: 'monthly' })).rejects.toBe(raw);
+});
+
+test('startCheckout rethrows a relay/network error with no context unchanged', async () => {
+  const raw = new Error('Failed to send a request to the Edge Function');
+  const invoke = vi.fn().mockResolvedValue({ data: null, error: raw });
+  const { client } = withFn(invoke);
+  await expect(startCheckout(client, { plan: 'monthly' })).rejects.toBe(raw);
 });

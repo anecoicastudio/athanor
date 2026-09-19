@@ -16,7 +16,7 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
  * ── WHY TWO SIZES AND NOT SIX ─────────────────────────────────────────────────────
  * Only one of those distinctions is a design decision rather than drift:
  *
- * - `md` (default) — a form field on a form screen. `px-5 py-4` at 15pt lands the pill
+ * - `md` (default) — a form field on a form screen. `pl-5 pr-5 py-4` at 15pt lands the pill
  *   at ~52pt, which is the `Button` height (DESIGN §9), so a field and the CTA under it
  *   are the same pill. The six form spellings above all collapse here.
  * - `sm` — the compose bar: a `flex-1` field sharing a bottom row with a 44pt send
@@ -28,6 +28,14 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
  * paddings on one element resolve by stylesheet source order, not string order, so a
  * caller-supplied `py-3` would win or lose depending on how the sheet was authored.
  * Pick a size instead. Same warning `ListState` carries about its `className`.
+ *
+ * ── WHY `pl-`/`pr-` AND NEVER `px-` ───────────────────────────────────────────────
+ * Tailwind 4 compiles `px-*` to LOGICAL `padding-inline`, which `react-native-css` emits
+ * as `paddingInlineStart`/`End`, and an Android `TextInput` drops that pair: measured on a
+ * moto g17 (#749), the same `sm` field put its text ~7dp from the border with `px-4` and
+ * ~17dp with `pl-4 pr-4`. iOS and the web build honour both, which is how the logical
+ * spelling survived every pass that was not an Android device. The physical pair renders
+ * identically everywhere. `source-audit.test.ts` §40 holds the line.
  *
  * Tokens only — no literal hex. The one raw color is `placeholderTextColor`, which RN
  * requires as a value rather than a class; it comes from `@athanor/config`, the same
@@ -56,13 +64,13 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
 type Size = 'md' | 'sm';
 
 const SIZE_CLASSES: Record<Size, string> = {
-  md: 'px-5 py-4 text-[15px]',
-  sm: 'px-4 py-2 text-[15px]',
+  md: 'pl-5 pr-5 py-4 text-[15px]',
+  sm: 'pl-4 pr-4 py-2 text-[15px]',
 };
 
 /**
  * The same recipe with the right side opened for the trailing control. It REPLACES
- * `SIZE_CLASSES` rather than extending it, so exactly one horizontal padding class ever
+ * `SIZE_CLASSES` rather than extending it, so exactly one class per horizontal side ever
  * lands on the element — which is the whole of the warning above.
  *
  * `pr-14` is 49px ON DEVICE and 56 on web: `react-native-css` inlines `rem` at 14 here,

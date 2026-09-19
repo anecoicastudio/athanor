@@ -126,6 +126,8 @@ const codeLines = (): [string, string][] =>
  * `.env.example` rule does bind it: it reads EXPO_PUBLIC_SITE_ORIGIN to decide which host the
  * binary claims as a universal link, and an EAS build missing that variable resolves a
  * different host from the one `links.ts` hands URLs out on — silently, which is #486 itself.
+ * Its build-time-only names (the Firebase config path, #746) are pinned by the carve-out below
+ * instead, because they are neither EXPO_PUBLIC_ nor public.
  */
 const BUILD_TIME_CONFIG = `${NATIVE}app.config.ts`;
 const configLines = (): [string, string][] =>
@@ -151,7 +153,7 @@ describe('env reads survive Metro inlining', () => {
     expect(aliased.map(([where, t]) => `${where}  ${t.trim()}`)).toEqual([]);
   });
 
-  it('reads only EXPO_PUBLIC_* names, all declared in .env.example', () => {
+  it('reads only EXPO_PUBLIC_* names, all declared in .env.example (build-time config aside)', () => {
     // Anything not prefixed EXPO_PUBLIC_ is stripped from the bundle by Expo, so it is
     // always `undefined` at runtime — and if it were NOT stripped it would be a secret leak.
     const example = readFileSync(`${NATIVE}.env.example`, 'utf8');
@@ -159,12 +161,39 @@ describe('env reads survive Metro inlining', () => {
       [...example.matchAll(/^[ \t]*([A-Z0-9_]+)\s*=/gm)].map((m) => m[1] as string),
     );
 
-    const reads = [...codeLines(), ...configLines()].flatMap(([where, t]) =>
+    const allReads = [...codeLines(), ...configLines()].flatMap(([where, t]) =>
       [...t.matchAll(/process\s*\.\s*env\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)/g)].map(
         (m) => [where, m[1] as string] as const,
       ),
     );
 
+    // The one carve-out: names that exist only while a build runs and that app.config.ts reads
+    // at config time (#746). They are NOT EXPO_PUBLIC_ — EAS materialises GOOGLE_SERVICES_JSON
+    // as a secret file variable and sets EAS_BUILD_PLATFORM itself — and they are not in
+    // `.env.example`, which holds public values only. So they may appear in app.config.ts and
+    // in the tests that drive it, and never in code that ships: in the bundle they would be
+    // `undefined`, or, if ever inlined, a build machine's path. Pinned, so a new one is a
+    // reviewed edit here.
+    const BUILD_TIME_ONLY = ['EAS_BUILD_PLATFORM', 'GOOGLE_SERVICES_JSON'];
+    const buildTime = allReads.filter(([, name]) => BUILD_TIME_ONLY.includes(name));
+    expect(
+      buildTime
+        .filter(([where]) => !where.startsWith(`${rel(BUILD_TIME_CONFIG)}:`))
+        .filter(([where]) => !/\.test\.tsx?:\d+$/.test(where))
+        .map(([w, n]) => `${w}  ${n}`),
+      'a build-time name read by shipped code',
+    ).toEqual([]);
+    expect(
+      [
+        ...new Set(
+          buildTime
+            .filter(([where]) => where.startsWith(`${rel(BUILD_TIME_CONFIG)}:`))
+            .map(([, n]) => n),
+        ),
+      ].sort(),
+    ).toEqual(BUILD_TIME_ONLY);
+
+    const reads = allReads.filter(([, name]) => !BUILD_TIME_ONLY.includes(name));
     expect(reads.filter(([, name]) => !name.startsWith('EXPO_PUBLIC_'))).toEqual([]);
     expect(
       reads.filter(([, name]) => !declared.has(name)).map(([w, n]) => `${w}  ${n}`),
@@ -174,6 +203,7 @@ describe('env reads survive Metro inlining', () => {
     // The names, not the line numbers — this survives the file moving but still makes a NEW
     // env read a deliberate, reviewed edit rather than something that arrives with a merge.
     expect([...new Set(reads.map(([, n]) => n))].sort()).toEqual([
+      'EXPO_PUBLIC_APP_VARIANT',
       'EXPO_PUBLIC_MAPBOX_TOKEN',
       'EXPO_PUBLIC_SENTRY_DSN',
       'EXPO_PUBLIC_SITE_ORIGIN',
@@ -975,14 +1005,16 @@ describe('a crash-trail marker is awaited, or justified in place (#488)', () => 
  * is only visible to a member whose device is not Italian — which is nobody on the dev
  * machine.
  *
- * `deviceLocale` stays legal in exactly the places that have no profile to read: the funnel
- * and the boot screens that draw before (or instead of) a session, the draft store, and the
- * two hooks. Anywhere else it means a signed-in screen went around the hook.
+ * `deviceLocale` stays legal in exactly two kinds of place. The ones with no profile to read:
+ * the funnel and the boot screens that draw before (or instead of) a session, the draft store,
+ * and the two hooks. And text the SYSTEM draws rather than an Athanor screen, which sits among
+ * the phone's own labels in the device language: the Android notification channel (#746).
+ * Anywhere else it means a signed-in screen went around the hook.
  */
 describe('the signed-in locale is resolved in exactly one place (#331)', () => {
   const RESOLVER = 'hooks/use-locale.ts';
 
-  /** No profile exists yet (or at all) on these, so they read the device directly. */
+  /** No profile exists yet (or at all) on these — or the system draws the text — so they read the device directly. */
   const DEVICE_LOCALE_OK = [
     RESOLVER,
     'hooks/use-draft-locale.ts',
@@ -994,6 +1026,10 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
     'components/boot/ForceUpdateScreen.tsx',
     'components/boot/MaintenanceScreen.tsx',
     'components/boot/ProfileErrorScreen.tsx',
+    // The Android notification channel's name (#746) is drawn by the SYSTEM settings screen,
+    // among the phone's own labels in the device language — not by an Athanor screen, and
+    // registration runs outside React, where useLocale() cannot be called.
+    'lib/push.ts',
   ];
 
   it('no screen hardcodes a locale fallback', () => {
@@ -2305,8 +2341,8 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
  * React Native gives `Switch` its role and its checked state from `value`, and NOTHING else. The
  * label `Text` beside it in the row is a sibling, not an association — there is no `htmlFor`
  * here — so a `Switch` with no `accessibilityLabel` announces as «attivato, interruttore» with
- * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which is
- * every switch the app has.
+ * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was
+ * every switch the app had at the time.
  *
  * The check is per-JSX-site, not per-runtime-control: `notif-prefs.tsx` renders six switches
  * from one tag inside `PREF_ROWS.map`, so a count here would be a number that rots. The property
@@ -2324,7 +2360,15 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
  * removes; this section only checks that nothing announces around it.
  */
 describe('a11y: toggles name themselves and ornaments stay silent (#635)', () => {
-  const SWITCH_FILES = ['app/(modal)/trust.tsx', 'app/(modal)/notif-prefs.tsx'];
+  // The two composers' «passo del percorso» Switches (#748) are row-owned: the Pressable row is
+  // the control and the Switch is hidden and touch-inert inside it. They still carry the label,
+  // so the rule below holds without an exception and a later un-hiding cannot ship unnamed.
+  const SWITCH_FILES = [
+    'app/(modal)/trust.tsx',
+    'app/(modal)/notif-prefs.tsx',
+    'app/(modal)/post-compose.tsx',
+    'app/(modal)/story-compose.tsx',
+  ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
 
   /** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
@@ -2359,7 +2403,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
       (n, p) => n + openingTags(stripComments(read(p)), 'Switch').length,
       0,
     );
-    // A scanner that finds nothing passes every assertion below. Two files, six tags today.
+    // A scanner that finds nothing passes every assertion below.
     expect(total, 'no <Switch> found at all — the walk is broken, not the tree').toBeGreaterThan(0);
   });
 
@@ -2379,7 +2423,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     ).toEqual([]);
   });
 
-  it('the Switch sites are exactly the two screens this section names', () => {
+  it('the Switch sites are exactly the screens this section names', () => {
     const owners = FILES.filter((p) => !isTest(p))
       .filter((p) => openingTags(stripComments(read(p)), 'Switch').length > 0)
       .map((p) => rel(p).replace('apps/native/src/', ''))
@@ -2584,16 +2628,16 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:523':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:379': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(modal)/story-compose.tsx:155': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:417':
+    'app/(modal)/post-compose.tsx:386': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/story-compose.tsx:162': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(onboarding)/index.tsx:419':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:359': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoriesViewer.tsx:370': 'the reply send disc — same reason as chat.tsx:523',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
@@ -3493,6 +3537,17 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
  * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
  * like a composer and shaped like a form — a title field, a chip row, then a tall description at
  * the foot — so it is in.
+ *
+ * ## The CTA is part of the reveal (#752, #766)
+ *
+ * A field landed above the keyboard with its only button still under it is a form nobody can
+ * send, so every registered form says where its CTA goes — carried up with the focused row
+ * (`SUBMITS`), or pinned below the list where the keyboard cannot reach it (`PINNED`) — and a
+ * form that says neither fails. Two more things decide whether the member can actually press
+ * it: `keyboardShouldPersistTaps="handled"` on the list, without which the first tap on a
+ * control the reveal just brought up only dismisses the keyboard (RN's default, `never`, eats
+ * it); and, where the last field is single-line, a return key that submits through the CTA's
+ * own gate (`KEY_SUBMITS`).
  */
 describe('a focused field is revealed, not merely uncovered (#689)', () => {
   /** The form screens that wire the reveal, with the key each of their fields is filed under. */
@@ -3510,6 +3565,43 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
   /** The app's two field primitives. Either one on a registered screen owes a reveal. */
   const FIELDS = ['Input', 'Field'];
 
+  /**
+   * The forms whose CTA rides along with the focused row (#752). Revealing the row alone landed
+   * the password field and left «Accedi» under the keyboard, and nothing but a device can see
+   * that happen again — the browser harness has no keyboard to cover anything.
+   */
+  const SUBMITS = [
+    `${SRC}app/(auth)/welcome.tsx`,
+    `${SRC}app/(auth)/forgot-password.tsx`,
+    `${SRC}app/(modal)/new-password.tsx`,
+    `${SRC}app/(modal)/event-create.tsx`,
+  ];
+
+  /**
+   * The screens whose CTA is pinned BELOW the list instead, where no ride-along can keep it
+   * (#766). `project-compose` ends on a tall multiline description whose return key types a
+   * newline: once the text grows past what fits beside the button, `revealSpan` drops the CTA
+   * and nothing on the keyboard can send. Pinned the way the two composers pin theirs (#748),
+   * which are named here too — nothing guarded their bars before. Each names its CTA by the
+   * handler it presses, so "the CTA" is never just whichever `Button` happens to come last.
+   */
+  const PINNED = [
+    { file: `${SRC}app/(modal)/project-compose.tsx`, onPress: 'onPublish' },
+    { file: `${SRC}app/(modal)/post-compose.tsx`, onPress: 'onPublish' },
+    { file: `${SRC}app/(modal)/story-compose.tsx`, onPress: 'onPublish' },
+  ];
+  const PINNED_FILES = PINNED.map((p) => p.file);
+
+  /**
+   * The forms whose last field is single-line and submits from the return key (#752). Not
+   * `event-create`: its last fields are number pads, and iOS draws no return key on those.
+   */
+  const KEY_SUBMITS = [
+    `${SRC}app/(auth)/welcome.tsx`,
+    `${SRC}app/(auth)/forgot-password.tsx`,
+    `${SRC}app/(modal)/new-password.tsx`,
+  ];
+
   const SEAM = 'lib/reveal-on-focus.ts';
 
   /** Keys quoted at a `.rowRef('…')` / `.fieldProps('…')` call, receiver-agnostic. */
@@ -3520,9 +3612,14 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
 
   it('finds the screens it is walking', () => {
     // A registry naming a moved file would pass everything below by finding nothing.
-    const missing = FORMS.map((f) => f.file).filter((p) => !FILES.includes(p));
+    const missing = [
+      ...FORMS.map((f) => f.file),
+      ...SUBMITS,
+      ...PINNED_FILES,
+      ...KEY_SUBMITS,
+    ].filter((p) => !FILES.includes(p));
     expect(
-      missing.map(rel),
+      [...new Set(missing)].map(rel),
       'a registered form screen has moved — this section is vacuous until the paths are fixed.',
     ).toEqual([]);
   });
@@ -3591,6 +3688,121 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
       `a reveal key is spelled two ways, or the registry is stale:\n  ${wrong.join('\n  ')}\n` +
         'A key that matches nothing fails SILENTLY — the reveal measures a row it was never ' +
         'given and returns, so the field stays under the keyboard with nothing to see (#689).',
+    ).toEqual([]);
+  });
+
+  it('the registered forms bring their submit along with the focused row', () => {
+    const wrong = SUBMITS.filter(
+      (p) =>
+        !FILES.includes(p) ||
+        !/\bref=\{[A-Za-z_$][\w$]*\.submitRef\(\)\}/.test(stripComments(read(p))),
+    ).map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(
+      wrong,
+      `a form no longer hands its CTA to the reveal:\n  ${wrong.join('\n  ')}\n` +
+        'Without `ref={reveal.submitRef()}` on the CTA block the reveal lands the field and ' +
+        'leaves the only button under the keyboard — #752, on a screen nothing but a device can ' +
+        'check. A moved file fails here too.',
+    ).toEqual([]);
+  });
+
+  it('every registered form says where its CTA goes', () => {
+    // Exactly one of the two: neither leaves the button wherever the scroll happens to put it,
+    // and both is a ref on a bar outside the list, measured against a list it is not in.
+    const wrong = FORMS.map((f) => f.file)
+      .filter((p) => SUBMITS.includes(p) === PINNED_FILES.includes(p))
+      .map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(
+      wrong,
+      `a form's CTA is in neither SUBMITS nor PINNED, or in both:\n  ${wrong.join('\n  ')}\n` +
+        'Revealing the field is half the job — a CTA left under the keyboard is a form nobody ' +
+        'can send (#766). Hand the CTA block to `reveal.submitRef()`, or pin it below the list.',
+    ).toEqual([]);
+  });
+
+  it('a pinned CTA sits below the list, inside the keyboard lift', () => {
+    const wrong: string[] = [];
+    for (const { file, onPress } of PINNED) {
+      const src = stripComments(read(file));
+      const where = rel(file).replace('apps/native/src/', '');
+      const lineOf = (i: number) => (i === -1 ? -1 : src.slice(0, i).split('\n').length);
+      const listEnd = lineOf(src.lastIndexOf('</ScrollView>'));
+      const liftEnd = lineOf(src.lastIndexOf('</KeyboardAvoiding>'));
+      const ctas = jsxOpeningTags(src).filter(
+        (t) => t.base === 'Button' && t.raw.includes(`onPress={${onPress}}`),
+      );
+      if (ctas.length !== 1) {
+        wrong.push(`${where}: ${ctas.length} Buttons press \`${onPress}\`, expected exactly one`);
+        continue;
+      }
+      const cta = ctas[0] as { line: number };
+      if (listEnd === -1 || cta.line < listEnd) {
+        wrong.push(`${where}:${cta.line} is inside the list`);
+      } else if (liftEnd === -1 || cta.line > liftEnd) {
+        wrong.push(`${where}:${cta.line} is outside KeyboardAvoiding — the keyboard covers it`);
+      }
+      // A ride-along ref on a pinned bar measures it against a list it is not in.
+      if (/\.submitRef\(\)/.test(src)) wrong.push(`${where}: pinned AND hands a submitRef`);
+    }
+    expect(
+      wrong,
+      `a pinned CTA moved back into the scroll, or out of the lift:\n  ${wrong.join('\n  ')}\n` +
+        'Inside the ScrollView the wrapper shrinks the list around the button and it stays under ' +
+        'the keyboard (#748, #766); outside `KeyboardAvoiding` nothing lifts it at all — and a ' +
+        '`Screen footer` is the bar DESIGN §6 says the wrapper does NOT lift, so it is no ' +
+        'substitute here.',
+    ).toEqual([]);
+  });
+
+  it('the first tap on these lists lands on the control', () => {
+    const wrong: string[] = [];
+    for (const p of new Set([...FORMS.map((f) => f.file), ...PINNED_FILES])) {
+      const src = stripComments(read(p));
+      const where = rel(p).replace('apps/native/src/', '');
+      for (const list of jsxOpeningTags(src).filter((t) => t.base === 'ScrollView')) {
+        if (!/\bkeyboardShouldPersistTaps="handled"/.test(list.raw)) {
+          wrong.push(`${where}:${list.line}`);
+        }
+      }
+    }
+    expect(
+      wrong,
+      `a list with the keyboard up swallows the first tap:\n  ${wrong.join('\n  ')}\n` +
+        "RN's default (`never`) spends the first tap on a control dismissing the keyboard, so the " +
+        'CTA the reveal just brought up needs a second press. `keyboardShouldPersistTaps=' +
+        '"handled"` (#748, #766).',
+    ).toEqual([]);
+  });
+
+  it('a single-line last field submits from the return key, through the CTA gate', () => {
+    const wrong: string[] = [];
+    for (const p of KEY_SUBMITS) {
+      const src = stripComments(read(p));
+      const where = rel(p).replace('apps/native/src/', '');
+      const tags = jsxOpeningTags(src);
+      // The key is a second way to press the CTA, so it must ask the CTA's own question: a
+      // `submit` that does not re-check is reachable mid-flight or with a malformed field (#752).
+      if (
+        !/const submitFromKeyboard = \(\) => \{ if \(!disabled\) void submit\(\); \};/.test(
+          src.replace(/\s+/g, ' '),
+        )
+      ) {
+        wrong.push(`${where}: submitFromKeyboard does not go through \`disabled\``);
+      }
+      if (!tags.some((t) => t.base === 'Button' && /\bdisabled=\{disabled\}/.test(t.raw))) {
+        wrong.push(`${where}: no Button is gated by the same \`disabled\``);
+      }
+      const keys = tags.filter((t) => /\bonSubmitEditing=\{submitFromKeyboard\}/.test(t.raw));
+      if (keys.length === 0) wrong.push(`${where}: no field submits from the return key`);
+      for (const key of keys.filter((t) => !/\breturnKeyType="(?:go|send)"/.test(t.raw))) {
+        wrong.push(`${where}:${key.line} submits from a return key that does not say so`);
+      }
+    }
+    expect(
+      wrong,
+      `a form's return key no longer sends it:\n  ${wrong.join('\n  ')}\n` +
+        'On a form whose last field is single-line the return key is the one control the ' +
+        'keyboard never covers (#752, #766).',
     ).toEqual([]);
   });
 
@@ -3909,5 +4121,136 @@ describe('the profile editor pins its way out, and no screen nests two scroll ax
         'along and DESIGN §6’s «one scroll axis per screen» is broken. The two are meant to be ' +
         'branch-exclusive — view mode’s ScrollView closed before edit mode is ever mounted.',
     ).toBeLessThan(editor);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 40 — logical inline spacing never reaches a node that drops it (#749)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Tailwind 4 compiles `px-*` / `mx-*` (and `ps-`/`pe-`/`ms-`/`me-`) to LOGICAL properties —
+ * `padding-inline`, `margin-inline` — which `react-native-css` hands to React Native as the
+ * `paddingInlineStart`/`End` aliases. RN resolves those aliases inside its own
+ * `updateYogaProps`, so an ordinary `View` takes them fine. Two nodes do not:
+ *
+ * - **`SafeAreaView`**, and therefore `Screen`. Its Fabric shadow node
+ *   (`RNCSafeAreaViewShadowNode::adjustLayoutWithState`) rebuilds the Yoga style from the props'
+ *   PHYSICAL edges and writes it back over the resolved one, so the aliases are gone.
+ *   `<Screen className="px-8">` rendered edge to edge on an iPhone SE and on the moto g17.
+ * - **An Android `TextInput`.** Measured on the moto g17: the same compose field put its text
+ *   ~7dp from the border with `px-4` and ~17dp with `pl-4 pr-4`. iOS and the web build honour
+ *   both, which is how eleven screens and every text field in the app shipped the logical
+ *   spelling through every pass that was not an Android device.
+ *
+ * The physical pair (`pl-`/`pr-`, `ml-`/`mr-`) renders identically everywhere, so the guard
+ * costs nothing on correct code. It reads only the tag's OWN `className` — a `footer={<View
+ * className="px-5">}` prop on a `Screen` is a plain View and stays legal — and, for the three
+ * primitives that build those class strings out of constants rather than inline, every string
+ * literal in the file. Margins ride along on the same code path; an Android `TextInput` margin
+ * was not measured, and the physical spelling is the safe side of that unknown.
+ */
+const LOGICAL_INLINE = /(?<![\w-])-?(?:px|mx|ps|pe|ms|me)-[\w[\].]+/g;
+const INLINE_DROPPING_TAGS = new Set(['Screen', 'SafeAreaView', 'TextInput']);
+const INLINE_CLASS_BUILDERS = [
+  'components/Input.tsx',
+  'components/Field.tsx',
+  'components/Screen.tsx',
+];
+
+/** The raw text of a tag's own `className` value — a quoted string or a braced expression. */
+function ownClassName(tag: { attrs: string; raw: string }): string | null {
+  const at = tag.attrs.search(/\bclassName\s*=/);
+  if (at === -1) return null;
+  let i = tag.raw.indexOf('=', at) + 1;
+  while (/\s/.test(tag.raw[i] ?? '')) i += 1;
+  const open = tag.raw[i];
+  if (open === '"' || open === "'") return tag.raw.slice(i + 1, tag.raw.indexOf(open, i + 1));
+  if (open !== '{') return null;
+  let depth = 0;
+  for (let j = i; j < tag.raw.length; j += 1) {
+    if (tag.raw[j] === '{') depth += 1;
+    else if (tag.raw[j] === '}' && --depth === 0) return tag.raw.slice(i + 1, j);
+  }
+  return tag.raw.slice(i + 1);
+}
+
+describe('logical inline spacing never reaches a node that drops it (#749)', () => {
+  const tags = () =>
+    FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter(({ base }) => INLINE_DROPPING_TAGS.has(base))
+        .map((tag) => ({ at: `${rel(p)}:${tag.line}`, base: tag.base, cls: ownClassName(tag) })),
+    );
+
+  it('finds the tags it is walking', () => {
+    const seen = new Set(
+      tags()
+        .filter(({ cls }) => cls != null)
+        .map(({ base }) => base),
+    );
+    expect([...seen].sort(), 'the scan stopped seeing a class-carrying tag').toEqual([
+      'SafeAreaView',
+      'Screen',
+      'TextInput',
+    ]);
+  });
+
+  it('no Screen, SafeAreaView or TextInput className carries a logical inline class', () => {
+    const hits = tags().flatMap(({ at, base, cls }) =>
+      [...(cls ?? '').matchAll(LOGICAL_INLINE)].map((m) => `${at}  <${base}> ${m[0]}`),
+    );
+    expect(
+      hits,
+      'use the physical pair — `pl-N pr-N` for `px-N`, `ml-N mr-N` for `mx-N` (#749)',
+    ).toEqual([]);
+  });
+
+  it('the primitives that build those classes from constants spell them physically', () => {
+    const hits = INLINE_CLASS_BUILDERS.flatMap((f) => {
+      const src = stripComments(read(`${SRC}${f}`));
+      return [...src.matchAll(/(['"`])((?:(?!\1)[^\\\n])*)\1/g)].flatMap((lit) =>
+        [...(lit[2] as string).matchAll(LOGICAL_INLINE)].map(
+          (m) => `apps/native/src/${f}:${src.slice(0, lit.index).split('\n').length}  ${m[0]}`,
+        ),
+      );
+    });
+    expect(hits, 'use the physical pair (#749)').toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 41 — the consent notice is shown wherever this screen can create an account (#777)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A first sign-in with a provider CREATES the account, and OAuth cannot tell which it is — so the
+ * sign-in mode, whose Google button is live for real members, creates accounts too. Until #777
+ * the notice rendered under `!login` only, and a store reviewer signing in with Google from
+ * «Accedi» joined without seeing the terms they were said to accept. Play's UGC policy asks for
+ * exactly that acceptance before anyone can post.
+ *
+ * A source pin, because no render harness reaches this screen: each mode has its own notice, the
+ * sign-in one inside the provider block it is about. It cannot see layout — whether the notice is
+ * on screen next to the buttons is the device walk's to prove.
+ */
+describe('the consent notice is shown wherever an account can be created (#777)', () => {
+  const screen = () => stripComments(read(`${SRC}app/(auth)/welcome.tsx`));
+
+  it('the sign-in mode shows its own notice, inside the provider block', () => {
+    const src = screen();
+    const block = src.slice(src.indexOf('{anyOauth ? ('), src.indexOf("t('auth.orEmail'"));
+    expect(
+      /\{login \? \(\s*<LegalNotice text=\{oauthNotice\}/.test(block),
+      'the sign-in mode no longer renders `auth.legal.oauthNotice` under the provider buttons — a ' +
+        'first Google sign-in there creates an account with no notice shown (#777).',
+    ).toBe(true);
+    expect(src).toMatch(/t\('auth\.legal\.oauthNotice', locale/);
+  });
+
+  it('the signup mode keeps its notice by the CTA', () => {
+    expect(screen()).toMatch(
+      /\{!login \? \(\s*<LegalNotice\s+text=\{t\('auth\.legal\.notice', locale\)\}/,
+    );
   });
 });

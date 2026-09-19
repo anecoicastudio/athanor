@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { privacy, terms, type LegalDoc } from './legal-content';
+import { t } from '@athanor/i18n';
+import { REPORT_CATEGORIES } from '@athanor/schemas';
+import { childSafety, deleteAccount, privacy, terms, type LegalDoc } from './legal-content';
+import { LEGAL_ROUTES } from './legal-routes';
 
 /**
- * These are the published privacy policy and terms, reachable at /privacy and /terms in both
+ * These are the published privacy policy, the terms, the account-deletion page and the child
+ * safety standards, reachable at /privacy, /terms, /delete-account and /child-safety in both
  * locales. i18n.md's parity rule applies for the same reason it applies to the UI catalog: a
  * section present in one language and missing in the other is a legal document that differs by
  * locale. The site is EU-facing, so an empty section is a compliance gap, not a typo.
@@ -10,6 +14,8 @@ import { privacy, terms, type LegalDoc } from './legal-content';
 const docs: [string, Record<'it' | 'en', LegalDoc>][] = [
   ['privacy', privacy],
   ['terms', terms],
+  ['deleteAccount', deleteAccount],
+  ['childSafety', childSafety],
 ];
 
 const MONTHS: Record<string, number> = {
@@ -82,6 +88,23 @@ describe.each(docs)('%s', (_name, doc) => {
     expect(monthYear(doc.en.updated)).toEqual(monthYear(doc.it.updated));
   });
 
+  it.each(['it', 'en'] as const)('%s gives the renderer unique keys', (loc) => {
+    // components/legal-doc.tsx keys a section by its heading and a paragraph by its first 24
+    // characters. A duplicate renders with a React key warning and can drop or reorder
+    // paragraphs on a locale switch — on a legal page, a paragraph that silently disappears.
+    const headings = doc[loc].sections.map((s) => s.heading);
+    expect(new Set(headings).size).toBe(headings.length);
+    for (const section of doc[loc].sections) {
+      const keys = section.body.map((p) => p.slice(0, 24));
+      expect(new Set(keys).size, section.heading).toBe(keys.length);
+    }
+  });
+
+  it.each(['it', 'en'] as const)('%s never says «utenti» or "engagement"', (loc) => {
+    // i18n.md: people are not metrics, and the legal copy holds the same line as the UI.
+    expect(JSON.stringify(doc[loc])).not.toMatch(/\butent[ei]\b|engagement/i);
+  });
+
   it('is genuinely translated, not IT text copied into the EN slot', () => {
     // The failure this catches is a placeholder EN doc that renders Italian to an English
     // reader. Headings are the shortest reliable signal; a handful may legitimately match
@@ -103,5 +126,619 @@ describe('controller identification', () => {
         expect(text).toMatch(/[\w.]+@[\w.]+\.\w+/);
       }
     }
+  });
+});
+
+/**
+ * /delete-account is the URL in Google Play's Data safety form (#767). Play reads it for four
+ * things: the app or developer name as the listing shows it, a deletion pathway that does not
+ * send the person back to the app, any step they must take first, and what is kept. The page also
+ * has to say what the app says — a label that drifted would walk somebody to a row that is not
+ * there — so the in-app steps are asserted against the catalog, not against a copy of it.
+ */
+describe('deleteAccount', () => {
+  const text = (loc: 'it' | 'en') => JSON.stringify(deleteAccount[loc]);
+
+  it.each(['it', 'en'] as const)('%s names the app as the store listing does', (loc) => {
+    expect(text(loc)).toContain(t('store.name', loc));
+  });
+
+  it.each(['it', 'en'] as const)('%s is titled like the in-app deletion screen', (loc) => {
+    expect(deleteAccount[loc].title).toBe(t('account.delete.title', loc));
+  });
+
+  it.each(['it', 'en'] as const)("%s walks the in-app path with the app's own labels", (loc) => {
+    const steps = deleteAccount[loc].sections[0]!.body.join('\n');
+    for (const key of [
+      'tabs.profile',
+      'settings.title',
+      'settings.section.privacy',
+      'account.delete.row',
+      'account.delete.confirmWord',
+      'account.delete.cta',
+    ] as const) {
+      expect(steps, key).toContain(t(key, loc));
+    }
+  });
+
+  it.each(['it', 'en'] as const)(
+    '%s names the confirm word of BOTH app languages — the app, not this page, sets which one applies',
+    (loc) => {
+      const steps = deleteAccount[loc].sections[0]!.body.join('\n');
+      expect(steps).toContain(t('account.delete.confirmWord', 'it'));
+      expect(steps).toContain(t('account.delete.confirmWord', 'en'));
+    },
+  );
+
+  it.each(['it', 'en'] as const)(
+    "%s carries both of the in-app screen's paragraphs verbatim, so the two cannot promise different things",
+    (loc) => {
+      const paragraphs = deleteAccount[loc].sections.flatMap((s) => s.body);
+      expect(paragraphs).toContain(t('account.delete.body', loc));
+      expect(paragraphs).toContain(t('account.delete.deferred', loc));
+    },
+  );
+
+  it.each(['it', 'en'] as const)('%s offers the same contact address as /privacy', (loc) => {
+    // A deletion route for somebody who cannot sign in, and the controller's published address
+    // for data requests — one address, not a second one only this page knows.
+    const address = /[\w.]+@[\w.]+\.\w+/;
+    const published = JSON.stringify(privacy[loc]).match(address)?.[0];
+    expect(published).toBeDefined();
+    expect(deleteAccount[loc].sections[1]!.body.join('\n')).toContain(published);
+  });
+
+  it('says in both locales that no reinstall is needed', () => {
+    expect(deleteAccount.it.sections[1]!.body.join('\n')).toMatch(/non serve reinstallare/i);
+    expect(deleteAccount.en.sections[1]!.body.join('\n')).toMatch(/don't need to reinstall/i);
+  });
+
+  it('names the Circle subscription as the one step a person might think they owe first', () => {
+    // Play: «If the user needs to take additional steps before deleting their account (for
+    // example, canceling a subscription), this must be clearly outlined». Here the step is ours —
+    // erasure-job cancels the subscription — and the page has to say so.
+    expect(text('it')).toMatch(/Circle[^"]*lo annulliamo noi/);
+    expect(text('en')).toMatch(/Circle[^"]*we cancel it/);
+  });
+
+  it('says what stays at Stripe — the cascade never touches the Stripe Customer', () => {
+    // create-circle-checkout creates the Customer with the member's email and nothing in
+    // supabase/functions deletes or redacts it, so «senza i tuoi contatti» about OUR rows would
+    // otherwise read as a claim about the payment provider too.
+    expect(text('it')).toMatch(/Stripe[^"]*indirizzo email[^"]*non li cancella/);
+    expect(text('en')).toMatch(/Stripe[^"]*email address[^"]*does not remove them/);
+  });
+
+  it('states the ten-year payment retention as a fact about us, not as a legal duty', () => {
+    // Marco's ruling on PR 773: the controller is a German UG and the page cites no law, so the
+    // sentence says what we do and why, not what "the law requires". The app's own deferral line
+    // («I dati che la legge ci obbliga a conservare…») is quoted verbatim elsewhere and stays.
+    const payments = (loc: 'it' | 'en') =>
+      deleteAccount[loc].sections.at(-1)!.body.find((p) => /Circle/.test(p))!;
+    expect(payments('it')).toMatch(/per dieci anni per i nostri obblighi contabili e fiscali/);
+    expect(payments('en')).toMatch(/for ten years for our accounting and tax obligations/);
+    expect(payments('it')).not.toMatch(/\blegge\b/i);
+    expect(payments('en')).not.toMatch(/\blaw\b|legally/i);
+  });
+
+  it.each(['it', 'en'] as const)(
+    "%s offers the export before the in-app deletion steps, by the row's own label",
+    (loc) => {
+      const body = deleteAccount[loc].sections[0]!.body;
+      const exportLine = body.findIndex((p) => p.includes(t('settings.export.title', loc)));
+      const firstStep = body.findIndex((p) => p.startsWith('1. '));
+      expect(exportLine).toBeGreaterThanOrEqual(0);
+      expect(exportLine).toBeLessThan(firstStep);
+    },
+  );
+
+  it('never gives the webhook ledger a retention window it does not have', () => {
+    // MIGRATIONS-ERRATA: stripe_webhook_events is redacted at erasure and has NO retention
+    // window — the ten-year reaper never touches it. The ten years belong to the three payment
+    // tables only, so the ledger paragraph must not borrow them.
+    const ledger = (loc: 'it' | 'en') =>
+      deleteAccount[loc].sections.at(-1)!.body.find((p) => /Stripe/.test(p) && /notific/i.test(p));
+    expect(ledger('it')).toBeDefined();
+    expect(ledger('en')).toBeDefined();
+    expect(ledger('it')).not.toMatch(/anni/);
+    expect(ledger('en')).not.toMatch(/years/);
+  });
+
+  it('points to the privacy policy for everything, not for site visitors only', () => {
+    // Before #774 the policy covered the site alone, so this note sent app members elsewhere.
+    expect(deleteAccount.it.reviewNote).not.toMatch(/chi visita questo sito/);
+    expect(deleteAccount.en.reviewNote).not.toMatch(/people who visit this site/);
+  });
+
+  it('names the one ledger event the redaction cannot reach, until something closes it', () => {
+    // 20260912070533's accepted limit: a fund contribution's refund or dispute already in the
+    // ledger at erasure time keeps its billing details. «We remove your identifying details»
+    // with no exception would promise what the cascade does not do.
+    const ledger = (loc: 'it' | 'en') => deleteAccount[loc].sections.at(-1)!.body.at(-1)!;
+    expect(ledger('it')).toMatch(/tranne[^.]*rimborso[^.]*contributo al fondo/);
+    expect(ledger('en')).toMatch(/except[^.]*refund[^.]*fund contribution/);
+  });
+});
+
+/**
+ * /privacy is ONE policy for the app and this site (#774): the app links it from Settings,
+ * sign-up and the Circle screen, and it is the URL in the Play Console's privacy field. Until
+ * #774 it said it covered the site only and that the app would get its own policy — which never
+ * existed. What these pin is the part that must not drift: the scope, the labels a person has to
+ * find in the app (read from the catalog, as /delete-account does), and the retention sentences
+ * that /delete-account already states — the same words, not a second paraphrase of the cascade.
+ * The minimum age and the Aura numbers follow `@athanor/core` (see legal-content.constants.test.ts).
+ */
+describe('privacy', () => {
+  const locales = ['it', 'en'] as const;
+  const paragraphs = (loc: 'it' | 'en') => privacy[loc].sections.flatMap((s) => s.body);
+  const all = (loc: 'it' | 'en') =>
+    [privacy[loc].intro, ...privacy[loc].sections.flatMap((s) => [s.heading, ...s.body])].join(
+      '\n',
+    );
+
+  it('no longer says it covers the site only, or that the app will get its own policy', () => {
+    expect(all('it')).not.toMatch(/solo questo sito|una propria informativa|non in questa/i);
+    expect(all('en')).not.toMatch(/this site only|its own policy|not this one/i);
+  });
+
+  it.each(locales)('%s names the app as the store listing does, and the site', (loc) => {
+    expect(privacy[loc].intro).toContain(t('store.name', loc));
+    expect(privacy[loc].intro).toMatch(loc === 'it' ? /questo sito/ : /this site/);
+  });
+
+  it.each(locales)('%s has an app part followed by a site part', (loc) => {
+    const headings = privacy[loc].sections.map((s) => s.heading);
+    const app = loc === 'it' ? "Nell'app:" : 'In the app:';
+    const site = loc === 'it' ? 'Sul sito:' : 'On the site:';
+    const lastApp = headings.findLastIndex((h) => h.startsWith(app));
+    const firstSite = headings.findIndex((h) => h.startsWith(site));
+    expect(headings.findIndex((h) => h.startsWith(app))).toBeGreaterThan(0);
+    expect(firstSite).toBeGreaterThan(lastApp);
+  });
+
+  it.each(locales)(
+    "%s walks people to the app's own labels, quoted as the app shows them",
+    (loc) => {
+      // Quoted, because several labels are also ordinary words («Notifiche», «Momenti») that the
+      // prose would contain anyway — an unquoted match could pass with the interpolation gone.
+      const text = all(loc);
+      const quote = (label: string) => (loc === 'it' ? `«${label}»` : `“${label}”`);
+      for (const key of [
+        'settings.title',
+        'settings.section.privacy',
+        'settings.export.title',
+        'account.delete.row',
+        'account.delete.title',
+        'settings.trust.title',
+        'gdpr.consent.section',
+        'gdpr.consent.diagnostics',
+        'settings.notif.title',
+        'profile.visibility.label',
+        'visibility.public',
+        'visibility.members',
+        'visibility.private',
+        'story.own.pin',
+        'live.tab.vicino',
+        'momenti.suggestionsTitle',
+        'gdpr.location.label',
+        'gdpr.consent.comms',
+      ] as const) {
+        expect(text, key).toContain(quote(t(key, loc)));
+      }
+    },
+  );
+
+  it.each(locales)('%s names Momenti by its catalog name in the heading', (loc) => {
+    const headings = privacy[loc].sections.map((s) => s.heading);
+    expect(
+      headings.some((h) =>
+        h.endsWith(`Aura ${loc === 'it' ? 'e' : 'and'} ${t('momenti.title', loc)}`),
+      ),
+    ).toBe(true);
+  });
+
+  it.each(locales)(
+    "%s states retention in /delete-account's words and the app's own deferral line",
+    (loc) => {
+      const ps = paragraphs(loc);
+      expect(ps).toContain(t('account.delete.deferred', loc));
+      const [deleted, kept] = deleteAccount[loc].sections.slice(-2);
+      // `deleted.body[0]` IS the deferral line, asserted above by key.
+      for (const p of [...deleted!.body.slice(1), ...kept!.body]) expect(ps).toContain(p);
+    },
+  );
+
+  it.each(locales)('%s never gives the payment-notification log a retention window', (loc) => {
+    // MIGRATIONS-ERRATA: stripe_webhook_events has NO retention window; the ten years belong to
+    // the three payment tables only. Every paragraph about Stripe's notifications must say so.
+    const ledger = paragraphs(loc).filter((p) => /Stripe/.test(p) && /notific/i.test(p));
+    expect(ledger.length).toBeGreaterThanOrEqual(2);
+    for (const p of ledger) expect(p).not.toMatch(/anni|years/);
+  });
+
+  it.each(locales)(
+    '%s states the ten-year retention as a fact about us, not a legal duty',
+    (loc) => {
+      // Marco's ruling on PR 773 holds here too. The in-app deferral line, quoted verbatim, is the
+      // one sentence allowed to name the law, and it names no period.
+      const tenYears = paragraphs(loc).filter((p) => /dieci anni|ten years/.test(p));
+      expect(tenYears.length).toBeGreaterThan(0);
+      for (const p of tenYears) expect(p).not.toMatch(/\blegge\b|\blaw\b|legally/i);
+    },
+  );
+
+  it.each(locales)("%s publishes one contact address — the controller's", (loc) => {
+    // GDPR Art. 13(1)(b), and the address /delete-account sends people to. The app's support
+    // mailbox is a different address and must not appear here as a second way in.
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(found.length).toBeGreaterThan(0);
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+  });
+
+  it.each(locales)(
+    '%s names the authorities as recipients of apparent CSAM, as /child-safety promises',
+    (loc) => {
+      // #779: /child-safety reports apparent CSAM to the police and the national hotlines and
+      // points to this policy for the data in a report. Without these lines the policy would still
+      // say only the moderation team reads a report, and name no recipient beyond providers.
+      const label = t('legal.childSafety', loc);
+      const pointer = loc === 'it' ? `«${label}»` : `“${label}”`;
+      const reports = privacy[loc].sections.find((s) =>
+        s.heading.startsWith(loc === 'it' ? "Nell'app: segnalazioni" : 'In the app: reports'),
+      )!;
+      const recipients = privacy[loc].sections.find((s) =>
+        s.heading.startsWith(loc === 'it' ? 'A chi arrivano' : 'Who receives'),
+      )!;
+      for (const section of [reports, recipients]) {
+        const text = section.body.join('\n');
+        expect(text, section.heading).toContain(pointer);
+        expect(text, section.heading).toMatch(
+          loc === 'it' ? /polizia|autorità/ : /police|authorities/,
+        );
+      }
+    },
+  );
+
+  it('claims no parental consent — the app performs no such step', () => {
+    expect(all('it')).not.toMatch(/genitor|tutore|responsabilità genitoriale/i);
+    expect(all('en')).not.toMatch(/parent|guardian/i);
+  });
+
+  it('says a Circle subscription and fund contributions buy no Aura (rule 1)', () => {
+    expect(all('it')).toMatch(/Circle[^.]*contributi al fondo non danno punti/);
+    expect(all('en')).toMatch(/Circle[^.]*fund contributions earn no points/);
+  });
+
+  it('describes contribution records conditionally, as kept when the fund is open', () => {
+    // The fund is OFF on production for this release (#249). This pins the conditional; it
+    // cannot catch another sentence presenting the fund as live — that is the copy read.
+    expect(all('it')).toMatch(/Quando il fondo è aperto/);
+    expect(all('en')).toMatch(/When the fund is open/);
+  });
+});
+
+/**
+ * /child-safety is the URL in Google Play's Child Safety Standards declaration (#779). Play reads
+ * it for the app or developer name as the listing shows it, a mention of child safety, the way to
+ * report inside the app and a point of contact. What these pin beyond that is what must not drift
+ * or grow: the app's own report labels (read from the catalog, as /delete-account does), the one
+ * address, the hotlines Marco ruled, the promises he ruled, and the claims nothing in the product
+ * backs.
+ */
+describe('childSafety', () => {
+  const locales = ['it', 'en'] as const;
+  const section = (loc: 'it' | 'en', id: string) => {
+    const found = childSafety[loc].sections.find((s) => s.id === id);
+    if (!found) throw new Error(`${loc} has no section #${id}`);
+    return found;
+  };
+  const body = (loc: 'it' | 'en', id: string) => section(loc, id).body.join('\n');
+  const all = (loc: 'it' | 'en') => {
+    const d = childSafety[loc];
+    return [
+      d.title,
+      d.intro,
+      ...d.sections.flatMap((s) => [
+        s.heading,
+        ...s.body,
+        ...(s.links ?? []).flatMap((l) => [l.label, l.href]),
+      ]),
+      d.reviewNote,
+    ].join('\n');
+  };
+  const quote = (loc: 'it' | 'en', label: string) => (loc === 'it' ? `«${label}»` : `“${label}”`);
+
+  it.each(locales)('%s names the app as the store listing does, and its developer', (loc) => {
+    expect(childSafety[loc].intro).toContain(t('store.name', loc));
+    expect(childSafety[loc].intro).toContain('Anecoica Studio');
+  });
+
+  it('says what it is about in its title', () => {
+    expect(childSafety.en.title).toMatch(/child safety/i);
+    expect(childSafety.it.title).toMatch(/tutela dei minori/i);
+  });
+
+  it('gives every section an anchor, the same one in both locales', () => {
+    const ids = (loc: 'it' | 'en') => childSafety[loc].sections.map((s) => s.id);
+    expect(ids('it').every(Boolean)).toBe(true);
+    expect(new Set(ids('it')).size).toBe(ids('it').length);
+    expect(ids('en')).toEqual(ids('it'));
+  });
+
+  it.each(locales)("%s walks every in-app report path with the app's own labels", (loc) => {
+    const steps = body(loc, 'report');
+    for (const key of [
+      'report.title',
+      'chat.report',
+      'chat.message.report',
+      'tabs.profile',
+      'settings.section.privacy',
+      'report.behavior.row',
+      'report.reason.other',
+      'report.cta',
+    ] as const) {
+      expect(steps, key).toContain(quote(loc, t(key, loc)));
+    }
+  });
+
+  it.each(locales)('%s gives each report path its own step', (loc) => {
+    // «Segnala» is both `report.title` and `chat.report`, so the label check above passes with a
+    // whole path gone. Each path is pinned by its own clause.
+    const q = (key: 'report.title' | 'chat.report' | 'chat.message.report') =>
+      quote(loc, t(key, loc));
+    const clauses =
+      loc === 'it'
+        ? [
+            `Su un profilo tocca ⋯ e poi ${q('report.title')}`,
+            `In un post tocca ${q('report.title')} in alto`,
+            `In una chat tocca ⋯ e poi ${q('chat.report')}`,
+            `tienilo premuto e scegli ${q('chat.message.report')}`,
+          ]
+        : [
+            `On a profile, tap ⋯ and then ${q('report.title')}`,
+            `On a post, tap ${q('report.title')} at the top`,
+            `In a chat, tap ⋯ and then ${q('chat.report')}`,
+            `press and hold it and choose ${q('chat.message.report')}`,
+          ];
+    for (const clause of clauses) expect(body(loc, 'report')).toContain(clause);
+  });
+
+  it('points at «Altro» only while no report reason is about children', () => {
+    // The page tells people there is no dedicated reason. A child-safety category (the optional
+    // follow-up on #779) makes that false, and this goes red so the page names it instead.
+    for (const category of REPORT_CATEGORIES) {
+      expect(t(`report.reason.${category}`, 'en'), category).not.toMatch(/child|minor/i);
+      expect(t(`report.reason.${category}`, 'it'), category).not.toMatch(/minor|bambin/i);
+    }
+  });
+
+  it.each(locales)("%s publishes one address — the controller's, as a mailto", (loc) => {
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+    expect(section(loc, 'contact').links).toEqual([
+      { label: 'info@anecoica.net', href: 'mailto:info@anecoica.net' },
+    ]);
+  });
+
+  it.each(locales)('%s names the point of contact Marco ruled', (loc) => {
+    expect(body(loc, 'contact')).toContain('Marco Accardi');
+  });
+
+  it('promises the review time Marco ruled — 24 hours', () => {
+    expect(body('it', 'action')).toMatch(/entro 24 ore/);
+    expect(body('en', 'action')).toMatch(/within 24 hours/);
+  });
+
+  it('promises removal, a ban and a report to the authorities', () => {
+    // Removal is an operator action until the panel has one (Marco's ruling on #779); the ban and
+    // what it hides are resolve_report's and #314's. Nothing weaker, nothing more.
+    expect(body('it', 'action')).toMatch(/rimuoviamo il contenuto[^.]*escludiamo/);
+    expect(body('en', 'action')).toMatch(/remove the content[^.]*ban/);
+    expect(body('it', 'action')).toMatch(/segnaliamo alle autorità competenti/);
+    expect(body('en', 'action')).toMatch(/reported to the competent authorities/);
+  });
+
+  it('sends people to the police first, then to the hotlines Marco ruled', () => {
+    const hotlines = [
+      'https://www.jugendschutz.net/en/make-a-report',
+      'https://www.fsm.de/en/fsm/hotline/',
+      'https://international.eco.de/topics/policy-law/eco-complaints-office/report-a-complaint/',
+      'https://www.azzurro.it/clicca-e-segnala/',
+      'https://stop-it.savethechildren.it/',
+      'https://inhope.org/',
+    ];
+    for (const loc of locales) {
+      const s = section(loc, 'authorities');
+      expect(s.body[0]).toMatch(loc === 'it' ? /polizia[^.]*112/ : /police[^.]*112/);
+      expect(s.links?.map((l) => l.href)).toEqual(hotlines);
+    }
+  });
+
+  it.each(locales)('%s claims nothing the product does not do', (loc) => {
+    // No scanning, no hash matching, no age verification (the birth date is self-declared) and
+    // no copy kept as evidence exist, so none may be promised.
+    expect(all(loc)).not.toMatch(
+      /scan|hash|automat|verifich\w* l'età|age verification|verif\w* (your |their )?age|evidence|preserv|come prova|conserviamo/i,
+    );
+  });
+
+  it('points to the privacy policy for the data in a report', () => {
+    expect(childSafety.it.reviewNote).toMatch(/informativa sulla privacy/);
+    expect(childSafety.en.reviewNote).toMatch(/privacy policy/);
+  });
+});
+
+/**
+ * /terms covers the app and this site (#777). Sign-up, Settings and the Circle screen link it, and
+ * the sign-up notice asks people to accept it — yet until #777 it described a presentation site
+ * whose app was «not yet published», under a public «Bozza» note: the first page a store reviewer
+ * opens from that notice. What these pin is what must not come back or drift: the scope, the one
+ * address, rule 1, the verdicts moderation really has, the paid things that are really on sale,
+ * and the other legal pages in the reader's language. The minimum age follows `@athanor/core`
+ * (see legal-content.constants.test.ts).
+ */
+describe('terms', () => {
+  const locales = ['it', 'en'] as const;
+  const section = (loc: 'it' | 'en', id: string) => {
+    const found = terms[loc].sections.find((s) => s.id === id);
+    if (!found) throw new Error(`${loc} has no section #${id}`);
+    return found;
+  };
+  const body = (loc: 'it' | 'en', id: string) => section(loc, id).body.join('\n');
+  const paragraphs = (loc: 'it' | 'en') => terms[loc].sections.flatMap((s) => s.body);
+  const links = (loc: 'it' | 'en') => terms[loc].sections.flatMap((s) => s.links ?? []);
+  const all = (loc: 'it' | 'en') => {
+    const d = terms[loc];
+    return [
+      d.title,
+      d.intro,
+      ...d.sections.flatMap((s) => [
+        s.heading,
+        ...s.body,
+        ...(s.links ?? []).flatMap((l) => [l.label, l.href]),
+      ]),
+      d.reviewNote,
+    ].join('\n');
+  };
+
+  it('no longer describes a presentation site, an unpublished app or a draft', () => {
+    // The old copy spelled «L’app» with U+2019 and the file mixes both apostrophes, so the
+    // sentence is pinned in either form — and that pattern alone is checked against each, since
+    // the wider pattern below would also match through «ancora pubblicata».
+    const OLD_SENTENCE = /L['’]app non è ancora pubblicata/;
+    for (const old of ["L'app non è ancora pubblicata", 'L’app non è ancora pubblicata']) {
+      expect(old, 'the pin must catch both apostrophe forms').toMatch(OLD_SENTENCE);
+    }
+    const OLD_IT = new RegExp(
+      `${OLD_SENTENCE.source}|ancora pubblicata|sito di presentazione|bozza|da rivedere con un legale`,
+      'i',
+    );
+    const OLD_EN = /not yet published|presentation site|draft|review with counsel/i;
+    expect(all('it')).not.toMatch(OLD_IT);
+    expect(all('en')).not.toMatch(OLD_EN);
+  });
+
+  it.each(locales)('%s covers the app as the store listing names it, and this site', (loc) => {
+    expect(terms[loc].intro).toContain(t('store.name', loc));
+    expect(terms[loc].intro).toMatch(loc === 'it' ? /questo sito/ : /this site/);
+  });
+
+  it('gives every section an anchor, the same one in both locales', () => {
+    const ids = (loc: 'it' | 'en') => terms[loc].sections.map((s) => s.id);
+    expect(ids('it').every(Boolean)).toBe(true);
+    expect(new Set(ids('it')).size).toBe(ids('it').length);
+    expect(ids('en')).toEqual(ids('it'));
+  });
+
+  it.each(locales)("%s publishes one address — the controller's, as a mailto", (loc) => {
+    // The app's support mailbox is a different address and must not appear here as a second way in.
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+    expect(section(loc, 'contact').links).toEqual([
+      { label: 'info@anecoica.net', href: 'mailto:info@anecoica.net' },
+    ]);
+  });
+
+  it.each(locales)(
+    '%s links the other legal pages in the language it is read in, by their catalog names',
+    (loc) => {
+      // A section link is a plain <a>: a full page load, which drops the in-memory locale and falls
+      // back to the cookie — and a reader who arrived through the app's `?lang=` has no cookie
+      // (locale-provider.tsx never writes the hint back). So the link carries the hint itself.
+      const expected = [
+        ['/privacy', 'settings.legal.privacy'],
+        ['/delete-account', 'account.delete.title'],
+        ['/child-safety', 'legal.childSafety'],
+      ] as const;
+      const internal = links(loc).filter((l) => l.href.startsWith('/'));
+      for (const [path, key] of expected) {
+        expect(internal, path).toContainEqual({ label: t(key, loc), href: `${path}?lang=${loc}` });
+      }
+      const published = LEGAL_ROUTES.map((r) => r.path as string);
+      for (const { href } of internal) {
+        const [path, query] = href.split('?');
+        expect(published, href).toContain(path);
+        expect(query, href).toBe(`lang=${loc}`);
+      }
+    },
+  );
+
+  it.each(locales)('%s states the age in the account section', (loc) => {
+    // The number itself is pinned to MIN_MEMBER_AGE in legal-content.constants.test.ts.
+    expect(body(loc, 'account')).toMatch(loc === 'it' ? /almeno \d+ anni/ : /aged \d+ and over/);
+  });
+
+  it('says a Circle subscription and fund contributions buy no Aura (rule 1)', () => {
+    expect(all('it')).toMatch(/Circle[^.]*contributi al fondo non danno punti/);
+    expect(all('en')).toMatch(/Circle[^.]*fund contributions earn no points/);
+  });
+
+  it.each(locales)(
+    '%s names Circle and the fund only to say they buy no Aura — neither is on sale',
+    (loc) => {
+      // Production, queried 2026-09-19: `circle_checkout_enabled` absent (fails closed) and
+      // `fund_surfaces_enabled` false; `contributions_enabled` defaults false as a LEGAL FLAG.
+      // Opening either needs no code, so its terms (renewal, cancellation, what a contribution
+      // buys) must land here FIRST — and this goes red when they do, which is the point.
+      for (const p of paragraphs(loc).filter((p) => /Circle|fondo|\bfund\b/.test(p))) {
+        expect(p).toMatch(loc === 'it' ? /non danno punti/ : /earn no points/);
+      }
+    },
+  );
+
+  it('sells only what is on sale — tickets through Stripe, the organiser paid net of our share', () => {
+    expect(body('it', 'payments')).toMatch(/Stripe/);
+    expect(body('en', 'payments')).toMatch(/Stripe/);
+    // The share is the one the composer makes the organiser accept (`event.create.settlement.ack`).
+    expect(body('it', 'payments')).toMatch(/meno la percentuale che trattiene Athanor/);
+    expect(body('en', 'payments')).toMatch(/minus the percentage Athanor keeps/);
+  });
+
+  it.each(locales)('%s promises no regime the product does not implement', (loc) => {
+    // No refund is ever initiated by code (stripe-webhook/handlers.ts: an operator refunds in the
+    // Stripe Dashboard), and arbitration, a withdrawal-right regime and VAT are with counsel
+    // (#711, #250). None may be promised here until they exist.
+    expect(all(loc)).not.toMatch(
+      /rimbors|refund|arbitra|recesso|right of withdrawal|\bIVA\b|\bVAT\b|seller of record/i,
+    );
+  });
+
+  it('names the verdicts moderation really has, and that a person takes them', () => {
+    // resolve_report v5: dismiss | warn | penalty | suspend | ban, gated on is_admin. Removal is
+    // an operator action by hand until the panel has one (#788), as /child-safety says. The
+    // person clause is pinned whole: «una persona» alone also matches «segnalare una persona».
+    for (const word of [
+      /avviso/,
+      /Aura/,
+      /sospendere/,
+      /escluder/,
+      /rimuovere/,
+      /sempre una persona del team di moderazione, mai un programma/,
+    ]) {
+      expect(body('it', 'moderation')).toMatch(word);
+    }
+    for (const word of [
+      /warning/,
+      /Aura/,
+      /suspend/,
+      /\bban\b/,
+      /remove/,
+      /always taken by a person on the moderation team, never by a program/,
+    ]) {
+      expect(body('en', 'moderation')).toMatch(word);
+    }
+  });
+
+  it('says a suspension closes sign-in as well as writing — both #106 halves apply to it', () => {
+    // resolve_report enqueues moderation-enforce for 'suspend' too, which sets a GoTrue ban until
+    // the date. Saying only «you cannot write» would promise a suspended member they can still
+    // sign in and read.
+    expect(body('it', 'moderation')).toMatch(/sospensione non puoi accedere/);
+    expect(body('en', 'moderation')).toMatch(/suspension you cannot sign in/);
+  });
+
+  it.each(locales)('%s sends child safety to its own page rather than restating it', (loc) => {
+    expect(section(loc, 'rules').links?.map((l) => l.href)).toContain(`/child-safety?lang=${loc}`);
   });
 });

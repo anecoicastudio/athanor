@@ -12,6 +12,11 @@ describe('remoteConfigKeys', () => {
   it('boot key is stable', () => {
     expect(remoteConfigKeys.boot()).toEqual(['remoteConfig', 'boot']);
   });
+
+  it('live key is distinct from boot, under the same root', () => {
+    expect(remoteConfigKeys.live()).toEqual(['remoteConfig', 'live']);
+    expect(remoteConfigKeys.live()).not.toEqual(remoteConfigKeys.boot());
+  });
 });
 
 describe('getRemoteConfig', () => {

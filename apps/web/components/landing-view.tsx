@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import type { Locale } from '@athanor/i18n';
 import Image from 'next/image';
-import Link from 'next/link';
 import { t } from '@athanor/i18n';
+import { LegalNav } from '@/components/legal-nav';
 import { MandorlaMark } from '@/components/mandorla-mark';
 import { SparkStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
@@ -337,15 +337,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
             <li aria-hidden>·</li>
             <li>{t('landing.footer.point3', L)}</li>
           </ul>
-          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <Link href="/privacy" className="transition-opacity hover:opacity-80">
-              {t('legal.privacy', L)}
-            </Link>
-            <span aria-hidden>·</span>
-            <Link href="/terms" className="transition-opacity hover:opacity-80">
-              {t('legal.terms', L)}
-            </Link>
-          </nav>
+          <LegalNav locale={L} className="justify-center" />
           <div className="flex flex-col items-center gap-3 opacity-60">
             <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
               {t('landing.footer.poweredby', L)}

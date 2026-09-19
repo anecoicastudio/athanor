@@ -49,7 +49,7 @@ read it before trusting a migration's comments. The pgTAP tests are the source o
 ```bash
 pnpm install
 pnpm typecheck && pnpm lint && pnpm test    # must be green before touching anything
-cd apps/native && pnpm exec expo start      # run the app in Expo Go — see the tunnel note below
+cd apps/native && pnpm exec expo start --go # run the app in Expo Go (iOS) — see the tunnel note below
 pnpm --filter web dev                       # web app on :3000 (copy apps/web/.env.example → .env.local first)
 ```
 
@@ -67,17 +67,57 @@ round it, both against staging:
 ```bash
 # 1. ngrok tunnel — a public *.exp.direct host, already allow-listed. Slow (US relay,
 #    0.4–0.8 MB/s for a 15 MB Expo Go bundle) and some WiFi DNS filters block ngrok.
-cd apps/native && pnpm exec expo start --tunnel
+cd apps/native && pnpm exec expo start --go --tunnel
 
 # 2. LAN speed under a public name — a hostname that resolves to your Mac's LAN IP.
 #    Allow-listed on staging as exp://**.nip.io:8081/--/auth-callback (2026-09-05).
-cd apps/native && EXPO_PACKAGER_PROXY_URL=http://$(ipconfig getifaddr en0 | tr . -).nip.io:8081 pnpm exec expo start
+cd apps/native && EXPO_PACKAGER_PROXY_URL=http://$(ipconfig getifaddr en0 | tr . -).nip.io:8081 pnpm exec expo start --go
 ```
 
 The first `--tunnel` run asks to install `@expo/ngrok` — say yes; it installs **globally**,
 not into this repo, and nothing is added to any `package.json`. Everything else (feed, dreams,
 hot reload) is fine over plain LAN, and the **iOS Simulator** needs no tunnel: its `127.0.0.1`
 is the Mac, which GoTrue allows.
+
+`--go` is needed since `expo-dev-client` is installed: without it `expo start` opens in
+development-build mode, and Expo Go never loads the bundle.
+
+### Device check — both surfaces, before merge
+
+Every `apps/native` change is checked on **iOS** (simulator or iPhone, in Expo Go) **and on a
+real Android phone** before it merges. Expo Go cannot run this app on Android — the root
+layout reaches `expo-notifications`, which Expo Go Android refuses — so Android runs the
+**development client**: a separate app, `Athanor Dev` (`world.athanor.app.dev`), built once
+from the `development` EAS profile and installed next to the store build.
+
+```bash
+cd apps/native && pnpm start:dev-client     # Metro for the dev client; open Athanor Dev, pick the server
+```
+
+A branch then needs no build: Metro serves its JS to the installed dev client. Rebuild the
+dev client only when a native dependency or a config plugin changes, locally with the phone on
+USB (needs the Android SDK + JDK 17; the first build takes ~20 min and ~10 GB of disk):
+
+```bash
+cd apps/native && GOOGLE_SERVICES_JSON="$PWD/google-services.json" \
+  pnpm dlx eas-cli build -p android --profile development --local --output athanor-dev.apk
+adb install -r athanor-dev.apk              # installs next to the store app as "Athanor Dev"
+adb reverse tcp:8081 tcp:8081               # USB: the phone reaches Metro on localhost
+```
+
+`google-services.json` is Firebase's Android config (Firebase project `athanor-play` → Project
+settings → General; it lists both package ids). It is gitignored — this repo is public — so
+download it into `apps/native/` yourself. EAS copies the tree without ignored files, locally
+too, so the variable is what hands the file to the build; an Android EAS build without it
+stops with an error instead of shipping an app that can never receive a push. A cloud build
+would need the same name as an EAS file variable; none is set, because Android builds run
+locally.
+
+In the dev variant, **email + password sign-in, Google sign-in, sign-up confirmation links
+and push all work against staging; app links do not.** It has its own scheme (`athanor-dev`),
+which only staging's redirect allow-list carries — declared in `supabase/config.toml` under
+`[remotes.staging.auth]`, so add redirects there, not in the dashboard — and it claims no web
+domain, so app links are checked on the store build at release, not per branch.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns

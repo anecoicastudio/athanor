@@ -95,7 +95,7 @@ export default function CheckinScreen() {
 
   if (!permission.granted) {
     return (
-      <Screen className="items-center justify-center gap-5 px-8">
+      <Screen className="items-center justify-center gap-5 pl-8 pr-8">
         <EmptyState>{t('ticket.scan.permission', locale)}</EmptyState>
         <Pressable
           className="rounded-full bg-aura px-6 py-3"

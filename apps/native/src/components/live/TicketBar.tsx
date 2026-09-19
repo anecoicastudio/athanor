@@ -7,6 +7,8 @@ import {
   createTicketCheckout,
   eventKeys,
   getMyTicket,
+  getOrganizerPayoutsEnabled,
+  payoutKeys,
   subscribeTicket,
   TicketCheckoutError,
 } from '@athanor/api';
@@ -22,8 +24,11 @@ import { useAuth } from '@/lib/auth-context';
 type Phase = 'idle' | 'opening' | 'confirming' | 'confirmSlow';
 
 // The server's `{error}` strings are the stable contract (#103) — create-ticket-checkout's
-// guard ladder on one side, this map on the other. An unmapped code (a future guard)
-// degrades to ticket.error.payment, never crashes.
+// guard ladder on one side, this map on the other. An unmapped code (a 500, a future guard, a
+// relay or network failure) degrades to ticket.error.unavailable, never crashes. That fallback
+// used to be ticket.error.payment, «the payment didn't go through» — false on every path that
+// reaches it (#747): each one fails before Checkout opens, so no payment was ever attempted, and
+// a real decline stays inside Stripe's hosted page where this bar never sees it.
 const ERROR_COPY: Record<string, MessageKey> = {
   unauthorized: 'ticket.error.signedOut',
   outdated_client: 'ticket.error.outdatedClient',
@@ -36,8 +41,8 @@ const ERROR_COPY: Record<string, MessageKey> = {
   'organizer cannot receive payouts': 'ticket.error.organizerPayouts',
   // #701 — the checkout belt for an event priced under the floor. Near-unreachable (the CHECK and
   // both write gates refuse such a row at creation), but mapped for the same reason the payout arm
-  // above is: unmapped it degrades to 'payment failed', which is false twice over — no payment was
-  // attempted, and nothing the BUYER can do fixes it. The copy says whose problem it is.
+  // above is: unmapped it degraded to the generic fallback, which told the buyer to try again when
+  // nothing the BUYER can do fixes it. The copy says whose problem it is.
   'ticket below minimum price': 'ticket.error.belowMinimum',
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
@@ -70,6 +75,34 @@ export function TicketBar({
     enabled: !!uid,
   });
   const ticket = ticketQ.data ?? null;
+
+  // #747 — can the organiser be paid right now? The write-time gate (enforce_paid_event_gate)
+  // already refuses a paid event from an organiser without payouts, so this catches the case it
+  // cannot: `payouts_enabled` flipping false AFTER the event went live (a close proxy for
+  // Stripe's `transfers` capability, not the capability itself — MIGRATIONS-ERRATA,
+  // 20260906141227). Without it the bar offers a button that can only end in a refusal. A
+  // courtesy, never the authority — the server's `organizer cannot receive payouts` refusal
+  // stays, and is still mapped in ERROR_COPY.
+  //
+  // `persist: false`: a money read must not hydrate yesterday's answer (lib/query-client.ts);
+  // a cold start always asks. Only a `false` in `data` withdraws the offer. A FIRST read that
+  // errors leaves the button live — a failed courtesy check is no evidence the organiser
+  // cannot be paid, and the server will say so precisely if they cannot. A refetch that errors
+  // keeps whatever `data` it had, so an offer already withdrawn stays withdrawn.
+  const payableQ = useQuery({
+    queryKey: payoutKeys.organizer(event.organizer_id),
+    queryFn: () => getOrganizerPayoutsEnabled(supabase, event.organizer_id),
+    enabled: !!uid,
+    staleTime: 60_000,
+    meta: { persist: false },
+    // The button is inert while this is pending, so a slow answer costs a purchase. No retries
+    // (a first-read error already leaves the button live) and `networkMode: 'always'` (offline, the default
+    // would PAUSE the read and hold the button dead with nothing said; this way it fails fast,
+    // and a tap gets ticket.error.unavailable from the checkout call instead).
+    retry: false,
+    networkMode: 'always',
+  });
+  const organizerUnpayable = payableQ.data === false;
   const hasTicket = ticket?.status === 'paid' || ticket?.status === 'checked_in';
 
   useEffect(() => {
@@ -113,7 +146,7 @@ export function TicketBar({
       // and if it did the refetch flips the bar to the ticket instead of arguing.
       if (code === 'ticket already owned' || code === 'checkout already open') refetchTicket();
       if (code === 'sold out') void qc.invalidateQueries({ queryKey: eventKeys.seats(event.id) });
-      setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.payment', locale));
+      setErrorMsg(t((code && ERROR_COPY[code]) || 'ticket.error.unavailable', locale));
     }
   }, [event.id, locale, refetchTicket, qc]);
 
@@ -191,14 +224,35 @@ export function TicketBar({
     );
   }
 
+  // #747 — the organiser cannot be paid: no buy button, and the reason in the ticket bar's own
+  // words. Same disabled surface as sold out; the copy is the server refusal's own sentence, in
+  // the quiet ink rather than error red, because nothing the buyer did went wrong.
+  if (organizerUnpayable) {
+    return (
+      <View className="gap-2 rounded-card border border-hair bg-raise p-4">
+        <Button label={t('ticket.notOnSale', locale)} variant="ghost" disabled onPress={() => {}} />
+        <Text className="text-center text-[12px] text-ink-2">
+          {t('ticket.error.organizerPayouts', locale)}
+        </Text>
+        {/* Kept like the sold-out arm: a refusal from the tap that preceded this state. */}
+        {errorMsg ? <Text className="text-center text-[12px] text-error">{errorMsg}</Text> : null}
+      </View>
+    );
+  }
+
   const priceLabel = formatPrice(event.price_cents, event.currency, locale);
+  // A buyer never reaches Checkout while the payability read is still in flight (#747) — and
+  // the button SAYS so: dimmed like Button's inert state and marked busy, instead of a fully
+  // lit control that ignores the tap. The label keeps the price, so nothing jumps.
+  const checking = !!uid && payableQ.isPending;
   return (
     <View className="gap-2">
       <Pressable
-        className="rounded-ctl bg-aura px-5 py-3"
-        disabled={phase === 'opening' || !uid}
+        className={`rounded-ctl bg-aura px-5 py-3${checking ? ' opacity-40' : ''}`}
+        disabled={phase === 'opening' || !uid || checking}
         onPress={() => void onBuy()}
         accessibilityRole="button"
+        accessibilityState={{ disabled: phase === 'opening' || !uid || checking, busy: checking }}
       >
         <Text className="text-center text-[14px] font-semibold text-on-aura">
           {t(phase === 'opening' ? 'ticket.opening' : 'ticket.buy', locale, { price: priceLabel })}

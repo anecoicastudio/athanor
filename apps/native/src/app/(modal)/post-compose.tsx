@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image } from 'react-native';
+import { Image, Switch } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postKeys, postMediaKeys, publishPost } from '@athanor/api';
+import { semantic } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
@@ -275,7 +276,13 @@ export default function PostComposeScreen() {
           same call `leave` is. Passing it was saying the default twice.
         */}
         <ModalHeader title={t('create.post.title', locale)} backLabel={t('common.back', locale)} />
-        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
+        {/* `handled`: the first tap on a control lands on it instead of only dismissing the
+            keyboard (#748, story-compose's twin). */}
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-5 px-5 pb-8"
+          keyboardShouldPersistTaps="handled"
+        >
           <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
 
           <Field
@@ -457,17 +464,32 @@ export default function PostComposeScreen() {
               </Text>
               <Text className="text-[13px] text-faint">{t('post.compose.stepDesc', locale)}</Text>
             </View>
-            <Text className={isStep ? 'text-aura' : 'text-faint'}>{isStep ? '✦' : '○'}</Text>
+            {/* Platform Switch, row-owned — same shape and reasons as story-compose (#748). */}
+            <View
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Switch
+                accessibilityLabel={t('post.compose.stepTitle', locale)}
+                value={isStep}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
           </Pressable>
+        </ScrollView>
 
-          {/* P2.5 hint-truth: no create-hint — the engine never rewards posting (anti-gaming). */}
+        {/* Publish pinned below the list, as in story-compose (#748): inside the ScrollView the
+            keyboard covered it. P2.5 hint-truth: no create-hint — posting earns nothing. */}
+        <View className="border-t border-hair bg-background px-5 py-3">
           <Button
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={mutation.isPending}
             variant="light"
           />
-        </ScrollView>
+        </View>
       </Screen>
     </KeyboardAvoiding>
   );
