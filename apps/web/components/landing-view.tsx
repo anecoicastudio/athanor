@@ -345,6 +345,10 @@ export function LandingView({ locale: L }: { locale: Locale }) {
             <Link href="/terms" className="transition-opacity hover:opacity-80">
               {t('legal.terms', L)}
             </Link>
+            <span aria-hidden>·</span>
+            <Link href="/delete-account" className="transition-opacity hover:opacity-80">
+              {t('legal.deleteAccount', L)}
+            </Link>
           </nav>
           <div className="flex flex-col items-center gap-3 opacity-60">
             <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
