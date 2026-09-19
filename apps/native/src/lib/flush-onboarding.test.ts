@@ -81,7 +81,7 @@ describe('flushOnboardingDraft', () => {
     expect(draftState.cleared).toBe(true);
   });
 
-  it('drops the draft on a check_violation — the 14+ guard or the 1900 floor cannot pass on retry', async () => {
+  it('drops the draft on a check_violation — the min-age guard or the 1900 floor cannot pass on retry', async () => {
     api.failWith = { code: '23514' };
     await expect(flushOnboardingDraft('u1', 'lucia@example.com')).resolves.toBe('error');
     expect(draftState.cleared).toBe(true);

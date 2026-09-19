@@ -125,8 +125,8 @@ export default function OnboardingScreen() {
     void persist({ locale: next });
   };
 
-  // Step 1 (#694): the sign for the live reveal, and the 14+ floor (GDPR Art. 8, the Italian
-  // floor). `new Date()` here, not in core — a boundary the screen owns.
+  // Step 1 (#694): the sign for the live reveal, and the MIN_MEMBER_AGE floor — 18, adults only
+  // for launch (#778). `new Date()` here, not in core — a boundary the screen owns.
   const sign = birthDate ? zodiacSignFromBirthDate(birthDate) : null;
   const tooYoung = birthDate !== null && !isAtLeastAge(birthDate, MIN_MEMBER_AGE, new Date());
 
@@ -273,13 +273,15 @@ export default function OnboardingScreen() {
                   >
                     {t('onboarding.birth.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.birth.sub', locale)}</Text>
+                  <Text className="text-muted-foreground">
+                    {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
+                  </Text>
                   {Platform.OS === 'web' ? (
                     // QA fallback only: @react-native-community/datetimepicker renders NOTHING
                     // on react-native-web (its src/datetimepicker.js warns «not supported on:
                     // web»), and Expo web is the only surface a walk can reach here. Validated
                     // with the same schema the flush and the column use, so an impossible day
-                    // never reaches state (it would read as «under 14», the wrong line).
+                    // never reaches state (it would read as «too young», the wrong line).
                     <Input
                       placeholder={t('onboarding.birth.isoHint', locale)}
                       inputMode="numeric"
@@ -327,7 +329,7 @@ export default function OnboardingScreen() {
                   ) : null}
                   {tooYoung ? (
                     <Text className="text-sm text-error" accessibilityLiveRegion="polite">
-                      {t('onboarding.birth.tooYoung', locale)}
+                      {t('onboarding.birth.tooYoung', locale, { age: MIN_MEMBER_AGE })}
                     </Text>
                   ) : null}
                   {sign && !tooYoung ? (

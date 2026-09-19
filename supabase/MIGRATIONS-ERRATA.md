@@ -1684,7 +1684,7 @@ revoke is the only guard, and this migration's own test is the only witness».
 It does not supersede the other correction to this file: §1's `service_role` claim is corrected
 under the `20260905170330…` heading above, which is a different sentence.
 
-Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:81-84` — `anon` and
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:84-87` — `anon` and
 `authenticated` cannot execute `athanor.profiles_birth_date_guard()`. Neither assertion names
 PUBLIC, but `has_function_privilege` counts a PUBLIC grant for every role, so a restored
 `grant … to public` reddens both.
@@ -2259,3 +2259,25 @@ names sitting outside every object that file's list names. The reasoning about `
 stands — it is still excluded, for exactly the stated reason. Read the closing sentence as «every
 personal name reachable through the keys listed here», and read the list itself from
 `20260912075607`, which takes it to twenty-five and is the current one.
+
+## `20260905165133_profiles_birth_date_zodiac.sql:4-5,116-118` — the floor is 18, not 14
+
+The header reads «min age 14 — GDPR Art. 8, the Italian floor», and the leap-day note under §3
+works its example at `interval '14 years'`. Both described that file's SQL correctly. They stopped
+describing the database on 2026-09-19: `20260919114816_min_member_age_18.sql` (#778) replaced
+`athanor.profiles_birth_date_guard()` with an 18-year floor, for the first release, by Marco's
+ruling. Membership is adults only and no parental-consent path exists, so the GDPR Art. 8
+rationale no longer explains the number.
+
+The guard body (`:128-129`), the function comment (`:135-137`) and the column comment (`:101-105`)
+were all re-issued by `20260919114816`, so the live catalog says 18. Only this file's prose still
+says 14. The leap-day rule is unchanged: a member born on 29 February turns N on 1 March in a
+non-leap year, at 18 as at 14. The trigger's shape (`BEFORE INSERT OR UPDATE OF birth_date … WHEN
+new.birth_date IS NOT NULL`) is unchanged too, so a row that predates the new floor is measured
+only when its birth date is written again.
+
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql` §4a — a member turning 18
+tomorrow is refused with 23514, one turning 18 today is admitted. The number's other two homes
+are `packages/core/src/profile/age.test.ts` (pins `MIN_MEMBER_AGE`) and
+`packages/core/src/onboarding/min-age.mirror.test.ts` (reads the guard's `interval` from the
+last migration that defines it).
