@@ -102,8 +102,8 @@ export async function updateOnboardingProfile(
 /**
  * Whether a profile already holds `handle` (#782) — the live check beside the handle field.
  *
- * As far as the CALLER can see: profiles SELECT is members-wide but a blocked pair is
- * RLS-invisible, so a handle held by someone on the other side of a block reads as free here.
+ * As far as the CALLER can see: profiles SELECT is members-wide, but a blocked pair and a
+ * banned member are RLS-invisible, so a handle held by either reads as free here.
  * That is a courtesy check, not the gate — the unique index is, and `claimHandle` surfaces its
  * 23505 for `handleClaimRefusal` to name as taken. Single-row existence probe, no pagination.
  */

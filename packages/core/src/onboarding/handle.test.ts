@@ -25,12 +25,34 @@ describe('normalizeHandleInput', () => {
     expect(normalizeHandleInput('lu@cia')).toBe('lu@cia');
   });
 
-  test('trims surrounding whitespace, before the @ is looked for', () => {
-    expect(normalizeHandleInput('  @lucia  ')).toBe('lucia');
+  test('drops leading whitespace, before the @ is looked for', () => {
+    expect(normalizeHandleInput('  @lucia')).toBe('lucia');
+  });
+
+  test('keeps trailing whitespace — a typed space is shown and refused, never swallowed', () => {
+    expect(normalizeHandleInput('lucia ')).toBe('lucia ');
+    expect(normalizeHandleInput('  @lucia  ')).toBe('lucia  ');
   });
 
   test('keeps inner whitespace — it is malformed, not something to guess around', () => {
     expect(normalizeHandleInput('lucia ferri')).toBe('lucia ferri');
+  });
+
+  // The field is CONTROLLED: every keystroke's text goes through this and comes back as the
+  // value, so the function runs on each prefix, not on the finished word. Trimming the END of a
+  // prefix ate the space before the next letter arrived, and `lucia ferri` typed key by key
+  // became `luciaferri` — a valid, free handle nobody typed, claimed silently.
+  test('typed one key at a time, a space survives to be refused', () => {
+    let value = '';
+    for (const key of 'lucia ferri') value = normalizeHandleInput(value + key);
+    expect(value).toBe('lucia ferri');
+    expect(classifyHandle(value)).toBe('malformed');
+  });
+
+  test('typed one key at a time, a leading @ and capitals still normalise', () => {
+    let value = '';
+    for (const key of '@Lucia') value = normalizeHandleInput(value + key);
+    expect(value).toBe('lucia');
   });
 
   test('never invents a name: nothing typed stays nothing', () => {

@@ -30,6 +30,8 @@ import { spoken } from '@/lib/star';
 import { calendarDay, dayKey, parseCalendarDay } from '@/lib/time';
 import { toggleTag } from '@/lib/tags';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import { useAuth } from '@/lib/auth-context';
+import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
@@ -56,6 +58,11 @@ const MAX_BIRTH_YEARS_BACK = 120;
  */
 export default function OnboardingScreen() {
   const router = useRouter();
+  // Signed in with the answers still missing — a Google sign-in from «Accedi» that created the
+  // account, a first sign-in on a new device. There is no account left to create (#782).
+  const { session, refreshProfile } = useAuth();
+  const [finishing, setFinishing] = useState(false);
+  const [finishFailed, setFinishFailed] = useState(false);
 
   // Defaults from the device (PRD §4.1), switchable on step 0 (#158) — the
   // earliest point, so a wrong default taints none of the funnel's copy and the
@@ -161,9 +168,23 @@ export default function OnboardingScreen() {
 
   // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
   // read it (a lost draft → incomplete profile → AuthGuard loops back here).
+  //
+  // With a session already live there is no account to create, and routing to welcome looped:
+  // AuthGuard sends an authed, answer-less profile straight back here, and the auth-context
+  // flush only runs when the user changes (#782, found on the device walk). So the funnel
+  // flushes its own draft and re-reads; the guard then routes on to the handle step.
   const createAccount = async () => {
     await persist();
-    router.push('/(auth)/welcome');
+    if (!session) {
+      router.push('/(auth)/welcome');
+      return;
+    }
+    setFinishing(true);
+    setFinishFailed(false);
+    const result = await flushOnboardingDraft(session.user.id);
+    if (result === 'flushed') await refreshProfile();
+    else setFinishFailed(true);
+    setFinishing(false);
   };
 
   const goLogin = () => router.push({ pathname: '/(auth)/welcome', params: { mode: 'login' } });
@@ -482,12 +503,23 @@ export default function OnboardingScreen() {
                 onPress={next}
               />
             ) : (
-              <Button
-                variant="light"
-                label={t('onboarding.createAccount', locale)}
-                accessibilityLabel={t('onboarding.createAccount', locale)}
-                onPress={createAccount}
-              />
+              <View className="gap-3">
+                {finishFailed ? (
+                  <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                    {t('onboarding.error.submit', locale)}
+                  </Text>
+                ) : null}
+                <Button
+                  variant="light"
+                  label={t(session ? 'onboarding.next' : 'onboarding.createAccount', locale)}
+                  accessibilityLabel={t(
+                    session ? 'onboarding.next' : 'onboarding.createAccount',
+                    locale,
+                  )}
+                  loading={finishing}
+                  onPress={() => void createAccount()}
+                />
+              </View>
             )}
           </View>
 

@@ -380,7 +380,8 @@ Since 2026-09-19 (#782, ruled by Marco) one more screen follows the account crea
 
 ```
 ┌──────────────────────┐
-│  ULTIMO PASSO        │  eyebrow in the 44pt top row, no step bars
+│  UN'ULTIMA SCELTA    │  eyebrow in the 44pt top row, no step bars —
+│                      │  not «Ultimo passo», which /welcome already says
 │                      │
 │  Scegli il tuo       │
 │  @handle             │  display, `accessibilityRole="header"`

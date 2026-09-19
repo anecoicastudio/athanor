@@ -9,13 +9,17 @@ import { claimableHandleSchema, handleSchema } from '@athanor/schemas';
 export type HandleVerdict = 'empty' | 'malformed' | 'reserved' | 'claimable';
 
 /**
- * The typed text as a handle candidate: trimmed, one leading `@` dropped (people type it out of
- * habit — the field already shows one), lowercased because the column holds lowercase only.
- * Nothing else is repaired: a space or a dot stays, so `classifyHandle` can say it is not allowed
- * instead of the field quietly turning the name into something the person did not type.
+ * The typed text as a handle candidate: leading whitespace dropped, one leading `@` dropped
+ * (people type it out of habit), lowercased because the column holds lowercase only. Nothing
+ * else is repaired: a space or a dot stays, so `classifyHandle` can say it is not allowed instead
+ * of the field quietly turning the name into something the person did not type.
+ *
+ * The START only, never the end: the field is controlled, so this runs on every keystroke's
+ * prefix, and trimming the end ate a typed space before the next letter arrived — `lucia ferri`
+ * became `luciaferri`, a free handle nobody typed (caught in review on #782).
  */
 export function normalizeHandleInput(raw: string): string {
-  const trimmed = raw.trim();
+  const trimmed = raw.trimStart();
   return (trimmed.startsWith('@') ? trimmed.slice(1) : trimmed).toLowerCase();
 }
 
