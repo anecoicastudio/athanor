@@ -237,8 +237,10 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
  * the same way `EyeGlyph` was — `scales` and `waves` are named by the set, so they are debt paid
  * down, not new marks. Three are NEW, drawn in the set's compass-and-ruler system and recorded
  * in DESIGN §6's addendum (ruled 2026-09-19): the set has no mark that honestly means play,
- * pause or locked. All five use `line()`'s 1.8px — they are content marks, not header icons —
- * and none is filled except `LockGlyph`'s keyhole, which is the one centre point §6 allows.
+ * pause or locked. All five use `line()`'s 1.8px — they are content marks, not header icons.
+ * Two carry a filled point and nothing else is filled: `WavesGlyph`'s source dot, which is the
+ * set's own (`fill="currentColor"` in the prototype — do not unfill the port), and `LockGlyph`'s
+ * keyhole, the one centre point §6 allows a new mark.
  *
  * No a11y props here, the same split as the zodiac set below: the caller either sits inside a
  * labelled control or hides the mark on its wrapper.
@@ -273,14 +275,14 @@ export function WavesGlyph({ size = 16, color }: GlyphProps) {
 }
 
 /**
- * Play — the set's `fire` triangle turned to face right: equilateral (side 14.4), its centroid
- * on the viewBox centre so it sits optically centred over a poster rather than leaning left the
+ * Play — the set's `fire` triangle turned to face right: equilateral (side 14.4, apex 7.84 +
+ * 14.4·√3/2), its centroid on the viewBox centre so it sits optically centred over a poster rather than leaning left the
  * way a bounding-box-centred triangle does. Outline only, like every set glyph.
  */
 export function PlayGlyph({ size = 24, color }: GlyphProps) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Path d="M8 4.8 20.4 12 8 19.2Z" {...line(color)} />
+      <Path d="M7.84 4.8 20.31 12 7.84 19.2Z" {...line(color)} />
     </Svg>
   );
 }
