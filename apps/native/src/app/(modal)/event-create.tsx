@@ -20,6 +20,7 @@ import {
   MIN_PAID_TICKET_CENTS,
   formatEuroAmount,
   parseEuroToCents,
+  snapToEventGrid,
 } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -210,7 +211,10 @@ export default function EventCreateScreen() {
         setLocationRefusal(toStatus(res) === 'blocked' ? 'blocked' : 'denied');
         return;
       }
-      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      // Lowest (#781): PRIORITY_LOW_POWER on Android, kCLLocationAccuracyThreeKilometers on iOS.
+      // The Android manifest now carries only ACCESS_COARSE_LOCATION, so there it is also the
+      // most the OS will hand over.
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest });
     } catch (e) {
       // Services off / a fix that timed out: this rejection escaped `void requestMyLocation()`
       // unhandled — the second silent path. Same recovery as VicinoPanel's #179: say so with a
@@ -219,9 +223,16 @@ export default function EventCreateScreen() {
       showToast(t('live.map.locationError', locale));
       return;
     }
-    setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    // Snapped here, before the point reaches the OS geocoder or create_event: the event's point
+    // is the grid cell, never the organiser's phone (#781). events_snap_geo snaps it again on
+    // the table with the same arithmetic, so what is stored is exactly what was sent.
+    const point = snapToEventGrid({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    setCoords(point);
     try {
-      const [place] = await Location.reverseGeocodeAsync(pos.coords);
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: point.lat,
+        longitude: point.lng,
+      });
       if (place?.city && !city) setCity(place.city);
     } catch (e) {
       devWarn('[event-create] reverseGeocode', e);
