@@ -76,6 +76,7 @@
   "appReturn.payout.refresh.body": "It happens. Head back to Athanor and start again — we'll give you a fresh one.",
   "legal.privacy": "Privacy",
   "legal.terms": "Terms",
+  "legal.deleteAccount": "Delete account",
   "notFound.title": "This place doesn't exist",
   "notFound.body": "The page you're looking for isn't here. Head back to the start.",
   "notFound.home": "Back to home",

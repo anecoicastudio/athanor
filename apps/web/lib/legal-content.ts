@@ -1,11 +1,12 @@
-import type { Locale } from '@athanor/i18n';
+import { t, type Locale, type MessageKey } from '@athanor/i18n';
 
 /**
  * Long-form legal copy lives here as per-locale content (not in the @athanor/i18n
- * UI catalog, which is for short interface strings). Scope: the Athanor presentation
- * site only — the mobile app ships its own, broader policy at store submission.
+ * UI catalog, which is for short interface strings). Scope of `privacy` and `terms`: the
+ * Athanor presentation site only — the mobile app ships its own, broader policy at store
+ * submission. `deleteAccount` is the exception: it is about the APP account (#767).
  *
- * i18n-ignore-file — this module IS the translation source for these two documents: every
+ * i18n-ignore-file — this module IS the translation source for these documents: every
  * export is a `Record<Locale, …>`, so IT/EN parity is enforced by the type, not by the
  * catalog. Rule 5's gate widened to object-literal copy in #433 and would otherwise report
  * every heading and paragraph here as untranslated.
@@ -199,5 +200,114 @@ export const terms: Record<Locale, LegalDoc> = {
       },
     ],
     reviewNote: 'Draft — review with counsel before launch.',
+  },
+};
+
+const tIt = (key: MessageKey) => t(key, 'it');
+const tEn = (key: MessageKey) => t(key, 'en');
+
+/**
+ * /delete-account — the URL Google Play's Data safety form asks for (#767): how to request
+ * deletion of the app account with or without the app, and what is deleted and kept.
+ *
+ * Every label a person has to find in the app is read from the UI catalog, not copied, so a
+ * renamed row renames the step that points at it. The deferral paragraph is
+ * `account.delete.deferred` verbatim, so this page and the in-app screen cannot promise different
+ * things. What the rest may claim is bounded by the erasure cascade as built: `erasure-job`
+ * cancels the Circle subscription, pseudonymises the payment rows (#107) that the reaper drops
+ * after ten years (#715), redacts the webhook ledger with NO retention window (#725,
+ * MIGRATIONS-ERRATA), and disowns and hides the member's events rather than deleting them
+ * (`gdpr_release_profile_references`).
+ */
+export const deleteAccount: Record<Locale, LegalDoc> = {
+  it: {
+    title: tIt('account.delete.title'),
+    updated: 'Settembre 2026',
+    intro: `Puoi chiedere in qualsiasi momento di eliminare il tuo account ${tIt('store.name')} e i dati collegati. Qui trovi come farlo, dall'app o senza, cosa eliminiamo e cosa conserviamo. ${tIt('store.name')} è un'app di ${CONTROLLER}.`,
+    sections: [
+      {
+        heading: "Dall'app",
+        body: [
+          `1. Apri la scheda «${tIt('tabs.profile')}» e tocca l'icona «${tIt('settings.title')}».`,
+          `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
+          `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
+          "Appena confermi chiudiamo la tua sessione su ogni dispositivo, blocchiamo l'accesso e registriamo la richiesta. Da lì non si torna indietro.",
+        ],
+      },
+      {
+        heading: "Senza l'app",
+        body: [
+          `Non serve reinstallare l'app. Scrivi a ${EMAIL} dall'indirizzo email con cui accedi ad ${tIt('store.name')} e chiedi di eliminare il tuo account.`,
+          "Verifichiamo che la richiesta venga da te e la registriamo al posto tuo: da quel momento l'accesso è bloccato e vale tutto ciò che trovi qui sotto. Ti rispondiamo entro un mese, come prevede il GDPR.",
+        ],
+      },
+      {
+        heading: 'Il tuo abbonamento Circle',
+        body: [
+          'Se hai un abbonamento Circle attivo non devi disdirlo prima: lo annulliamo noi quando eseguiamo la cancellazione, e da quel momento non ti addebitiamo più nulla.',
+        ],
+      },
+      {
+        heading: 'Cosa eliminiamo',
+        body: [
+          tIt('account.delete.deferred'),
+          "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se eri nella lista d'attesa, togliamo anche il tuo indirizzo email.",
+          'Gli eventi che hai organizzato vengono nascosti e non portano più il tuo nome. Restano solo perché i biglietti di chi vi ha partecipato sono registrazioni di pagamento.',
+        ],
+      },
+      {
+        heading: 'Cosa conserviamo',
+        body: [
+          'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili, e la legge ci obbliga a tenerle per dieci anni. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano importo, valuta, data e gli identificativi del pagamento presso Stripe. Passati i dieci anni le eliminiamo.',
+          'Conserviamo anche il registro delle notifiche di pagamento che Stripe ci invia, dopo averne tolto i tuoi dati identificativi: ci serve a non registrare mai due volte lo stesso pagamento.',
+        ],
+      },
+    ],
+    reviewNote: `Questa pagina riguarda il tuo account nell'app ${tIt('store.name')}. Per i dati di chi visita questo sito vale l'informativa sulla privacy.`,
+  },
+  en: {
+    title: tEn('account.delete.title'),
+    updated: 'September 2026',
+    intro: `You can ask at any time for your ${tEn('store.name')} account and the data linked to it to be deleted. This page tells you how to do it, from the app or without it, what we delete and what we keep. ${tEn('store.name')} is an app by ${CONTROLLER}.`,
+    sections: [
+      {
+        heading: 'From the app',
+        body: [
+          `1. Open the “${tEn('tabs.profile')}” tab and tap the “${tEn('settings.title')}” icon.`,
+          `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
+          `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,
+          'As soon as you confirm, we close your session on every device, block sign-in and record the request. There is no going back from there.',
+        ],
+      },
+      {
+        heading: 'Without the app',
+        body: [
+          `You don't need to reinstall the app. Write to ${EMAIL} from the email address you use to sign in to ${tEn('store.name')} and ask us to delete your account.`,
+          'We check that the request comes from you and record it on your behalf: from then on sign-in is blocked and everything below applies. We reply within one month, as the GDPR requires.',
+        ],
+      },
+      {
+        heading: 'Your Circle subscription',
+        body: [
+          "If you have an active Circle subscription, you don't need to cancel it first: we cancel it when we carry out the deletion, and from then on we charge you nothing more.",
+        ],
+      },
+      {
+        heading: 'What we delete',
+        body: [
+          tEn('account.delete.deferred'),
+          'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you were on the waitlist, we remove your email address from it too.',
+          'Events you organized are hidden and no longer carry your name. They stay only because the tickets of the people who attended them are payment records.',
+        ],
+      },
+      {
+        heading: 'What we keep',
+        body: [
+          "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records, and the law requires us to keep them for ten years. We keep them without your name or contact details: the amount, currency, date and the payment's identifiers at Stripe remain. After ten years we delete them.",
+          'We also keep the log of payment notifications Stripe sends us, with your identifying details removed: it is how we make sure no payment is ever recorded twice.',
+        ],
+      },
+    ],
+    reviewNote: `This page is about your account in the ${tEn('store.name')} app. For the data of people who visit this site, see the privacy policy.`,
   },
 };

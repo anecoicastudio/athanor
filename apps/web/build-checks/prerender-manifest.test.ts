@@ -22,6 +22,7 @@ const ALWAYS_STATIC = [
   '/',
   '/privacy',
   '/terms',
+  '/delete-account',
   '/sitemap.xml',
   '/robots.txt',
   '/opengraph-image',

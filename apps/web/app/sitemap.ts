@@ -20,6 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/`, lastModified, changeFrequency: 'monthly', priority: 1 },
     { url: `${SITE_URL}/privacy`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
     { url: `${SITE_URL}/terms`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
+    { url: `${SITE_URL}/delete-account`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
   ];
 
   let handleEntries: MetadataRoute.Sitemap = [];
