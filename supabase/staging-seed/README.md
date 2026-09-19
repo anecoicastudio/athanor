@@ -237,6 +237,28 @@ Keys are `{uid}/{id}.{ext}` — the shape the app itself uploads at. The earlier
 `20260808151808_storage_not_blocked_predicate.sql` every private bucket's SELECT policy
 requires the first path segment to match a dashed-uuid regex, and a handle fails it.
 
+## Demo world (English, 24 people)
+
+An optional presentation layer for recording product walkthroughs: the seeded world
+rewritten in English, twelve more people, extra events, stories, chats and votes, and a
+real Aura spread. Same two gates as the seed. On an emptied project, in this order:
+
+```bash
+# 1. demo-fund-edition.sql   — BEFORE the seed: the fund's declaration columns freeze on
+#                              insert, so the English edition must exist first
+# 2. seed-staging.sql
+# 3. demo-world.sql
+pnpm staging:media --confirm        # 4. base media
+pnpm staging:demo-media --confirm   # 5. demo media (docs/test-stories/demo, overwrites + adds)
+```
+
+Unlike the base seed, `demo-world.sql` produces Aura on purpose: it fires the same M6
+triggers the app fires (a milestone reaching done, a help completed, a ten-message
+conversation, a post starred, an invite activated) and the score-engine writes the rows.
+It never writes `aura_events` / `aura_scores` itself. The six stories it adds are outside
+the refresh's frozen list, so re-run it on the day of a recording. Re-running
+`seed-staging.sql` puts the seeded bios back in Italian; run `demo-world.sql` after it.
+
 ## What is deliberately not seeded
 
 These are the paths where a hand-written row would prove nothing, so they have to be
