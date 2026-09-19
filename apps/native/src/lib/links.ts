@@ -50,7 +50,13 @@ export function legalUrl(doc: 'terms' | 'privacy', locale: Locale): string {
   return `${SITE_ORIGIN}/${doc}?lang=${locale}`;
 }
 
-export const SUPPORT_EMAIL = 'info.anecoica@gmail.com';
+/**
+ * The app's support mailbox (Marco's ruling, 2026-09-19): the Help row's address, and the in-app
+ * concern route Play's Child Safety standard relies on. NOT the controller's address — the legal
+ * pages and the store listing publish `info@anecoica.net`, and `apps/web`'s tests keep this one off
+ * them.
+ */
+export const SUPPORT_EMAIL = 'athanor@anecoica.net';
 export const INVITE_URL_BASE = `${SITE_ORIGIN}/invite`;
 
 /**
