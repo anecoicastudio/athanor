@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { handleSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import {
+  HANDLE_COOLDOWN_CODE,
+  claimHandle,
   getOwnProfile,
   getProfileById,
   getProfileIdByHandle,
   getProfileStatCounts,
+  handleClaimRefusal,
+  isHandleTaken,
   profileKeys,
   updateOnboardingProfile,
-  updateOnboardingProfileWithHandleFallback,
   updateProfile,
 } from './profiles';
 import { makeFakeClient, type FakeResult } from './test-support/fake-client';
@@ -223,7 +225,6 @@ const db = (script: Record<string, FakeResult[]> = {}) => {
 };
 
 const answers = {
-  handle: 'luna_rossa',
   locale: 'it' as const,
   identity_tags: ['maker'],
   seeking: ['connessioni'],
@@ -254,7 +255,6 @@ describe('updateOnboardingProfile', () => {
     const values = fake.calls[0]!.values as Record<string, unknown>;
     expect(Object.keys(values).sort()).toEqual([
       'birth_date',
-      'handle',
       'identity_tags',
       'locale',
       'seeking',
@@ -264,9 +264,15 @@ describe('updateOnboardingProfile', () => {
   it('validates before touching the database', async () => {
     const { fake, client } = db();
     await expect(
-      updateOnboardingProfile(client, USER, { ...answers, handle: 'No Spaces!' }),
+      updateOnboardingProfile(client, USER, { ...answers, identity_tags: [] }),
     ).rejects.toThrow();
     expect(fake.calls).toEqual([]);
+  });
+
+  it('never writes a handle, even when one is handed over (#782)', async () => {
+    const { fake, client } = db();
+    await updateOnboardingProfile(client, USER, { ...answers, handle: 'lucia' } as never);
+    expect(fake.calls[0]!.values).not.toHaveProperty('handle');
   });
 
   it('surfaces a database error', async () => {
@@ -274,64 +280,6 @@ describe('updateOnboardingProfile', () => {
       'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
     });
     await expect(updateOnboardingProfile(client, USER, answers)).rejects.toThrow('rls denied');
-  });
-});
-
-describe('updateOnboardingProfileWithHandleFallback', () => {
-  it('returns the requested handle when it lands first try', async () => {
-    const { fake, client } = db();
-    await expect(updateOnboardingProfileWithHandleFallback(client, USER, answers)).resolves.toBe(
-      'luna_rossa',
-    );
-    expect(fake.calls).toHaveLength(1);
-  });
-
-  it('retries a colliding handle (23505) with a suffixed one and returns what landed', async () => {
-    const { fake, client } = db({
-      'profiles.update': [{ error: { code: '23505', message: 'duplicate key' } }],
-    });
-
-    const landed = await updateOnboardingProfileWithHandleFallback(client, USER, answers);
-
-    expect(fake.calls).toHaveLength(2);
-    expect(landed).not.toBe('luna_rossa');
-    expect(landed.startsWith('luna_rossa_')).toBe(true);
-    // the retry is still a legal handle — the suffix must not push it past the schema
-    expect(handleSchema.safeParse(landed).success).toBe(true);
-    expect((fake.calls[1]!.values as { handle: string }).handle).toBe(landed);
-  });
-
-  it('keeps the suffix inside the 30-char handle limit for a maximal base', async () => {
-    const longBase = 'a'.repeat(30);
-    const { client } = db({
-      'profiles.update': [{ error: { code: '23505', message: 'duplicate key' } }],
-    });
-    const landed = await updateOnboardingProfileWithHandleFallback(client, USER, {
-      ...answers,
-      handle: longBase,
-    });
-    expect(handleSchema.safeParse(landed).success).toBe(true);
-  });
-
-  it('gives up after the attempt budget rather than looping forever', async () => {
-    const collision = { error: { code: '23505', message: 'duplicate key' } };
-    const { fake, client } = db({ 'profiles.update': [collision, collision, collision] });
-
-    await expect(
-      updateOnboardingProfileWithHandleFallback(client, USER, answers, 3),
-    ).rejects.toMatchObject({ code: '23505' });
-    expect(fake.calls).toHaveLength(3);
-  });
-
-  it('propagates a non-collision error immediately, without burning a retry', async () => {
-    const { fake, client } = db({
-      'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
-    });
-
-    await expect(updateOnboardingProfileWithHandleFallback(client, USER, answers)).rejects.toThrow(
-      'rls denied',
-    );
-    expect(fake.calls).toHaveLength(1);
   });
 });
 
@@ -370,5 +318,155 @@ describe('updateProfile', () => {
       'profiles.update': [{ error: { code: '42501', message: 'rls denied' } }],
     });
     await expect(updateProfile(client, USER, { bio: 'ciao' })).rejects.toThrow('rls denied');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The @handle claim (#782) — chosen by the person, never derived from the email
+// ---------------------------------------------------------------------------
+
+describe('isHandleTaken', () => {
+  it('is true when a profile already holds the handle', async () => {
+    const { fake, client } = db({ 'profiles.select': [{ data: [{ id: 'someone' }] }] });
+    await expect(isHandleTaken(client, 'luna_rossa')).resolves.toBe(true);
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('profiles');
+    expect(call.filters).toEqual([['eq', 'handle', 'luna_rossa']]);
+  });
+
+  it('is false when nobody the caller can see holds it', async () => {
+    const { client } = db({ 'profiles.select': [{ data: [] }] });
+    await expect(isHandleTaken(client, 'luna_rossa')).resolves.toBe(false);
+  });
+
+  it('throws on a query error rather than answering «free»', async () => {
+    const { client } = db({ 'profiles.select': [{ error: { code: '42501', message: 'boom' } }] });
+    await expect(isHandleTaken(client, 'luna_rossa')).rejects.toMatchObject({ message: 'boom' });
+  });
+});
+
+describe('claimHandle', () => {
+  it("writes the handle and nothing else, on the caller's own row", async () => {
+    const { fake, client } = db();
+    await claimHandle(client, USER, 'luna_rossa');
+    const call = fake.calls[0]!;
+    expect(call.table).toBe('profiles');
+    expect(call.op).toBe('update');
+    expect(call.values).toEqual({ handle: 'luna_rossa' });
+    expect(call.filters).toEqual([['eq', 'id', USER]]);
+  });
+
+  it('refuses a malformed handle before touching the database', async () => {
+    const { fake, client } = db();
+    await expect(claimHandle(client, USER, 'No Spaces!')).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('refuses a reserved handle before touching the database', async () => {
+    const { fake, client } = db();
+    await expect(claimHandle(client, USER, 'supporto')).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('surfaces the database refusal as it came, for handleClaimRefusal to read', async () => {
+    const refusal = {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "profiles_handle_key"',
+    };
+    const { client } = db({ 'profiles.update': [{ error: refusal }] });
+    await expect(claimHandle(client, USER, 'luna_rossa')).rejects.toMatchObject(refusal);
+  });
+});
+
+describe('handleClaimRefusal', () => {
+  it("reads a clash on the handle's unique index as taken", () => {
+    expect(
+      handleClaimRefusal({
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "profiles_handle_key"',
+      }),
+    ).toEqual({ reason: 'taken' });
+  });
+
+  it('does not read another unique index as a taken handle', () => {
+    expect(
+      handleClaimRefusal({
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "profiles_referral_code_key"',
+      }),
+    ).toBeNull();
+  });
+
+  it('reads the reserved-word CHECK as reserved', () => {
+    expect(
+      handleClaimRefusal({
+        code: '23514',
+        message:
+          'new row for relation "profiles" violates check constraint "profiles_handle_not_reserved"',
+      }),
+    ).toEqual({ reason: 'reserved' });
+  });
+
+  it('reads the shape CHECK as malformed', () => {
+    expect(
+      handleClaimRefusal({
+        code: '23514',
+        message:
+          'new row for relation "profiles" violates check constraint "profiles_handle_check"',
+      }),
+    ).toEqual({ reason: 'malformed' });
+  });
+
+  it("does not read another column's CHECK as a handle refusal", () => {
+    expect(
+      handleClaimRefusal({
+        code: '23514',
+        message: 'new row for relation "profiles" violates check constraint "profiles_bio_check"',
+      }),
+    ).toBeNull();
+  });
+
+  it('reads the cooldown and carries the instant it opens from DETAIL', () => {
+    expect(
+      handleClaimRefusal({
+        code: 'PT429',
+        message: 'handle_cooldown',
+        details: '2026-10-19T10:00:00.000Z',
+      }),
+    ).toEqual({ reason: 'cooldown', opensAt: '2026-10-19T10:00:00.000Z' });
+  });
+
+  it('still reads the cooldown when DETAIL is missing or unparseable — the date is a courtesy', () => {
+    expect(handleClaimRefusal({ code: 'PT429', message: 'handle_cooldown' })).toEqual({
+      reason: 'cooldown',
+      opensAt: null,
+    });
+    expect(
+      handleClaimRefusal({ code: 'PT429', message: 'handle_cooldown', details: 'soon' }),
+    ).toEqual({ reason: 'cooldown', opensAt: null });
+  });
+
+  it('does not read another PT429 as the handle cooldown', () => {
+    expect(handleClaimRefusal({ code: 'PT429', message: 'waitlist_rate_limited' })).toBeNull();
+  });
+
+  it('is null for anything that is not a PostgREST refusal of the handle', () => {
+    for (const v of [
+      null,
+      undefined,
+      'PT429',
+      0,
+      [],
+      {},
+      { message: 'handle_cooldown' },
+      { code: 23505 },
+    ]) {
+      expect(handleClaimRefusal(v), JSON.stringify(v)).toBeNull();
+    }
+    expect(handleClaimRefusal({ code: '42501', message: 'rls denied' })).toBeNull();
+  });
+
+  it('names the cooldown by the SQLSTATE the trigger raises', () => {
+    expect(HANDLE_COOLDOWN_CODE).toBe('PT429');
   });
 });

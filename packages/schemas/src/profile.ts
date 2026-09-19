@@ -102,6 +102,11 @@ export const profileSchema = z.object({
   // (`get_person_profile`) never include them.
   suspended_until: z.string().nullable().optional(),
   banned_at: z.string().nullable().optional(),
+  // #782 — when the handle was last RENAMED; NULL until the first rename (the first choice starts
+  // no clock). Trigger-written, no client grant: it reaches the app only through
+  // `get_own_profile()`'s `select *`, and third-person projections never pick it. Optional too,
+  // so a build that reaches a project the migration has not reached still parses its own row.
+  handle_changed_at: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -127,10 +132,12 @@ export const profileUpdateSchema = profileSchema
   // picked above and overridden (a picked entry the extend replaces is a flag that does nothing):
   // the edit form hands over whatever was typed, padding included, and the column's CHECK
   // measures `btrim`; and a handle being CLAIMED is held to the reserved list a handle being
-  // READ is not (#430).
+  // READ is not (#430). Not nullable on the way in (#782): a member cannot clear a handle once
+  // chosen — `profiles_handle_cooldown` refuses it with 23502 — so the column's NULL is a read
+  // state only.
   .extend({
     display_name: displayNameWriteSchema.nullable(),
-    handle: claimableHandleSchema.nullable(),
+    handle: claimableHandleSchema,
   })
   .partial();
 

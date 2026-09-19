@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getOwnProfile } from '@athanor/api';
-import { isProfileComplete } from '@athanor/core';
+import { nextOnboardingStep } from '@athanor/core';
 import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
@@ -153,11 +153,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Profile hydration keyed on user id (not session object — token refresh
   // churns identity). Cancellable so a sign-out during an in-flight fetch
-  // can't resurrect the profile. When the freshly-created profile is still
-  // incomplete (new account just after OTP), flush the pre-auth onboarding
-  // draft and re-read, so the guard can route straight home.
+  // can't resurrect the profile. When the freshly-created profile still lacks the
+  // funnel's answers (new account just after OTP), flush the pre-auth onboarding
+  // draft and re-read, so the guard can route on — to the handle step (#782), which
+  // the flush never fills: the handle is chosen there, not derived from the email.
   const userId = session?.user.id ?? null;
-  const email = session?.user.email ?? null;
   useEffect(() => {
     if (!userId) {
       return; // profile cleared by the sign-out branch in onAuthStateChange
@@ -170,12 +170,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const p = await readProfileWithRetry(() => getOwnProfile(supabase));
         if (cancelled) return;
         setProfileError(false);
-        if (p && email && !isProfileComplete(p)) {
+        if (p && nextOnboardingStep(p) === 'funnel') {
           setFlushing(true);
-          const result = await flushOnboardingDraft(userId, email);
+          const result = await flushOnboardingDraft(userId);
           if (cancelled) return;
           if (result === 'flushed') {
-            await refreshProfile(); // re-read the now-complete profile
+            await refreshProfile(); // re-read: the answers landed, the handle step is next
           } else {
             setProfile(p); // 'nodraft' / 'error' → stay incomplete, guard → funnel
           }
@@ -200,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // changes) mid-flush, clear `flushing` so AuthGuard can route again.
       setFlushing(false);
     };
-  }, [userId, email, refreshProfile]);
+  }, [userId, refreshProfile]);
 
   // Referral (#78): the stash is spent here, not on the auth screens. An OAuth signup carries
   // no user_metadata, so athanor.redeem_referral — which reads the code out of exactly that —

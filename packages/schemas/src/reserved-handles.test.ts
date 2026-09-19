@@ -11,17 +11,6 @@ describe('RESERVED_HANDLES', () => {
     }
   });
 
-  it('leaves room for the underscore suggestHandle appends', () => {
-    // `suggestHandle` escapes a listed handle by suffixing `_`, and the column caps at 30. Held
-    // here as a static invariant rather than a runtime slice in the generator: no input can
-    // reach such a slice today (the longest entry is 14), so the branch would be untestable —
-    // and a 30-character entry added later would raise 23514 on the very path this guard exists
-    // to keep working.
-    for (const handle of RESERVED_HANDLES) {
-      expect(handle.length, handle).toBeLessThanOrEqual(29);
-    }
-  });
-
   it('is sorted and free of duplicates', () => {
     // Sorted so an addition lands in one obvious place and the mirror test's order equality
     // against the SQL array stays mechanical rather than a matter of taste.

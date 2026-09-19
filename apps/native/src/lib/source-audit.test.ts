@@ -2630,7 +2630,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:386': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:162': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:419':
+    'app/(onboarding)/index.tsx:440':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
@@ -3405,6 +3405,14 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
       file: `${SRC}app/(auth)/forgot-password.tsx`,
       autoComplete: `autoComplete="email"`,
       textContentType: `textContentType="emailAddress"`,
+    },
+    {
+      // #782: the @handle is CREATED — at the onboarding step and in the profile editor, one
+      // component for both — so neither platform may fill it.
+      what: 'handle, chosen or renamed',
+      file: `${SRC}components/profile/HandleField.tsx`,
+      autoComplete: `autoComplete="off"`,
+      textContentType: `textContentType="none"`,
     },
   ];
 

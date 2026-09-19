@@ -25,6 +25,15 @@ select plan(13);
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-0000-0000-000000000123', 'alice123@test.dev');
 
+-- NULL is what handle_new_user inserts every profile with, and the CHECK must keep admitting it or
+-- signup aborts. Read straight after the insert: since #782 a MEMBER can no longer write NULL back
+-- over a handle (profiles_handle_cooldown refuses it, pgTAP 0154), so the insert is the NULL path.
+select is(
+  (select handle from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000123'),
+  null,
+  'NULL still passes — handle_new_user inserts every profile with one, and refusing it would abort signup'
+);
+
 -- ── the premise: the client really does hold the grant ────────────────────────────────────
 -- Everything else here is only worth asserting because of these two. The guard's whole reason
 -- for living in the database is that `authenticated` can write this column directly, so the
@@ -33,7 +42,7 @@ insert into auth.users (id, email) values
 -- Granted by name in 20260617225450_m7_candidacy.sql:16-18, 21-23.
 select ok(
   has_column_privilege('authenticated', 'public.profiles', 'handle', 'UPDATE'),
-  'authenticated holds UPDATE on profiles.handle — a member can re-claim a handle at will'
+  'authenticated holds UPDATE on profiles.handle — a member can re-claim a handle (once per 30 days since #782, pgTAP 0154)'
 );
 select ok(
   has_column_privilege('authenticated', 'public.profiles', 'handle', 'INSERT'),
@@ -85,25 +94,21 @@ select throws_ok(
   'an uppercase handle is refused by the ORIGINAL regex CHECK (not by this one) — which is exactly why this constraint needs no lower()'
 );
 
--- The guard must not have grown teeth it should not have: only the brand is a prefix.
+-- The guard must not have grown teeth it should not have: only the brand is a prefix. This is the
+-- member's first RENAME (the refusals above were rolled back, so they stamped nothing) and the
+-- cooldown lets a first rename through — which is also why it must come after them: from here on
+-- a member rename inside 30 days would be refused by 0154's trigger before any CHECK could speak.
 select lives_ok(
   $$ update public.profiles set handle = 'admin_luna'
      where id = 'aaaaaaaa-0000-0000-0000-000000000123' $$,
   'a handle that merely contains a reserved word is still a person''s to claim'
 );
-
-update public.profiles set handle = null
-  where id = 'aaaaaaaa-0000-0000-0000-000000000123';
-select is(
-  (select handle from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000123'),
-  null,
-  'NULL still passes — handle_new_user inserts every profile with one, and refusing it would abort signup'
-);
 reset role;
 
 -- ── the refusal is the CONSTRAINT, not a policy ───────────────────────────────────────────
 -- service_role bypasses RLS entirely. A CHECK does not care who you are, so this must still
--- throw; if it lived up any other stack, this is where the difference would show.
+-- throw; if it lived up any other stack, this is where the difference would show. (The rename
+-- cooldown binds members only, so it does not pre-empt the CHECK here.)
 set local role service_role;
 select throws_ok(
   $$ update public.profiles set handle = 'admin'

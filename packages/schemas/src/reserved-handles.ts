@@ -18,9 +18,9 @@
  * `reserved-handles.mirror.test.ts` is what keeps the two from drifting.
  *
  * ROLE WORDS ONLY, not brand vocabulary. `aura` is deliberately absent: the score is the
- * product's central term but a member at `@aura` claims no authority, and it is what
- * `suggestHandle` falls back to when an address has no usable local part. Reserving a word for
- * being precious rather than for being impersonated is a naming policy, and this is not one.
+ * product's central term but a member at `@aura` claims no authority — and one already holds it
+ * (the handle the email-derived default of before #782 fell back to). Reserving a word for being
+ * precious rather than for being impersonated is a naming policy, and this is not one.
  *
  * Sorted, so an addition lands in one obvious place and the mirror test's order equality against
  * the SQL array is mechanical.

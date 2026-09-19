@@ -1,6 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { updateProfile } from '@athanor/api';
-import { IDENTITY_TAGS, MAX_SKILLS, PROFESSIONS, SEEKING_TAGS, SKILLS } from '@athanor/core';
+import { handleClaimRefusal, updateProfile } from '@athanor/api';
+import {
+  HANDLE_RENAME_COOLDOWN_DAYS,
+  IDENTITY_TAGS,
+  MAX_SKILLS,
+  PROFESSIONS,
+  SEEKING_TAGS,
+  SKILLS,
+  canRenameHandle,
+  classifyHandle,
+  handleRenameOpensAt,
+} from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -14,17 +24,26 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { CityPicker } from '@/components/profile/CityPicker';
+import { HandleField } from '@/components/profile/HandleField';
 import { Section, type Visibility } from '@/components/profile/Section';
 import { useToast } from '@/components/ToastHost';
 import { useDiscardConfirm } from '@/hooks/use-dirty-guard';
+import { useHandleLookup } from '@/hooks/use-handle-lookup';
 import { isDraftDirty } from '@/lib/dirty-guard';
+import {
+  handleBlocksSave,
+  handleRefusalMessage,
+  handleStatus,
+  handleStatusLine,
+} from '@/lib/handle-status';
 import { useAvatarUpload } from '@/lib/media/use-avatar-upload';
 import { toggleTag } from '@/lib/tags';
 import { supabase } from '@/lib/supabase';
+import { dateTimeWithYear } from '@/lib/time';
 
 /**
- * Edit-mode Profilo form: bio / identity / seeking / dream / locale + per-field
- * visibility. Owns the draft state internally; unmounting discards the draft
+ * Edit-mode Profilo form: name / photo / @handle (#782) / bio / identity / seeking / dream /
+ * locale + per-field visibility. Owns the draft state internally; unmounting discards the draft
  * (cancel), a successful save persists then fires onSaved.
  *
  * The dream section is read-only here — the text is written in the dream editor
@@ -54,6 +73,24 @@ export function ProfileEditForm({
   tailSlot?: ReactNode;
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
+  /**
+   * The @handle (#782), renameable once every 30 days. The database enforces the window
+   * (`profiles_handle_cooldown`); `handle_changed_at` is how the form knows it first, so a
+   * member inside it sees the date instead of a field the server would refuse. The first choice
+   * starts no clock, so a handle mistyped at onboarding is editable at once. One instant per
+   * mount, like the funnel's birth-date bounds — the screen owns the clock, core stays pure.
+   */
+  const [handle, setHandle] = useState(profile.handle ?? '');
+  const [openedAt] = useState(() => new Date());
+  const changedAt = profile.handle_changed_at ?? null;
+  const renameOpen = canRenameHandle(changedAt, openedAt);
+  const renameOpensAt = handleRenameOpensAt(changedAt);
+  const handleChanged = handle !== (profile.handle ?? '');
+  const handleLookup = useHandleLookup(
+    handle,
+    renameOpen && handleChanged && classifyHandle(handle) === 'claimable',
+  );
+  const handleState = handleStatus(handle, profile.handle, handleLookup);
   const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
   /**
    * The picked photo, held LOCALLY until Save (#636).
@@ -99,6 +136,7 @@ export function ProfileEditForm({
   const dirty = isDraftDirty(
     {
       displayName: profile.display_name,
+      handle: profile.handle,
       avatarPath: profile.avatar_path,
       pendingAvatar: null,
       bio: profile.bio,
@@ -114,6 +152,7 @@ export function ProfileEditForm({
     },
     {
       displayName,
+      handle,
       avatarPath,
       pendingAvatar,
       bio,
@@ -133,6 +172,13 @@ export function ProfileEditForm({
     setVisibility((v) => ({ ...v, [field]: value }));
 
   const save = async () => {
+    // A handle that can never land is refused here, with the reason the field already shows —
+    // not sent to be refused as «Riprova» (#769). Anything else goes to the database, which is
+    // the gate for a clash and for the rename window.
+    if (handleChanged && handleBlocksSave(handleState)) {
+      setError(handleStatusLine(handleState, locale)?.text ?? t('handle.status.malformed', locale));
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -164,11 +210,18 @@ export function ProfileEditForm({
         city_geohash: city.trim() ? cityGeohash : null,
         locale,
         visibility,
+        // Only when it changed: an unchanged handle is not a rename, and leaving it off the wire
+        // keeps a save inside the window from ever reaching the cooldown at all.
+        ...(handleChanged ? { handle } : {}),
       });
       await refreshProfile();
       onSaved();
-    } catch {
-      setError(t('profile.error', locale));
+    } catch (e) {
+      // A handle refusal names itself (taken, reserved, malformed, or the date the window
+      // opens); anything else is the generic line. The whole save is one UPDATE, so a refused
+      // handle has left every other field as it was too.
+      const refusal = handleClaimRefusal(e);
+      setError(refusal ? handleRefusalMessage(refusal, locale) : t('profile.error', locale));
     } finally {
       setSaving(false);
     }
@@ -343,6 +396,26 @@ export function ProfileEditForm({
           <Text className="text-[13px] text-muted-foreground">
             {t('profile.name.hint', locale)}
           </Text>
+
+          <SectionLabel>{t('handle.label', locale)}</SectionLabel>
+          <HandleField
+            value={handle}
+            onChangeText={setHandle}
+            status={handleState}
+            locale={locale}
+            lockedNote={
+              !renameOpen && renameOpensAt
+                ? t('handle.cooldown', locale, {
+                    date: dateTimeWithYear(renameOpensAt.toISOString(), locale),
+                  })
+                : null
+            }
+          />
+          {renameOpen ? (
+            <Text className="text-[13px] leading-snug text-muted-foreground">
+              {t('handle.renameHint', locale, { days: HANDLE_RENAME_COOLDOWN_DAYS })}
+            </Text>
+          ) : null}
 
           {/* The identity facet (#251): one control for the whole block, same visual grammar as
               Section's chip row. An absent key means the DEFAULT — public — never 'members'

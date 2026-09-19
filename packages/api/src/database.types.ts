@@ -2398,6 +2398,7 @@ export type Database = {
           display_name: string | null
           founding_member: boolean
           handle: string | null
+          handle_changed_at: string | null
           id: string
           identity_tags: string[]
           identity_verified: boolean
@@ -2424,6 +2425,7 @@ export type Database = {
           display_name?: string | null
           founding_member?: boolean
           handle?: string | null
+          handle_changed_at?: string | null
           id: string
           identity_tags?: string[]
           identity_verified?: boolean
@@ -2450,6 +2452,7 @@ export type Database = {
           display_name?: string | null
           founding_member?: boolean
           handle?: string | null
+          handle_changed_at?: string | null
           id?: string
           identity_tags?: string[]
           identity_verified?: boolean
@@ -3556,6 +3559,7 @@ export type Database = {
           display_name: string | null
           founding_member: boolean
           handle: string | null
+          handle_changed_at: string | null
           id: string
           identity_tags: string[]
           identity_verified: boolean
