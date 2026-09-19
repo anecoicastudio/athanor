@@ -217,10 +217,35 @@ describe('profileUpdateSchema handle reservation (#430)', () => {
     expect(profileUpdateSchema.safeParse({ handle: 'stella_prima' }).success).toBe(true);
   });
 
-  it('still accepts a null handle', () => {
-    // The column is nullable and the read shape stays nullable; the refinement must not turn
-    // "no handle yet" into a validation error.
-    expect(profileUpdateSchema.safeParse({ handle: null }).success).toBe(true);
+  it('refuses a null handle — a member cannot clear it once chosen (#782)', () => {
+    // The column stays nullable (handle_new_user inserts NULL, and the read shape says so), but a
+    // WRITE of NULL would walk around the rename cooldown — profiles_handle_cooldown refuses it
+    // with 23502, and this is the early, well-messaged copy of that refusal.
+    expect(profileUpdateSchema.safeParse({ handle: null }).success).toBe(false);
+  });
+});
+
+describe('profileSchema — handle_changed_at (#782)', () => {
+  // The own row arrives through get_own_profile's `select *`, so the column rides it the moment
+  // the migration lands. Optional as well as nullable: an app build that reaches a project the
+  // migration has not reached yet must still parse its own profile.
+  it('carries the last rename instant', () => {
+    expect(
+      profileSchema.parse({ ...validRow, handle_changed_at: '2026-09-19T10:00:00.123456+00:00' })
+        .handle_changed_at,
+    ).toBe('2026-09-19T10:00:00.123456+00:00');
+  });
+
+  it('is NULL until the first rename', () => {
+    expect(profileSchema.parse({ ...validRow, handle_changed_at: null }).handle_changed_at).toBeNull();
+  });
+
+  it('parses a row from a project without the column', () => {
+    expect(profileSchema.parse(validRow).handle_changed_at).toBeUndefined();
+  });
+
+  it('is never writable through the update shape — only the trigger stamps it', () => {
+    expect(Object.keys(profileUpdateSchema.shape)).not.toContain('handle_changed_at');
   });
 });
 

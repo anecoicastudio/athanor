@@ -1,36 +1,30 @@
-import { isReservedHandle } from '@athanor/schemas';
+import { claimableHandleSchema, handleSchema } from '@athanor/schemas';
 
-/** What an address with no usable local part becomes. Must itself be claimable (#430). */
-const FALLBACK_HANDLE = 'aura';
+/**
+ * What typed text says about itself as an @handle (#782). `empty` is nothing typed yet, never an
+ * error; `malformed` is the shape the column CHECK refuses (3–30, a–z 0–9 _); `reserved` is a word
+ * `profiles_handle_not_reserved` refuses (#430). Whether a claimable handle is already someone's
+ * is the database's to say — the caller asks it.
+ */
+export type HandleVerdict = 'empty' | 'malformed' | 'reserved' | 'claimable';
 
-/** Derive an @handle suggestion from an email. Rules: ^[a-z0-9_]{3,30}$ (schemas.handleSchema). */
-export function suggestHandle(email: string): string {
-  // `?? ''` is required by `noUncheckedIndexedAccess` but unreachable: split always returns at
-  // least one element, so [0] is never undefined. Hence the one NoCoverage mutant here — an
-  // equivalent mutant in the same sense, on a branch no input can enter.
-  const local = email.split('@')[0] ?? '';
-  let handle = local
-    .toLowerCase()
-    // The `+` here is redundant with the collapse on the next line (dropping it just produces
-    // more underscores for that pass to merge) — an equivalent mutant, not a coverage hole.
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-  if (handle.length === 0) return FALLBACK_HANDLE;
-  while (handle.length < 3) handle += '_';
-  handle = handle.slice(0, 30);
-  /*
-   * #430 — dodge the reserved list HERE, before either guard downstream can see it. A reserved
-   * suggestion throws inside `onboardingAnswersSchema.parse` in `flushOnboardingDraft`, which
-   * keeps the draft and retries forever; past that, the column's CHECK raises 23514, which
-   * `updateOnboardingProfileWithHandleFallback` does not retry (23505 only).
-   *
-   * Two steps, because a suffix escapes the exact list but never the brand PREFIX rule:
-   * `admin` becomes `admin_`, while `athanor_support_` is still reserved and takes the fallback.
-   * The suffix cannot breach the 30-char cap: a prefix match returns the fallback whatever its
-   * length, and every LIST entry is held to 29 by `reserved-handles.test.ts`.
-   */
-  if (isReservedHandle(handle)) handle = `${handle}_`;
-  if (isReservedHandle(handle)) return FALLBACK_HANDLE;
-  return handle;
+/**
+ * The typed text as a handle candidate: trimmed, one leading `@` dropped (people type it out of
+ * habit — the field already shows one), lowercased because the column holds lowercase only.
+ * Nothing else is repaired: a space or a dot stays, so `classifyHandle` can say it is not allowed
+ * instead of the field quietly turning the name into something the person did not type.
+ */
+export function normalizeHandleInput(raw: string): string {
+  const trimmed = raw.trim();
+  return (trimmed.startsWith('@') ? trimmed.slice(1) : trimmed).toLowerCase();
+}
+
+/**
+ * Classify a candidate handle. The shape is checked before the reserved list, so a candidate that
+ * breaks both is named for its shape — the rule a person can act on.
+ */
+export function classifyHandle(candidate: string): HandleVerdict {
+  if (candidate.length === 0) return 'empty';
+  if (!handleSchema.safeParse(candidate).success) return 'malformed';
+  return claimableHandleSchema.safeParse(candidate).success ? 'claimable' : 'reserved';
 }

@@ -1,4 +1,5 @@
 import {
+  claimableHandleSchema,
   type OnboardingAnswers,
   onboardingAnswersSchema,
   personProfileSchema,
@@ -98,47 +99,78 @@ export async function updateOnboardingProfile(
   if (error) throw error;
 }
 
-/** Postgres unique_violation — the `profiles.handle` unique index when an auto-derived handle clashes. */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code?: string }).code === '23505'
-  );
-}
-
-/** Append a short random suffix, keeping the result within handleSchema (^[a-z0-9_]{3,30}$). */
-function withRandomSuffix(base: string): string {
-  const suffix = Math.random().toString(36).slice(2, 6); // up to 4 chars of [a-z0-9]
-  return `${base.slice(0, 30 - suffix.length - 1)}_${suffix}`;
+/**
+ * Whether a profile already holds `handle` (#782) — the live check beside the handle field.
+ *
+ * As far as the CALLER can see: profiles SELECT is members-wide but a blocked pair is
+ * RLS-invisible, so a handle held by someone on the other side of a block reads as free here.
+ * That is a courtesy check, not the gate — the unique index is, and `claimHandle` surfaces its
+ * 23505 for `handleClaimRefusal` to name as taken. Single-row existence probe, no pagination.
+ */
+export async function isHandleTaken(client: AthanorClient, handle: string): Promise<boolean> {
+  const { data, error } = await client
+    .from('profiles')
+    .select('id')
+    .eq('handle', handle)
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }
 
 /**
- * Like {@link updateOnboardingProfile}, but tolerant of an auto-derived handle
- * that collides with an existing one (unique-index 23505). The onboarding flow
- * now derives the handle from the email via `suggestHandle`, which is
- * deterministic — two users sharing an email localpart would otherwise clash —
- * so we retry with a random suffix. Returns the handle that actually landed; the
- * user can rename later in Profilo. Non-collision errors propagate immediately.
+ * Claim `handle` for the caller's own row (#782) — the first choice after sign-up and every
+ * rename from the profile editor alike. Writes that one column and nothing else. The database
+ * decides the rest: the unique index, the shape and reserved-word CHECKs, and the 30-day rename
+ * cooldown (`profiles_handle_cooldown`). Its refusals propagate untouched for
+ * {@link handleClaimRefusal} to name; a malformed or reserved handle never reaches the wire.
  */
-export async function updateOnboardingProfileWithHandleFallback(
+export async function claimHandle(
   client: AthanorClient,
   userId: string,
-  answers: OnboardingAnswers,
-  attempts = 5,
-): Promise<string> {
-  let handle = answers.handle;
-  for (let i = 0; i < attempts; i += 1) {
-    try {
-      await updateOnboardingProfile(client, userId, { ...answers, handle });
-      return handle;
-    } catch (err) {
-      if (!isUniqueViolation(err) || i === attempts - 1) throw err;
-      handle = withRandomSuffix(answers.handle);
-    }
+  handle: string,
+): Promise<void> {
+  const payload = { handle: claimableHandleSchema.parse(handle) };
+  const { error } = await client.from('profiles').update(payload).eq('id', userId);
+  if (error) throw error;
+}
+
+/**
+ * The SQLSTATE `profiles_handle_cooldown` refuses a rename with. PostgREST maps a PTxxx code
+ * onto that HTTP status (the waitlist throttle's precedent), so the code alone tells it apart;
+ * @athanor/core's handle-cooldown.mirror.test pins the trigger to the same literal.
+ */
+export const HANDLE_COOLDOWN_CODE = 'PT429';
+
+export type HandleClaimRefusal =
+  | { reason: 'taken' }
+  | { reason: 'reserved' }
+  | { reason: 'malformed' }
+  /** `opensAt` is the trigger's DETAIL — the ISO instant the next rename opens — or null. */
+  | { reason: 'cooldown'; opensAt: string | null };
+
+/**
+ * Name a database refusal of a handle write, or `null` when the error is anything else (#782).
+ * A refused handle always says why on screen (#769's lesson), so each refusal the database can
+ * produce is read here — by the constraint it names, not the bare code: `profiles` carries
+ * other CHECKs, and a too-long bio must not be told «questo nome è riservato».
+ */
+export function handleClaimRefusal(err: unknown): HandleClaimRefusal | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const { code, message, details } = err as { code?: unknown; message?: unknown; details?: unknown };
+  if (typeof code !== 'string' || typeof message !== 'string') return null;
+  if (code === '23505' && message.includes('"profiles_handle_key"')) return { reason: 'taken' };
+  if (code === '23514' && message.includes('"profiles_handle_not_reserved"')) {
+    return { reason: 'reserved' };
   }
-  /* c8 ignore next */ return handle; // loop either returns or throws
+  if (code === '23514' && message.includes('"profiles_handle_check"')) {
+    return { reason: 'malformed' };
+  }
+  if (code === HANDLE_COOLDOWN_CODE && message === 'handle_cooldown') {
+    const opensAt =
+      typeof details === 'string' && !Number.isNaN(Date.parse(details)) ? details : null;
+    return { reason: 'cooldown', opensAt };
+  }
+  return null;
 }
 
 /** Partial profile edit (Profilo Evolutivo). RLS enforces owner-only; schema strips unknown keys. */

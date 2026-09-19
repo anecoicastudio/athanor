@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { claimableHandleSchema, localeSchema } from './profile.ts';
+import { localeSchema } from './profile.ts';
 import { birthDateSchema } from './zodiac.ts';
 
 /**
@@ -14,8 +14,8 @@ import { birthDateSchema } from './zodiac.ts';
  * (needs a clock) plus the DB trigger; shape alone cannot know today's date.
  */
 export const onboardingAnswersSchema = z.object({
-  // `claimableHandleSchema`, not `handleSchema`: this is a claim (#430).
-  handle: claimableHandleSchema,
+  // No `handle` (#782): it is chosen on its own screen once the account exists and written by
+  // `claimHandle`, never flushed with these answers — and never derived from the email.
   locale: localeSchema,
   identity_tags: z.array(z.string().min(1)).min(1).max(10),
   seeking: z.array(z.string().min(1)).min(1).max(10),
