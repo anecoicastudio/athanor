@@ -313,6 +313,9 @@ describe('privacy', () => {
       'story.own.pin',
       'live.tab.vicino',
       'momenti.title',
+      'momenti.suggestionsTitle',
+      'gdpr.location.label',
+      'gdpr.consent.comms',
     ] as const) {
       expect(text, key).toContain(t(key, loc));
     }
@@ -366,9 +369,9 @@ describe('privacy', () => {
     expect(all('en')).toMatch(/Circle[^.]*fund contributions earn no points/);
   });
 
-  it('does not present the fund as open', () => {
-    // The fund is OFF on production for this release (#249). Contribution records are
-    // described as what we keep WHEN it is open — never as a live feature.
+  it('describes contribution records conditionally, as kept when the fund is open', () => {
+    // The fund is OFF on production for this release (#249). This pins the conditional; it
+    // cannot catch another sentence presenting the fund as live — that is the copy read.
     expect(all('it')).toMatch(/Quando il fondo è aperto/);
     expect(all('en')).toMatch(/When the fund is open/);
   });

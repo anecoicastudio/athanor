@@ -83,8 +83,8 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: il tuo account",
         body: [
-          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google: in quel caso Google ci passa i dati di base del tuo account, cioè indirizzo email, nome e foto. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta cifrata, da cui non si può risalire alla password.",
-          "Ti chiediamo anche il nome da mostrare e la data di nascita. Dalla prima parte del tuo indirizzo email ricaviamo la tua @handle, il nome con cui compari: da mario.rossi@… nasce @mario_rossi. Dall'app non si può cambiare; se vuoi cambiarla, scrivici.",
+          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google: in quel caso Google ci passa indirizzo email, nome e foto del tuo account; il nome diventa quello che mostri, e puoi cambiarlo nel profilo, mentre la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
+          "Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. Dalla prima parte del tuo indirizzo email ricaviamo la tua @handle, il nome con cui compari: da mario.rossi@… nasce @mario_rossi. Dall'app non si può cambiare; se vuoi cambiarla, scrivici.",
           "La data di nascita serve a verificare che tu abbia l'età minima e a calcolare il tuo segno zodiacale. La data la vedi solo tu; il segno compare sul tuo profilo.",
           'Conserviamo anche la lingua che usi e, se ti ha invitato qualcuno, il collegamento con quella persona.',
         ],
@@ -93,8 +93,8 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: "Nell'app: il profilo e chi lo vede",
         body: [
           `Nel profilo puoi aggiungere una bio, la tua missione, la professione, le competenze, la città, le parole che ti descrivono, ciò che cerchi e il tuo sogno con le sue tappe. Per ciascuna di queste parti scegli tu «${tIt('profile.visibility.label')}»: «${tIt('visibility.public')}», «${tIt('visibility.members')}» o «${tIt('visibility.private')}». Se non scegli, vale «${tIt('visibility.members')}». Ciò che imposti su «${tIt('visibility.private')}» lo vedi solo tu.`,
-          `Nome, foto e @handle li vedono tutte le persone iscritte, tranne chi hai bloccato o chi ti ha bloccato. Per questi scegli tra «${tIt('visibility.public')}» e «${tIt('visibility.members')}», e all'inizio è «${tIt('visibility.public')}»: vuol dire che hai una pagina pubblica su questo sito, visibile a chiunque e ai motori di ricerca, con @handle, nome, foto e segno zodiacale, e con il tuo sogno e le sue tappe se li hai resi visibili a «${tIt('visibility.public')}». Se scegli «${tIt('visibility.members')}», la pagina non viene più mostrata; la versione già pronta può restare per un breve periodo nella cache della rete.`,
-          'Il tuo punteggio Aura e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche se hai verificato la tua identità e a quali eventi hai detto che partecipi.',
+          `Nome, foto e @handle li vedono tutte le persone iscritte. Per questi scegli tra «${tIt('visibility.public')}» e «${tIt('visibility.members')}», e all'inizio è «${tIt('visibility.public')}»: vuol dire che hai una pagina pubblica su questo sito, visibile a chiunque e ai motori di ricerca, con @handle, nome, foto e segno zodiacale, e con il tuo sogno e le sue tappe se li hai resi visibili a «${tIt('visibility.public')}». Se scegli «${tIt('visibility.members')}», la pagina non viene più mostrata; la versione già pronta può restare per un breve periodo nella cache della rete. L'immagine di anteprima che accompagna il link alla pagina (nome, foto, @handle e, se era visibile a «${tIt('visibility.public')}», il tuo sogno) si aggiorna invece solo quando pubblichiamo una nuova versione del sito: fino ad allora resta raggiungibile.`,
+          'Il tuo punteggio Aura, compreso il dettaglio per tipo di azione, il massimo che hai raggiunto e la data della tua ultima azione che conta, e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche se hai verificato la tua identità, a quali eventi partecipi, anche con un biglietto, e quanti eventi e aiuti hai completato.',
         ],
       },
       {
@@ -103,21 +103,21 @@ export const privacy: Record<Locale, LegalDoc> = {
           `Post, commenti, storie, i Momenti del tuo percorso e progetti li vedono le altre persone iscritte. Chi hai bloccato non vede i tuoi post, commenti, storie e Momenti, e tu non vedi i suoi. Le storie restano visibili 24 ore, a meno che tu non scelga «${tIt('story.own.pin')}».`,
           "Le reazioni che lasci non sono visibili agli altri: chi ha scritto il post ne vede solo il numero. Le offerte di aiuto e l'aiuto sulle tappe li vedono solo le persone coinvolte.",
           'Gli eventi che organizzi sono pubblici: ognuno ha una pagina su questo sito, con titolo, descrizione, luogo, data e prezzo, e come organizzatore compare la tua @handle se la tua pagina pubblica è attiva.',
-          "Foto, video e note vocali sono conservati in archivi privati e si aprono solo con collegamenti temporanei. Dalle foto togliamo i metadati, come il punto in cui sono state scattate; da video e note vocali li togliamo sul server, e nei rari casi in cui non ci riusciamo il file resta com'è.",
+          "Foto, video e note vocali sono conservati in archivi privati e si aprono solo con collegamenti temporanei, tranne la foto del profilo nell'immagine di anteprima della tua pagina pubblica. Dalle foto togliamo i metadati, come il punto in cui sono state scattate; da video e note vocali li togliamo sul server, e nei rari casi in cui non ci riusciamo il file resta com'è.",
         ],
       },
       {
         heading: "Nell'app: i messaggi",
         body: [
-          'I messaggi sono sempre tra due persone e li conserviamo sui nostri server per consegnarli. Viaggiano su connessioni cifrate, ma non sono cifrati end-to-end. Il team di moderazione può leggere solo i messaggi che qualcuno ha segnalato.',
+          'I messaggi sono sempre tra due persone e li conserviamo sui nostri server, per consegnarli e per mostrarti la conversazione. Viaggiano su connessioni cifrate, ma non sono cifrati end-to-end. Dal pannello di moderazione il team può leggere solo i messaggi che qualcuno ha segnalato.',
           "Se hai le notifiche attive, l'avviso di un nuovo messaggio mostra la @handle di chi ti scrive e l'inizio del testo, e passa dai servizi di notifica di Expo, Apple e Google.",
-          'Se una delle due persone elimina il proprio account, la conversazione viene cancellata per entrambe.',
+          "Se una delle due persone elimina il proprio account, la conversazione viene cancellata per entrambe; le foto inviate dall'altra persona restano nei nostri archivi, non visibili a nessuno, finché anche lei non elimina l'account.",
         ],
       },
       {
         heading: "Nell'app: la posizione",
         body: [
-          "L'app usa la posizione del telefono solo se glielo permetti, e solo mentre la stai usando: mai in background. Chiede al telefono una posizione a bassa precisione, intorno al chilometro su iPhone e intorno ai cento metri su Android. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google.",
+          `L'app usa la posizione del telefono solo se glielo permetti nelle impostazioni del telefono, e solo mentre la stai usando: mai in background. Conta solo quel permesso: l'interruttore «${tIt('gdpr.location.label')}» in «${tIt('settings.trust.title')}» non la attiva né la spegne. Chiede al telefono una posizione a bassa precisione, intorno al chilometro su iPhone e intorno ai cento metri su Android. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google.`,
           `In «${tIt('live.tab.vicino')}» la usiamo per trovare gli eventi nel raggio di 50 chilometri: arriva ai nostri server per la ricerca, ma non la salviamo.`,
           "Per creare un evento dal vivo ti chiediamo la posizione: diventa il punto dell'evento, resta salvata con l'evento ed è visibile a chi lo vede.",
           'La città del tuo profilo invece la scrivi tu. Puoi negare o revocare il permesso quando vuoi, dalle impostazioni del telefono: senza, non vedi gli eventi vicini e non puoi creare eventi dal vivo. Non tracciamo i tuoi spostamenti.',
@@ -126,40 +126,41 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: Aura e Momenti",
         body: [
-          "L'Aura è il tuo punteggio di reputazione, da 0 a 1000. Lo calcola un programma sui nostri server, solo a partire da azioni che si possono verificare: verificare la tua identità, partecipare a eventi o organizzarli, completare le tappe del tuo sogno, aiutare altre persone con le loro, le conversazioni nate da un Momento e le stelle che altre persone danno ai tuoi post. Alcune azioni hanno un limite per periodo, gli scambi ripetuti con la stessa persona valgono via via meno, e una stella vale di più se chi la dà ha un'Aura più alta. Se per più di 30 giorni non fai nulla che conti, il punteggio cala piano.",
-          "L'abbonamento Circle e i contributi al fondo non danno punti: l'Aura non si compra. Se il team di moderazione accoglie una segnalazione contro di te, l'Aura scende. L'Aura compare sul tuo profilo, pesa le stelle che dai ai post, e chi ha Circle può usarla per filtrare la ricerca delle persone.",
-          `Ogni notte un programma propone a chi ha un sogno attivo fino a tre persone con cui parlare: sono i ${tIt('momenti.title')}. Confronta le parole che vi descrivono, ciò che cercate, le competenze, le professioni, la vicinanza delle vostre città e gli eventi a cui avete partecipato entrambi. A chi riceve la proposta mostriamo il perché, per esempio un evento in comune. Non usiamo ciò che hai impostato su «${tIt('visibility.private')}», non proponiamo tra loro persone che si sono bloccate, e se imposti il tuo sogno su «${tIt('visibility.private')}» non ti proponiamo a nessuno.`,
+          "L'Aura è il tuo punteggio di reputazione, da 0 a 1000. Lo calcola un programma sui nostri server, solo a partire da ciò che fai nell'app: verificare la tua identità, partecipare a eventi o organizzarli, completare le tappe del tuo sogno (le segni tu), aiutare altre persone con le loro, le conversazioni in chat in cui scrivete entrambi e che arrivano ad almeno dieci messaggi, e le stelle che altre persone accendono sui tuoi post. Alcune azioni hanno un limite per periodo, gli scambi ripetuti con la stessa persona valgono via via meno, e una stella conta solo se chi la accende ha più di 300 punti di Aura. Se per più di 30 giorni non ricevi punti, il punteggio cala del 2% a settimana, mai sotto il 40% del massimo che hai raggiunto.",
+          "L'abbonamento Circle e i contributi al fondo non danno punti: l'Aura non si compra. Se il team di moderazione, decidendo su una segnalazione contro di te, sceglie una penalità, l'Aura scende. L'Aura compare sul tuo profilo, decide se le stelle che accendi contano, e chi ha Circle può usarla per filtrare la ricerca delle persone.",
+          `Ogni notte un programma propone a chi ha un sogno attivo fino a tre persone con cui parlare: sono i ${tIt('momenti.title')}. Confronta le parole che vi descrivono, ciò che cercate, le competenze, le professioni, la vicinanza delle vostre città e gli eventi a cui avete partecipato entrambi; se non trova affinità, può proporti chi ha un sogno nuovo. A chi riceve la proposta mostriamo il perché, per esempio un evento in comune. Lo stesso confronto sceglie fino a tre persone per «${tIt('momenti.suggestionsTitle')}».`,
+          `Ciò che imposti su «${tIt('visibility.private')}» non lo usiamo mai per proporti ad altre persone e non lo mostriamo a nessuno; lo usiamo solo per scegliere chi proporre a te. Non proponiamo tra loro persone che si sono bloccate, e se imposti il tuo sogno su «${tIt('visibility.private')}» non ti proponiamo a nessuno.`,
           `Né l'Aura né i ${tIt('momenti.title')} prendono da soli decisioni che hanno effetti giuridici su di te o che ti toccano in modo simile: avvisi, sospensioni ed esclusioni le decide sempre una persona del team di moderazione.`,
         ],
       },
       {
         heading: "Nell'app: segnalazioni e blocchi",
         body: [
-          "Puoi segnalare una persona, un contenuto, un messaggio o un comportamento. Della segnalazione conserviamo chi l'ha fatta, cosa riguarda, il motivo e la nota facoltativa. Solo il team di moderazione la legge, e chi viene segnalato non sa chi l'ha fatta.",
+          "Puoi segnalare una persona, un post, un messaggio o un comportamento. Della segnalazione conserviamo chi l'ha fatta, cosa riguarda, il motivo e la nota facoltativa. Oltre a te, può leggerla solo il team di moderazione, e chi viene segnalato non sa chi l'ha fatta.",
           "Quando il team decide su una segnalazione — un avviso, una penalità sull'Aura, una sospensione o un'esclusione — la decisione resta in un registro, con chi l'ha presa e perché.",
-          "Puoi bloccare chi vuoi. L'elenco delle persone che hai bloccato lo vedi solo tu; da quel momento non vi vedete più a vicenda: profili, contenuti e messaggi.",
+          'Puoi bloccare chi vuoi. Da quel momento non vedete più a vicenda profili, post, commenti, storie, Momenti e messaggi; eventi e progetti restano visibili. Nella tua lista dei bloccati continui a vedere nome e foto di chi hai bloccato, e quella lista la vedi solo tu.',
         ],
       },
       {
         heading: "Nell'app: pagamenti e verifica dell'identità",
         body: [
           'I pagamenti li gestisce Stripe, sulle sue pagine: i dati della tua carta non passano mai da noi. Insieme a ogni pagamento passiamo a Stripe un nostro codice che lo collega al tuo account.',
-          "Per un biglietto conserviamo l'evento, lo stato del pagamento, i suoi identificativi presso Stripe e il codice del tuo QR; a Stripe passiamo l'evento e il prezzo, e i dati di pagamento, email compresa, li inserisci tu sulla sua pagina. Per l'abbonamento Circle passiamo a Stripe il tuo indirizzo email, e conserviamo lo stato dell'abbonamento e i suoi identificativi. Quando il fondo è aperto, di ogni contributo conserviamo l'importo e i suoi identificativi presso Stripe: gli altri vedono solo il totale raccolto, mai il tuo contributo.",
-          'Stripe ci manda una notifica per ogni pagamento e noi la conserviamo: ci serve a non registrare mai due volte lo stesso pagamento, e può contenere il tuo nome, la tua email e il tuo indirizzo di fatturazione.',
-          "Per alcune funzioni, come vendere biglietti, ti chiediamo di verificare la tua identità. Il documento lo raccoglie e lo controlla Stripe sulla sua pagina: a noi arriva solo l'esito, verificato o no. Per ricevere i soldi dei biglietti apri poi un conto di pagamento presso Stripe: gli passiamo il tuo indirizzo email, e i dati che servono per pagarti, come il conto bancario, li inserisci tu sulla sua pagina.",
+          "Per un biglietto conserviamo l'evento, lo stato del pagamento, i suoi identificativi presso Stripe e il codice del tuo QR; a Stripe passiamo l'evento e il prezzo, e i dati di pagamento, email compresa, li inserisci tu sulla sua pagina. Per l'abbonamento Circle passiamo a Stripe il tuo indirizzo email, e conserviamo lo stato dell'abbonamento e i suoi identificativi. Quando il fondo è aperto, di ogni contributo conserviamo l'importo e i suoi identificativi presso Stripe: gli altri vedono solo il totale raccolto e quante persone hanno contribuito, mai il tuo contributo.",
+          "Stripe ci manda una notifica per ogni pagamento, abbonamento, verifica dell'identità e aggiornamento del conto di pagamento, e noi la conserviamo: ci serve a non registrare mai due volte la stessa operazione. Può contenere il tuo nome, la tua email e il tuo indirizzo di fatturazione e, per un conto di pagamento, il titolare e la banca del conto.",
+          "Per alcune funzioni, come vendere biglietti, ti chiediamo di verificare la tua identità. Il documento lo raccoglie e lo controlla Stripe sulla sua pagina: a noi arriva l'esito e, se non va a buon fine, il motivo indicato da Stripe. Per ricevere i soldi dei biglietti apri poi un conto di pagamento presso Stripe: gli passiamo il tuo indirizzo email, e i dati che servono per pagarti, come il conto bancario, li inserisci tu sulla sua pagina.",
         ],
       },
       {
         heading: "Nell'app: notifiche",
         body: [
-          "Se permetti le notifiche, salviamo l'identificativo che Expo assegna al tuo telefono per riceverle, il tipo di sistema (iOS o Android) e la sua versione. Le notifiche partono tramite Expo, che le consegna tramite Apple o Google; il testo può contenere la @handle di chi ha fatto qualcosa e, per i messaggi, l'inizio del testo.",
+          "Se permetti le notifiche, salviamo l'identificativo che Expo assegna al tuo telefono per riceverle, il tipo di sistema (iOS o Android) e il codice della sua versione. Le notifiche partono tramite Expo, che le consegna tramite Apple o Google; il testo può contenere la @handle di chi ha fatto qualcosa, il titolo di un evento e, per i messaggi, l'inizio del testo.",
           `Scegli quali ricevere in «${tIt('settings.notif.title')}», oppure spegnile dalle impostazioni del telefono. Le notifiche che vedi dentro l'app restano nella tua casella finché hai l'account.`,
         ],
       },
       {
         heading: "Nell'app: diagnostica",
         body: [
-          `Se accendi «${tIt('gdpr.consent.diagnostics')}» (in «${tIt('settings.trust.title')}», sezione «${tIt('gdpr.consent.section')}»), quando l'app va in errore ci manda un rapporto tramite Sentry, che lo conserva nell'Unione Europea, in Germania. Il rapporto contiene l'errore, il modello e il sistema del telefono, la versione dell'app e gli ultimi passaggi fatti nell'app. Non contiene il tuo nome, la tua email né i tuoi contenuti: li togliamo prima dell'invio.`,
+          `Se accendi «${tIt('gdpr.consent.diagnostics')}» (in «${tIt('settings.trust.title')}», sezione «${tIt('gdpr.consent.section')}»), l'app manda a Sentry un rapporto quando va in errore e un breve segnale a ogni apertura; Sentry li conserva nell'Unione Europea, in Germania. Contengono l'errore, il modello e il sistema del telefono, la versione dell'app, gli ultimi passaggi fatti nell'app e un codice casuale legato all'installazione, non al tuo account. Non vi aggiungiamo il tuo nome, la tua email né i tuoi contenuti.`,
           'È spenta finché non la accendi, e puoi spegnerla quando vuoi: da quel momento non parte più nulla.',
         ],
       },
@@ -167,7 +168,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: "Nell'app: sul tuo telefono",
         body: [
           "L'app non contiene strumenti di analisi, di pubblicità o di tracciamento di terzi, e non usa identificativi pubblicitari.",
-          "Sul telefono teniamo la tua sessione, cifrata, e una copia dei dati già caricati, per aprire l'app più in fretta: la cancelliamo quando esci dall'account. Se aggiungi un evento al calendario, l'app lo scrive nel calendario del telefono; i tuoi appuntamenti non li salviamo e non li mandiamo a nessuno. Quando cerca aggiornamenti, l'app contatta i server di Expo.",
+          "Sul telefono teniamo la tua sessione, cifrata, e una copia dei dati già caricati, per aprire l'app più in fretta: la copia la cancelliamo quando esci dall'account, mentre le immagini già viste possono restare nella cache del telefono. Se aggiungi un evento al calendario, l'app lo scrive nel calendario del telefono; i tuoi appuntamenti non li salviamo e non li mandiamo a nessuno. Quando cerca aggiornamenti, l'app contatta i server di Expo.",
         ],
       },
       {
@@ -192,7 +193,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           "Supabase ospita il database, l'accesso, i file e le funzioni server dell'app, e invia le email di accesso, come quella per reimpostare la password. I dati sono nell'Unione Europea, a Francoforte.",
           'Cloudflare serve questo sito dalla sua rete globale: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo della lista d’attesa, e le pagine pubbliche di profili, sogni ed eventi, la cui versione già composta resta per un breve periodo nella cache della rete.',
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
-          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni, danno il nome della città a partire dalla posizione e, se lo scegli, gestiscono l’accesso con Google.',
+          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google, se lo scegli, gestisce anche l’accesso con il tuo account Google.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
           `Alcuni di questi fornitori hanno sede negli Stati Uniti o possono trattare dati fuori dall’Unione Europea. In quei casi il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nei loro accordi sul trattamento dei dati (per Cloudflare: cloudflare.com/cloudflare-customer-dpa), o sull’adesione al Data Privacy Framework UE-USA, come per Cloudflare. Puoi chiederne copia scrivendo a ${EMAIL}.`,
         ],
@@ -201,7 +202,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Basi giuridiche',
         body: [
           "Trattiamo i dati dell'app per darti il servizio che chiedi iscrivendoti — account, profilo, contenuti, messaggi, eventi, biglietti, Circle, Aura e Momenti: la base giuridica è il contratto tra te e noi. Senza questi dati l'app non può funzionare.",
-          'Diagnostica e notifiche push si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Lo stesso vale per la lista d’attesa del sito.',
+          `Diagnostica, notifiche push e «${tIt('gdpr.consent.comms')}» si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Per ora non mandiamo email di comunicazione, anche se hai acceso quel consenso. Anche la lista d’attesa del sito si basa sul tuo consenso.`,
           `Segnalazioni, blocchi, moderazione e protezione dagli abusi, come i log tecnici e il cookie della lingua sul sito, si basano sul nostro legittimo interesse a tenere ${tIt('store.name')} sicuro e funzionante. Puoi opporti in qualsiasi momento scrivendoci.`,
           'Conserviamo i pagamenti per i nostri obblighi contabili e fiscali.',
         ],
@@ -209,7 +210,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Per quanto tempo li conserviamo',
         body: [
-          "Teniamo i dati del tuo account finché lo usi. Quando togli qualcosa che hai pubblicato non lo vedono più gli altri, e lo cancelliamo del tutto quando elimini l'account.",
+          "Teniamo i dati del tuo account finché hai l'account. Quando togli qualcosa che hai pubblicato non lo vedono più gli altri, e lo cancelliamo del tutto quando elimini l'account.",
           tIt('account.delete.deferred'),
           ...ERASURE_DELETES.it,
           ...ERASURE_KEEPS.it,
@@ -227,7 +228,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'I tuoi diritti',
         body: [
           `In base al GDPR puoi chiedere in qualsiasi momento l’accesso, la rettifica, la cancellazione, la limitazione e la portabilità dei dati che ti riguardano, opporti al trattamento e revocare un consenso che ci hai dato. La revoca non pregiudica i trattamenti svolti prima. Per esercitare questi diritti scrivi a ${EMAIL}.`,
-          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account e ciò che hai scritto e pubblicato, ma non i file di foto e video: se ti servono, scrivici. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
+          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account e ciò che hai scritto e pubblicato, ma non i file di foto, video e note vocali: se ti servono, scrivici. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
           'Hai inoltre il diritto di presentare un reclamo a un’autorità di controllo. Per il nostro titolare l’autorità competente è il Garante di Berlino (Berliner Beauftragte für Datenschutz und Informationsfreiheit), ma puoi rivolgerti anche all’autorità del tuo Paese di residenza — in Italia, il Garante per la protezione dei dati personali.',
         ],
       },
@@ -251,8 +252,8 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: your account',
         body: [
-          'To join, we ask for an email address and a password, or you can sign in with Google: in that case Google passes us the basic details of your Google account — email address, name and photo. We never store your password in plain text: the sign-in service keeps only a scrambled fingerprint of it, from which the password cannot be recovered.',
-          'We also ask for the name you want to show and your date of birth. From the first part of your email address we derive your @handle, the name you appear under: mario.rossi@… becomes @mario_rossi. It cannot be changed in the app; if you want to change it, write to us.',
+          "To join, we ask for an email address and a password, or you can sign in with Google: in that case Google passes us your Google account's email address, name and photo; the name becomes the one you show, and you can change it in your profile, while the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
+          'If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. From the first part of your email address we derive your @handle, the name you appear under: mario.rossi@… becomes @mario_rossi. It cannot be changed in the app; if you want to change it, write to us.',
           'Your date of birth is used to check that you meet the minimum age and to work out your zodiac sign. Only you see the date; the sign appears on your profile.',
           'We also keep the language you use and, if someone invited you, the link to that person.',
         ],
@@ -261,8 +262,8 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'In the app: your profile and who sees it',
         body: [
           `In your profile you can add a bio, your mission, your profession, your skills, your city, the words that describe you, what you are looking for, and your dream with its milestones. For each of these you choose “${tEn('profile.visibility.label')}”: “${tEn('visibility.public')}”, “${tEn('visibility.members')}” or “${tEn('visibility.private')}”. If you don't choose, “${tEn('visibility.members')}” applies. What you set to “${tEn('visibility.private')}” is seen by you alone.`,
-          `Your name, photo and @handle are seen by every member, except people you have blocked or who have blocked you. For these you choose between “${tEn('visibility.public')}” and “${tEn('visibility.members')}”, and it starts as “${tEn('visibility.public')}”: this means you have a public page on this site, visible to anyone and to search engines, with your @handle, name, photo and zodiac sign, and with your dream and its milestones if you made them visible to “${tEn('visibility.public')}”. If you choose “${tEn('visibility.members')}”, the page is no longer shown; the version already rendered may stay in the network's cache for a short time.`,
-          'Your Aura score and the stars you have earned are public. Other members can also see whether you have verified your identity and which events you said you are attending.',
+          `Your name, photo and @handle are seen by every member. For these you choose between “${tEn('visibility.public')}” and “${tEn('visibility.members')}”, and it starts as “${tEn('visibility.public')}”: this means you have a public page on this site, visible to anyone and to search engines, with your @handle, name, photo and zodiac sign, and with your dream and its milestones if you made them visible to “${tEn('visibility.public')}”. If you choose “${tEn('visibility.members')}”, the page is no longer shown; the version already rendered may stay in the network's cache for a short time. The preview image that goes with a link to the page (name, photo, @handle and, if it was visible to “${tEn('visibility.public')}”, your dream) only updates when we release a new version of the site: until then it stays reachable.`,
+          'Your Aura score — including its breakdown by kind of action, the highest it has reached and the date of your last action that counted — and the stars you have earned are public. Other members can also see whether you have verified your identity, which events you are attending, including with a ticket, and how many events and helps you have completed.',
         ],
       },
       {
@@ -271,21 +272,21 @@ export const privacy: Record<Locale, LegalDoc> = {
           `Posts, comments, stories, the Moments of your journey and projects are seen by other members. People you have blocked do not see your posts, comments, stories and Moments, and you do not see theirs. Stories stay visible for 24 hours unless you choose “${tEn('story.own.pin')}”.`,
           'The reactions you leave are not visible to others: the author of a post sees only how many there are. Help offers and help with milestones are seen only by the people involved.',
           'Events you organize are public: each has a page on this site with its title, description, place, date and price, and your @handle appears as organizer if your public page is on.',
-          'Photos, videos and voice notes are kept in private storage and open only through temporary links. We remove the metadata from photos, such as where they were taken; from videos and voice notes we remove it on the server, and in the rare cases where that fails the file stays as it was.',
+          "Photos, videos and voice notes are kept in private storage and open only through temporary links, except your profile photo in your public page's preview image. We remove the metadata from photos, such as where they were taken; from videos and voice notes we remove it on the server, and in the rare cases where that fails the file stays as it was.",
         ],
       },
       {
         heading: 'In the app: messages',
         body: [
-          'Messages are always between two people, and we keep them on our servers to deliver them. They travel over encrypted connections, but they are not end-to-end encrypted. The moderation team can read only messages that someone has reported.',
+          'Messages are always between two people, and we keep them on our servers to deliver them and to show you the conversation. They travel over encrypted connections, but they are not end-to-end encrypted. From the moderation panel the team can read only messages that someone has reported.',
           'If you have notifications on, the alert for a new message shows the @handle of the person writing and the start of the text, and it passes through the notification services of Expo, Apple and Google.',
-          'If either person deletes their account, the conversation is deleted for both.',
+          'If either person deletes their account, the conversation is deleted for both; the photos the other person sent stay in our storage, visible to no one, until they delete their account too.',
         ],
       },
       {
         heading: 'In the app: location',
         body: [
-          "The app uses your phone's location only if you allow it, and only while you are using the app: never in the background. It asks the phone for a low-precision position — around a kilometre on iPhone, around a hundred metres on Android. The name of the city comes from your phone's location service, Apple's or Google's.",
+          `The app uses your phone's location only if you allow it in your phone's settings, and only while you are using the app: never in the background. Only that permission counts: the “${tEn('gdpr.location.label')}” switch in “${tEn('settings.trust.title')}” neither turns it on nor off. It asks the phone for a low-precision position — around a kilometre on iPhone, around a hundred metres on Android. The name of the city comes from your phone's location service, Apple's or Google's.`,
           `In “${tEn('live.tab.vicino')}” we use it to find events within 50 kilometres: it reaches our servers for the search, but we do not store it.`,
           "To create an in-person event we ask for your location: it becomes the event's point, is stored with the event and is visible to anyone who sees it.",
           "The city on your profile, instead, is one you type. You can refuse or withdraw the permission at any time in your phone's settings: without it you will not see nearby events and cannot create in-person events. We do not track your movements.",
@@ -294,40 +295,41 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: Aura and Momenti',
         body: [
-          'Aura is your reputation score, from 0 to 1000. A program on our servers calculates it only from actions that can be verified: verifying your identity, attending or organizing events, completing the milestones of your dream, helping other people with theirs, conversations that start from a Momento, and the stars other people give your posts. Some actions have a limit per period, repeated exchanges with the same person are worth less and less, and a star is worth more when the person giving it has a higher Aura. If for more than 30 days you do nothing that counts, the score slowly declines.',
-          'A Circle subscription and fund contributions earn no points: Aura cannot be bought. If the moderation team upholds a report against you, your Aura goes down. Aura appears on your profile, weights the stars you give to posts, and Circle members can use it to filter people search.',
-          `Every night a program suggests, to people with an active dream, up to three people to talk to: these are ${tEn('momenti.title')}. It compares the words that describe you both, what you are looking for, skills, professions, how close your cities are and the events you both attended. We show the person receiving the suggestion why, for example an event in common. We do not use anything you set to “${tEn('visibility.private')}”, we never suggest people who have blocked each other, and if you set your dream to “${tEn('visibility.private')}” we suggest you to no one.`,
+          "Aura is your reputation score, from 0 to 1000. A program on our servers calculates it only from what you do in the app: verifying your identity, attending or organizing events, completing your dream's milestones (you mark them done yourself), helping other people with theirs, chat conversations in which you both write and that reach at least ten messages, and the stars other people light on your posts. Some actions have a limit per period, repeated exchanges with the same person are worth less and less, and a star counts only if the person lighting it has more than 300 Aura. If you receive no points for more than 30 days, the score drops by 2% a week, never below 40% of the highest it has reached.",
+          'A Circle subscription and fund contributions earn no points: Aura cannot be bought. If the moderation team, deciding on a report against you, chooses a penalty, your Aura goes down. Aura appears on your profile, decides whether the stars you light count, and Circle members can use it to filter people search.',
+          `Every night a program suggests, to people with an active dream, up to three people to talk to: these are ${tEn('momenti.title')}. It compares the words that describe you both, what you are looking for, skills, professions, how close your cities are and the events you both attended; when it finds no affinity, it may suggest someone with a new dream. We show the person receiving the suggestion why, for example an event in common. The same comparison picks up to three people for “${tEn('momenti.suggestionsTitle')}”.`,
+          `Anything you set to “${tEn('visibility.private')}” is never used to suggest you to others and never shown to anyone; we use it only to choose whom to suggest to you. We never suggest people who have blocked each other, and if you set your dream to “${tEn('visibility.private')}” we suggest you to no one.`,
           `Neither Aura nor ${tEn('momenti.title')} takes, on its own, decisions that have legal effects on you or affect you in a similar way: warnings, suspensions and bans are always decided by a person on the moderation team.`,
         ],
       },
       {
         heading: 'In the app: reports and blocks',
         body: [
-          'You can report a person, a piece of content, a message or a behavior. For each report we keep who made it, what it concerns, the reason and the optional note. Only the moderation team reads it, and the person reported is not told who reported them.',
+          'You can report a person, a post, a message or a behavior. For each report we keep who made it, what it concerns, the reason and the optional note. Apart from you, only the moderation team reads it, and the person reported is not told who reported them.',
           'When the team decides on a report — a warning, an Aura penalty, a suspension or a ban — the decision is kept in a log, with who took it and why.',
-          'You can block anyone. Only you see the list of people you have blocked; from then on you no longer see each other: profiles, content and messages.',
+          "You can block anyone. From then on you no longer see each other's profiles, posts, comments, stories, Moments and messages; events and projects stay visible. Your list of blocked people keeps showing you their names and photos, and only you see that list.",
         ],
       },
       {
         heading: 'In the app: payments and identity verification',
         body: [
           'Payments are handled by Stripe, on its own pages: your card details never pass through us. With every payment we pass Stripe a code of ours that links it to your account.',
-          'For a ticket we keep the event, the payment status, its identifiers at Stripe and your QR code; we pass Stripe the event and the price, and you enter your payment details, email included, on its page. For a Circle subscription we pass Stripe your email address, and we keep the subscription status and its identifiers. When the fund is open, for each contribution we keep the amount and its identifiers at Stripe: others see only the total raised, never your contribution.',
-          'Stripe sends us a notification for every payment and we keep it: it is how we make sure no payment is recorded twice, and it may contain your name, your email and your billing address.',
-          'For some features, such as selling tickets, we ask you to verify your identity. Stripe collects and checks the document on its own page: we receive only the result, verified or not. To receive ticket money you then open a payout account with Stripe: we pass it your email address, and you enter the details needed to pay you, such as your bank account, on its page.',
+          'For a ticket we keep the event, the payment status, its identifiers at Stripe and your QR code; we pass Stripe the event and the price, and you enter your payment details, email included, on its page. For a Circle subscription we pass Stripe your email address, and we keep the subscription status and its identifiers. When the fund is open, for each contribution we keep the amount and its identifiers at Stripe: others see only the total raised and how many people contributed, never your contribution.',
+          'Stripe sends us a notification for every payment, subscription change, identity check and payout-account update, and we keep it: it is how we make sure nothing is recorded twice. It may contain your name, your email and your billing address and, for a payout account, the account holder and bank.',
+          'For some features, such as selling tickets, we ask you to verify your identity. Stripe collects and checks the document on its own page: we receive the result and, if it fails, the reason Stripe gives. To receive ticket money you then open a payout account with Stripe: we pass it your email address, and you enter the details needed to pay you, such as your bank account, on its page.',
         ],
       },
       {
         heading: 'In the app: notifications',
         body: [
-          'If you allow notifications, we store the identifier Expo assigns to your phone to receive them, the kind of system (iOS or Android) and its version. Notifications are sent through Expo, which delivers them through Apple or Google; the text may include the @handle of whoever did something and, for messages, the start of the text.',
+          'If you allow notifications, we store the identifier Expo assigns to your phone to receive them, the kind of system (iOS or Android) and its build code. Notifications are sent through Expo, which delivers them through Apple or Google; the text may include the @handle of whoever did something, an event title and, for messages, the start of the text.',
           `Choose which ones you receive in “${tEn('settings.notif.title')}”, or turn them off in your phone's settings. The notifications you see inside the app stay in your inbox as long as you have the account.`,
         ],
       },
       {
         heading: 'In the app: diagnostics',
         body: [
-          `If you turn on “${tEn('gdpr.consent.diagnostics')}” (in “${tEn('settings.trust.title')}”, section “${tEn('gdpr.consent.section')}”), when the app hits an error it sends us a report through Sentry, which keeps it in the European Union, in Germany. The report contains the error, your phone's model and system, the app version and the last steps taken in the app. It does not contain your name, your email or your content: we remove them before it is sent.`,
+          `If you turn on “${tEn('gdpr.consent.diagnostics')}” (in “${tEn('settings.trust.title')}”, section “${tEn('gdpr.consent.section')}”), the app sends Sentry a report when it hits an error and a short signal each time it opens; Sentry keeps them in the European Union, in Germany. They contain the error, your phone's model and system, the app version, the last steps taken in the app and a random code tied to the installation, not to your account. We do not add your name, your email or your content.`,
           'It is off until you turn it on, and you can turn it off at any time: from then on nothing more is sent.',
         ],
       },
@@ -335,7 +337,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'In the app: on your phone',
         body: [
           'The app contains no third-party analytics, advertising or tracking tools, and uses no advertising identifiers.',
-          "On your phone we keep your session, encrypted, and a copy of data already loaded so the app opens faster: we delete it when you sign out. If you add an event to your calendar, the app writes it into your phone's calendar; we do not store your appointments or send them to anyone. When it checks for updates, the app contacts Expo's servers.",
+          "On your phone we keep your session, encrypted, and a copy of data already loaded so the app opens faster: we delete that copy when you sign out, while images you have already seen may stay in the phone's cache. If you add an event to your calendar, the app writes it into your phone's calendar; we do not store your appointments or send them to anyone. When it checks for updates, the app contacts Expo's servers.",
         ],
       },
       {
@@ -360,7 +362,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Supabase hosts the app’s database, sign-in, files and server functions, and sends sign-in emails such as the one to reset your password. The data is in the European Union, in Frankfurt.',
           'Cloudflare serves this site from its global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), waitlist form submissions, and the public pages of profiles, dreams and events, whose rendered version stays briefly in the network’s cache.',
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
-          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones, turn a location into a city name and, if you choose it, handle sign-in with Google.',
+          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google, if you choose it, also handles sign-in with your Google account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
           `Some of these providers are based in the United States or may process data outside the European Union. In those cases the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in their data processing agreements (for Cloudflare: cloudflare.com/cloudflare-customer-dpa), or on their certification under the EU–US Data Privacy Framework, as for Cloudflare. You can request a copy by writing to ${EMAIL}.`,
         ],
@@ -369,7 +371,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Legal bases',
         body: [
           'We process app data to give you the service you ask for when you join — account, profile, content, messages, events, tickets, Circle, Aura and Momenti: the legal basis is the contract between you and us. Without this data the app cannot work.',
-          "Diagnostics and push notifications rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. The same applies to the site's waitlist.",
+          `Diagnostics, push notifications and “${tEn('gdpr.consent.comms')}” rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. For now we send no update emails, even if you turned that consent on. The site's waitlist rests on your consent too.`,
           `Reports, blocks, moderation and protection against abuse, like the site's technical logs and language cookie, rest on our legitimate interest in keeping ${tEn('store.name')} safe and working. You can object at any time by writing to us.`,
           'We keep payments for our accounting and tax obligations.',
         ],
@@ -377,7 +379,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'How long we keep it',
         body: [
-          'We keep your account data as long as you use it. When you remove something you published, others no longer see it, and we delete it for good when you delete your account.',
+          'We keep your account data as long as you have the account. When you remove something you published, others no longer see it, and we delete it for good when you delete your account.',
           tEn('account.delete.deferred'),
           ...ERASURE_DELETES.en,
           ...ERASURE_KEEPS.en,
@@ -395,7 +397,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Your rights',
         body: [
           `Under the GDPR you can at any time request access to, rectification, erasure, restriction and portability of your data, object to its processing, and withdraw any consent you gave us. Withdrawal does not affect processing carried out beforehand. To exercise these rights, write to ${EMAIL}.`,
-          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data and what you wrote and published, but not the photo and video files themselves: if you need them, write to us. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
+          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data and what you wrote and published, but not the photo, video and voice-note files themselves: if you need them, write to us. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
           'You also have the right to lodge a complaint with a supervisory authority. For our controller the competent one is the Berlin authority (Berliner Beauftragte für Datenschutz und Informationsfreiheit), but you may also contact the authority in your country of residence.',
         ],
       },
