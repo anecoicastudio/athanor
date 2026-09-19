@@ -457,6 +457,28 @@ describe('childSafety', () => {
     }
   });
 
+  it.each(locales)('%s gives each report path its own step', (loc) => {
+    // «Segnala» is both `report.title` and `chat.report`, so the label check above passes with a
+    // whole path gone. Each path is pinned by its own clause.
+    const q = (key: 'report.title' | 'chat.report' | 'chat.message.report') =>
+      quote(loc, t(key, loc));
+    const clauses =
+      loc === 'it'
+        ? [
+            `Su un profilo tocca ⋯ e poi ${q('report.title')}`,
+            `In un post tocca ${q('report.title')} in alto`,
+            `In una chat tocca ⋯ e poi ${q('chat.report')}`,
+            `tienilo premuto e scegli ${q('chat.message.report')}`,
+          ]
+        : [
+            `On a profile, tap ⋯ and then ${q('report.title')}`,
+            `On a post, tap ${q('report.title')} at the top`,
+            `In a chat, tap ⋯ and then ${q('chat.report')}`,
+            `press and hold it and choose ${q('chat.message.report')}`,
+          ];
+    for (const clause of clauses) expect(body(loc, 'report')).toContain(clause);
+  });
+
   it('points at «Altro» only while no report reason is about children', () => {
     // The page tells people there is no dedicated reason. A child-safety category (the optional
     // follow-up on #779) makes that false, and this goes red so the page names it instead.
