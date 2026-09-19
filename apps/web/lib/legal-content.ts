@@ -217,7 +217,7 @@ const tEn = (key: MessageKey) => t(key, 'en');
  * cancels the Circle subscription, pseudonymises the payment rows (#107) that the reaper drops
  * after ten years (#715), redacts the webhook ledger with NO retention window and one accepted hole — a fund
  * contribution's refund or dispute already in the ledger at erasure (#725, `20260912070533`), and disowns and hides the member's events rather than deleting them
- * (`gdpr_release_profile_references`). It does not touch Stripe: the Customer that
+ * (`gdpr_release_profile_references`). It never deletes or redacts the Stripe Customer: the one
  * create-circle-checkout makes with the member's email outlives the account, and the page says so.
  */
 export const deleteAccount: Record<Locale, LegalDoc> = {
