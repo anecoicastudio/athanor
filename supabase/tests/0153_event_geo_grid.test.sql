@@ -91,14 +91,14 @@ select is(
   0::float8, 'authenticated: events_nearby measures to the grid point, never to the device fix');
 reset role;
 
--- ── the service-role path and idempotence ─────────────────────────────────────────────────────
+-- ── an UPDATE OF geo (here as the table owner) and idempotence ───────────────────────────────
 update public.events set geo = extensions.st_point(12.4964, 41.9028)::extensions.geography
  where title = 'Griglia via INSERT';
 select is(
   (select array[extensions.st_y(geo::extensions.geometry), extensions.st_x(geo::extensions.geometry)]
      from public.events where title = 'Griglia via INSERT'),
   array[41.9, 12.5]::float8[],
-  'an UPDATE OF geo is snapped as well (service role, the backfill''s own path)');
+  'an UPDATE OF geo is snapped as well (as the table owner — the backfill''s own path)');
 
 -- `set geo = geo` is the backfill's statement. Run twice over grid points, nothing moves.
 create temporary table grid_before as

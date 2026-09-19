@@ -3,7 +3,8 @@
  * snapped to this lattice on the phone, before they reach the OS geocoder or our servers, and
  * `20260919124730_event_geo_grid.sql` snaps `events.geo` to the SAME lattice in a BEFORE INSERT OR
  * UPDATE trigger — the table is the guarantee, this is the copy that keeps the precise fix on the
- * device. `geo-grid.mirror.test.ts` reads the migration and fails if the two drift.
+ * device. `geo-grid.mirror.test.ts` reads the last migration that defines `snap_event_geo()` and
+ * fails if the two drift.
  *
  * Forty cells per degree is a 0.025° grid. Play's Data safety form calls a location approximate
  * when it resolves an area of at least 3 km² (Play Console Help, answer 10787469); a 0.025° cell

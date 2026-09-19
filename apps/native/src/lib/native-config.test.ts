@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { semantic } from '@athanor/config';
 import type { ExpoConfig } from 'expo/config';
 import { afterAll, describe, expect, it } from 'vitest';
 import resolveAppConfig from '../../app.config';
@@ -82,7 +83,7 @@ describe.each([
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
-    expect(props?.color).toBe('#2BD0D2');
+    expect(props?.color).toBe(semantic.aura);
   });
 });
 
