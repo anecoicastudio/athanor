@@ -32,7 +32,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(29);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
@@ -342,6 +342,10 @@ select ok(has_column_privilege('anon', 'public.events', 'title', 'SELECT'),
 -- what the public page renders instead of the deleted event.descFallback fabrication.
 select ok(has_column_privilege('anon', 'public.events', 'description', 'SELECT'),
   'events: anon reads the organizer-written description (#634)');
+-- geo left the published set in 20260919124730 (#781). It had been kept only because the
+-- INVOKER events_nearby() was anon-callable, and that grant went with it.
+select ok(not has_column_privilege('anon', 'public.events', 'geo', 'SELECT'),
+  'events: anon does not read the event''s point (#781)');
 
 -- events / authenticated (#446): the organiser's INSERT is scoped to the columns create_event
 -- writes, and UPDATE is gone entirely. RLS filters rows and never columns, so before this the
@@ -422,13 +426,14 @@ select is_empty(
 -- the assertion that makes a forgotten `revoke execute` loud: the default grants anon and
 -- authenticated together, so anything that reaches authenticated by accident reaches anon too.
 -- Declared one-directionally (nothing wider than this list) on purpose — the presence of these
--- four depends on whether the 'f' default ACL row exists in the database under test, which is a
--- platform fact, not a migration fact.
+-- three depends on whether the 'f' default ACL row exists in the database under test, which is a
+-- platform fact, not a migration fact. events_nearby left the list in 20260919124730 (#781): it
+-- is signed-in «Vicino» only, and a re-grant to anon now fails here rather than passing quietly.
 select is_empty(
   $$ select fn from actual_function_acl
       where role = 'anon'
-        and fn not in ('events_nearby', 'f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
-  '#409: anon executes only events_nearby + the three search/ballot helpers'
+        and fn not in ('f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
+  '#409: anon executes only the three search/ballot helpers (#781 took events_nearby)'
 );
 
 -- PUBLIC is wider than anon: it includes every future role. The three that keep it are not RPCs —

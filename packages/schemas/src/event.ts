@@ -68,8 +68,9 @@ export const priceCentsSchema = z
 
 /**
  * Read model for an event row. `geo` is intentionally OMITTED — the geography(Point)
- * column is write-only (set server-side via create_event from lat/long) and never
- * selected by the client (list-only browse this slice; no map). `feePct`/`priceCents`/
+ * column is written from lat/long by create_event (snapped to a 0.025° grid by the
+ * `events_snap_geo` trigger, #781) and never selected by the client; the app reads it only
+ * as the distance `events_nearby()` returns (no map). `feePct`/`priceCents`/
  * `is_*_day` are read-only on the client (server-config / M8).
  */
 export const eventSchema = z.object({

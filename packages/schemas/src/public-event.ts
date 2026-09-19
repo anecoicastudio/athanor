@@ -9,9 +9,10 @@ import { handleSchema } from './profile.ts';
  * subset relationship. Omitted: `stream_url` (would hand a paid online event away for
  * free), `fee_pct` (server config), `capacity` (only meaningful next to an attendee count
  * anon cannot read) — all three also revoked from anon at the GRANT in migration
- * 20260812054134, since RLS filters rows and never columns. And `geo`: still granted to
- * anon (the anon-callable `events_nearby()` computes distance from it), so leaving it out
- * here is this model's own promise about the approximate location (PRD §4.2).
+ * 20260812054134, since RLS filters rows and never columns. And `geo`: revoked from anon
+ * too since 20260919124730 (#781), together with EXECUTE on `events_nearby()` — the point,
+ * already snapped to a 0.025° grid, is for signed-in members only, and the database keeps
+ * that promise rather than this model.
  *
  * `.strict()` so widening the read-model's select fails loudly here rather than
  * silently stripping the extra column and looking fine.

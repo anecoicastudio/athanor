@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(18);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -78,10 +78,13 @@ select lives_ok($$
          price_cents, currency, is_athanor_day, organizer_id
   from public.events where deleted_at is null
 $$, 'anon still reads every column the public read-model selects');
--- geo stays granted on purpose: events_nearby is SECURITY INVOKER, so an anonymous
--- caller needs the column privilege for st_distance. Revoking it would 42501 this.
-select lives_ok($$ select count(*) from public.events_nearby(52.52, 13.405, 5000) $$,
-  'anon can still call events_nearby');
+-- #781 (20260919124730): geo is no longer granted to anon, and neither is events_nearby.
+-- Until then both were kept because the INVOKER function needed the column for st_distance;
+-- nothing signed-out calls it, so the pair went together. 0153 owns the privilege assertions.
+select throws_ok($$ select geo from public.events $$, '42501', null,
+  'anon cannot read geo — the event''s point is for signed-in members only (#781)');
+select throws_ok($$ select count(*) from public.events_nearby(52.52, 13.405, 5000) $$,
+  '42501', null, 'anon cannot call events_nearby (#781)');
 reset role;
 
 set local role authenticated;
