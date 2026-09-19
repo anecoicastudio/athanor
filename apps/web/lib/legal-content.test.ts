@@ -151,9 +151,11 @@ describe('deleteAccount', () => {
   );
 
   it.each(['it', 'en'] as const)(
-    "%s carries the app's deferral line verbatim, so the two cannot promise different things",
+    "%s carries both of the in-app screen's paragraphs verbatim, so the two cannot promise different things",
     (loc) => {
-      expect(text(loc)).toContain(JSON.stringify(t('account.delete.deferred', loc)).slice(1, -1));
+      const paragraphs = deleteAccount[loc].sections.flatMap((s) => s.body);
+      expect(paragraphs).toContain(t('account.delete.body', loc));
+      expect(paragraphs).toContain(t('account.delete.deferred', loc));
     },
   );
 
@@ -177,6 +179,14 @@ describe('deleteAccount', () => {
     // erasure-job cancels the subscription — and the page has to say so.
     expect(text('it')).toMatch(/Circle[^"]*lo annulliamo noi/);
     expect(text('en')).toMatch(/Circle[^"]*we cancel it/);
+  });
+
+  it('says what stays at Stripe — the cascade never touches the Stripe Customer', () => {
+    // create-circle-checkout creates the Customer with the member's email and nothing in
+    // supabase/functions deletes or redacts it, so «senza i tuoi contatti» about OUR rows would
+    // otherwise read as a claim about the payment provider too.
+    expect(text('it')).toMatch(/Stripe[^"]*indirizzo email[^"]*non li cancella/);
+    expect(text('en')).toMatch(/Stripe[^"]*email address[^"]*does not remove them/);
   });
 
   it('states the ten-year payment retention in both locales', () => {

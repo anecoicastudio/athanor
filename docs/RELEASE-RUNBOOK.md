@@ -1504,6 +1504,10 @@ policy does not apply).
    confirm. File only on an answer received at that address. This is the check the page promises
    («Verifichiamo che la richiesta venga da te»).
 
+   Not yet covered: Sign in with Apple is off on both projects (#95), but once the flag is on a
+   member who chose Hide My Email has a relay address in `auth.users.email` and cannot write from
+   it, so step 1 finds no match for them. Decide their path before enabling Apple sign-in.
+
 2. **File.**
 
    ```sql

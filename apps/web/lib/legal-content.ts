@@ -211,13 +211,14 @@ const tEn = (key: MessageKey) => t(key, 'en');
  * deletion of the app account with or without the app, and what is deleted and kept.
  *
  * Every label a person has to find in the app is read from the UI catalog, not copied, so a
- * renamed row renames the step that points at it. The deferral paragraph is
- * `account.delete.deferred` verbatim, so this page and the in-app screen cannot promise different
- * things. What the rest may claim is bounded by the erasure cascade as built: `erasure-job`
+ * renamed row renames the step that points at it. The two paragraphs the in-app screen shows
+ * (`account.delete.body`, `account.delete.deferred`) are quoted verbatim, so this page and that
+ * screen cannot promise different things. What the rest may claim is bounded by the erasure cascade as built: `erasure-job`
  * cancels the Circle subscription, pseudonymises the payment rows (#107) that the reaper drops
  * after ten years (#715), redacts the webhook ledger with NO retention window and one accepted hole — a fund
  * contribution's refund or dispute already in the ledger at erasure (#725, `20260912070533`), and disowns and hides the member's events rather than deleting them
- * (`gdpr_release_profile_references`).
+ * (`gdpr_release_profile_references`). It does not touch Stripe: the Customer that
+ * create-circle-checkout makes with the member's email outlives the account, and the page says so.
  */
 export const deleteAccount: Record<Locale, LegalDoc> = {
   it: {
@@ -228,10 +229,10 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: "Dall'app",
         body: [
-          `1. Apri la scheda «${tIt('tabs.profile')}» e tocca l'icona «${tIt('settings.title')}».`,
+          `1. Apri la scheda «${tIt('tabs.profile')}» e tocca la piccola ruota delle impostazioni («${tIt('settings.title')}»).`,
           `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
           `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
-          "Appena confermi chiudiamo la tua sessione su ogni dispositivo, blocchiamo l'accesso e registriamo la richiesta. Da lì non si torna indietro.",
+          tIt('account.delete.body'),
         ],
       },
       {
@@ -259,6 +260,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: 'Cosa conserviamo',
         body: [
           'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili, e la legge ci obbliga a tenerle per dieci anni. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano solo i dati del pagamento e i suoi identificativi presso Stripe. Passati i dieci anni le eliminiamo.',
+          'Se hai fatto un pagamento, anche Stripe, che li gestisce, conserva i dati con cui hai pagato, compreso il tuo indirizzo email: eliminare il tuo account Athanor non li cancella.',
           'Conserviamo anche il registro delle notifiche di pagamento che Stripe ci invia: ci serve a non registrare mai due volte lo stesso pagamento. Ne togliamo i tuoi dati identificativi, tranne che dalle notifiche di rimborso o di contestazione di un contributo al fondo arrivate prima della cancellazione.',
         ],
       },
@@ -273,10 +275,10 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'From the app',
         body: [
-          `1. Open the “${tEn('tabs.profile')}” tab and tap the “${tEn('settings.title')}” icon.`,
+          `1. Open the “${tEn('tabs.profile')}” tab and tap the small settings wheel (“${tEn('settings.title')}”).`,
           `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
           `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,
-          'As soon as you confirm, we close your session on every device, block sign-in and record the request. There is no going back from there.',
+          tEn('account.delete.body'),
         ],
       },
       {
@@ -304,6 +306,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: 'What we keep',
         body: [
           "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records, and the law requires us to keep them for ten years. We keep them without your name or contact details: only the payment's own details and its identifiers at Stripe remain. After ten years we delete them.",
+          'If you made a payment, Stripe, which handles them, also keeps the details you paid with, including your email address: deleting your Athanor account does not remove them.',
           'We also keep the log of payment notifications Stripe sends us: it is how we make sure no payment is ever recorded twice. We remove your identifying details from it, except from refund or dispute notifications about a fund contribution that arrived before the deletion.',
         ],
       },
