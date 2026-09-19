@@ -6,15 +6,16 @@ import { Text, View } from '@/tw';
  * Used in the Aura score screen to list the three integrity rules.
  *
  * `glyph` is a character or a drawing: a drawing where the character would be emoji-capable
- * (#753 — `ScalesGlyph`, not U+2696). The slot is a fixed-width column so the three titles align
- * whichever kind each row carries. Decorative on BOTH platforms — the title beside it names the
- * rule; `accessibilityElementsHidden` alone is iOS-only.
+ * (#753 — `ScalesGlyph`, not U+2696). The slot is a MINIMUM width, so the three titles align at
+ * the default text size whichever kind each row carries, and a character glyph scaled up by
+ * Dynamic Type widens its column instead of spilling into the title. Decorative on BOTH
+ * platforms — the title beside it names the rule; `accessibilityElementsHidden` alone is iOS-only.
  */
 export function RuleRow({ glyph, title, desc }: { glyph: ReactNode; title: string; desc: string }) {
   return (
     <View className="flex-row gap-3 py-2">
       <View
-        className="w-6 items-center"
+        className="min-w-6 items-center"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >

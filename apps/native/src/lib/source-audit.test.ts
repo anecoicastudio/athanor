@@ -4284,7 +4284,7 @@ describe('the consent notice is shown wherever an account can be created (#777)'
  * Unicode update that moved one of them would say so here rather than as a mystery failure.
  *
  * Comment-stripped, so the prose that documents a replaced character (this file, the docblocks
- * at each #753 site) is not a hit. `\u` escapes and numeric JSX entities are decoded first: the
+ * at each #753 site) is not a hit. Escapes and JSX entities are decoded first (`decoded` below): the
  * escaped spelling renders the same pixel, and would otherwise be the way around this guard.
  * Test files are excluded — the rule is about what the app RENDERS.
  *
@@ -4295,16 +4295,34 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
   const EMOJI = /\p{Emoji}|\u{FE0F}/u;
   const emojiCapable = (ch: string) => (ch.codePointAt(0) ?? 0) >= 0x80 && EMOJI.test(ch);
 
-  /** `\u{…}`, `\uXXXX` and `&#…;` spellings decoded to the character they render. Adjacent
-   *  surrogate escapes (`🔒`) rejoin into one code point in the decoded string. */
+  /**
+   * The spellings that render a character without writing it: `\u{…}`, `\uXXXX` and `\xHH`
+   * escapes, numeric JSX entities, and the named entities Babel's JSX parser decodes onto an
+   * emoji-capable code point. `NAMED` is that parser's whole XHTML table (253 names, frozen since
+   * XHTML 1.0) filtered by the same property — the complete set, not a sample. Adjacent surrogate
+   * escapes (`\uD83D\uDD12`) rejoin into one code point in the decoded string.
+   */
+  const NAMED: Record<string, string> = {
+    copy: '©',
+    reg: '®',
+    trade: '™',
+    harr: '↔',
+    spades: '♠',
+    clubs: '♣',
+    hearts: '♥',
+    diams: '♦',
+  };
   const decoded = (text: string) =>
     text
-      .replace(/\\u\{([0-9a-fA-F]+)\}|\\u([0-9a-fA-F]{4})/g, (_, a: string, b: string) =>
-        String.fromCodePoint(parseInt(a ?? b, 16)),
+      .replace(
+        /\\u\{([0-9a-fA-F]+)\}|\\u([0-9a-fA-F]{4})|\\x([0-9a-fA-F]{2})/g,
+        (_, a?: string, b?: string, c?: string) =>
+          String.fromCodePoint(parseInt(a ?? b ?? c ?? '', 16)),
       )
       .replace(/&#(x[0-9a-fA-F]+|\d+);/g, (_, n: string) =>
         String.fromCodePoint(n.startsWith('x') ? parseInt(n.slice(1), 16) : parseInt(n, 10)),
-      );
+      )
+      .replace(/&([a-zA-Z]+);/g, (whole, name: string) => NAMED[name] ?? whole);
 
   /**
    * A legitimate emoji-capable character, keyed by `file:line` with the reason. Empty today: every
@@ -4324,8 +4342,12 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
       expect(emojiCapable(ch), `ASCII ${ch} is Emoji=Yes only for keycaps`).toBe(false);
     }
     expect(
-      [...decoded(String.raw`'▶' '\u{1F512}' '🎧' &#x2699; &#9878;`)].filter(emojiCapable),
-    ).toEqual(['▶', '🔒', '🎧', '⚙', '⚖']);
+      [
+        ...decoded(
+          String.raw`'\u25B6' '\u{1F512}' '\uD83C\uDFA7' '\xA9' &#x2699; &#9878; &hearts; &amp;`,
+        ),
+      ].filter(emojiCapable),
+    ).toEqual(['▶', '🔒', '🎧', '©', '⚙', '⚖', '♥']);
   });
 
   it('no source line outside a comment carries one', () => {
