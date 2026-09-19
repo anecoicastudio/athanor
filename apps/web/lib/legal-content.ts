@@ -457,6 +457,11 @@ export const privacy: Record<Locale, LegalDoc> = {
  *   Aura (rule 1). Opening either needs no code: its terms have to land here first.
  * - It states no refund, withdrawal-right, arbitration, VAT or seller-of-record regime. Refunds are
  *   issued by hand in the Stripe Dashboard, never by code, and the rest is with counsel (#711, #250).
+ *
+ * COUNSEL HAS NOT REVIEWED THESE TERMS. Until #777 the page said so in its `reviewNote` («Bozza —
+ * da rivedere con un legale»), which `legal-doc.tsx` renders publicly, on the document members
+ * accept at sign-up. Marco ruled (2026-09-19) that the reminder lives here and in the PR's
+ * "For counsel" list, not on the page; `reviewNote` carries /privacy's impressum line instead.
  */
 export const terms: Record<Locale, LegalDoc> = {
   it: {

@@ -603,10 +603,16 @@ describe('terms', () => {
   };
 
   it('no longer describes a presentation site, an unpublished app or a draft', () => {
-    // «pubblicata», not «L'app non è…»: the old copy spells the apostrophe U+2019, and a pin
-    // written with the ASCII one would pass with the sentence back.
-    expect(all('it')).not.toMatch(/ancora pubblicata|sito di presentazione|bozza/i);
-    expect(all('en')).not.toMatch(/not yet published|presentation site|draft/i);
+    // The old copy spelled «L’app» with U+2019 and the file mixes both apostrophes, so the pin
+    // takes either form — a pin written with the ASCII one alone would pass with the sentence back.
+    const OLD_IT =
+      /L['’]app non è ancora pubblicata|ancora pubblicata|sito di presentazione|bozza|da rivedere con un legale/i;
+    const OLD_EN = /not yet published|presentation site|draft|review with counsel/i;
+    for (const old of ["L'app non è ancora pubblicata", 'L’app non è ancora pubblicata']) {
+      expect(old, 'the pin must catch both apostrophe forms').toMatch(OLD_IT);
+    }
+    expect(all('it')).not.toMatch(OLD_IT);
+    expect(all('en')).not.toMatch(OLD_EN);
   });
 
   it.each(locales)('%s covers the app as the store listing names it, and this site', (loc) => {
