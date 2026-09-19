@@ -13,8 +13,10 @@ import { defineConfig } from 'vitest/config';
 //
 // Lines/statements stay well under 100 because ~28 modules in here are thin wrappers over native
 // modules (expo-image-picker, expo-notifications, the Supabase client, the auth context) that
-// need a renderer or a device, not because the tested logic is thinly covered — branches sit at
-// ~93. Adding a component harness is what unlocks those; until then, do not lower these.
+// need a renderer or a device, not because the tested logic is thinly covered — branches sat at
+// ~94 under vitest 3; vitest 4 counts those wrappers against branches and functions too (see the
+// re-baseline note on `thresholds`). Adding a component harness is what unlocks those; until then,
+// do not lower these.
 export default defineConfig({
   test: {
     environment: 'node',
@@ -49,10 +51,16 @@ export default defineConfig({
       // the jump is not new discipline, it is a block of already-tested logic entering the
       // include globs at once, and functions went slightly DOWN (81.90 -> 81.74) because each
       // hook contributes one `useX` wrapper no node-environment test can run.
+      //
+      // Re-baselined for vitest 4 (PR #737): branches 91 → 70, functions 79 → 57. A change of
+      // measurement, not of coverage — the same suite measured 94.26/84.00 (branches/functions)
+      // under vitest 3 and 73.14/62.08 under 4, with the untested renderer/device wrappers
+      // above now weighing on those two columns as they already did on lines. Each band keeps
+      // roughly its old width (branches 3.26 → 3.14 points, functions 5.00 → 5.08).
       thresholds: {
         lines: 50,
-        branches: 91,
-        functions: 79,
+        branches: 70,
+        functions: 57,
         statements: 50,
       },
     },

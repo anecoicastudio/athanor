@@ -30,6 +30,8 @@ import { spoken } from '@/lib/star';
 import { calendarDay, dayKey, parseCalendarDay } from '@/lib/time';
 import { toggleTag } from '@/lib/tags';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import { useAuth } from '@/lib/auth-context';
+import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
@@ -50,12 +52,17 @@ const MAX_BIRTH_YEARS_BACK = 120;
  * and flushed to the profile after OTP (see `lib/flush-onboarding.ts`). The photo
  * is stashed as a LOCAL uri for the same reason: every `avatars` storage policy
  * keys on auth.uid(), and there is no uid here yet. The NAME is not asked here —
- * (auth)/welcome collects it a screen later and handle_new_user writes it. The @handle is no longer
- * asked here; it's auto-derived from the email post-auth. Final step routes to
+ * (auth)/welcome collects it a screen later and handle_new_user writes it. Nor the @handle (#782):
+ * chosen after sign-up on `(onboarding)/handle`, never from the email. Final step routes to
  * `(auth)/welcome` to create the account; «Accedi» jumps existing users to login.
  */
 export default function OnboardingScreen() {
   const router = useRouter();
+  // Signed in with the answers still missing — a Google sign-in from «Accedi» that created the
+  // account, a first sign-in on a new device. There is no account left to create (#782).
+  const { session, refreshProfile } = useAuth();
+  const [finishing, setFinishing] = useState(false);
+  const [finishFailed, setFinishFailed] = useState(false);
 
   // Defaults from the device (PRD §4.1), switchable on step 0 (#158) — the
   // earliest point, so a wrong default taints none of the funnel's copy and the
@@ -125,8 +132,8 @@ export default function OnboardingScreen() {
     void persist({ locale: next });
   };
 
-  // Step 1 (#694): the sign for the live reveal, and the 14+ floor (GDPR Art. 8, the Italian
-  // floor). `new Date()` here, not in core — a boundary the screen owns.
+  // Step 1 (#694): the sign for the live reveal, and the MIN_MEMBER_AGE floor — 18, adults only
+  // for launch (#778). `new Date()` here, not in core — a boundary the screen owns.
   const sign = birthDate ? zodiacSignFromBirthDate(birthDate) : null;
   const tooYoung = birthDate !== null && !isAtLeastAge(birthDate, MIN_MEMBER_AGE, new Date());
 
@@ -161,9 +168,23 @@ export default function OnboardingScreen() {
 
   // Persist the draft to disk BEFORE navigating, so the post-auth flush can always
   // read it (a lost draft → incomplete profile → AuthGuard loops back here).
+  //
+  // With a session already live there is no account to create, and routing to welcome looped:
+  // AuthGuard sends an authed, answer-less profile straight back here, and the auth-context
+  // flush only runs when the user changes (#782, found on the device walk). So the funnel
+  // flushes its own draft and re-reads; the guard then routes on to the handle step.
   const createAccount = async () => {
     await persist();
-    router.push('/(auth)/welcome');
+    if (!session) {
+      router.push('/(auth)/welcome');
+      return;
+    }
+    setFinishing(true);
+    setFinishFailed(false);
+    const result = await flushOnboardingDraft(session.user.id);
+    if (result === 'flushed') await refreshProfile();
+    else setFinishFailed(true);
+    setFinishing(false);
   };
 
   const goLogin = () => router.push({ pathname: '/(auth)/welcome', params: { mode: 'login' } });
@@ -273,13 +294,15 @@ export default function OnboardingScreen() {
                   >
                     {t('onboarding.birth.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.birth.sub', locale)}</Text>
+                  <Text className="text-muted-foreground">
+                    {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
+                  </Text>
                   {Platform.OS === 'web' ? (
                     // QA fallback only: @react-native-community/datetimepicker renders NOTHING
                     // on react-native-web (its src/datetimepicker.js warns «not supported on:
                     // web»), and Expo web is the only surface a walk can reach here. Validated
                     // with the same schema the flush and the column use, so an impossible day
-                    // never reaches state (it would read as «under 14», the wrong line).
+                    // never reaches state (it would read as «too young», the wrong line).
                     <Input
                       placeholder={t('onboarding.birth.isoHint', locale)}
                       inputMode="numeric"
@@ -327,7 +350,7 @@ export default function OnboardingScreen() {
                   ) : null}
                   {tooYoung ? (
                     <Text className="text-sm text-error" accessibilityLiveRegion="polite">
-                      {t('onboarding.birth.tooYoung', locale)}
+                      {t('onboarding.birth.tooYoung', locale, { age: MIN_MEMBER_AGE })}
                     </Text>
                   ) : null}
                   {sign && !tooYoung ? (
@@ -480,12 +503,23 @@ export default function OnboardingScreen() {
                 onPress={next}
               />
             ) : (
-              <Button
-                variant="light"
-                label={t('onboarding.createAccount', locale)}
-                accessibilityLabel={t('onboarding.createAccount', locale)}
-                onPress={createAccount}
-              />
+              <View className="gap-3">
+                {finishFailed ? (
+                  <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                    {t('onboarding.error.submit', locale)}
+                  </Text>
+                ) : null}
+                <Button
+                  variant="light"
+                  label={t(session ? 'onboarding.next' : 'onboarding.createAccount', locale)}
+                  accessibilityLabel={t(
+                    session ? 'onboarding.next' : 'onboarding.createAccount',
+                    locale,
+                  )}
+                  loading={finishing}
+                  onPress={() => void createAccount()}
+                />
+              </View>
             )}
           </View>
 

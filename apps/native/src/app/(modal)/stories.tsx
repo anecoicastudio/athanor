@@ -47,10 +47,10 @@ export default function StoriesScreen() {
   const [chromeHeight, setChromeHeight] = useState(0);
 
   // The session (#298): the route carries only the entry person; the ordered author list is
-  // derived once, from the rail already warm in the cache (community just rendered it), via the
-  // pure @athanor/core ordering. It is deliberately NOT rebuilt when seen state or the rail
-  // change mid-session — the chain the member entered stays stable.
-  const [session298] = useState<string[]>(() => {
+  // derived from the rail already warm in the cache (community just rendered it), via the pure
+  // @athanor/core ordering. It is deliberately NOT rebuilt when seen state or the rail change
+  // mid-session — the chain the member entered stays stable.
+  const buildSession = (entry: string): string[] => {
     const rail = queryClient.getQueryData<StoryRailPerson[]>(storyKeys.rail()) ?? [];
     const myStory = myId
       ? queryClient.getQueryData<{ segments: StorySegment[] }>(storyKeys.person(myId))
@@ -63,14 +63,28 @@ export default function StoriesScreen() {
       ...(myId && myHasLive ? [{ author_id: myId }] : []),
       ...rail.map((p) => ({ author_id: p.author_id })),
     ];
-    const ordered = buildStorySession(candidates, targetId, seenIds).map((p) => p.author_id);
+    const ordered = buildStorySession(candidates, entry, seenIds).map((p) => p.author_id);
     // A cold deep link (empty rail cache) or an entry the rail lost still plays the tapped person.
-    return ordered.includes(targetId) ? ordered : [targetId, ...ordered];
-  });
+    return ordered.includes(entry) ? ordered : [entry, ...ordered];
+  };
   const [ai, setAi] = useState(0);
   const [startAt, setStartAt] = useState<'first' | 'last'>('first');
-  const currentAuthorId = session298[ai] ?? targetId;
-  const isOwn = currentAuthorId === myId;
+  // Keyed on the entry it was built for (#748), where a bare `useState` initializer froze it on
+  // the FIRST render: an entry that was not known yet (`'me'` before the auth session, a param
+  // not yet delivered) or one that changed under a reused screen kept the stale chain. Rebuilt
+  // during render — React's "adjust state when a prop changes" pattern, the same shape as
+  // StoriesViewer's cursor — so no committed frame ever plays the old chain.
+  const [chain, setChain] = useState<{ entry: string; ids: string[] } | null>(null);
+  if (targetId && chain?.entry !== targetId) {
+    setChain({ entry: targetId, ids: buildSession(targetId) });
+    setAi(0);
+    setStartAt('first');
+  }
+  const session298 = chain?.entry === targetId ? chain.ids : [];
+  const currentAuthorId: string | undefined = session298[ai] ?? (targetId || undefined);
+  // Both sides must be known (#748): with no session and no author, `undefined === undefined`
+  // read as "your own story" and handed a stranger's segments the owner's action set.
+  const isOwn = Boolean(myId) && currentAuthorId === myId;
 
   const personQuery = usePersonStory(currentAuthorId);
   const segments = personQuery.data?.segments ?? [];
@@ -127,7 +141,9 @@ export default function StoriesScreen() {
     enabled: Boolean(current) && isOwn,
   });
 
-  if (personQuery.isLoading) {
+  // No author yet (an unresolved `'me'`, an undelivered param) is loading, not "expired" —
+  // the query is disabled rather than pending, so `isLoading` alone would say false.
+  if (!currentAuthorId || personQuery.isLoading) {
     return (
       <Screen className="items-center justify-center">
         {/* Decorative loading glyph — hidden, like `(tabs)/profile.tsx:41-47` (#635). */}
@@ -143,7 +159,7 @@ export default function StoriesScreen() {
   }
   if (segments.length === 0 || !first) {
     return (
-      <Screen className="items-center justify-center px-6">
+      <Screen className="items-center justify-center pl-6 pr-6">
         <Text className="text-center text-[15px] text-faint">{t('story.expired', locale)}</Text>
       </Screen>
     );

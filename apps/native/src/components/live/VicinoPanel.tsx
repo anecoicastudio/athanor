@@ -8,7 +8,7 @@ import {
   getEventsNearby,
   registerAthanorDaysInterest,
 } from '@athanor/api';
-import { metersToKm } from '@athanor/core';
+import { metersToKm, snapToEventGrid } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
@@ -90,7 +90,8 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
         return;
       }
       setRefusal(null);
-      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      // Lowest (#781) — the same request event-create makes; see there.
+      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest });
     } catch (e) {
       // Location services off, a fix that timed out, a prompt that never resolved — until #179
       // this rejection went unhandled and the panel sat blank with no way back. Say so, and
@@ -100,9 +101,16 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       showToast(t('live.map.locationError', locale));
       return;
     }
-    setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    // Snapped before it leaves the phone — to the OS geocoder below and to events_nearby() as its
+    // origin (#781). Distances are to each event's grid point anyway, so this costs the list
+    // nothing it had.
+    const point = snapToEventGrid({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    setCoords(point);
     try {
-      const [place] = await Location.reverseGeocodeAsync(pos.coords);
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: point.lat,
+        longitude: point.lng,
+      });
       setCity(place?.city ?? null);
     } catch (e) {
       devWarn('[live] reverseGeocode', e); // city is a label nicety; absence is fine

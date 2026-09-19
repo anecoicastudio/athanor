@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Athanor — Android notification icon (#772, ruling 2026-09-19): logo-mandorla.svg, flat white
+       on transparent. Android draws a status-bar icon from its alpha alone and tints it with the
+       notification colour (aura #2BD0D2, app.json), so there is no gradient and no second colour.
+       Same paths as logo-mandorla.svg, scaled by 1/6 into a 24dp canvas with a 1dp margin: the mark
+       spans y 4–136 (spark tip to the mandorla's stroked base) = 132 units = 22dp. Strokes are
+       weighted for 24dp — 8 units on the mandorla and 6 on the ring, DESIGN §5's hairline rule at
+       its limit (1.5 per 24 units of mark height = 8.25 here); the logo's own 2 and 1.5 would be
+       a third of a dp and vanish in the status bar. Rendered to
+       apps/native/assets/images/notification-icon.png (96×96, the expo-notifications size). -->
+  <g transform="translate(12 1) scale(0.1666667) translate(-80 -4)" fill="#FFFFFF" stroke="#FFFFFF">
+    <path d="M80 4 L82.6 14.4 L92 17 L82.6 19.6 L80 30 L77.4 19.6 L68 17 L77.4 14.4 Z" stroke="none"/>
+    <path d="M80 28 A60 60 0 0 1 80 132 A60 60 0 0 1 80 28 Z" fill="none" stroke-width="8" stroke-linejoin="round"/>
+    <circle cx="80" cy="58" r="3" stroke="none"/>
+    <circle cx="80" cy="80" r="4" stroke="none"/>
+    <circle cx="80" cy="80" r="11" fill="none" stroke-width="6"/>
+    <circle cx="80" cy="102" r="3" stroke="none"/>
+  </g>
+</svg>

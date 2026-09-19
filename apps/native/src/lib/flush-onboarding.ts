@@ -1,9 +1,5 @@
-import {
-  updateOnboardingProfileWithHandleFallback,
-  updateProfile,
-  upsertActiveDream,
-} from '@athanor/api';
-import { suggestHandle, validateOnboardingAnswers } from '@athanor/core';
+import { updateOnboardingProfile, updateProfile, upsertActiveDream } from '@athanor/api';
+import { validateOnboardingAnswers } from '@athanor/core';
 import { onboardingAnswersSchema } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
 import { uploadAvatarImage } from '@/lib/media/avatar-upload';
@@ -15,8 +11,9 @@ export type FlushResult = 'flushed' | 'nodraft' | 'error';
 /**
  * Persist the pre-auth onboarding draft to the now-authenticated profile.
  * Called once after OTP from auth-context when the freshly-created profile is
- * still incomplete. The @handle is auto-derived from the email (the funnel no
- * longer asks for one), with a 23505 fallback. Idempotent: the profile write
+ * still incomplete. It writes NO @handle (#782): the person chooses one on
+ * `(onboarding)/handle` once these answers have landed — it is never derived from
+ * the email, which is what the handle used to be. Idempotent: the profile write
  * tolerates re-runs and the dream goes through `upsertActiveDream`, so a partial
  * failure simply leaves the draft in place and retries on the next foreground.
  *
@@ -24,7 +21,7 @@ export type FlushResult = 'flushed' | 'nodraft' | 'error';
  * profiles.display_name at INSERT time (20260811072211), so the draft never carried one. The
  * photo is the opposite — it could not be uploaded before a session existed, so it lands here.
  */
-export async function flushOnboardingDraft(userId: string, email: string): Promise<FlushResult> {
+export async function flushOnboardingDraft(userId: string): Promise<FlushResult> {
   const draft = await loadDraft();
   if (!hasDraftAnswers(draft)) return 'nodraft';
 
@@ -32,7 +29,6 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
   // into the web fallback, say) can never satisfy the server, and keeping it would loop the
   // member through the funnel with the same date rehydrated (#694). Drop it, like a bad tag.
   const shaped = onboardingAnswersSchema.safeParse({
-    handle: suggestHandle(email),
     locale: draft.locale,
     identity_tags: draft.identity_tags,
     seeking: draft.seeking,
@@ -55,7 +51,7 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
       return 'error';
     }
 
-    await updateOnboardingProfileWithHandleFallback(supabase, userId, answers);
+    await updateOnboardingProfile(supabase, userId, answers);
     const dream = draft.dream.trim();
     if (dream) await upsertActiveDream(supabase, userId, dream);
     await flushAvatar(userId, draft.avatar_uri);
@@ -64,8 +60,8 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
     return 'flushed';
   } catch (e) {
     devWarn('[onboarding] flush', e);
-    // A check_violation is the database refusing the CONTENT — the 14+ guard or the 1900 floor
-    // on birth_date (#694). Retrying the same draft can only fail the same way, and the guard
+    // A check_violation is the database refusing the CONTENT — the min-age guard (18, #778) or
+    // the 1900 floor on birth_date (#694). Retrying the same draft can only fail the same way, and the guard
     // would route the member back to a funnel that rehydrates and re-accepts the date: a trap
     // until a cold restart. Drop it; the fresh funnel asks again.
     if (isCheckViolation(e)) {

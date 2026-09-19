@@ -3,7 +3,6 @@ import { onboardingAnswersSchema } from './onboarding.ts';
 
 describe('onboardingAnswersSchema', () => {
   const valid = {
-    handle: 'lucia_ferri',
     locale: 'it',
     identity_tags: ['coach'],
     seeking: ['connessioni'],
@@ -28,10 +27,6 @@ describe('onboardingAnswersSchema', () => {
     ).toThrow();
   });
 
-  test('rejects invalid handle', () => {
-    expect(() => onboardingAnswersSchema.parse({ ...valid, handle: 'No Spaces!' })).toThrow();
-  });
-
   test('rejects more than 10 seeking tags', () => {
     expect(() =>
       onboardingAnswersSchema.parse({ ...valid, seeking: Array(11).fill('connessioni') }),
@@ -39,36 +34,38 @@ describe('onboardingAnswersSchema', () => {
   });
 });
 
-describe('onboardingAnswersSchema handle reservation (#430)', () => {
+/**
+ * #782 — the handle is no longer part of what the funnel collects. It used to be derived from the
+ * email and flushed with these answers; now the person chooses it on its own screen once the
+ * account exists, and it is written by `claimHandle`, never by the flush. A handle that rode this
+ * payload would be a name nobody typed.
+ */
+describe('onboardingAnswersSchema carries no handle (#782)', () => {
   const valid = {
-    handle: 'lucia_ferri',
     locale: 'it',
     identity_tags: ['coach'],
     seeking: ['connessioni'],
     birth_date: '1990-08-10',
   };
 
-  // The write shape refuses a reserved handle; `handleSchema` — which read models use — does
-  // not, deliberately. A read schema that grew teeth would start withholding rows the database
-  // still holds every time the list is widened.
-  test('rejects a reserved handle', () => {
-    expect(() => onboardingAnswersSchema.parse({ ...valid, handle: 'supporto' })).toThrow();
+  test("is exactly the funnel's answers", () => {
+    expect(Object.keys(onboardingAnswersSchema.shape).sort()).toEqual([
+      'birth_date',
+      'identity_tags',
+      'locale',
+      'seeking',
+    ]);
   });
 
-  test('rejects a brand-prefixed handle', () => {
-    expect(() => onboardingAnswersSchema.parse({ ...valid, handle: 'athanor_support' })).toThrow();
-  });
-
-  test('still accepts a handle that merely contains a reserved word', () => {
-    expect(onboardingAnswersSchema.parse({ ...valid, handle: 'admin_luna' }).handle).toBe(
-      'admin_luna',
+  test('strips a handle rather than passing it to the profile write', () => {
+    expect(onboardingAnswersSchema.parse({ ...valid, handle: 'lucia_ferri' })).not.toHaveProperty(
+      'handle',
     );
   });
 });
 
 describe('onboardingAnswersSchema — birth_date (#694)', () => {
   const valid = {
-    handle: 'lucia_ferri',
     locale: 'it',
     identity_tags: ['coach'],
     seeking: ['connessioni'],

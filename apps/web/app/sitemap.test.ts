@@ -23,6 +23,8 @@ const STATIC = [
   'https://athanor.test/',
   'https://athanor.test/privacy',
   'https://athanor.test/terms',
+  'https://athanor.test/delete-account',
+  'https://athanor.test/child-safety',
 ];
 
 const oneHandle = () =>
@@ -62,12 +64,13 @@ describe('sitemap', () => {
       `https://athanor.test/event/${EVENT_ID}`,
       `https://athanor.test/dream/${DREAM_ID}`,
     ]);
-    expect(entries[3]!.lastModified).toEqual(new Date('2026-08-01T10:00:00Z'));
-    expect(entries[4]).toMatchObject({ changeFrequency: 'daily', priority: 0.6 });
+    const at = (n: number) => entries[STATIC.length + n]!;
+    expect(at(0).lastModified).toEqual(new Date('2026-08-01T10:00:00Z'));
+    expect(at(1)).toMatchObject({ changeFrequency: 'daily', priority: 0.6 });
     // A dream republishes text already indexed at /@handle (#159), so it asks for less crawl
     // budget than an event that is about to happen.
-    expect(entries[5]).toMatchObject({ changeFrequency: 'weekly', priority: 0.5 });
-    expect(entries[5]!.lastModified).toEqual(new Date('2026-08-03T10:00:00Z'));
+    expect(at(2)).toMatchObject({ changeFrequency: 'weekly', priority: 0.5 });
+    expect(at(2).lastModified).toEqual(new Date('2026-08-03T10:00:00Z'));
     expect(listPublicDreamIds).toHaveBeenCalledWith(
       { tag: 'anon-client' },
       { limit: SITEMAP_DREAM_LIMIT },

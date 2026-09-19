@@ -24,7 +24,7 @@
 -- tripwire discipline, applied to grants.
 --
 -- Scope: table-level privileges for `anon` and `authenticated`. Column-level ACLs are asserted
--- separately (seven tables carry them deliberately, and `revoke all on table` would silently
+-- separately (eight tables carry them deliberately, and `revoke all on table` would silently
 -- drop them). service_role is asserted where it is the sole writer. Since #409 the file also
 -- covers FUNCTION EXECUTE — the axis #408 left out — and the policy→grant direction.
 
@@ -32,14 +32,14 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(31);
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- The declared surface
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- One row per object. '' means "this role holds nothing at table level" — for profiles,
--- momento_proposals and events/anon that is correct precisely BECAUSE their access is
--- column-scoped; see the column-ACL section at the end.
+-- momento_proposals, events/anon and aura_scores/anon that is correct precisely BECAUSE their
+-- access is column-scoped; see the column-ACL section at the end.
 
 create temporary table expected_grants (
   obj         text primary key,
@@ -60,7 +60,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   ('entitlements',                '',       'SELECT'),                      -- view; anon removed by #405
   -- ── reputation: rule 1, engine-written, never client-writable ───────────────────────
   ('aura_events',                 '',       'SELECT'),
-  ('aura_scores',                 'SELECT', 'SELECT'),
+  ('aura_scores',                 '',       'SELECT'),               -- anon SELECT column-scoped (#782)
   ('stars',                       'SELECT', 'SELECT'),
   -- ── momenti ─────────────────────────────────────────────────────────────────────────
   ('moments',                     '',       'SELECT,INSERT,UPDATE'),
@@ -306,7 +306,7 @@ select is_empty(
 -- ─────────────────────────────────────────────────────────────────────────────────────
 -- Column-level ACLs — the deliberate narrowings a `revoke all` would have destroyed
 -- ─────────────────────────────────────────────────────────────────────────────────────
--- Seven tables scope a client privilege to named columns. `revoke all on table` drops column
+-- Eight tables scope a client privilege to named columns. `revoke all on table` drops column
 -- privileges too, so 0119's revoke-then-grant shape is UNSAFE on these and the sweep migration
 -- used named-verb revokes instead. If that distinction is ever lost, these fail.
 
@@ -316,8 +316,8 @@ select is(
      join pg_namespace n on n.oid = c.relnamespace
      join pg_attribute a on a.attrelid = c.oid and a.attacl is not null
     where n.nspname = 'public'),
-  7,
-  '#405: 7 tables carry explicit column-level ACLs (revoke ALL on these would drop them)'
+  8,
+  '#405: 8 tables carry explicit column-level ACLs (revoke ALL on these would drop them) — aura_scores joined in 20260919174008 (#782)'
 );
 
 -- profiles: the engine's columns are not the owner's to write, and that is enforced by the
@@ -342,6 +342,17 @@ select ok(has_column_privilege('anon', 'public.events', 'title', 'SELECT'),
 -- what the public page renders instead of the deleted event.descFallback fabrication.
 select ok(has_column_privilege('anon', 'public.events', 'description', 'SELECT'),
   'events: anon reads the organizer-written description (#634)');
+-- geo left the published set in 20260919124730 (#781). It had been kept only because the
+-- INVOKER events_nearby() was anon-callable, and that grant went with it.
+select ok(not has_column_privilege('anon', 'public.events', 'geo', 'SELECT'),
+  'events: anon does not read the event''s point (#781)');
+
+-- aura_scores (#782): a signed-out caller reads the score and the id it is filtered by, never the
+-- breakdown, the peak or the dates. Members keep the whole row through their table-level grant.
+select ok(has_column_privilege('anon', 'public.aura_scores', 'score', 'SELECT'),
+  'aura_scores: anon still reads the score (and profile_id, to filter by it — 0036)');
+select ok(not has_column_privilege('anon', 'public.aura_scores', 'breakdown', 'SELECT'),
+  'aura_scores: anon does not read the breakdown by kind of action (#782)');
 
 -- events / authenticated (#446): the organiser's INSERT is scoped to the columns create_event
 -- writes, and UPDATE is gone entirely. RLS filters rows and never columns, so before this the
@@ -422,13 +433,14 @@ select is_empty(
 -- the assertion that makes a forgotten `revoke execute` loud: the default grants anon and
 -- authenticated together, so anything that reaches authenticated by accident reaches anon too.
 -- Declared one-directionally (nothing wider than this list) on purpose — the presence of these
--- four depends on whether the 'f' default ACL row exists in the database under test, which is a
--- platform fact, not a migration fact.
+-- three depends on whether the 'f' default ACL row exists in the database under test, which is a
+-- platform fact, not a migration fact. events_nearby left the list in 20260919124730 (#781): it
+-- is signed-in «Vicino» only, and a re-grant to anon now fails here rather than passing quietly.
 select is_empty(
   $$ select fn from actual_function_acl
       where role = 'anon'
-        and fn not in ('events_nearby', 'f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
-  '#409: anon executes only events_nearby + the three search/ballot helpers'
+        and fn not in ('f_profile_search', 'f_unaccent', 'is_on_ballot') $$,
+  '#409: anon executes only the three search/ballot helpers (#781 took events_nearby)'
 );
 
 -- PUBLIC is wider than anon: it includes every future role. The three that keep it are not RPCs —

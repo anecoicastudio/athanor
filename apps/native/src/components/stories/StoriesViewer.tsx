@@ -138,10 +138,17 @@ export function StoriesViewer({
     else onAdvanceStart();
   };
 
+  // The segment clock waits for its media (#748). It used to start the moment `current` existed,
+  // so on a slow signing round-trip a 5s photo could expire before it ever drew — and the next
+  // person in the chain is your own story whenever it is unseen — the likeliest reading of
+  // "tapped someone's ring, got my own story" (unconfirmed on device). A URL that settled into nothing still starts it: the frame shows its
+  // unavailable state and the story moves on rather than stalling.
+  const mediaReady = Boolean(currentUrl) || !urlsLoading;
+
   useEffect(() => {
     if (!current) return;
     progress.setValue(0);
-    if (paused) return;
+    if (paused || !mediaReady) return;
     if (reduce) {
       progress.setValue(1); // no auto-advance under reduced motion — manual tap only
       return;
@@ -156,7 +163,7 @@ export function StoriesViewer({
     });
     return () => anim.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [si, paused, current?.id, reduce]);
+  }, [si, paused, current?.id, reduce, mediaReady]);
 
   const pan = useMemo(
     () =>
@@ -289,9 +296,11 @@ export function StoriesViewer({
           {...pan.panHandlers}
         />
 
+        {/* Physical `pl-5 pr-5`, not `px-5` (#748): on native `px-*` compiles to the logical
+            inline-start/end pair, which this SafeAreaView drops — the caption sat on the edge. */}
         <SafeAreaView
           edges={['bottom']}
-          className="gap-3 bg-background/70 px-5 pb-3 pt-3"
+          className="gap-3 bg-background/70 pb-3 pl-5 pr-5 pt-3"
           onLayout={(e) => onChromeHeight?.(e.nativeEvent.layout.height)}
         >
           {current.caption ? (
@@ -304,14 +313,16 @@ export function StoriesViewer({
           {isOwn ? (
             <View className="gap-3">
               <Text className="text-[13px] text-faint">{tn('story.own.stat', count, locale)}</Text>
-              <View className="flex-row gap-3">
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={onAddMoment}
-                  className="min-h-[44px] flex-1 items-center justify-center rounded-ctl border border-aura-line bg-aura-soft py-3"
-                >
-                  <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
-                </Pressable>
+              {/* Primary on its own row, secondaries wrapping below it (#748): three buttons in
+                  one non-wrapping row pushed «Elimina» off the right edge in Italian. */}
+              <Pressable
+                accessibilityRole="button"
+                onPress={onAddMoment}
+                className="min-h-[44px] items-center justify-center rounded-ctl border border-aura-line bg-aura-soft py-3"
+              >
+                <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
+              </Pressable>
+              <View className="flex-row flex-wrap gap-3">
                 {current.is_step && !current.pinned ? (
                   <Pressable
                     accessibilityRole="button"
@@ -426,5 +437,15 @@ function ViewerVideo({
     if (paused) player.pause();
     else player.play();
   }, [paused, player]);
-  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />;
+  // No native controls (#748): expo-video defaults them ON, and on Android they drew a play
+  // button and seek bar over the story and through the own-story action row. The story owns
+  // its gestures and progress bars; the player is only a surface.
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
 }

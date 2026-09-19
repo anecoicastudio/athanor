@@ -1,6 +1,7 @@
 -- 0146_profile_birth_date_zodiac.test.sql
 -- #694 — profiles.birth_date (owner-only) + profiles.zodiac_sign (generated, public), migration
--- 20260905165133. What must hold, and in which direction:
+-- 20260905165133; the min-age floor moved to 18 in 20260919114816 (#778). What must hold, and in
+-- which direction:
 --
 --   1. Catalog: both columns exist; zodiac_sign is a STORED generated column; the two CHECKs and
 --      the guard trigger exist by name; athanor.zodiac_sign is IMMUTABLE + STRICT + invoker.
@@ -11,9 +12,11 @@
 --      explains (PG17 + 0073); nobody can write zodiac_sign; the owner role can write birth_date.
 --   4. Behaviour: the owner's UPDATE recomputes the sign under the CLIENT role (proves the
 --      generation expression is executable by authenticated), get_own_profile carries both, the
---      14-year floor refuses at 23514 on the exact boundary, the 1900 floor refuses, clearing is
---      allowed; another member reads the sign through get_person_profile and cannot reach the
---      date by any spelling; anon likewise; a tombstone shows no sign.
+--      18-year floor (#778; it was 14 under #694) refuses at 23514 on the exact boundary, the
+--      1900 floor refuses, clearing is allowed; another member reads the sign through
+--      get_person_profile and cannot reach the date by any spelling; anon likewise; a tombstone
+--      shows no sign. The 18 here is by value: @athanor/core's age.test pins MIN_MEMBER_AGE, and
+--      min-age.mirror.test reads the guard's `interval` against it — three places, one number.
 --   5. Realtime: zodiac_sign is NOT in the profiles publication — the reason authenticated holds
 --      no column grant (0073 pins publication == grant, and PG17 refuses a generated column there).
 
@@ -152,14 +155,14 @@ select is((select birth_date from public.get_own_profile()), date '1990-08-10',
   'get_own_profile carries the date — the one read path for it');
 select throws_ok(
   $$ update public.profiles
-        set birth_date = ((now() at time zone 'utc')::date - interval '14 years' + interval '1 day')::date
+        set birth_date = ((now() at time zone 'utc')::date - interval '18 years' + interval '1 day')::date
       where id = 'a1460000-0000-4000-8000-000000000001' $$,
-  '23514', null, 'a member turning 14 tomorrow is refused with check_violation');
+  '23514', null, 'a member turning 18 tomorrow is refused with check_violation (#778)');
 select lives_ok(
   $$ update public.profiles
-        set birth_date = ((now() at time zone 'utc')::date - interval '14 years')::date
+        set birth_date = ((now() at time zone 'utc')::date - interval '18 years')::date
       where id = 'a1460000-0000-4000-8000-000000000001' $$,
-  'a member turning 14 today is admitted — the boundary is inclusive');
+  'a member turning 18 today is admitted — the boundary is inclusive');
 select throws_ok(
   $$ update public.profiles set birth_date = date '1899-12-31'
       where id = 'a1460000-0000-4000-8000-000000000001' $$,

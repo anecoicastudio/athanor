@@ -5,6 +5,12 @@ import type { AthanorClient } from './client';
 export const remoteConfigKeys = {
   all: ['remoteConfig'] as const,
   boot: () => [...remoteConfigKeys.all, 'boot'] as const,
+  /**
+   * The same table, read for a gate that must FAIL CLOSED (#747 — the Circle checkout CTA). Its
+   * own key because the boot read is persisted to AsyncStorage for 24h and a fail-closed gate must
+   * never hydrate yesterday's `true`; the caller pairs this key with `meta: { persist: false }`.
+   */
+  live: () => [...remoteConfigKeys.all, 'live'] as const,
 };
 
 export interface RemoteConfigSnapshot {

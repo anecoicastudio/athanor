@@ -711,3 +711,32 @@ describe('calendar blocked copy diverges from the shared permission body (#552)'
     expect(en['event.rsvp.calendarBlocked']).toMatch(/try again/i);
   });
 });
+
+describe('onboarding birth step names the minimum age as a placeholder (#778)', () => {
+  /**
+   * The floor is `MIN_MEMBER_AGE` in @athanor/core, which the database guard mirrors
+   * (min-age.mirror.test). #694 typed «14» into both strings, so moving the floor to 18 meant
+   * editing four strings nothing tied to the constant — the drift the settlement block above
+   * closes for `{pct}`. The screen fills `{age}` from the constant; a digit here would read the
+   * same today and lie the first time the constant moved.
+   */
+  const BIRTH_AGE_KEYS: readonly MessageKey[] = [
+    'onboarding.birth.sub',
+    'onboarding.birth.tooYoung',
+  ];
+
+  test.each(BIRTH_AGE_KEYS.map((k) => [k]))('%s names {age} and no literal number', (key) => {
+    for (const [name, catalog] of [
+      ['it', it],
+      ['en', en],
+    ] as const) {
+      expect(catalog[key], `${name}.${key} must name {age}`).toContain('{age}');
+      expect(catalog[key], `${name}.${key} hardcodes a number`).not.toMatch(/\d/);
+    }
+  });
+
+  test('the placeholder renders the number it is given, in both locales', () => {
+    expect(t('onboarding.birth.tooYoung', 'it', { age: 18 })).toContain('18');
+    expect(t('onboarding.birth.tooYoung', 'en', { age: 18 })).toContain('18');
+  });
+});

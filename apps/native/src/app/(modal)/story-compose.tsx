@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image } from 'react-native';
+import { Image, Switch } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -105,7 +106,13 @@ export default function StoryComposeScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ModalHeader title={t('story.add.title', locale)} backLabel={t('common.back', locale)} />
-        <ScrollView className="flex-1" contentContainerClassName="gap-5 px-5 pb-8">
+        {/* `handled`: the first tap on a control lands on it instead of only dismissing the
+            keyboard (#748). */}
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-5 px-5 pb-8"
+          keyboardShouldPersistTaps="handled"
+        >
           <Text className="text-[14px] text-faint">{t('story.add.desc', locale)}</Text>
 
           {/* Attach affordance — flat, no glow (rule #4). One segment per publish: a re-pick replaces. */}
@@ -202,7 +209,22 @@ export default function StoryComposeScreen() {
               </Text>
               <Text className="text-[13px] text-faint">{t('story.add.stepDesc', locale)}</Text>
             </View>
-            <Text className={isStep ? 'text-aura' : 'text-faint'}>{isStep ? '✦' : '○'}</Text>
+            {/* The platform Switch DESIGN.md §8.13 names for toggles (#748) — the bare ✦/○ glyph
+                rendered as a tiny unsized ○ on Android. The ROW is the control: it carries the
+                role, state and name, so the Switch is hidden from assistive tech and ignores
+                touches, and one tap anywhere flips it once. */}
+            <View
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Switch
+                accessibilityLabel={t('story.add.stepTitle', locale)}
+                value={isStep}
+                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
+                thumbColor={semantic.foreground}
+              />
+            </View>
           </Pressable>
 
           <MediaSheet
@@ -213,15 +235,19 @@ export default function StoryComposeScreen() {
             onClose={() => setSheetOpen(false)}
             onError={(key) => setError(t(key, locale))}
           />
+        </ScrollView>
 
-          {/* P2.5 hint-truth: no create-hint — the engine never rewards posting (anti-gaming). */}
+        {/* Publish is pinned BELOW the list (#748), the way chat pins its bar: inside the
+            ScrollView the keyboard wrapper shrank the list around it and it stayed under the
+            keyboard. P2.5 hint-truth: no create-hint — the engine never rewards posting. */}
+        <View className="border-t border-hair bg-background px-5 py-3">
           <Button
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={isUploading}
             variant="light"
           />
-        </ScrollView>
+        </View>
       </Screen>
     </KeyboardAvoiding>
   );

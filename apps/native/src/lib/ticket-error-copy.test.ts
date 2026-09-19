@@ -20,9 +20,15 @@ import { describe, expect, it } from 'vitest';
  * dropped from the map on the grounds that its subject is the organiser.
  *
  * The 500s deliberately get nothing. A lookup that failed, a seat claim that broke, a Stripe call
- * that threw: those are undifferentiated internal faults, indistinguishable to the person, and
- * `ticket.error.payment` is the honest answer to all of them. Splitting on the status code is what
- * makes this a rule rather than a list someone has to remember to extend.
+ * that threw: those are undifferentiated internal faults, indistinguishable to the person, and they
+ * share the fallback `ticket.error.unavailable`. Splitting on the status code is what makes this a
+ * rule rather than a list someone has to remember to extend.
+ *
+ * That fallback used to be `ticket.error.payment`, «the payment didn't go through», and this file
+ * once called it the honest answer to the 500s. It was not (#747): every path into the fallback
+ * fails BEFORE Checkout opens, so no payment was attempted, and a real decline happens inside
+ * Stripe's hosted page, where the bar never sees it. There is no honest use left for a «payment
+ * failed» string on this surface, so the key is gone and the last block below keeps it gone.
  *
  * ERROR_COPY is not exported, so this reads both files as text — the source-audit idiom this app
  * uses for every UI guarantee (`environment: 'node'`, nothing renderable is collectable).
@@ -86,9 +92,10 @@ describe('every checkout refusal has its own copy (#701)', () => {
     const failures = captures(LADDER, /(?:^|[^.\w])error\(\s*'([^']+)'\s*,\s*500\s*\)/g);
     expect(failures.length).toBeGreaterThan(0);
     for (const msg of failures) {
-      expect(BAR, `${msg} is a 500; it should fall through to ticket.error.payment`).not.toContain(
-        `'${msg}':`,
-      );
+      expect(
+        BAR,
+        `${msg} is a 500; it should fall through to ticket.error.unavailable`,
+      ).not.toContain(`'${msg}':`);
     }
   });
 
@@ -102,6 +109,26 @@ describe('every checkout refusal has its own copy (#701)', () => {
       for (const key of keys) {
         expect(catalog[key], `${lang}.json has no ${key}`).toBeDefined();
       }
+    }
+  });
+
+  it('falls back to a sentence that claims no payment failed (#747)', () => {
+    // The fallback is reached only before Checkout opens, so its copy must not say a payment
+    // was attempted. Pinned by key AND by the `ticket.error.*` copy in both catalogs, so the old
+    // sentence returning under another ticket error key is caught too — a key outside that
+    // namespace is not scanned.
+    expect(BAR).toContain("|| 'ticket.error.unavailable', locale)");
+    expect(BAR).not.toContain("'ticket.error.payment'");
+    for (const lang of ['it', 'en'] as const) {
+      const catalog = JSON.parse(
+        readFileSync(`${SRC}../../../packages/i18n/src/catalogs/${lang}.json`, 'utf8'),
+      ) as Record<string, string>;
+      expect(catalog['ticket.error.payment'], `${lang}.json still carries the false key`).toBe(
+        undefined,
+      );
+      const ticketCopy = Object.entries(catalog).filter(([k]) => k.startsWith('ticket.error.'));
+      const claimsFailure = /pagamento non è andato|payment didn't go through/i;
+      expect(ticketCopy.filter(([, v]) => claimsFailure.test(v))).toEqual([]);
     }
   });
 });

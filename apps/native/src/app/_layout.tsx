@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import * as Sentry from '@sentry/react-native';
-import { isProfileComplete } from '@athanor/core';
+import { nextOnboardingStep } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/ToastHost';
@@ -88,13 +88,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     if (!profile) return; // profile still hydrating
 
-    if (isProfileComplete(profile)) {
+    const next = nextOnboardingStep(profile);
+    // `.at(1)` for the same TS2493 reason as the recovery branch above.
+    const onHandleStep = inOnboarding && segments.at(1) === 'handle';
+    if (next === null) {
       // Explicit group href: both (tabs)/index and (onboarding)/index resolve to '/',
       // and onboarding wins the bare path — so a bare replace('/') lands back on the
       // funnel (the loop). '/(tabs)' disambiguates to the Home tab.
       if (inAuth || inOnboarding) router.replace('/(tabs)');
-    } else if (!inOnboarding) {
-      // Authed but incomplete with no draft to flush (e.g. login on a new device).
+    } else if (next === 'handle') {
+      // #782: the answers landed and only the @handle is missing — chosen on its own screen
+      // after sign-up, never derived from the email. Every sign-up path arrives here: email
+      // and password, Google, and a first sign-in on a new device.
+      if (!onHandleStep) router.replace('/(onboarding)/handle');
+    } else if (!inOnboarding || onHandleStep) {
+      // Authed but the funnel's answers are missing with no draft to flush (e.g. login on a
+      // new device). The handle step is not the place for that: the answers come first.
       router.replace('/(onboarding)');
     }
   }, [loading, flushing, session, profile, segments, router, recoveryPending]);

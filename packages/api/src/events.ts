@@ -199,7 +199,12 @@ export async function getEventsOnline(client: AthanorClient): Promise<Event[]> {
 export type NearbyCursor = { dist: number; id: string };
 export type NearbyPage = { events: EventNearby[]; nextCursor: NearbyCursor | null };
 
-/** Physical events within radiusKm of (lat,lng), nearest-first. Distance computed server-side. */
+/**
+ * Physical events within radiusKm of (lat,lng), nearest-first. Distance computed server-side,
+ * to each event's grid point (#781). Signed-in only: anon holds no EXECUTE on events_nearby()
+ * since 20260919124730. Callers pass a position already snapped with `snapToEventGrid`, so the
+ * member's own fix never leaves the phone either.
+ */
 export async function getEventsNearby(
   client: AthanorClient,
   lat: number,

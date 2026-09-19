@@ -17,6 +17,7 @@
     "deploy:check": "node scripts/deploy-check.mjs",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs",
     "staging:media": "node scripts/upload-staging-media.mjs",
+    "staging:demo-media": "node scripts/upload-demo-media.mjs",
     "staging:refresh": "node scripts/staging-refresh.mjs",
     "payments": "node scripts/payment-methods.mjs"
   },

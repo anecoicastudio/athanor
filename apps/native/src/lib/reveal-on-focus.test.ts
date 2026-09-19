@@ -1,16 +1,39 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createRevealOnFocus,
+  followFoot,
   REVEAL_PAD,
   revealOffset,
+  revealSpan,
   type RowHandle,
   type ScrollHandle,
 } from './reveal-on-focus';
 
-/** A row that answers `measureLayout` synchronously, the way the native call answers late. */
+/**
+ * The list's content view as Fabric hands it out: a host INSTANCE, which is the only thing
+ * `measureLayout` accepts as its relative-to argument on the New Architecture.
+ */
+const INNER = { host: 'content view' };
+
+/**
+ * The node HANDLE the same list still offers through `getInnerViewNode()`. Every fake list below
+ * carries it, so a reveal that reached for it again would find it — and get silence back.
+ */
+const HANDLE = 7;
+
+/**
+ * A row that answers `measureLayout` synchronously, the way the native call answers late — and
+ * only the way Fabric does (#752). RN 0.86's `ReactNativeElement.measureLayout` returns early for
+ * anything that is not a host instance: a dev-only warning, and NEITHER callback, so nothing
+ * downstream ever learns the measurement was refused. This fake refuses the same way; a fake that
+ * ignored `relativeTo` is what let a node handle pass here for three weeks.
+ */
 function row(top: number, height: number): RowHandle {
   return {
-    measureLayout: (_relativeTo, onSuccess) => onSuccess(0, top, 320, height),
+    measureLayout: (relativeTo, onSuccess) => {
+      if (relativeTo !== INNER) return;
+      onSuccess(0, top, 320, height);
+    },
   };
 }
 
@@ -21,19 +44,26 @@ function deadRow(): RowHandle {
   };
 }
 
-function list(): ScrollHandle & { scrollTo: ReturnType<typeof vi.fn> } {
+type FakeList = ScrollHandle & {
+  getInnerViewNode: () => number;
+  scrollTo: Mock<ScrollHandle['scrollTo']>;
+};
+
+function list(): FakeList {
   return {
-    getInnerViewNode: () => 7,
-    scrollTo: vi.fn(),
+    getInnerViewNode: () => HANDLE,
+    getInnerViewRef: () => INNER,
+    scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
   };
 }
 
 /** A list that answers `measure` — every real host instance does; the fakes above do not. */
-function measurableList(height: number) {
+function measurableList(height: number): FakeList {
   return {
-    getInnerViewNode: () => 7,
+    getInnerViewNode: () => HANDLE,
+    getInnerViewRef: () => INNER,
     measure: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 0, 320, height),
-    scrollTo: vi.fn(),
+    scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
   };
 }
 
@@ -96,6 +126,203 @@ describe('revealOffset — the minimal scroll that puts a row on screen', () => 
   });
 });
 
+describe('followFoot — the foot of a tall row on screen (#766)', () => {
+  const view = { height: 400, offset: 0, content: 2000 };
+
+  it('puts the foot at the bottom edge, padded', () => {
+    expect(followFoot({ top: 100, height: 900 }, view)).toBe(100 + 900 + REVEAL_PAD - 400);
+  });
+
+  it('never scrolls past the end of the content', () => {
+    expect(followFoot({ top: 100, height: 1895 }, view)).toBe(2000 - 400);
+  });
+
+  it('does not clamp to the end while the content size is still unknown', () => {
+    expect(followFoot({ top: 100, height: 1895 }, { ...view, content: 0 })).toBe(
+      100 + 1895 + REVEAL_PAD - 400,
+    );
+  });
+
+  it('never scrolls above the content start', () => {
+    expect(followFoot({ top: 0, height: 100 }, { ...view, offset: 50 })).toBe(0);
+  });
+
+  it('holds still when the foot is already there, to the point', () => {
+    expect(followFoot({ top: 100, height: 900 }, { ...view, offset: 612.5 })).toBeNull();
+    expect(followFoot({ top: 100, height: 900 }, { ...view, offset: 611 })).toBe(612);
+  });
+
+  it('answers null before the list has been laid out', () => {
+    expect(followFoot({ top: 100, height: 900 }, { ...view, height: 0 })).toBeNull();
+  });
+});
+
+describe('revealSpan — the submit rides along only when it fits (#752)', () => {
+  it('stretches the target down to the submit when the two fit together', () => {
+    // Row 300–380, submit 420–472: 172 tall, plus a pad either side, inside 400.
+    expect(revealSpan({ top: 300, height: 80 }, { top: 420, height: 52 }, 400)).toEqual({
+      top: 300,
+      height: 172,
+    });
+  });
+
+  it('keeps the row alone when row and submit together would not fit', () => {
+    // 300 → 700 is 400 tall before the pads: showing it would push the field off the top.
+    expect(revealSpan({ top: 300, height: 80 }, { top: 648, height: 52 }, 400)).toEqual({
+      top: 300,
+      height: 80,
+    });
+  });
+
+  it('treats an exact fit as too tall — the pads are part of the span', () => {
+    const height = 400 - 2 * REVEAL_PAD;
+    expect(revealSpan({ top: 0, height: 100 }, { top: height - 52, height: 52 }, 400)).toEqual({
+      top: 0,
+      height: 100,
+    });
+    expect(revealSpan({ top: 0, height: 100 }, { top: height - 53, height: 52 }, 400)).toEqual({
+      top: 0,
+      height: height - 1,
+    });
+  });
+
+  it('spans both whichever sits higher', () => {
+    expect(revealSpan({ top: 300, height: 80 }, { top: 200, height: 52 }, 400)).toEqual({
+      top: 200,
+      height: 180,
+    });
+  });
+});
+
+describe('createRevealOnFocus — the form submit comes along (#752)', () => {
+  /** `mounted`, with the settle pass captured: firing it is «the keyboard has landed». */
+  function settling(opts: { viewport: number; node?: RowHandle; submit: RowHandle }) {
+    const passes: (() => void)[] = [];
+    const reveal = createRevealOnFocus({ schedule: (run) => passes.push(run) });
+    const scroll = list();
+    reveal.scrollProps.ref(scroll);
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: opts.viewport } } });
+    reveal.scrollProps.onContentSizeChange(320, 2000);
+    reveal.rowRef('password')(opts.node ?? row(600, 120));
+    reveal.submitRef()(opts.submit);
+    const settle = () => passes.splice(0).forEach((run) => run());
+    return { reveal, scroll, settle };
+  }
+
+  it('brings the submit up with the row once the keyboard has landed', () => {
+    // The login shape: the password row is on screen, the CTA sits under the fold.
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 344 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('the tap itself reveals the row alone — a field on screen is not moved to show its button', () => {
+    // The first pass measures a viewport the keyboard has not shrunk yet. Row and submit fit in
+    // THAT one, and chasing it would drag a visible field under the member's finger towards a
+    // button the keyboard is about to cover (the signup name field on an iPhone SE did it).
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(900, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('leaves the list alone when row and submit are both already on screen', () => {
+    const { reveal, scroll, settle } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('reveals the row alone when the submit is too far below it to share the viewport', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: row(1000, 52) });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('re-reveals both when the keyboard arrives', () => {
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 344 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('brings the submit along when the row grows under the field', () => {
+    // The signup checklist mounting on the first keystroke pushes the CTA down with it.
+    const { reveal, scroll } = settling({
+      viewport: 400,
+      node: row(200, 100),
+      submit: row(324, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(200, 160));
+    reveal.submitRef()(row(384, 52));
+    reveal.scrollProps.onContentSizeChange(320, 2060);
+    // Instant, like every growth scroll: the content itself jumped (#766).
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 384 + 52 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('still reveals the row when the submit cannot be measured', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: deadRow() });
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('hands back the SAME submit ref on every call', () => {
+    const reveal = createRevealOnFocus();
+    // A call, not a property, for the same reason `rowRef` is one — and a fresh identity per
+    // render would detach and re-attach the CTA's ref every frame.
+    expect(reveal.submitRef()).toBe(reveal.submitRef());
+  });
+
+  it('forgets the submit once it unmounts', () => {
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.submitRef()(null);
+    reveal.fieldProps('password').onFocus();
+    settle();
+    // The row alone fits (200–320 + pad), so with no submit there is nothing to do.
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+});
+
 describe('createRevealOnFocus — a focused row is brought into view', () => {
   it('scrolls on focus when the row is under the fold', () => {
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
@@ -147,7 +374,153 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     reveal.scrollProps.onContentSizeChange(320, 860);
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 200 + 260 + REVEAL_PAD - 400,
-      animated: true,
+      animated: false,
+    });
+  });
+
+  it('follows the FOOT of a row that has grown taller than the viewport — a multiline field', () => {
+    // An event or project description, typed into line by line. Once the row outgrows the
+    // viewport, "show its top" would bury the caret — which sits at the BOTTOM — on every new
+    // line. Leaving it alone buried it too, on iOS (#766): Fabric's ScrollView never follows a
+    // multiline field's caret, so the text ran on under the keyboard. The foot was on screen
+    // before the growth, so the member is typing at the end: the list follows the foot.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.rowRef('password')(row(100, 420));
+    reveal.scrollProps.onContentSizeChange(320, 2220);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 100 + 420 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('keeps following the foot line after line', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 420) });
+    reveal.fieldProps('password').onFocus();
+    // The first reveal of a tall row shows its top (#689). The member then scrolls down to its
+    // end — the foot, at 520, is on screen at 132 + 400 — and types a new line there, then another.
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 132 } } });
+    reveal.rowRef('password')(row(100, 444));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 100 + 444 + REVEAL_PAD - 400,
+      animated: false,
+    });
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 156 } } });
+    reveal.rowRef('password')(row(100, 468));
+    reveal.scrollProps.onContentSizeChange(320, 2048);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 100 + 468 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('keeps following when the next line lands before the list reports its scroll', () => {
+    // A held return key: line two arrives before any `onScroll` for line one. Read against the
+    // stale offset, line one's foot would look off screen and the follow would stop for good.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 420));
+    reveal.scrollProps.onContentSizeChange(320, 2220);
+    reveal.rowRef('password')(row(100, 444));
+    reveal.scrollProps.onContentSizeChange(320, 2244);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 100 + 444 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('keeps following across the step from a row that fits to one that does not', () => {
+    // The last line that still fits scrolls the list; the first line that does not lands before
+    // that scroll reports. Read against the old offset, the foot would look off screen and the
+    // follow would stop for the rest of the focus — the caret buried again, by the next line.
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 42,
+      node: row(100, 330),
+    });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 354));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({ y: 66, animated: false });
+    reveal.rowRef('password')(row(100, 378));
+    reveal.scrollProps.onContentSizeChange(320, 2048);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 100 + 378 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('does not chase a focused row the member scrolled away from', () => {
+    // «Titolo» (`name`) keeps focus while the member scrolls down and taps «A pagamento» — `handled` lets
+    // the tap land without a blur (#766). The price row mounting grows the content under
+    // «Titolo», and re-revealing it would yank the list back up, away from the row just opened.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 80) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 900 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2300);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    // Nor from below: scrolled back up past it, the row sits under the viewport.
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    reveal.rowRef('password')(row(700, 80));
+    reveal.fieldProps('password').onBlur();
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2400);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('does not jump to the foot of a tall row the member scrolled PAST', () => {
+    // The foot above the viewport is off screen too — a one-sided check read it as on screen
+    // and snapped the list up to it.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 3000, node: row(100, 900) });
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 1500 } } });
+    reveal.rowRef('password')(row(100, 924));
+    reveal.scrollProps.onContentSizeChange(320, 3024);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('leaves a tall row alone when its foot was off screen — the member is reading above it', () => {
+    // They scrolled up into a long description, or the caret is somewhere in its middle: a
+    // growth there must not drag the list down to an end nobody is looking at. On Android
+    // the native caret-follow owns that case.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 900) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 100 - REVEAL_PAD, animated: true });
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 88 } } });
+    reveal.rowRef('password')(row(100, 924));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('does not follow a foot it never measured', () => {
+    // A growth that arrives before any pass measured the row has nothing to compare against.
+    const reveal = createRevealOnFocus({ schedule: () => undefined });
+    const scroll = list();
+    reveal.scrollProps.ref(scroll);
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2000);
+    reveal.fieldProps('password').onFocus(); // no row registered yet: nothing measured
+    reveal.rowRef('password')(row(100, 900));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('keeps following a growing row while it still fits — the caret is at its foot', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 320));
+    reveal.scrollProps.onContentSizeChange(320, 2120);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 100 + 320 + REVEAL_PAD - 400,
+      animated: false,
     });
   });
 
@@ -187,9 +560,28 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     expect(() => reveal.fieldProps('password').onFocus()).not.toThrow();
   });
 
+  it('measures against the content view INSTANCE, never its node handle (#752)', () => {
+    // The regression, named: Fabric drops a handle without calling back, so a reveal that
+    // measured against `getInnerViewNode()` was a silent no-op on every New-Architecture build.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
+    const relativeTo: unknown[] = [];
+    reveal.rowRef('password')({
+      measureLayout: (target, onSuccess) => {
+        relativeTo.push(target);
+        if (target === INNER) onSuccess(0, 600, 320, 120);
+      },
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(relativeTo).toEqual([INNER]);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
   it('does nothing while the list has no measurable content view (web before mount)', () => {
     const reveal = createRevealOnFocus();
-    const scroll = { getInnerViewNode: () => null, scrollTo: vi.fn() };
+    const scroll = { getInnerViewRef: () => null, scrollTo: vi.fn() };
     reveal.scrollProps.ref(scroll);
     reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
     reveal.rowRef('password')(row(600, 120));
@@ -267,11 +659,12 @@ describe('createRevealOnFocus — the settle pass', () => {
   function withSchedule(height: () => number) {
     const passes: (() => void)[] = [];
     const reveal = createRevealOnFocus({ schedule: (run) => passes.push(run) });
-    const scroll = {
-      getInnerViewNode: () => 7,
+    const scroll: FakeList = {
+      getInnerViewNode: () => HANDLE,
+      getInnerViewRef: () => INNER,
       measure: (cb: (x: number, y: number, w: number, h: number) => void) =>
         cb(0, 0, 320, height()),
-      scrollTo: vi.fn(),
+      scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
     };
     reveal.scrollProps.ref(scroll);
     reveal.scrollProps.onContentSizeChange(320, 2000);

@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
-import { t, type MessageKey } from '@athanor/i18n';
+import { useRef, useState } from 'react';
+import { t, type Locale, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, type TextInputRef } from '@/tw';
 import { Button } from '@/components/Button';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { providerMark } from '@/components/provider-marks';
@@ -12,7 +12,7 @@ import { authErrorKey, oauthErrorKey } from '@/lib/auth-errors';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
-import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '@/lib/links';
+import { legalUrl } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
 import { supabase } from '@/lib/supabase';
@@ -68,6 +68,47 @@ const GOOGLE_ENABLED = true;
 
 const PROVIDER_LABEL: Record<'apple' | 'google', string> = { apple: 'Apple', google: 'Google' };
 
+/**
+ * The consent notice and its two links (#632) — one component for the two places an account can
+ * be created here (#777): under the signup CTA, and under the provider buttons on the sign-in
+ * mode, where a first sign-in with a provider creates the account. The links reuse settings'
+ * labels and URLs so the words match the screen that also carries them.
+ */
+function LegalNotice({
+  text,
+  locale,
+  onError,
+}: {
+  text: string;
+  locale: Locale;
+  onError: () => void;
+}) {
+  return (
+    <View className="gap-1">
+      <Text className="text-center text-xs leading-4 text-muted-foreground">{text}</Text>
+      <View className="flex-row items-center justify-center gap-6">
+        {(
+          [
+            ['settings.legal.terms', legalUrl('terms', locale)],
+            ['settings.legal.privacy', legalUrl('privacy', locale)],
+          ] as const
+        ).map(([key, url]) => (
+          <Pressable
+            key={key}
+            className="min-h-[44px] justify-center"
+            accessibilityRole="link"
+            onPress={() => {
+              WebBrowser.openBrowserAsync(url).catch(onError);
+            }}
+          >
+            <Text className="text-xs text-muted-foreground underline">{t(key, locale)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function WelcomeScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const login = mode === 'login'; // existing-user sign-in vs new-account creation
@@ -92,6 +133,9 @@ export default function WelcomeScreen() {
   // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
   // field INTO it — the password field is last in the column and stayed off screen.
   const reveal = useRevealOnFocus();
+  // #752: the return key walks the form — name → email → password — and the password's submits.
+  const emailRef = useRef<TextInputRef>(null);
+  const passwordRef = useRef<TextInputRef>(null);
   const appleEnabled = useFeatureFlags()[APPLE_FLAG] === true;
   // `true` in every state today, since `GOOGLE_ENABLED` is a `const true` — the `else` branch
   // below is unreachable and kept deliberately. It moved out of module scope with the flag not
@@ -100,6 +144,18 @@ export default function WelcomeScreen() {
   // region gate — the divider follows the flag instead of a constant, and «oppure con email»
   // never ends up separating the email form from nothing.
   const anyOauth = appleEnabled || GOOGLE_ENABLED;
+  // #777: the sign-in mode's notice names the providers it sits under, in button order, so the
+  // day the Apple flag flips on it says «Apple o Google» without a release.
+  const [firstProvider, secondProvider] = [
+    ...(appleEnabled ? [PROVIDER_LABEL.apple] : []),
+    ...(GOOGLE_ENABLED ? [PROVIDER_LABEL.google] : []),
+  ];
+  const oauthNotice = t('auth.legal.oauthNotice', locale, {
+    provider: secondProvider
+      ? t('auth.legal.providerOr', locale, { a: firstProvider ?? '', b: secondProvider })
+      : (firstProvider ?? ''),
+  });
+  const legalError = () => setError(t('settings.legal.error', locale));
 
   const copy = (suffix: 'eyebrow' | 'display' | 'sub') =>
     t(`${login ? 'auth.login' : 'auth.signup'}.${suffix}` as MessageKey, locale);
@@ -210,7 +266,9 @@ export default function WelcomeScreen() {
     // they already have an account, so a stashed code must not follow them into it. That is
     // intent, not proof — OAuth cannot tell a signup from a sign-in at all, and an existing
     // member who arrives on the DEFAULT screen from an invite link is in signup mode and keeps
-    // the stash. What bounds that one is the RPC's account-age gate, not this line.
+    // the stash. What bounds that one is the RPC's account-age gate, not this line. The trade
+    // runs the other way too: the notice under these buttons (#777) tells a newcomer that a
+    // provider creates the account from here, and one who follows it loses the stash.
     // Cleared BEFORE the round trip: exchangeCodeForSession fires onAuthStateChange while that
     // call is still awaiting, so auth-context has already read the stash by the time it returns.
     if (login) await clearPendingReferral();
@@ -229,6 +287,13 @@ export default function WelcomeScreen() {
   const busy = submitting || oauthBusy !== null;
   const disabled =
     busy || !EMAIL_RE.test(email.trim()) || (login ? password.length === 0 : unmet.length > 0);
+  // #752: the keyboard's `go` key is a second way to press the CTA, so it goes through the CTA's own
+  // gate. `submit` does not re-check it — the login branch spends the referral stash before it
+  // ever reaches Supabase — and until now the Button's `inert` was the only thing between that
+  // branch and a malformed email or a second press mid-flight.
+  const submitFromKeyboard = () => {
+    if (!disabled) void submit();
+  };
 
   const toggleMode = () =>
     router.replace(
@@ -368,6 +433,14 @@ export default function WelcomeScreen() {
                         onPress={() => handleOAuth('google')}
                       />
                     ) : null}
+
+                    {/* #777: a first sign-in with a provider CREATES the account, and OAuth
+                      cannot tell which it is — so the sign-in mode shows the notice too, here,
+                      under the buttons it is about. Not by the «Accedi» CTA: the email sign-in
+                      below creates nothing. Signup's notice stays by its own CTA. */}
+                    {login ? (
+                      <LegalNotice text={oauthNotice} locale={locale} onError={legalError} />
+                    ) : null}
                   </View>
 
                   <View className="my-6 flex-row items-center gap-3">
@@ -415,6 +488,11 @@ export default function WelcomeScreen() {
                       placeholder={t('auth.name.placeholder', locale)}
                       value={name}
                       onChangeText={setName}
+                      // `submit`, not the single-line default `blurAndSubmit`: moving to the next
+                      // field must not drop the keyboard and raise it again under the member.
+                      returnKeyType="next"
+                      submitBehavior="submit"
+                      onSubmitEditing={() => emailRef.current?.focus()}
                     />
                   </View>
                 ) : null}
@@ -425,6 +503,7 @@ export default function WelcomeScreen() {
                   </Text>
                   <Input
                     {...reveal.fieldProps('email')}
+                    ref={emailRef}
                     autoCapitalize="none"
                     autoComplete="email"
                     textContentType={login ? 'emailAddress' : 'none'}
@@ -432,6 +511,9 @@ export default function WelcomeScreen() {
                     placeholder={t('auth.email.placeholder', locale)}
                     value={email}
                     onChangeText={setEmail}
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
                   />
                 </View>
 
@@ -456,6 +538,11 @@ export default function WelcomeScreen() {
                     placeholder={t('auth.password.placeholder', locale)}
                     value={password}
                     onChangeText={setPassword}
+                    ref={passwordRef}
+                    // The last field submits. Default `blurAndSubmit` here: the keyboard going
+                    // down with the press is what uncovers the CTA's spinner and in-flight line.
+                    returnKeyType="go"
+                    onSubmitEditing={submitFromKeyboard}
                     // The `eye` from the esoteric set (DESIGN §6), inside the field where the
                     // affordance is looked for. SHAPE carries the state — struck vs open — so
                     // both variants keep the same muted token: a reveal is confirmation-grade,
@@ -524,8 +611,11 @@ export default function WelcomeScreen() {
               </View>
 
               {/* `Button` owns the pill; the screen keeps the gap above it, because a
-                component that carried its own outer margin could not be reused in a row. */}
-              <View className="mt-7 gap-3">
+                component that carried its own outer margin could not be reused in a row.
+                #752: the reveal brings this block up WITH the focused field — the password row
+                ends at the forgot link, so revealing the row alone left the CTA under the
+                keyboard. The whole block, so signup's consent notice rides with its button. */}
+              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
                 <Button
                   variant="light"
                   label={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
@@ -541,38 +631,14 @@ export default function WelcomeScreen() {
                   </Text>
                 ) : null}
                 {/* #632: the point of collection is the point of consent — GDPR-scoped
-                  product collecting a name, an email and a dream. Signup only; sign-in
-                  agreed at signup. The two links reuse settings' labels and URLs so the
-                  words match the screen that also carries them. */}
+                  product collecting a name, an email and a dream. The sign-in mode carries
+                  its own, under the provider buttons (#777): its email CTA creates nothing. */}
                 {!login ? (
-                  <View className="gap-1">
-                    <Text className="text-center text-xs leading-4 text-muted-foreground">
-                      {t('auth.legal.notice', locale)}
-                    </Text>
-                    <View className="flex-row items-center justify-center gap-6">
-                      {(
-                        [
-                          ['settings.legal.terms', LEGAL_TERMS_URL],
-                          ['settings.legal.privacy', LEGAL_PRIVACY_URL],
-                        ] as const
-                      ).map(([key, url]) => (
-                        <Pressable
-                          key={key}
-                          className="min-h-[44px] justify-center"
-                          accessibilityRole="link"
-                          onPress={() => {
-                            WebBrowser.openBrowserAsync(url).catch(() =>
-                              setError(t('settings.legal.error', locale)),
-                            );
-                          }}
-                        >
-                          <Text className="text-xs text-muted-foreground underline">
-                            {t(key, locale)}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
+                  <LegalNotice
+                    text={t('auth.legal.notice', locale)}
+                    locale={locale}
+                    onError={legalError}
+                  />
                 ) : null}
               </View>
 

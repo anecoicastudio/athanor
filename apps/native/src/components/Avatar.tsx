@@ -13,7 +13,7 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
  * upload, because name and photo are optional by product decision (#75).
  *
  * The initial comes from `displayName` when there is one and the handle otherwise, so a member
- * called «Stella» is an S rather than the letter their auto-derived handle happens to start with.
+ * called «Stella» is an S rather than the letter their handle happens to start with.
  *
  * `avatarPath` is a storage key in the private `avatars` bucket, never a URL. Signing happens
  * here, per leaf, and `useAvatarUrl` coalesces a list's worth of leaves into one request — see

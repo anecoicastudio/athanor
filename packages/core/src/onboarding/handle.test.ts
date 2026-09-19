@@ -1,76 +1,121 @@
 import { describe, expect, test } from 'vitest';
-import { RESERVED_HANDLES, isReservedHandle } from '@athanor/schemas';
-import { suggestHandle } from './handle';
+import { RESERVED_HANDLES } from '@athanor/schemas';
+import { classifyHandle, normalizeHandleInput } from './handle';
 
-describe('suggestHandle', () => {
-  test('uses the email local part lowercased', () => {
-    expect(suggestHandle('Lucia.Ferri@example.com')).toBe('lucia_ferri');
+/**
+ * #782 — the @handle is chosen by the person and never derived from the email: no suggestion,
+ * not even a prefilled one. What remains for core is to say, of what was typed, whether it can
+ * be claimed and if not WHY — a refused handle always says why on screen (#769's lesson). Whether
+ * it is already somebody's is a database question, answered by the caller.
+ */
+describe('normalizeHandleInput', () => {
+  test('lowercases what was typed — the column holds lowercase only', () => {
+    expect(normalizeHandleInput('Lucia_Ferri')).toBe('lucia_ferri');
   });
 
-  test('replaces invalid characters with underscore', () => {
-    expect(suggestHandle('lucia+athanor@example.com')).toBe('lucia_athanor');
+  test('drops the @ a person types out of habit', () => {
+    expect(normalizeHandleInput('@lucia')).toBe('lucia');
   });
 
-  test('collapses consecutive underscores', () => {
-    expect(suggestHandle('l..u@example.com')).toBe('l_u');
+  test('drops only ONE leading @ — a second one is still there to be refused', () => {
+    expect(normalizeHandleInput('@@lucia')).toBe('@lucia');
   });
 
-  // The case above collapses underscores the previous replace *produced*. Underscores already
-  // present in the address are the ones that reach the `/_+/g` pass as a run, and nothing
-  // covered them — so narrowing that pattern to a single `_` went unnoticed.
-  test('collapses underscores the address itself contains', () => {
-    expect(suggestHandle('l__u@example.com')).toBe('l_u');
+  test('keeps an @ that is not leading, so it is refused rather than silently removed', () => {
+    expect(normalizeHandleInput('lu@cia')).toBe('lu@cia');
   });
 
-  // Nothing produced a leading or trailing underscore either, so the final trim was untested.
-  test('trims leading and trailing underscores', () => {
-    expect(suggestHandle('.lucia.@example.com')).toBe('lucia');
+  test('drops leading whitespace, before the @ is looked for', () => {
+    expect(normalizeHandleInput('  @lucia')).toBe('lucia');
   });
 
-  test('pads to minimum 3 chars', () => {
-    expect(suggestHandle('ab@example.com')).toBe('ab_');
+  test('keeps trailing whitespace — a typed space is shown and refused, never swallowed', () => {
+    expect(normalizeHandleInput('lucia ')).toBe('lucia ');
+    expect(normalizeHandleInput('  @lucia  ')).toBe('lucia  ');
   });
 
-  test('truncates to 30 chars', () => {
-    expect(suggestHandle(`${'a'.repeat(40)}@example.com`)).toBe('a'.repeat(30));
+  test('keeps inner whitespace — it is malformed, not something to guess around', () => {
+    expect(normalizeHandleInput('lucia ferri')).toBe('lucia ferri');
   });
 
-  test('falls back for empty local part', () => {
-    expect(suggestHandle('@example.com')).toBe('aura');
+  // The field is CONTROLLED: every keystroke's text goes through this and comes back as the
+  // value, so the function runs on each prefix, not on the finished word. Trimming the END of a
+  // prefix ate the space before the next letter arrived, and `lucia ferri` typed key by key
+  // became `luciaferri` — a valid, free handle nobody typed, claimed silently.
+  test('typed one key at a time, a space survives to be refused', () => {
+    let value = '';
+    for (const key of 'lucia ferri') value = normalizeHandleInput(value + key);
+    expect(value).toBe('lucia ferri');
+    expect(classifyHandle(value)).toBe('malformed');
+  });
+
+  test('typed one key at a time, a leading @ and capitals still normalise', () => {
+    let value = '';
+    for (const key of '@Lucia') value = normalizeHandleInput(value + key);
+    expect(value).toBe('lucia');
+  });
+
+  test('never invents a name: nothing typed stays nothing', () => {
+    expect(normalizeHandleInput('')).toBe('');
+    expect(normalizeHandleInput('   ')).toBe('');
+    expect(normalizeHandleInput('@')).toBe('');
   });
 });
 
-/**
- * #430 — the generator has to dodge the reserved list BEFORE the database learns to refuse it.
- * `flushOnboardingDraft` parses its payload with `onboardingAnswersSchema`, so a reserved
- * suggestion throws inside the flush, which keeps the draft and retries on every foreground —
- * a permanent onboarding loop for anyone whose address begins `admin@`. And past the schema the
- * CHECK raises 23514, which `updateOnboardingProfileWithHandleFallback` does not retry (it
- * catches 23505 only).
- */
-describe('suggestHandle avoids reserved handles', () => {
-  test('suffixes a listed handle rather than emitting it', () => {
-    expect(suggestHandle('admin@example.com')).toBe('admin_');
+describe('classifyHandle', () => {
+  test('empty when nothing is typed', () => {
+    expect(classifyHandle('')).toBe('empty');
   });
 
-  test('suffixes an Italian role word too', () => {
-    expect(suggestHandle('supporto@example.com')).toBe('supporto_');
+  test('claimable for an ordinary handle', () => {
+    expect(classifyHandle('lucia_ferri')).toBe('claimable');
   });
 
-  test('falls back entirely for a brand-prefixed local part', () => {
-    // A suffix cannot escape a PREFIX rule — `athanor_support_` still starts with `athanor`.
-    expect(suggestHandle('athanor.support@example.com')).toBe('aura');
+  test('claimable at both length bounds — 3 and 30', () => {
+    expect(classifyHandle('abc')).toBe('claimable');
+    expect(classifyHandle('a'.repeat(30))).toBe('claimable');
   });
 
-  test('never emits a reserved handle, for any reserved local part', () => {
+  test('malformed under 3 characters', () => {
+    expect(classifyHandle('ab')).toBe('malformed');
+  });
+
+  test('malformed over 30 characters', () => {
+    expect(classifyHandle('a'.repeat(31))).toBe('malformed');
+  });
+
+  test('malformed with an uppercase letter — the caller normalises, this does not', () => {
+    expect(classifyHandle('Lucia')).toBe('malformed');
+  });
+
+  test('malformed with a character outside a–z 0–9 _', () => {
+    expect(classifyHandle('lucia.ferri')).toBe('malformed');
+    expect(classifyHandle('lucia ferri')).toBe('malformed');
+    expect(classifyHandle('lucìa')).toBe('malformed');
+  });
+
+  test('reserved for a listed word', () => {
+    expect(classifyHandle('admin')).toBe('reserved');
+    expect(classifyHandle('supporto')).toBe('reserved');
+  });
+
+  test('reserved for anything built on the brand — the prefix rule', () => {
+    expect(classifyHandle('athanor_support')).toBe('reserved');
+  });
+
+  test('a handle that only contains a reserved word is still claimable', () => {
+    expect(classifyHandle('admin_luna')).toBe('claimable');
+  });
+
+  test('malformed wins over reserved: a shape the column refuses is named as a shape', () => {
+    // `Admin` is on the list once lowercased, but as typed it breaks the character rule — the
+    // person needs to hear about the capital, not about a word they did not quite type.
+    expect(classifyHandle('Admin')).toBe('malformed');
+  });
+
+  test('every listed word classifies as reserved', () => {
     for (const reserved of RESERVED_HANDLES) {
-      const suggested = suggestHandle(`${reserved}@example.com`);
-      expect(isReservedHandle(suggested), reserved).toBe(false);
-      expect(suggested.length, reserved).toBeLessThanOrEqual(30);
+      expect(classifyHandle(reserved), reserved).toBe('reserved');
     }
-  });
-
-  test('keeps the result within the 30-char cap when suffixing a long brand handle', () => {
-    expect(suggestHandle(`athanor${'a'.repeat(40)}@example.com`)).toBe('aura');
   });
 });

@@ -78,7 +78,7 @@ export function AmountRow({
             keyboardType="decimal-pad"
             placeholder={t('fund.amount.customPlaceholder', locale, { min: MIN_EURO })}
             placeholderTextColor={semantic.foregroundMuted}
-            className="rounded-ctl border border-hair bg-raise px-4 py-3 text-[15px] text-foreground"
+            className="rounded-ctl border border-hair bg-raise pl-4 pr-4 py-3 text-[15px] text-foreground"
             accessibilityLabel={t('fund.amount.custom', locale)}
           />
           {err ? (
