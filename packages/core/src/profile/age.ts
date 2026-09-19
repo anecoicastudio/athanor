@@ -1,7 +1,11 @@
 import { parseBirthDate } from './zodiac';
 
-/** GDPR Art. 8 digital-consent floor as Italy set it (#694). The migration's guard mirrors it. */
-export const MIN_MEMBER_AGE = 14;
+/**
+ * Membership is adults only for the first release (#778, ruled 2026-09-19). It reverses, for
+ * launch, #694's 14 — the GDPR Art. 8 digital-consent floor as Italy set it — and no
+ * parental-consent path exists behind it. The migration's guard mirrors it (min-age.mirror.test).
+ */
+export const MIN_MEMBER_AGE = 18;
 
 /**
  * Has someone born on `isoBirthDate` reached `minYears` by `today`? The clock is injected
