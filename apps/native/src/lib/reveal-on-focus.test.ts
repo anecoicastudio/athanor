@@ -284,9 +284,10 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
     reveal.rowRef('password')(row(200, 160));
     reveal.submitRef()(row(384, 52));
     reveal.scrollProps.onContentSizeChange(320, 2060);
+    // Instant, like every growth scroll: the content itself jumped (#766).
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 384 + 52 + REVEAL_PAD - 400,
-      animated: true,
+      animated: false,
     });
   });
 
@@ -373,7 +374,7 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     reveal.scrollProps.onContentSizeChange(320, 860);
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 200 + 260 + REVEAL_PAD - 400,
-      animated: true,
+      animated: false,
     });
   });
 
@@ -430,6 +431,61 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     });
   });
 
+  it('keeps following across the step from a row that fits to one that does not', () => {
+    // The last line that still fits scrolls the list; the first line that does not lands before
+    // that scroll reports. Read against the old offset, the foot would look off screen and the
+    // follow would stop for the rest of the focus — the caret buried again, by the next line.
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 42,
+      node: row(100, 330),
+    });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 354));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({ y: 66, animated: false });
+    reveal.rowRef('password')(row(100, 378));
+    reveal.scrollProps.onContentSizeChange(320, 2048);
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 100 + 378 + REVEAL_PAD - 400,
+      animated: false,
+    });
+  });
+
+  it('does not chase a focused row the member scrolled away from', () => {
+    // «Nome» keeps focus while the member scrolls down and taps «A pagamento» — `handled` lets
+    // the tap land without a blur (#766). The price row mounting grows the content under
+    // «Nome», and re-revealing it would yank the list back up, away from the row just opened.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 80) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 900 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2300);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    // Nor from below: scrolled back up past it, the row sits under the viewport.
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    reveal.rowRef('password')(row(700, 80));
+    reveal.fieldProps('password').onBlur();
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2400);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('does not jump to the foot of a tall row the member scrolled PAST', () => {
+    // The foot above the viewport is off screen too — a one-sided check read it as on screen
+    // and snapped the list up to it.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 3000, node: row(100, 900) });
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 1500 } } });
+    reveal.rowRef('password')(row(100, 924));
+    reveal.scrollProps.onContentSizeChange(320, 3024);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
   it('leaves a tall row alone when its foot was off screen — the member is reading above it', () => {
     // They scrolled up into a long description, or the caret is somewhere in its middle: a
     // growth there must not drag the list down to an end nobody is looking at. On Android
@@ -464,7 +520,7 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     reveal.scrollProps.onContentSizeChange(320, 2120);
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 100 + 320 + REVEAL_PAD - 400,
-      animated: true,
+      animated: false,
     });
   });
 

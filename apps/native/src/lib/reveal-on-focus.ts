@@ -232,8 +232,8 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
     submit = node;
   };
   const rows = new Map<string, RowHandle | null>();
-  /** Where each row's foot was when a pass last measured it — what the `grow` rule reads. */
-  const feet = new Map<string, number>();
+  /** Where each row sat when a pass last measured it — what the `grow` rule reads. */
+  const seen = new Map<string, { top: number; foot: number }>();
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
 
@@ -257,24 +257,35 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *   Leaving the row alone, as #752 did, buried the caret too — on iOS, where Fabric's
    *   ScrollView never follows a multiline field's caret, so the text ran on under the keyboard
    *   (walked on the iPhone SE, 2026-09-19). A foot that was off screen means the member is
-   *   above it — scrolled up, or editing mid-text — and the list stays put; on Android the
+   *   elsewhere — scrolled up, or editing mid-text — and the list stays put; on Android the
    *   native caret-follow owns that case.
+   *
+   *   And `grow` of any row only chases one the member could still see. A focused field is not
+   *   always the one being looked at: under `keyboardShouldPersistTaps="handled"` a chip tap
+   *   lands without blurring it, so on `event-create` «Nome» stays armed while the member
+   *   scrolls down and taps «A pagamento» — and the price row mounting would otherwise snap the
+   *   list back up to «Nome» (#766).
+   *
+   *   Every scroll `grow` makes is instant, and recorded rather than waiting for `onScroll`: the
+   *   content itself just jumped, and the next line can land before an animated scroll reports
+   *   — read against the old offset, a row the list was on its way to would look like one the
+   *   member scrolled away from, and the follow would stop for the rest of the focus.
    */
   const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow') => {
     const row = rows.get(key);
     const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
     const scroll = list;
-    // The foot as it stood BEFORE this pass — read now, because the measurement below replaces it.
-    const lastFoot = feet.get(key);
+    // Where the row sat BEFORE this pass — read now, because the measurement below replaces it.
+    const last = seen.get(key);
     const land = (target: { top: number; height: number }, height: number) => {
-      if (pass === 'grow' && target.height + 2 * REVEAL_PAD >= height) {
-        if (lastFoot === undefined || lastFoot > offset + height) return;
-        const y = followFoot(target, { height, offset, content });
+      if (pass === 'grow') {
+        if (last && (last.foot < offset || last.top > offset + height)) return;
+        const tall = target.height + 2 * REVEAL_PAD >= height;
+        if (tall && (!last || last.foot > offset + height)) return;
+        const view = { height, offset, content };
+        const y = tall ? followFoot(target, view) : revealOffset(target, view);
         if (y === null) return;
-        // Instant, the way an editor keeps its caret, and recorded here rather than waiting for
-        // `onScroll`: the next line can land before an animated scroll does, and would then read
-        // a foot the list had not reached yet as one the member scrolled away from.
         scroll.scrollTo({ y, animated: false });
         offset = y;
         return;
@@ -289,7 +300,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         inner,
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
-          feet.set(key, top + rowHeight);
+          seen.set(key, { top, foot: top + rowHeight });
           // Read at callback time: the submit can mount or unmount between the tap and here.
           const cta = pass === 'tap' ? null : submit;
           if (!cta) return land(field, height);
