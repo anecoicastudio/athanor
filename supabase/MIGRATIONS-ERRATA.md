@@ -2340,3 +2340,13 @@ anon still sees every ROW, just not every column.
 Asserted by: `supabase/tests/0036_aura_scores_rls.test.sql` (the column privileges, and 42501 on
 `select breakdown` / `select *` as anon) and `supabase/tests/0121_grant_catalog_sweep.test.sql`
 (`aura_scores` column-scoped for anon; eight tables with column-level ACLs).
+
+## `20260919124730_event_geo_grid.sql:51` — «one of the seven tables with column-level ACLs» is eight
+
+True when it was written. `20260919174008_handle_rename_cooldown_and_anon_aura_score.sql` (#782)
+column-scoped `aura_scores` for anon the same day and made it the eighth. The instruction the
+sentence carries — revoke by column, never `revoke all on table` — is unchanged; only the count
+moved.
+
+Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` (the count of tables carrying
+column-level ACLs, pinned at 8).
