@@ -569,3 +569,39 @@ verify_jwt = true
 
 [functions.get-circle-prices]
 verify_jwt = true
+
+# ---------------------------------------------------------------------------------------------
+# Hosted STAGING overrides. `supabase config push` merges this block over everything above when
+# the linked project is staging (supabase/.temp/linked-project.json), and only for the keys it
+# declares. Without it a push to staging sends the local-stack values above — site_url
+# localhost, confirmations off, a redirect list with no dev-client entry — and GoTrue silently
+# falls back to site_url for any redirect it does not find, so dev-client Google sign-in and
+# the confirmation email both land on the marketing site. That is exactly how staging lost its
+# `athanor-dev://` entries once already: they lived only in the dashboard.
+#
+# The `athanor-dev` pair is the dev-client variant's scheme (app.config.ts, `${scheme}-dev`);
+# the dev client only ever talks to staging, so production carries neither. Keep this list
+# equal to staging's Auth → URL Configuration; add a redirect here, not in the dashboard.
+# Every key NOT declared here still pushes its local value, so read the diff `config push`
+# prints before answering yes.
+# ---------------------------------------------------------------------------------------------
+[remotes.staging]
+project_id = "eralyiwkfrpqsawivegz"
+
+[remotes.staging.auth]
+site_url = "https://www.athanor.world"
+additional_redirect_urls = [
+  "athanor:///auth-callback",
+  "athanor://auth-callback",
+  "athanor-dev:///auth-callback",
+  "athanor-dev://auth-callback",
+  "athanor://**.exp.direct/auth-callback",
+  "exp://**.exp.direct/--/auth-callback",
+  "exp://127.0.0.1:8081/--/auth-callback",
+  "exp://127.0.0.1:8082/--/auth-callback",
+  "exp://**.nip.io:8081/--/auth-callback",
+  "http://localhost:3000/admin/auth/callback",
+]
+
+[remotes.staging.auth.email]
+enable_confirmations = true
