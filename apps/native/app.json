@@ -75,9 +75,14 @@
         "android.permission.CAMERA",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
     "web": {
@@ -110,16 +115,18 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Athanor uses the microphone when you record a voice note, or a video for a moment or a post."
+          "microphonePermission": "Athanor uses the microphone when you record a voice note, or a video for a moment or a post.",
+          "enableBackgroundPlayback": false
         }
       ],
       "expo-asset",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Athanor uses your approximate location only to show events near you — never in the background."
+          "locationWhenInUsePermission": "Athanor uses your approximate location to show events near you and to place an event you create — never in the background."
         }
       ],
+      "./plugins/without-location-task-service.js",
       [
         "expo-calendar",
         {
@@ -130,6 +137,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/notification-icon.png",
           "color": "#2BD0D2",
           "defaultChannel": "default"
         }

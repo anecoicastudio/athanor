@@ -32,10 +32,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *
  * Where the real boundary is: migration 20260812054134 revokes `stream_url`, `fee_pct` and
  * `capacity` from anon at the GRANT, because RLS filters rows and never columns — without
- * it this list would be a convention a direct PostgREST query could ignore. `geo` is the
- * one exception, still granted so the anon-callable `events_nearby()` can compute a
- * distance from it; not selecting it here is therefore this function's own promise, not
- * one the database keeps for us.
+ * it this list would be a convention a direct PostgREST query could ignore. `geo` joined
+ * them in 20260919124730 (#781), along with anon's EXECUTE on `events_nearby()`, so all
+ * four columns named above are now ones the database refuses anon, not only this select.
  *
  * Plumbing only — no business logic, no Aura.
  */

@@ -2281,3 +2281,49 @@ tomorrow is refused with 23514, one turning 18 today is admitted. The number's o
 are `packages/core/src/profile/age.test.ts` (pins `MIN_MEMBER_AGE`) and
 `packages/core/src/onboarding/min-age.mirror.test.ts` (reads the guard's `interval` from the
 last migration that defines it).
+
+## `20260812054134_restrict_anon_event_columns.sql:19-23` — `geo` was neither approximate nor unlocatable
+
+The header keeps `geo` granted to anon because «the point is already approximate by construction
+(PRD §4.2) and the RPC returns a distance, never the point». Neither half held. Nothing in the
+schema made the point approximate: `create_event` stored the organiser's device fix as it arrived,
+and on Android that fix was `PRIORITY_BALANCED_POWER_ACCURACY`. And `events_nearby()` returned the
+exact `dist_meters` to that fix for any `(lat, long)` a caller chose, so three anonymous calls were
+enough to trilaterate it — returning a distance was returning the point.
+
+`20260919124730_event_geo_grid.sql` (#781) closes both: the `events_snap_geo` trigger snaps every
+write to a 0.025° grid (and backfills every stored row), anon loses `SELECT (geo)`, and anon loses
+EXECUTE on `events_nearby()` with it — the grant the column had been kept for. Read the "deliberately
+still granted to anon: geo" paragraph as history; the column list anon holds today is that file's
+list minus `geo`.
+
+Asserted by: `supabase/tests/0153_event_geo_grid.test.sql` (the grid on every write path, the four
+privileges), `0020_events_rls.test.sql` (anon's `select geo` and `events_nearby()` both 42501) and
+`0121_grant_catalog_sweep.test.sql` (the anon column pin, and `events_nearby` gone from anon's
+executable allowlist).
+
+## `20260615094844_events.sql:52` — «Approximate location … Set server-side via create_event» described neither
+
+The column comment called `geo` an approximate location set server-side by `create_event`. It was a
+device fix, and `create_event` was never its only writer — `events_insert_own` plus this file's own
+INSERT grant (`:67`, narrowed to a column list by `20260819041755` that still names `geo`) let an
+organiser INSERT a point directly. `20260919124730`
+re-issues the comment, so the live catalog is correct; only this file's text is not.
+
+Asserted by: `supabase/tests/0153_event_geo_grid.test.sql` — the RPC path and a direct INSERT both
+store the grid point.
+
+## `20260807174758_m10_visibility_followups.sql:18-20` — Realtime does filter columns by privilege
+
+Item 4 reads «Realtime applies row RLS but not column privileges, so the M10 column revoke was
+bypassable by subscribing to profiles UPDATEs». On both hosted projects today that is false:
+`realtime.apply_rls` recomputes each change's columns per subscribing role with
+`pg_catalog.has_column_privilege(working_role, entity_, c.name, 'SELECT')` and drops the ones the
+role cannot select (queried 2026-09-19 on staging and production; three call sites in the
+function body). The `profiles` publication column list that item added is harmless and stays as
+defence in depth; it is not what closes the column.
+
+This is why `20260919124730` could revoke anon's `SELECT (geo)` and leave `public.events` in the
+`supabase_realtime` publication with no column list. `realtime.*` is platform-managed and outside
+the migrations, so no pgTAP file here can assert it — re-query `pg_get_functiondef('realtime.apply_rls'::regproc)`
+before relying on it for a new column.

@@ -349,7 +349,9 @@ on conflict do nothing;
 -- ---------------------------------------------------------------------------------
 -- 4. Events. `events_online_or_physical` requires geo on every non-online event, so
 --    each physical one carries a real point — st_point takes (long, lat), matching
---    create_event(). currency is lowercase per its check (`^[a-z]{3}$`).
+--    create_event(). The points sit on the 0.025° grid (#781): events_snap_geo would snap
+--    them on insert anyway, and writing them on it keeps this file saying what the table
+--    stores. currency is lowercase per its check (`^[a-z]{3}$`).
 --
 --    settlement_ack_at is stamped on the paid rows and left null on the free ones,
 --    mirroring create_event exactly. #448's events_enforce_paid_gate is a BEFORE INSERT
@@ -395,13 +397,13 @@ select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.capacity, e.price_cents, 'eur', e.is_athanor,
        case when e.price_cents > 0 then now() else null end
 from (values
-  ('cena-condivisa', 'tino_chef',     'Cena condivisa: si cucina insieme', 'creativi',   false, 'Cascina Bianca',       'Milano',  9.19, 45.46, null,                                    4, 12, 1500, false),
-  ('yoga-alba',      'ele_yoga',      'Pratica all''alba, sul tetto',      'benessere',  false, 'Tetto di via Volta',   'Milano',  9.18, 45.48, null,                                    9, 20,    0, false),
+  ('cena-condivisa', 'tino_chef',     'Cena condivisa: si cucina insieme', 'creativi',   false, 'Cascina Bianca',       'Milano',  9.2,   45.45,  null,                                    4, 12, 1500, false),
+  ('yoga-alba',      'ele_yoga',      'Pratica all''alba, sul tetto',      'benessere',  false, 'Tetto di via Volta',   'Milano',  9.175, 45.475, null,                                    9, 20,    0, false),
   ('ascolto-disco',  'gio_musica',    'Ascolto guidato: il disco intero',  'musica',     true,  null,                   null,      null, null, 'https://example.invalid/live/ascolto',  16, 40,  800, false),
-  ('athanor-ottobre', 'sole_designer', 'Athanor Day: il giorno che conta',  'evoluzione', false, 'Spazio Ostro',         'Milano',  9.20, 45.45, null,                                   25, 100,   0, true),
+  ('athanor-ottobre', 'sole_designer', 'Athanor Day: il giorno che conta',  'evoluzione', false, 'Spazio Ostro',         'Milano',  9.2,   45.45,  null,                                   25, 100,   0, true),
   -- negative offset = already over, so the "passati" state and the post-event review
   -- prompt both have something to act on.
-  ('bottega-aperta', 'dario_legno',   'Bottega aperta: giunti a vista',    'formazione', false, 'Falegnameria Fontana', 'Bergamo', 9.67, 45.70, null,                                   -6, 10, 2000, false)
+  ('bottega-aperta', 'dario_legno',   'Bottega aperta: giunti a vista',    'formazione', false, 'Falegnameria Fontana', 'Bergamo', 9.675, 45.7,   null,                                   -6, 10, 2000, false)
 ) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in_days, capacity, price_cents, is_athanor)
 on conflict do nothing;
 
@@ -442,11 +444,11 @@ select md5('event:' || e.slug)::uuid, md5('user:' || e.handle)::uuid, e.title,
        e.capacity, 0, 'eur', false
 from (values
   ('promemoria-oggi',  'ele_yoga',   'Promemoria: il cerchio di stasera', 'benessere', false,
-   'Sala Grande', 'Milano', 9.19, 45.46, null,                                     interval '5 hours',   30),
+   'Sala Grande', 'Milano', 9.2, 45.45, null,                                     interval '5 hours',   30),
   ('diretta-tra-poco', 'gio_musica', 'Diretta: si comincia tra poco',     'musica',    true,
    null,          null,     null, null,  'https://example.invalid/live/tra-poco',  interval '30 minutes', 60),
   ('bottega-tra-poco', 'dario_legno', 'Apertura bottega: si comincia tra poco', 'formazione', false,
-   'Falegnameria Fontana', 'Bergamo', 9.67, 45.70, null,                          interval '40 minutes', 10)
+   'Falegnameria Fontana', 'Bergamo', 9.675, 45.7, null,                         interval '40 minutes', 10)
 ) as e(slug, handle, title, category, is_online, venue, city, lng, lat, stream_url, starts_in, capacity)
 on conflict do nothing;
 

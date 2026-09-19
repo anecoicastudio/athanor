@@ -29,6 +29,8 @@ export * from './media/post-type';
 export * from './media/poster';
 export * from './feed/boost';
 export * from './events/distance';
+export * from './events/event-point';
+export * from './events/geo-grid';
 export * from './events/price';
 export * from './events/ticket-split';
 export * from './circle/savings';
