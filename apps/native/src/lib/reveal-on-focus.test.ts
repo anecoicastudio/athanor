@@ -454,9 +454,9 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
   });
 
   it('does not chase a focused row the member scrolled away from', () => {
-    // «Nome» keeps focus while the member scrolls down and taps «A pagamento» — `handled` lets
+    // «Titolo» (`name`) keeps focus while the member scrolls down and taps «A pagamento» — `handled` lets
     // the tap land without a blur (#766). The price row mounting grows the content under
-    // «Nome», and re-revealing it would yank the list back up, away from the row just opened.
+    // «Titolo», and re-revealing it would yank the list back up, away from the row just opened.
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 80) });
     reveal.fieldProps('password').onFocus();
     expect(scroll.scrollTo).not.toHaveBeenCalled();

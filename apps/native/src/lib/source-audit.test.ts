@@ -3547,13 +3547,15 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
    * (#766). `project-compose` ends on a tall multiline description whose return key types a
    * newline: once the text grows past what fits beside the button, `revealSpan` drops the CTA
    * and nothing on the keyboard can send. Pinned the way the two composers pin theirs (#748),
-   * which are named here too — nothing guarded their bars before.
+   * which are named here too — nothing guarded their bars before. Each names its CTA by the
+   * handler it presses, so "the CTA" is never just whichever `Button` happens to come last.
    */
   const PINNED = [
-    `${SRC}app/(modal)/project-compose.tsx`,
-    `${SRC}app/(modal)/post-compose.tsx`,
-    `${SRC}app/(modal)/story-compose.tsx`,
+    { file: `${SRC}app/(modal)/project-compose.tsx`, onPress: 'onPublish' },
+    { file: `${SRC}app/(modal)/post-compose.tsx`, onPress: 'onPublish' },
+    { file: `${SRC}app/(modal)/story-compose.tsx`, onPress: 'onPublish' },
   ];
+  const PINNED_FILES = PINNED.map((p) => p.file);
 
   /**
    * The forms whose last field is single-line and submits from the return key (#752). Not
@@ -3575,9 +3577,12 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
 
   it('finds the screens it is walking', () => {
     // A registry naming a moved file would pass everything below by finding nothing.
-    const missing = [...FORMS.map((f) => f.file), ...SUBMITS, ...PINNED, ...KEY_SUBMITS].filter(
-      (p) => !FILES.includes(p),
-    );
+    const missing = [
+      ...FORMS.map((f) => f.file),
+      ...SUBMITS,
+      ...PINNED_FILES,
+      ...KEY_SUBMITS,
+    ].filter((p) => !FILES.includes(p));
     expect(
       [...new Set(missing)].map(rel),
       'a registered form screen has moved — this section is vacuous until the paths are fixed.',
@@ -3670,7 +3675,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     // Exactly one of the two: neither leaves the button wherever the scroll happens to put it,
     // and both is a ref on a bar outside the list, measured against a list it is not in.
     const wrong = FORMS.map((f) => f.file)
-      .filter((p) => SUBMITS.includes(p) === PINNED.includes(p))
+      .filter((p) => SUBMITS.includes(p) === PINNED_FILES.includes(p))
       .map((p) => rel(p).replace('apps/native/src/', ''));
     expect(
       wrong,
@@ -3682,32 +3687,41 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
 
   it('a pinned CTA sits below the list, inside the keyboard lift', () => {
     const wrong: string[] = [];
-    for (const p of PINNED) {
-      const src = stripComments(read(p));
-      const where = rel(p).replace('apps/native/src/', '');
+    for (const { file, onPress } of PINNED) {
+      const src = stripComments(read(file));
+      const where = rel(file).replace('apps/native/src/', '');
       const lineOf = (i: number) => (i === -1 ? -1 : src.slice(0, i).split('\n').length);
       const listEnd = lineOf(src.lastIndexOf('</ScrollView>'));
       const liftEnd = lineOf(src.lastIndexOf('</KeyboardAvoiding>'));
-      const cta = jsxOpeningTags(src)
-        .filter((t) => t.base === 'Button')
-        .at(-1);
-      if (!cta || listEnd === -1 || cta.line < listEnd) {
-        wrong.push(`${where}: its last Button is not below the list`);
+      const ctas = jsxOpeningTags(src).filter(
+        (t) => t.base === 'Button' && t.raw.includes(`onPress={${onPress}}`),
+      );
+      if (ctas.length !== 1) {
+        wrong.push(`${where}: ${ctas.length} Buttons press \`${onPress}\`, expected exactly one`);
+        continue;
+      }
+      const cta = ctas[0] as { line: number };
+      if (listEnd === -1 || cta.line < listEnd) {
+        wrong.push(`${where}:${cta.line} is inside the list`);
       } else if (liftEnd === -1 || cta.line > liftEnd) {
         wrong.push(`${where}:${cta.line} is outside KeyboardAvoiding — the keyboard covers it`);
       }
+      // A ride-along ref on a pinned bar measures it against a list it is not in.
+      if (/\.submitRef\(\)/.test(src)) wrong.push(`${where}: pinned AND hands a submitRef`);
     }
     expect(
       wrong,
       `a pinned CTA moved back into the scroll, or out of the lift:\n  ${wrong.join('\n  ')}\n` +
         'Inside the ScrollView the wrapper shrinks the list around the button and it stays under ' +
-        'the keyboard (#748, #766); outside `KeyboardAvoiding` nothing lifts it at all.',
+        'the keyboard (#748, #766); outside `KeyboardAvoiding` nothing lifts it at all — and a ' +
+        '`Screen footer` is the bar DESIGN §6 says the wrapper does NOT lift, so it is no ' +
+        'substitute here.',
     ).toEqual([]);
   });
 
   it('the first tap on these lists lands on the control', () => {
     const wrong: string[] = [];
-    for (const p of new Set([...FORMS.map((f) => f.file), ...PINNED])) {
+    for (const p of new Set([...FORMS.map((f) => f.file), ...PINNED_FILES])) {
       const src = stripComments(read(p));
       const where = rel(p).replace('apps/native/src/', '');
       for (const list of jsxOpeningTags(src).filter((t) => t.base === 'ScrollView')) {

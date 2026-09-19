@@ -262,9 +262,9 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *
    *   And `grow` of any row only chases one the member could still see. A focused field is not
    *   always the one being looked at: under `keyboardShouldPersistTaps="handled"` a chip tap
-   *   lands without blurring it, so on `event-create` «Nome» stays armed while the member
+   *   lands without blurring it, so on `event-create` «Titolo» (the `name` row) stays armed while the member
    *   scrolls down and taps «A pagamento» — and the price row mounting would otherwise snap the
-   *   list back up to «Nome» (#766).
+   *   list back up to «Titolo» (#766).
    *
    *   Every scroll `grow` makes is instant, and recorded rather than waiting for `onScroll`: the
    *   content itself just jumped, and the next line can land before an animated scroll reports
