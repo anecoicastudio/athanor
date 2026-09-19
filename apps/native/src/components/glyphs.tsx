@@ -276,8 +276,9 @@ export function WavesGlyph({ size = 16, color }: GlyphProps) {
 
 /**
  * Play — the set's `fire` triangle turned to face right: equilateral (side 14.4, apex 7.84 +
- * 14.4·√3/2), its centroid on the viewBox centre so it sits optically centred over a poster rather than leaning left the
- * way a bounding-box-centred triangle does. Outline only, like every set glyph.
+ * 14.4·√3/2), its centroid on the viewBox centre so it sits optically centred over a poster
+ * rather than leaning left the way a bounding-box-centred triangle does. Outline only, like
+ * every set glyph.
  */
 export function PlayGlyph({ size = 24, color }: GlyphProps) {
   return (
