@@ -12,14 +12,21 @@ import { t, type Locale, type MessageKey } from '@athanor/i18n';
  * UI catalog, which is for short interface strings). Scope: `privacy` is the ONE policy for
  * both the app and this site (#774) — the app links it from Settings, sign-up and the Circle
  * screen, and it is the URL in the Play Console. `terms` still covers the site only (#777).
- * `deleteAccount` is about the app account (#767).
+ * `deleteAccount` is about the app account (#767). `childSafety` is the page Play's Child
+ * Safety Standards declaration links to (#779).
  *
  * i18n-ignore-file — this module IS the translation source for these documents: every
  * export is a `Record<Locale, …>`, so IT/EN parity is enforced by the type, not by the
  * catalog. Rule 5's gate widened to object-literal copy in #433 and would otherwise report
  * every heading and paragraph here as untranslated.
  */
-export type LegalSection = { heading: string; body: string[] };
+export type LegalLink = { label: string; href: string };
+/**
+ * `id` is the section's anchor (`/child-safety#contact`), the same in both locales so a link to
+ * it survives a language switch. `links` render after the body as real links — a URL or an
+ * address typed into a paragraph would render as text nobody can follow.
+ */
+export type LegalSection = { heading: string; body: string[]; id?: string; links?: LegalLink[] };
 export type LegalDoc = {
   title: string;
   updated: string;
@@ -152,6 +159,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: "Nell'app: segnalazioni e blocchi",
         body: [
           "Puoi segnalare una persona, un post, un messaggio o un comportamento. Della segnalazione conserviamo chi l'ha fatta, cosa riguarda, il motivo e la nota facoltativa. Oltre a te, può leggerla solo il team di moderazione, e chi viene segnalato non sa chi l'ha fatta.",
+          `Se una segnalazione riguarda materiale che appare come abuso sessuale su minori, quel materiale lo segnaliamo alle autorità competenti, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           "Quando il team decide su una segnalazione — un avviso, una penalità sull'Aura, una sospensione o un'esclusione — la decisione resta in un registro, con chi l'ha presa e perché.",
           'Puoi bloccare chi vuoi. Da quel momento non vedete più a vicenda profili, post, commenti, storie, Momenti e messaggi; eventi e progetti restano visibili. Nella tua lista dei bloccati continui a vedere nome e foto di chi hai bloccato, e quella lista la vedi solo tu.',
         ],
@@ -210,6 +218,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
           'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google, se lo scegli, gestisce anche l’accesso con il tuo account Google.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
+          `Alla polizia e alle linee di segnalazione nazionali, il materiale che appare come abuso sessuale su minori, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           `Alcuni di questi fornitori hanno sede negli Stati Uniti o possono trattare dati fuori dall’Unione Europea. In quei casi il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nei loro accordi sul trattamento dei dati (per Cloudflare: cloudflare.com/cloudflare-customer-dpa), o sull’adesione al Data Privacy Framework UE-USA, come per Cloudflare. Puoi chiederne copia scrivendo a ${EMAIL}.`,
         ],
       },
@@ -321,6 +330,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'In the app: reports and blocks',
         body: [
           'You can report a person, a post, a message or a behavior. For each report we keep who made it, what it concerns, the reason and the optional note. Apart from you, only the moderation team reads it, and the person reported is not told who reported them.',
+          `If a report concerns what appears to be child sexual abuse material, we report that material to the competent authorities, as this site's “${tEn('legal.childSafety')}” page explains.`,
           'When the team decides on a report — a warning, an Aura penalty, a suspension or a ban — the decision is kept in a log, with who took it and why.',
           "You can block anyone. From then on you no longer see each other's profiles, posts, comments, stories, Moments and messages; events and projects stay visible. Your list of blocked people keeps showing you their names and photos, and only you see that list.",
         ],
@@ -379,6 +389,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
           'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google, if you choose it, also handles sign-in with your Google account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
+          `The police and national hotlines receive what appears to be child sexual abuse material, as this site's “${tEn('legal.childSafety')}” page explains.`,
           `Some of these providers are based in the United States or may process data outside the European Union. In those cases the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in their data processing agreements (for Cloudflare: cloudflare.com/cloudflare-customer-dpa), or on their certification under the EU–US Data Privacy Framework, as for Cloudflare. You can request a copy by writing to ${EMAIL}.`,
         ],
       },
@@ -589,5 +600,207 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       },
     ],
     reviewNote: `This page is about your account in the ${tEn('store.name')} app. How we handle your data, in the app and on this site, is in the privacy policy.`,
+  },
+};
+
+/**
+ * The national hotlines Marco ruled on #779 (2026-09-19), police first. Each href is the page the
+ * hotline serves TODAY, not the one in the ruling: three of those six had moved — jugendschutz.net's
+ * `/en/hotline/` answers 200 with its homepage, eco's form now sits under `topics/policy-law/`, and
+ * INHOPE's `/EN/our-members` redirects to the homepage, which is where its per-country list lives.
+ * The PR for #779 records each status. Same URLs in both locales: none of them has an Italian and an
+ * English version at different addresses.
+ */
+const HOTLINES: Record<Locale, LegalLink[]> = {
+  it: [
+    { label: 'Germania — jugendschutz.net', href: 'https://www.jugendschutz.net/en/make-a-report' },
+    { label: 'Germania — FSM', href: 'https://www.fsm.de/en/fsm/hotline/' },
+    {
+      label: 'Germania — eco',
+      href: 'https://international.eco.de/topics/policy-law/eco-complaints-office/report-a-complaint/',
+    },
+    {
+      label: 'Italia — Telefono Azzurro, «Clicca e segnala»',
+      href: 'https://www.azzurro.it/clicca-e-segnala/',
+    },
+    { label: 'Italia — Save the Children, «Stop-it»', href: 'https://stop-it.savethechildren.it/' },
+    {
+      label: 'Altri Paesi — INHOPE, dove trovi la linea di segnalazione del tuo Paese',
+      href: 'https://inhope.org/',
+    },
+  ],
+  en: [
+    { label: 'Germany — jugendschutz.net', href: 'https://www.jugendschutz.net/en/make-a-report' },
+    { label: 'Germany — FSM', href: 'https://www.fsm.de/en/fsm/hotline/' },
+    {
+      label: 'Germany — eco',
+      href: 'https://international.eco.de/topics/policy-law/eco-complaints-office/report-a-complaint/',
+    },
+    {
+      label: 'Italy — Telefono Azzurro, “Clicca e segnala”',
+      href: 'https://www.azzurro.it/clicca-e-segnala/',
+    },
+    { label: 'Italy — Save the Children, “Stop-it”', href: 'https://stop-it.savethechildren.it/' },
+    {
+      label: 'Other countries — INHOPE, where you find the hotline for your country',
+      href: 'https://inhope.org/',
+    },
+  ],
+};
+
+/**
+ * /child-safety — the page Google Play's Child Safety Standards declaration links to (#779): the
+ * published standards against child sexual abuse and exploitation, the in-app way to report, how
+ * a report is acted on, and the named point of contact. Play reads it for the app or developer
+ * name as the listing shows it, so it names both.
+ *
+ * Every sentence is bounded by what the product and the team do, and the PR for #779 carries the
+ * source of each:
+ * - The report paths are the app's own, labels read from the catalog: ⋯ → «Segnala» on a profile
+ *   (`user/[id].tsx`), «Segnala» in a post's header (`post/[id].tsx`), ⋯ → «Segnala» in a chat
+ *   and a long press on a RECEIVED message (`chat.tsx` — own messages carry no report), and
+ *   «Segnala un comportamento» in Settings. `REPORT_CATEGORIES` has no child-safety reason, so the
+ *   page names «Altro» and the note rather than a reason that does not exist.
+ * - A ban exists only on a person or message report (`resolve_report` v5), and it hides the
+ *   profile, posts and stories without deleting anything (#314); messages and comments stay. On a
+ *   post, behaviour or email report the operator bans through a person report on the author.
+ *   Nothing in the panel deletes content, so «we remove it» is an operator action Marco ruled on
+ *   #779 to take by hand until the panel has one (#788).
+ * - The 24-hour review and the police-then-hotlines order are Marco's rulings on #779.
+ * - It claims no scanning, no hash matching, no age verification (the birth date is
+ *   self-declared) and no copy kept as evidence: none of them exists.
+ */
+export const childSafety: Record<Locale, LegalDoc> = {
+  it: {
+    title: 'Standard per la tutela dei minori',
+    updated: 'Settembre 2026',
+    intro: `${tIt('store.name')} è un'app di ${CONTROLLER}. Su ${tIt('store.name')} l'abuso e lo sfruttamento sessuale di minori non sono ammessi in nessuna forma. Qui trovi cosa vietiamo, come segnalarlo e cosa facciamo quando riceviamo una segnalazione.`,
+    sections: [
+      {
+        id: 'prohibited',
+        heading: 'Cosa vietiamo',
+        body: [
+          'È vietato ogni contenuto o comportamento che abusa sessualmente di un minore, lo sfrutta o lo mette in pericolo. In particolare:',
+          "Materiale di abuso sessuale su minori: foto, video, disegni o immagini generate al computer o con l'intelligenza artificiale che ritraggono un minore in atti sessuali o in modo sessualizzato.",
+          'Adescamento: avvicinare un minore, anche solo con messaggi, per sfruttarlo sessualmente.',
+          'Estorsione sessuale (sextortion): minacciare un minore di diffondere sue immagini intime, o spingerlo a mandarle.',
+          'Commenti, messaggi o immagini che sessualizzano un minore.',
+          'Offrire, chiedere o scambiare questo materiale, o link che portano ad esso.',
+          `Il divieto vale in ogni parte di ${tIt('store.name')}, messaggi compresi.`,
+        ],
+      },
+      {
+        id: 'age',
+        heading: `${tIt('store.name')} è per adulti`,
+        body: [
+          `${tIt('store.name')} è per chi ha almeno ${MIN_MEMBER_AGE} anni. All'iscrizione ti chiediamo la data di nascita e non accettiamo chi non ha ancora quell'età.`,
+          `Se pensi che nell'app ci sia una persona più giovane, segnalala o scrivici a ${EMAIL}.`,
+        ],
+      },
+      {
+        id: 'report',
+        heading: "Come segnalare nell'app",
+        body: [
+          `Su un profilo tocca ⋯ e poi «${tIt('report.title')}». In un post tocca «${tIt('report.title')}» in alto. In una chat tocca ⋯ e poi «${tIt('chat.report')}»; per un messaggio che hai ricevuto, tienilo premuto e scegli «${tIt('chat.message.report')}».`,
+          `Per tutto il resto apri la scheda «${tIt('tabs.profile')}», tocca la ruota delle impostazioni e, nella sezione «${tIt('settings.section.privacy')}», tocca «${tIt('report.behavior.row')}».`,
+          `Tra i motivi non ce n'è uno dedicato: scegli «${tIt('report.reason.other')}», scrivi nella nota che riguarda un minore e tocca «${tIt('report.cta')}». Chi viene segnalato non sa chi l'ha segnalato.`,
+          'Non salvare, non inoltrare e non fotografare il materiale, nemmeno per mostrarcelo.',
+        ],
+      },
+      {
+        id: 'contact',
+        heading: 'Il nostro referente',
+        body: [
+          `Per la tutela dei minori il nostro referente è Marco Accardi, all'indirizzo ${EMAIL}. Puoi scrivere anche se non hai un account.`,
+          'Descrivi dove hai visto il contenuto — la @handle, il post o la chat — senza allegarlo.',
+        ],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
+      },
+      {
+        id: 'action',
+        heading: 'Cosa facciamo',
+        body: [
+          'Una segnalazione di materiale di abuso sessuale su minori la esaminiamo con priorità, entro 24 ore.',
+          `Se la segnalazione è fondata, rimuoviamo il contenuto da ${tIt('store.name')} ed escludiamo chi l'ha pubblicato o inviato, o chi ha tenuto quel comportamento: non può più accedere, e il suo profilo, i suoi post e le sue storie non li vede più nessuno, tranne il team di moderazione.`,
+          'Ciò che appare come materiale di abuso sessuale su minori lo segnaliamo alle autorità competenti: alla polizia e alle linee di segnalazione nazionali elencate qui sotto.',
+        ],
+      },
+      {
+        id: 'authorities',
+        heading: 'Segnalare alle autorità',
+        body: [
+          "Se un minore è in pericolo, chiama subito la polizia: nell'Unione Europea il numero di emergenza è il 112.",
+          `Puoi segnalare materiale di abuso sessuale su minori trovato online, su ${tIt('store.name')} o altrove, alle linee di segnalazione nazionali della rete INHOPE:`,
+        ],
+        links: HOTLINES.it,
+      },
+    ],
+    reviewNote: `Questi standard valgono per l'app ${tIt('store.name')} e per questo sito. Come trattiamo i dati di una segnalazione lo trovi nell'informativa sulla privacy.`,
+  },
+  en: {
+    title: 'Child safety standards',
+    updated: 'September 2026',
+    intro: `${tEn('store.name')} is an app by ${CONTROLLER}. On ${tEn('store.name')}, child sexual abuse and exploitation are not allowed in any form. This page sets out what we prohibit, how to report it and what we do when a report reaches us.`,
+    sections: [
+      {
+        id: 'prohibited',
+        heading: 'What we prohibit',
+        body: [
+          'Any content or behavior that sexually abuses, exploits or endangers a child is prohibited. In particular:',
+          'Child sexual abuse material: photos, videos, drawings, or computer- or AI-generated images that show a child in sexual acts or in a sexualized way.',
+          'Grooming: approaching a child, even by messages alone, in order to exploit them sexually.',
+          "Sextortion: threatening to spread a child's intimate images, or pushing a child to send them.",
+          'Comments, messages or images that sexualize a child.',
+          'Offering, requesting or exchanging such material, or links that lead to it.',
+          `The prohibition covers every part of ${tEn('store.name')}, messages included.`,
+        ],
+      },
+      {
+        id: 'age',
+        heading: `${tEn('store.name')} is for adults`,
+        body: [
+          `${tEn('store.name')} is for people aged ${MIN_MEMBER_AGE} and over. When you join we ask for your date of birth and do not accept anyone younger.`,
+          `If you think someone younger is using the app, report them or write to us at ${EMAIL}.`,
+        ],
+      },
+      {
+        id: 'report',
+        heading: 'How to report in the app',
+        body: [
+          `On a profile, tap ⋯ and then “${tEn('report.title')}”. On a post, tap “${tEn('report.title')}” at the top. In a chat, tap ⋯ and then “${tEn('chat.report')}”; for a message you received, press and hold it and choose “${tEn('chat.message.report')}”.`,
+          `For anything else, open the “${tEn('tabs.profile')}” tab, tap the settings wheel and, in the “${tEn('settings.section.privacy')}” section, tap “${tEn('report.behavior.row')}”.`,
+          `None of the reasons is specific to this: choose “${tEn('report.reason.other')}”, say in the note that it concerns a child, and tap “${tEn('report.cta')}”. The person reported is not told who reported them.`,
+          'Do not save, forward or screenshot the material, not even to show it to us.',
+        ],
+      },
+      {
+        id: 'contact',
+        heading: 'Point of contact',
+        body: [
+          `Our point of contact for child safety is Marco Accardi, at ${EMAIL}. You can write even if you have no account.`,
+          'Describe where you saw the content — the @handle, the post or the chat — without attaching it.',
+        ],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
+      },
+      {
+        id: 'action',
+        heading: 'What we do',
+        body: [
+          'A report of child sexual abuse material is reviewed with priority, within 24 hours.',
+          `If the report is upheld, we remove the content from ${tEn('store.name')} and ban whoever posted or sent it, or behaved that way: they can no longer sign in, and their profile, posts and stories are hidden from everyone but the moderation team.`,
+          'Anything that appears to be child sexual abuse material is reported to the competent authorities: to the police and to the national hotlines listed below.',
+        ],
+      },
+      {
+        id: 'authorities',
+        heading: 'Reporting to the authorities',
+        body: [
+          'If a child is in danger, call the police straight away: in the European Union the emergency number is 112.',
+          `You can report child sexual abuse material found online, on ${tEn('store.name')} or anywhere else, to the national hotlines of the INHOPE network:`,
+        ],
+        links: HOTLINES.en,
+      },
+    ],
+    reviewNote: `These standards apply to the ${tEn('store.name')} app and to this site. How we handle the data in a report is in the privacy policy.`,
   },
 };
