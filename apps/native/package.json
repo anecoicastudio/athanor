@@ -82,7 +82,7 @@
     "@sentry/cli": "2.58.4",
     "@types/aes-js": "^3.1.4",
     "@types/react": "~19.2.4",
-    "@vitest/coverage-v8": "^3.2.6",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~57.0.2",
     "expo-doctor": "^1.20.1",
