@@ -189,10 +189,28 @@ describe('deleteAccount', () => {
     expect(text('en')).toMatch(/Stripe[^"]*email address[^"]*does not remove them/);
   });
 
-  it('states the ten-year payment retention in both locales', () => {
-    expect(text('it')).toMatch(/dieci anni/);
-    expect(text('en')).toMatch(/ten years/);
+  it('states the ten-year payment retention as a fact about us, not as a legal duty', () => {
+    // Marco's ruling on PR 773: the controller is a German UG and the page cites no law, so the
+    // sentence says what we do and why, not what "the law requires". The app's own deferral line
+    // («I dati che la legge ci obbliga a conservare…») is quoted verbatim elsewhere and stays.
+    const payments = (loc: 'it' | 'en') =>
+      deleteAccount[loc].sections.at(-1)!.body.find((p) => /Circle/.test(p))!;
+    expect(payments('it')).toMatch(/per dieci anni per i nostri obblighi contabili e fiscali/);
+    expect(payments('en')).toMatch(/for ten years for our accounting and tax obligations/);
+    expect(payments('it')).not.toMatch(/la legge/);
+    expect(payments('en')).not.toMatch(/the law/);
   });
+
+  it.each(['it', 'en'] as const)(
+    "%s offers the export before the in-app deletion steps, by the row's own label",
+    (loc) => {
+      const body = deleteAccount[loc].sections[0]!.body;
+      const exportLine = body.findIndex((p) => p.includes(t('settings.export.title', loc)));
+      const firstStep = body.findIndex((p) => p.startsWith('1. '));
+      expect(exportLine).toBeGreaterThanOrEqual(0);
+      expect(exportLine).toBeLessThan(firstStep);
+    },
+  );
 
   it('never gives the webhook ledger a retention window it does not have', () => {
     // MIGRATIONS-ERRATA: stripe_webhook_events is redacted at erasure and has NO retention

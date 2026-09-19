@@ -229,6 +229,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: "Dall'app",
         body: [
+          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}».`,
           `1. Apri la scheda «${tIt('tabs.profile')}» e tocca la piccola ruota delle impostazioni («${tIt('settings.title')}»).`,
           `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
           `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
@@ -259,7 +260,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'Cosa conserviamo',
         body: [
-          'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili, e la legge ci obbliga a tenerle per dieci anni. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano solo i dati del pagamento e i suoi identificativi presso Stripe. Passati i dieci anni le eliminiamo.',
+          'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili: le teniamo per dieci anni per i nostri obblighi contabili e fiscali. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano solo i dati del pagamento e i suoi identificativi presso Stripe. Passati i dieci anni le eliminiamo.',
           'Se hai fatto un pagamento, anche Stripe, che li gestisce, conserva i dati con cui hai pagato, compreso il tuo indirizzo email: eliminare il tuo account Athanor non li cancella.',
           'Conserviamo anche il registro delle notifiche di pagamento che Stripe ci invia: ci serve a non registrare mai due volte lo stesso pagamento. Ne togliamo i tuoi dati identificativi, tranne che dalle notifiche di rimborso o di contestazione di un contributo al fondo arrivate prima della cancellazione.',
         ],
@@ -275,6 +276,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'From the app',
         body: [
+          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”.`,
           `1. Open the “${tEn('tabs.profile')}” tab and tap the small settings wheel (“${tEn('settings.title')}”).`,
           `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
           `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,
@@ -305,7 +307,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'What we keep',
         body: [
-          "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records, and the law requires us to keep them for ten years. We keep them without your name or contact details: only the payment's own details and its identifiers at Stripe remain. After ten years we delete them.",
+          "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records: we keep them for ten years for our accounting and tax obligations. We keep them without your name or contact details: only the payment's own details and its identifiers at Stripe remain. After ten years we delete them.",
           'If you made a payment, Stripe, which handles them, also keeps the details you paid with, including your email address: deleting your Athanor account does not remove them.',
           'We also keep the log of payment notifications Stripe sends us: it is how we make sure no payment is ever recorded twice. We remove your identifying details from it, except from refund or dispute notifications about a fund contribution that arrived before the deletion.',
         ],
