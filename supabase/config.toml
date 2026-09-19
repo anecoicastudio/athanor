@@ -174,11 +174,11 @@ site_url = "http://localhost:3000"
 #
 # GoTrue does not error on a URL that is missing from this list; it silently substitutes
 # site_url, which is why a missing entry reads as "works in the browser, hangs on device".
-# The hosted projects keep their own copy of this list (Auth → URL Configuration), and both
-# carry both callback forms as of 2026-08-10. Nothing in this repo's workflow pushes this
-# block to them — but `supabase config push` would, and it would take `site_url` below with
-# it, so never run it while linked to production (the link is the global
-# supabase/.temp/linked-project.json).
+# Staging's list is declared in [remotes.staging.auth] at the end of this file, which
+# `config push` applies over this one when linked to staging. Production keeps its own copy in
+# the dashboard (Auth → URL Configuration); nothing in this repo's workflow pushes to it — but
+# `supabase config push` would, taking this list and `site_url` below with it, so never run it
+# while linked to production (the link is the global supabase/.temp/linked-project.json).
 additional_redirect_urls = [
   "athanor:///auth-callback",
   "athanor://auth-callback",
@@ -249,9 +249,10 @@ double_confirm_changes = true
 # NOTE: this is the LOCAL value and it does not match either hosted project. Staging has
 # confirmations ON, production runs mailer_autoconfirm = true (docs/PRODUCTION-READINESS.md
 # §P1.6, issue #70). `supabase config push` sends this whole [auth.email] block —
-# templates included — to whatever supabase/.temp/linked-project.json points at, so pushing
-# it would flip staging's confirmations OFF as a side effect. Install mail templates from
-# the dashboard (Auth → Emails), not with `config push`.
+# templates included — to whatever supabase/.temp/linked-project.json points at. On staging
+# the [remotes.staging.auth.email] override keeps confirmations ON; the templates still push,
+# and a push to production would send this value. Install mail templates from the dashboard
+# (Auth → Emails), not with `config push`.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
@@ -569,3 +570,39 @@ verify_jwt = true
 
 [functions.get-circle-prices]
 verify_jwt = true
+
+# ---------------------------------------------------------------------------------------------
+# Hosted STAGING overrides. `supabase config push` merges this block over everything above when
+# the linked project is staging (supabase/.temp/linked-project.json), and only for the keys it
+# declares. Without it a push to staging sends the local-stack values above — site_url
+# localhost, confirmations off, a redirect list with no dev-client entry — and GoTrue silently
+# falls back to site_url for any redirect it does not find, so dev-client Google sign-in and
+# the confirmation email both land on the marketing site. That is exactly how staging lost its
+# `athanor-dev://` entries once already: they lived only in the dashboard.
+#
+# The `athanor-dev` pair is the dev-client variant's scheme (app.config.ts, `${scheme}-dev`);
+# the dev client only ever talks to staging, so production carries neither. Keep this list
+# equal to staging's Auth → URL Configuration; add a redirect here, not in the dashboard.
+# Every key NOT declared here still pushes its local value, so read the diff `config push`
+# prints before answering yes.
+# ---------------------------------------------------------------------------------------------
+[remotes.staging]
+project_id = "eralyiwkfrpqsawivegz"
+
+[remotes.staging.auth]
+site_url = "https://www.athanor.world"
+additional_redirect_urls = [
+  "athanor:///auth-callback",
+  "athanor://auth-callback",
+  "athanor-dev:///auth-callback",
+  "athanor-dev://auth-callback",
+  "athanor://**.exp.direct/auth-callback",
+  "exp://**.exp.direct/--/auth-callback",
+  "exp://127.0.0.1:8081/--/auth-callback",
+  "exp://127.0.0.1:8082/--/auth-callback",
+  "exp://**.nip.io:8081/--/auth-callback",
+  "http://localhost:3000/admin/auth/callback",
+]
+
+[remotes.staging.auth.email]
+enable_confirmations = true
