@@ -132,9 +132,9 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: la posizione",
         body: [
-          `L'app usa la posizione del telefono solo se glielo permetti nelle impostazioni del telefono, e solo mentre la stai usando: mai in background. Conta solo quel permesso: l'interruttore «${tIt('gdpr.location.label')}» in «${tIt('settings.trust.title')}» non la attiva né la spegne. Chiede al telefono una posizione a bassa precisione, intorno al chilometro su iPhone e intorno ai cento metri su Android. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google.`,
-          `In «${tIt('live.tab.vicino')}» la usiamo per trovare gli eventi nel raggio di 50 chilometri: arriva ai nostri server per la ricerca, ma non la salviamo.`,
-          "Per creare un evento dal vivo ti chiediamo la posizione: diventa il punto dell'evento, resta salvata con l'evento ed è visibile a chi lo vede.",
+          `L'app usa la posizione del telefono solo se glielo permetti nelle impostazioni del telefono, e solo mentre la stai usando: mai in background. Conta solo quel permesso: l'interruttore «${tIt('gdpr.location.label')}» in «${tIt('settings.trust.title')}» non la attiva né la spegne. Chiede al telefono la posizione meno precisa che offre, e su Android ha solo il permesso per la posizione approssimativa. Prima che la posizione lasci il telefono la arrotondiamo a una griglia di riquadri di circa 2–3 chilometri di lato. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google, partendo dalla posizione arrotondata.`,
+          `In «${tIt('live.tab.vicino')}» la usiamo, arrotondata, per trovare gli eventi nel raggio di 50 chilometri: arriva ai nostri server per la ricerca, ma non la salviamo.`,
+          "Per creare un evento dal vivo ti chiediamo la posizione: arrotondata allo stesso modo, diventa il punto dell'evento e resta salvata con l'evento. Indica una zona di qualche chilometro, non un indirizzo. Può leggerla solo chi ha un account Athanor, e nell'app si vede come distanza dall'evento; la pagina pubblica dell'evento non la mostra.",
           'La città del tuo profilo invece la scrivi tu. Puoi negare o revocare il permesso quando vuoi, dalle impostazioni del telefono: senza, non vedi gli eventi vicini e non puoi creare eventi dal vivo. Non tracciamo i tuoi spostamenti.',
         ],
       },
@@ -301,9 +301,9 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: location',
         body: [
-          `The app uses your phone's location only if you allow it in your phone's settings, and only while you are using the app: never in the background. Only that permission counts: the “${tEn('gdpr.location.label')}” switch in “${tEn('settings.trust.title')}” neither turns it on nor off. It asks the phone for a low-precision position — around a kilometre on iPhone, around a hundred metres on Android. The name of the city comes from your phone's location service, Apple's or Google's.`,
-          `In “${tEn('live.tab.vicino')}” we use it to find events within 50 kilometres: it reaches our servers for the search, but we do not store it.`,
-          "To create an in-person event we ask for your location: it becomes the event's point, is stored with the event and is visible to anyone who sees it.",
+          `The app uses your phone's location only if you allow it in your phone's settings, and only while you are using the app: never in the background. Only that permission counts: the “${tEn('gdpr.location.label')}” switch in “${tEn('settings.trust.title')}” neither turns it on nor off. It asks the phone for the least precise position it offers, and on Android it holds only the approximate-location permission. Before the position leaves your phone we round it to a grid of cells roughly 2–3 kilometres on a side. The name of the city comes from your phone's location service, Apple's or Google's, working from the rounded position.`,
+          `In “${tEn('live.tab.vicino')}” we use it, rounded, to find events within 50 kilometres: it reaches our servers for the search, but we do not store it.`,
+          "To create an in-person event we ask for your location: rounded the same way, it becomes the event's point and is stored with the event. It marks an area a few kilometres across, not an address. Only people with an Athanor account can read it, and in the app it shows as a distance from the event; the event's public page does not show it.",
           "The city on your profile, instead, is one you type. You can refuse or withdraw the permission at any time in your phone's settings: without it you will not see nearby events and cannot create in-person events. We do not track your movements.",
         ],
       },
