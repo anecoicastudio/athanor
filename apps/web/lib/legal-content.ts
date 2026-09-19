@@ -446,9 +446,10 @@ export const privacy: Record<Locale, LegalDoc> = {
  *   Google Play's UGC policy asks terms to define. Child sexual abuse is /child-safety's, linked
  *   rather than restated.
  * - Moderation is `resolve_report` v5's warn | penalty | suspend | ban, taken by a person (#106).
- *   A suspension blocks writing and lifts itself; a ban also closes sign-in and hides the profile,
- *   posts and stories, deleting nothing (#314). Removal is an operator action by hand until the
- *   panel has one (#788), as /child-safety says.
+ *   Both enforcement halves apply to a suspension as to a ban: RLS closes writing and
+ *   `moderation-enforce` closes sign-in (a GoTrue ban until the date, so it lifts itself). A ban
+ *   also hides the profile, posts and stories, deleting nothing (#314). Removal is an operator
+ *   action by hand until the panel has one (#788), as /child-safety says.
  * - Only tickets are on sale: Stripe Checkout (`create-ticket-checkout`), the organiser paid net of
  *   `events.fee_pct` as the composer makes them accept (`event.create.settlement.ack`). Circle
  *   checkout is closed on production (`circle_checkout_enabled` absent) and the fund is off
@@ -515,7 +516,7 @@ export const terms: Record<Locale, LegalDoc> = {
         body: [
           'Puoi segnalare una persona, un post, un messaggio o un comportamento, e puoi bloccare chi vuoi.',
           'Le decisioni su una segnalazione le prende sempre una persona del team di moderazione, mai un programma. Se la segnalazione è fondata, il team può mandarti un avviso, togliere punti alla tua Aura, sospendere il tuo account per un periodo o escluderti in modo definitivo, e può rimuovere il contenuto.',
-          "Durante una sospensione non puoi scrivere né partecipare; finisce da sola, alla data stabilita. Con l'esclusione non puoi più accedere, e il tuo profilo, i tuoi post e le tue storie non li vede più nessuno, tranne il team di moderazione.",
+          "Durante una sospensione non puoi accedere, scrivere né partecipare; finisce da sola, alla data stabilita. Con l'esclusione non puoi più accedere, e il tuo profilo, i tuoi post e le tue storie non li vede più nessuno, tranne il team di moderazione.",
         ],
       },
       {
@@ -615,7 +616,7 @@ export const terms: Record<Locale, LegalDoc> = {
         body: [
           'You can report a person, a post, a message or a behavior, and you can block anyone.',
           'Decisions on a report are always taken by a person on the moderation team, never by a program. If a report is upheld, the team can send you a warning, take points off your Aura, suspend your account for a period or ban you for good, and it can remove the content.',
-          'During a suspension you cannot write or take part; it ends by itself on the set date. With a ban you can no longer sign in, and your profile, posts and stories are hidden from everyone but the moderation team.',
+          'During a suspension you cannot sign in, write or take part; it ends by itself on the set date. With a ban you can no longer sign in, and your profile, posts and stories are hidden from everyone but the moderation team.',
         ],
       },
       {

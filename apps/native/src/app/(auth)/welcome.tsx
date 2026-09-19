@@ -266,7 +266,9 @@ export default function WelcomeScreen() {
     // they already have an account, so a stashed code must not follow them into it. That is
     // intent, not proof — OAuth cannot tell a signup from a sign-in at all, and an existing
     // member who arrives on the DEFAULT screen from an invite link is in signup mode and keeps
-    // the stash. What bounds that one is the RPC's account-age gate, not this line.
+    // the stash. What bounds that one is the RPC's account-age gate, not this line. The trade
+    // runs the other way too: the notice under these buttons (#777) tells a newcomer that a
+    // provider creates the account from here, and one who follows it loses the stash.
     // Cleared BEFORE the round trip: exchangeCodeForSession fires onAuthStateChange while that
     // call is still awaiting, so auth-context has already read the stash by the time it returns.
     if (login) await clearPendingReferral();

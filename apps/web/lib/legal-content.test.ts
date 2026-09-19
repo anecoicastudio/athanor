@@ -695,14 +695,37 @@ describe('terms', () => {
   });
 
   it('names the verdicts moderation really has, and that a person takes them', () => {
-    // resolve_report v5: dismiss | warn | penalty | suspend | ban. Removal is an operator action
-    // by hand until the panel has one (#788), as /child-safety says.
-    for (const word of [/avviso/, /Aura/, /sospendere/, /escluder/, /rimuovere/, /una persona/]) {
+    // resolve_report v5: dismiss | warn | penalty | suspend | ban, gated on is_admin. Removal is
+    // an operator action by hand until the panel has one (#788), as /child-safety says. The
+    // person clause is pinned whole: «una persona» alone also matches «segnalare una persona».
+    for (const word of [
+      /avviso/,
+      /Aura/,
+      /sospendere/,
+      /escluder/,
+      /rimuovere/,
+      /sempre una persona del team di moderazione, mai un programma/,
+    ]) {
       expect(body('it', 'moderation')).toMatch(word);
     }
-    for (const word of [/warning/, /Aura/, /suspend/, /\bban\b/, /remove/, /a person/]) {
+    for (const word of [
+      /warning/,
+      /Aura/,
+      /suspend/,
+      /\bban\b/,
+      /remove/,
+      /always taken by a person on the moderation team, never by a program/,
+    ]) {
       expect(body('en', 'moderation')).toMatch(word);
     }
+  });
+
+  it('says a suspension closes sign-in as well as writing — both #106 halves apply to it', () => {
+    // resolve_report enqueues moderation-enforce for 'suspend' too, which sets a GoTrue ban until
+    // the date. Saying only «you cannot write» would promise a suspended member they can still
+    // sign in and read.
+    expect(body('it', 'moderation')).toMatch(/sospensione non puoi accedere/);
+    expect(body('en', 'moderation')).toMatch(/suspension you cannot sign in/);
   });
 
   it.each(locales)('%s sends child safety to its own page rather than restating it', (loc) => {
