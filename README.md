@@ -113,10 +113,11 @@ stops with an error instead of shipping an app that can never receive a push. A 
 would need the same name as an EAS file variable; none is set, because Android builds run
 locally.
 
-In the dev variant, **email + password sign-in on staging works, and so does push; Google
-sign-in, sign-up confirmation links and app links do not** — it has its own scheme
-(`athanor-dev`), which no Supabase redirect allow-list was set up for, and it claims no web
-domain. Those are checked on the store build at release, not per branch.
+In the dev variant, **email + password sign-in, Google sign-in, sign-up confirmation links
+and push all work against staging; app links do not.** It has its own scheme (`athanor-dev`),
+which only staging's redirect allow-list carries — declared in `supabase/config.toml` under
+`[remotes.staging.auth]`, so add redirects there, not in the dashboard — and it claims no web
+domain, so app links are checked on the store build at release, not per branch.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns
