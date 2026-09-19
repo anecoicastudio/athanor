@@ -252,11 +252,15 @@ pnpm staging:media --confirm        # 4. base media
 pnpm staging:demo-media --confirm   # 5. demo media (docs/test-stories/demo, overwrites + adds)
 ```
 
+Then install `demo-refresh.sql` once (same two gates). Its `staging-refresh-demo` cron (:37)
+keeps the six demo stories and five demo events current, the way `staging-refresh-world`
+does for the base seed; without it the stories expire within a day and the events drift
+into the past. Everything else the demo adds (text, people, chats, votes, Aura) never ages.
+
 Unlike the base seed, `demo-world.sql` produces Aura on purpose: it fires the same M6
 triggers the app fires (a milestone reaching done, a help completed, a ten-message
 conversation, a post starred, an invite activated) and the score-engine writes the rows.
-It never writes `aura_events` / `aura_scores` itself. The six stories it adds are outside
-the refresh's frozen list, so re-run it on the day of a recording. Re-running
+It never writes `aura_events` / `aura_scores` itself. Re-running
 `seed-staging.sql` puts the seeded bios back in Italian; run `demo-world.sql` after it.
 
 ## What is deliberately not seeded

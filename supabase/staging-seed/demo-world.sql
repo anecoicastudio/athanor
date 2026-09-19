@@ -9,6 +9,7 @@
 --   4. refresh-staging.sql            (hourly restore cron; this file's rows survive it —
 --                                      the refresh restores statuses and dates, never text)
 --   5. pnpm staging:demo-media --confirm   (bytes for every key below)
+--   6. demo-refresh.sql               (once: the hourly keep-alive for this file's stories/events)
 --
 -- Every file is gated like seed-staging.sql: the Vault environment marker AND
 -- `set app.settings.seed_confirm = 'yes'` typed in the same session.
@@ -28,8 +29,9 @@
 -- seed-staging.sql after this file puts the seeded profile bios back in Italian (its §1 UPDATE is
 -- unconditional); run this file again afterwards.
 --
--- STORIES EXPIRE. The six stories §3 adds are not in refresh-staging.sql's frozen list, so they
--- live 20 hours from the last run of this file. Run it again on the day of recording.
+-- STORIES AND EVENTS AGE. The six stories and five events §3 adds are not in
+-- refresh-staging.sql's frozen lists; demo-refresh.sql installs the hourly cron that keeps them
+-- current. Without it the stories expire 20 hours after the last run of this file.
 
 begin;
 
