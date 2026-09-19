@@ -130,7 +130,8 @@
       [
         "expo-notifications",
         {
-          "color": "#2BD0D2"
+          "color": "#2BD0D2",
+          "defaultChannel": "default"
         }
       ],
       "@sentry/react-native/expo",

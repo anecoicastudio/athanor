@@ -132,6 +132,50 @@ function beforeBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
   return crumb;
 }
 
+/**
+ * Push registration failures (#746). `push.ts` used to swallow them behind a dev-only warn, so
+ * production held zero Android tokens and zero errors at once. Reporting has to respect both
+ * rules above, and each shapes this:
+ *
+ *  - Registration runs on the INITIAL_SESSION auth event, before SentryConsentGate can init,
+ *    so a failure raised pre-init is HELD (one per stage) and sent by `initSentry` — i.e. only
+ *    once consent exists. Without consent it never leaves, which is the point of rule 1.
+ *  - The error's own message never leaves: a PostgREST unique-violation names the row,
+ *    `(profile_id, token)=(…)`, and TOKEN_RE does not know an Expo push token's shape. What goes
+ *    up is a fixed title plus the stage and the error's `code` when that is a bare identifier
+ *    (`E_REGISTRATION_FAILED`, `42501`) — enough to tell a missing Firebase config from a
+ *    denied insert. Tags, because scrubEvent keeps tags and deletes `extra`.
+ *  - Once per stage per launch: the TOKEN_REFRESHED retry would otherwise turn one broken
+ *    device into an event an hour.
+ */
+export type PushFailureStage = 'channel' | 'permission' | 'token' | 'register';
+
+const BARE_CODE = /^[A-Za-z0-9_.-]{1,64}$/;
+const pushReported = new Set<PushFailureStage>();
+const pushHeld = new Map<PushFailureStage, string>();
+
+function bareCode(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return typeof code === 'string' && BARE_CODE.test(code) ? code : 'none';
+}
+
+function sendPushFailure(stage: PushFailureStage, code: string): void {
+  // i18n-ignore — a Sentry event title, never rendered to a member (as captureTrail's below).
+  Sentry.captureMessage('push: registration failed', {
+    level: 'warning',
+    tags: { push_stage: stage, push_error_code: code },
+  });
+}
+
+export function capturePushFailure(stage: PushFailureStage, error: unknown): void {
+  if (pushReported.has(stage)) return;
+  pushReported.add(stage);
+  const code = bareCode(error);
+  if (initialized) sendPushFailure(stage, code);
+  else pushHeld.set(stage, code);
+}
+
 /** Install Sentry (idempotent). Called by SentryConsentGate on first consent grant. */
 export function initSentry(): void {
   if (initialized || !DSN) return;
@@ -145,6 +189,8 @@ export function initSentry(): void {
     // event's runtime actually had (see the header). scrubEvent leaves tags alone deliberately.
     initialScope: { tags: { expo_go: isExpoGo } },
   });
+  for (const [stage, code] of pushHeld) sendPushFailure(stage, code);
+  pushHeld.clear();
 }
 
 /**

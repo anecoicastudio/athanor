@@ -84,3 +84,13 @@ apps/web/cloudflare-env.d.ts
 # the name Google Cloud downloads it with (<project>-<keyid>.json).
 apps/native/google-service-account.json
 apps/native/athanor-play-*.json
+
+# Firebase / FCM (#746). The FCM V1 service-account key is a live credential that can
+# send push to every Android member; it belongs in EAS credentials and on one disk, never
+# in git. `google-services.json` is Firebase client config rather than a secret, but it
+# is kept out of this public repo all the same and reaches a build through the
+# GOOGLE_SERVICES_JSON file variable (apps/native/app.config.ts). Both lines must stay in
+# a .gitignore: EAS copies the working tree honouring .gitignore files only, so a path
+# ignored through .git/info/exclude alone still rides into every EAS build archive.
+apps/native/google-fcm-service-account.json
+apps/native/google-services.json

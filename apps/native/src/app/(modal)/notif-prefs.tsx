@@ -57,7 +57,7 @@ const PREF_ROWS: { key: string; type: NotifPrefInput['type'] }[] = [
 ];
 
 export default function NotifPrefsScreen() {
-  const { profile } = useAuth();
+  const { profile, registerPush } = useAuth();
   const locale = useLocale();
   const qc = useQueryClient();
 
@@ -189,13 +189,19 @@ export default function NotifPrefsScreen() {
         try {
           const resolved = await ensurePushPermission();
           setOsStatus(resolved);
-          if (resolved === 'granted') write(true);
+          if (resolved === 'granted') {
+            write(true);
+            // The grant is what registration was waiting for — take the token now, as
+            // PushPrimer does (#746). Otherwise the device holds no token row until the next
+            // boot or token refresh, and a push sent in between reaches nobody.
+            void registerPush();
+          }
         } catch (e) {
           devWarn('[notif-prefs] permission request', e);
         }
       })();
     },
-    [osOff],
+    [osOff, registerPush],
   );
 
   return (
