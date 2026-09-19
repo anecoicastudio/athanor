@@ -1005,14 +1005,16 @@ describe('a crash-trail marker is awaited, or justified in place (#488)', () => 
  * is only visible to a member whose device is not Italian — which is nobody on the dev
  * machine.
  *
- * `deviceLocale` stays legal in exactly the places that have no profile to read: the funnel
- * and the boot screens that draw before (or instead of) a session, the draft store, and the
- * two hooks. Anywhere else it means a signed-in screen went around the hook.
+ * `deviceLocale` stays legal in exactly two kinds of place. The ones with no profile to read:
+ * the funnel and the boot screens that draw before (or instead of) a session, the draft store,
+ * and the two hooks. And text the SYSTEM draws rather than an Athanor screen, which sits among
+ * the phone's own labels in the device language: the Android notification channel (#746).
+ * Anywhere else it means a signed-in screen went around the hook.
  */
 describe('the signed-in locale is resolved in exactly one place (#331)', () => {
   const RESOLVER = 'hooks/use-locale.ts';
 
-  /** No profile exists yet (or at all) on these, so they read the device directly. */
+  /** No profile exists yet (or at all) on these — or the system draws the text — so they read the device directly. */
   const DEVICE_LOCALE_OK = [
     RESOLVER,
     'hooks/use-draft-locale.ts',
