@@ -1739,13 +1739,18 @@ select p.banned_at, u.banned_until
 ```
 
 Both set, `banned_until` roughly a century out, is done. `banned_at` null means the RPC did
-nothing: the report was not open. `banned_until` null means the GoTrue half did not land. Look at
-`net._http_response` — never its newest rows, which every pg*net caller shares, the 15-minute
-alert included — with
-`select id, created, status_code, timed_out, content from net._http_response where content like '%"applied"%' or content like '%auth update failed%' or timed_out order by id desc limit 3;`,
-then call
-the function directly — the call `resolve_report` would have made (§9 has the header rule: the
-`sb_secret*…`key on`apikey`, never `Authorization`):
+nothing: the report was not open. `banned_until` null means the GoTrue half did not land. Read
+`net._http_response` by content — never its newest rows, which every `pg_net` caller shares, the
+15-minute alert included:
+
+```sql
+select id, created, status_code, timed_out, content from net._http_response
+ where content like '%"applied"%' or content like '%auth update failed%' or timed_out
+ order by id desc limit 3;
+```
+
+Then call the function directly — the call `resolve_report` would have made (§9 has the header
+rule: the `sb_secret_…` key on `apikey`, never `Authorization`):
 
 ```bash
 curl -sS -X POST "https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/moderation-enforce" \
