@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { useRouter } from 'expo-router';
+import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
+import { LockGlyph } from '@/components/glyphs';
 import { useEntitlement } from '@/hooks/use-entitlement';
 
 /**
@@ -90,10 +92,8 @@ export function CircleGate({
         accessibilityHint={t('circle.gate.unlock', locale)}
         style={{ minHeight: 44 }}
       >
-        {/* Lock glyph — text equivalent via accessibilityLabel */}
-        <Text className="text-[14px] text-muted-foreground" accessibilityLabel="">
-          🔒
-        </Text>
+        {/* Lock mark — drawn, not the 🔒 emoji (#753); the Pressable's label says «bloccato» */}
+        <LockGlyph size={16} color={semantic.foregroundMuted} />
         <Text className="text-[14px] text-muted-foreground">
           {t('search.filters.locked', locale)}
         </Text>

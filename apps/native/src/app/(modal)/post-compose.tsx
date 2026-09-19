@@ -12,6 +12,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
+import { PlayGlyph, WavesGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -324,17 +325,15 @@ export default function PostComposeScreen() {
                       accessible
                       accessibilityLabel={t('media.noPoster.audio', locale)}
                     >
-                      <Text
-                        className="text-2xl text-faint"
-                        // `ornament` (#639): a hidden glyph centred in a hard 70pt tile —
-                        // the tile is the thumbnail's size, and scaling the mark only
-                        // pushes it out of it. The wrapper above carries the label.
-                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                      <View
+                        // A drawing, not the 🎧 character (#753), so it cannot outgrow the hard
+                        // 70pt tile at any text size — the job the `ornament` cap did for the
+                        // character. The wrapper above carries the label.
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        🎧
-                      </Text>
+                        <WavesGlyph size={24} color={semantic.faint} />
+                      </View>
                       <Text
                         className="mt-0.5 text-[11px] text-faint"
                         style={{ fontVariant: ['tabular-nums'] }}
@@ -354,17 +353,13 @@ export default function PostComposeScreen() {
                       accessible
                       accessibilityLabel={t('media.noPoster.video', locale)}
                     >
-                      <Text
-                        className="text-2xl text-faint"
-                        // `ornament` (#639): a hidden glyph centred in a hard 70pt tile —
-                        // the tile is the thumbnail's size, and scaling the mark only
-                        // pushes it out of it. The wrapper above carries the label.
-                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                      <View
+                        // Same drawn mark as the audio tile above, for the same reason (#753).
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        ▶
-                      </Text>
+                        <PlayGlyph size={24} color={semantic.faint} />
+                      </View>
                     </View>
                   ) : (
                     <Image

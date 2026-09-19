@@ -1,5 +1,7 @@
+import { semantic } from '@athanor/config';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { LockGlyph } from '@/components/glyphs';
 import { type EventRowData, toRowData } from '@/lib/event-row';
 import { DateBadge } from './DateBadge';
 
@@ -50,7 +52,13 @@ export function EventRow({
       className="flex-row items-center gap-3 rounded-card border border-hair bg-raise p-4"
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${data.title}, ${sub}`}
+      // The locked state rides the row's label (#753): the chip below is inside this button, so
+      // its own label is never reached and the row used to read as an ordinary event.
+      accessibilityLabel={
+        data.premiumLocked
+          ? `${data.title}, ${sub}, ${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`
+          : `${data.title}, ${sub}`
+      }
     >
       <DateBadge
         iso={data.starts_at}
@@ -73,9 +81,7 @@ export function EventRow({
             className="mt-1 flex-row items-center gap-1 self-start rounded-full border border-hair bg-raise-2 px-2 py-0.5"
             accessibilityLabel={`${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`}
           >
-            <Text className="text-[11px] text-muted-foreground" accessibilityLabel="">
-              🔒
-            </Text>
+            <LockGlyph size={12} color={semantic.foregroundMuted} />
             <Text className="text-[11px] text-muted-foreground">
               {t('circle.gate.premiumEvents', locale)}
             </Text>

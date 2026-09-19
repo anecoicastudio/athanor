@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScoreFull } from '@athanor/api';
 import { auraGlowLevel, breakdownRows } from '@athanor/core';
+import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
@@ -9,6 +10,7 @@ import { RuleRow } from '@/components/aura/RuleRow';
 import { AuraValue } from '@/components/AuraValue';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { ScalesGlyph } from '@/components/glyphs';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { Mandorla } from '@/components/Mandorla';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -132,9 +134,10 @@ export default function AuraScreen() {
               title={t('aura.rule.verified.title', locale)}
               desc={t('aura.rule.verified.desc', locale)}
             />
-            {/* Rule 2: weighted (⚖ scales — balance/justice esoteric glyph) */}
+            {/* Rule 2: weighted — the set's `scales`, drawn (#753: the U+2696 character it
+                replaced is emoji-capable, and fell back to the emoji font) */}
             <RuleRow
-              glyph="⚖"
+              glyph={<ScalesGlyph size={20} color={semantic.aura} />}
               title={t('aura.rule.weighted.title', locale)}
               desc={t('aura.rule.weighted.desc', locale)}
             />

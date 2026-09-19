@@ -1,12 +1,14 @@
 import type { ComponentType } from 'react';
 import type { ColorValue } from 'react-native';
-import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
 import { semantic } from '@athanor/config';
 import type { ZodiacSign } from '@athanor/schemas';
 
-// The single home for the app's SVG icon set: tab-bar esoteric glyphs (below)
-// plus the header line icons (bottom). Unicode-glyph stand-ins elsewhere
-// (trust/notifTypes.ts) remain Foundation debt.
+// The single home for the app's SVG icon set: tab-bar esoteric glyphs (below),
+// the header line icons, and the media/state marks that replaced emoji-capable
+// characters (#753). Unicode-glyph stand-ins elsewhere (trust/notifTypes.ts)
+// remain Foundation debt — none of them is emoji-capable, which source-audit §42
+// keeps true.
 
 /**
  * Tab-bar esoteric glyphs (DESIGN.md §6 / §8) — sacred-geometry, stroke-only,
@@ -221,6 +223,90 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
       <Path d={EYE_LID} {...line(c)} />
       <Circle cx={12} cy={12} r={2.3} {...line(c)} />
       <Line x1={2.5} y1={2.5} x2={21.5} y2={21.5} {...line(c)} />
+    </Svg>
+  );
+}
+
+/**
+ * Marks that used to be emoji-capable TEXT characters (#753): ▶ ⏸ ⚖ 🎧 🔒. A character is not
+ * an icon here — whether it draws as a monochrome glyph, a colour emoji or a «?» box depends on
+ * the platform's font fallback, which is the bug the issue records. Every one of these is a
+ * drawing instead, so it renders the same pixels on iOS, Android and web.
+ *
+ * Two are PORTS from the 20-glyph set (DESIGN §6), ported from the prototype's `GLYPHS` table
+ * the same way `EyeGlyph` was — `scales` and `waves` are named by the set, so they are debt paid
+ * down, not new marks. Three are NEW, drawn in the set's compass-and-ruler system and recorded
+ * in DESIGN §6's addendum (ruled 2026-09-19): the set has no mark that honestly means play,
+ * pause or locked. All five use `line()`'s 1.8px — they are content marks, not header icons —
+ * and none is filled except `LockGlyph`'s keyhole, which is the one centre point §6 allows.
+ *
+ * No a11y props here, the same split as the zodiac set below: the caller either sits inside a
+ * labelled control or hides the mark on its wrapper.
+ */
+
+/** The set's `scales` — balance, the Aura's weighting rule. Not the zodiac `BilanciaGlyph`,
+ *  which §6 confines to the profile header. */
+export function ScalesGlyph({ size = 20, color }: GlyphProps) {
+  const c = color ?? semantic.foregroundMuted;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Path d="M12 4.5v15.5" {...line(c)} />
+      <Path d="M5 8h14" {...line(c)} />
+      <Path d="M5 8 2.6 13.6a2.9 2.9 0 0 0 4.8 0Z" {...line(c)} />
+      <Path d="M19 8l2.4 5.6a2.9 2.9 0 0 1-4.8 0Z" {...line(c)} />
+      <Path d="M8.5 20h7" {...line(c)} />
+    </Svg>
+  );
+}
+
+/** The set's `waves` — sound radiating from a point: audio. */
+export function WavesGlyph({ size = 16, color }: GlyphProps) {
+  const c = color ?? semantic.foregroundMuted;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Circle cx={12} cy={16.5} r={1.2} fill={c} />
+      <Path d="M8.4 14a4 4 0 0 1 7.2 0" {...line(c)} />
+      <Path d="M6 11.4a6.4 6.4 0 0 1 12 0" {...line(c)} />
+      <Path d="M4 8.8a8.6 8.6 0 0 1 16 0" {...line(c)} />
+    </Svg>
+  );
+}
+
+/**
+ * Play — the set's `fire` triangle turned to face right: equilateral (side 14.4), its centroid
+ * on the viewBox centre so it sits optically centred over a poster rather than leaning left the
+ * way a bounding-box-centred triangle does. Outline only, like every set glyph.
+ */
+export function PlayGlyph({ size = 24, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Path d="M8 4.8 20.4 12 8 19.2Z" {...line(color)} />
+    </Svg>
+  );
+}
+
+/** Pause — two parallel strokes, the height of `PlayGlyph`'s base, so the toggle does not jump. */
+export function PauseGlyph({ size = 24, color }: GlyphProps) {
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Line x1={9} y1={4.8} x2={9} y2={19.2} {...line(color)} />
+      <Line x1={15} y1={4.8} x2={15} y2={19.2} {...line(color)} />
+    </Svg>
+  );
+}
+
+/**
+ * Locked — a semicircle shackle over the set's `frame` body (the same 1.5 corner), with the
+ * keyhole as its one filled centre point. Marks a Circle-only feature; the state itself is
+ * always spoken by the control's label, never by this drawing.
+ */
+export function LockGlyph({ size = 16, color }: GlyphProps) {
+  const c = color ?? semantic.foregroundMuted;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+      <Path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" {...line(c)} />
+      <Rect x={5.5} y={11} width={13} height={9} rx={1.5} {...line(c)} />
+      <Circle cx={12} cy={15.5} r={1.3} fill={c} />
     </Svg>
   );
 }

@@ -205,6 +205,8 @@ No icon pack. The official icon vocabulary is the **20-glyph esoteric set** tran
 
 New icons must be designed in this same system (compass-and-ruler geometry), never imported from icon libraries.
 
+> **A character is never an icon (addendum 2026-09-19 — issue #753).** An emoji-capable code point (Unicode `Emoji`: ▶ ⏸ ⚙ ⚖ 🔒 🎧 …) draws as whatever the platform's font fallback decides — a monochrome glyph, a colour emoji or a «?» box — so every such mark is a drawing in `apps/native/src/components/glyphs.tsx`, stroke-only in the set's 1.8px. Two are **ports** from the 20-set: `scales` (the Aura weighting rule) and `waves` (audio). Three are **new**, ruled 2026-09-19 because the set has no mark that honestly means them: **Play** — the `fire` triangle turned to face right, equilateral, centred on its centroid, outline only; **Pause** — two parallel strokes at Play's height; **Lock** — a semicircle shackle over the `frame` body, whose keyhole is its one filled centre point (a Circle-only feature; the locked state is always spoken by the control's label, never by the drawing). The gear is the sun-wheel `SettingsIcon`. ✦ ✧ ✓ ✕ ◎ ◑ and the other text marks are not emoji-capable and stay characters. `apps/native/src/lib/source-audit.test.ts` §42 holds the rule for source, and `packages/i18n/src/i18n.test.ts` holds it for catalog values.
+
 ## 7. Web mockups (ASCII)
 
 ### 7.1 Public landing — `www.athanor.world` (logged out)

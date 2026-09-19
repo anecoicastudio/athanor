@@ -4,9 +4,11 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useQuery } from '@tanstack/react-query';
 import { getPostMedia, postMediaKeys } from '@athanor/api';
+import { semantic } from '@athanor/config';
 import type { Locale, MediaKind } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
+import { PauseGlyph, PlayGlyph, WavesGlyph } from '@/components/glyphs';
 import { MediaFrame, type MediaFrameKind } from '@/components/media/MediaFrame';
 import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
@@ -74,15 +76,26 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
       />
     );
   }
+  // Drawn marks, not the ▶/⏸/🎧 characters (#753 — each fell back to the emoji font). The
+  // label now says which way the toggle goes: the drawing was the only place that state lived,
+  // so a screen reader heard «Audio · 1:23» whether it would play or pause. `min-h-[44px]`
+  // holds the floor the 18px text line used to give the pill.
   return (
     <Pressable
-      className="flex-row items-center gap-3 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
+      className="min-h-[44px] flex-row items-center gap-3 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={`${t(player.playing ? 'feed.audio.pauseLabel' : 'feed.audio.playLabel', locale)}, ${label}`}
       onPress={() => (player.playing ? player.pause() : player.play())}
     >
-      <Text className="text-[18px] text-foreground">{player.playing ? '⏸' : '▶'}</Text>
-      <Text className="text-[13px] text-foreground">🎧 {label}</Text>
+      {player.playing ? (
+        <PauseGlyph size={22} color={semantic.foreground} />
+      ) : (
+        <PlayGlyph size={22} color={semantic.foreground} />
+      )}
+      <View className="flex-row items-center gap-1.5">
+        <WavesGlyph size={16} color={semantic.foreground} />
+        <Text className="text-[13px] text-foreground">{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -197,16 +210,14 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                   // A video with no poster is a STATE, not a failure (#318, MomentTile's fourth
                   // state): it plays fine in the detail, it just has no still. Faint ▶ so it
                   // reads as placeholder, not as the `foreground` ▶ over a real poster.
-                  <View className="absolute inset-0 items-center justify-center">
-                    <Text
-                      className="text-4xl text-faint"
-                      // Decorative: the no-poster sentence rides the Pressable's label above
-                      // (#292).
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                    >
-                      ▶
-                    </Text>
+                  <View
+                    className="absolute inset-0 items-center justify-center"
+                    // Decorative: the no-poster sentence rides the Pressable's label above
+                    // (#292).
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    <PlayGlyph size={36} color={semantic.faint} />
                   </View>
                 ) : (
                   <MediaFrame
@@ -219,7 +230,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                       // Ready-state only: ▶ over a real poster promises the playback that a tap
                       // delivers; over the unavailable ✦ it would promise the wrong thing.
                       <View className="absolute inset-0 items-center justify-center">
-                        <Text className="text-4xl text-foreground">▶</Text>
+                        <PlayGlyph size={36} color={semantic.foreground} />
                       </View>
                     }
                   />
@@ -252,12 +263,17 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
         // audio
         if (variant === 'card') {
           return (
+            // Role + label (#753, beside the glyph swap): this pill had neither, so a screen
+            // reader met an unnamed tap target and read the emoji's name aloud.
             <Pressable
               key={row.id}
-              className="flex-row items-center gap-2 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
+              className="min-h-[44px] flex-row items-center gap-2 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
               onPress={onPress}
+              accessibilityRole="button"
+              accessibilityLabel={durLabel}
             >
-              <Text className="text-[13px] text-foreground">🎧 {durLabel}</Text>
+              <WavesGlyph size={16} color={semantic.foreground} />
+              <Text className="text-[13px] text-foreground">{durLabel}</Text>
             </Pressable>
           );
         }
