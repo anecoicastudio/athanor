@@ -237,7 +237,9 @@ describe('profileSchema — handle_changed_at (#782)', () => {
   });
 
   it('is NULL until the first rename', () => {
-    expect(profileSchema.parse({ ...validRow, handle_changed_at: null }).handle_changed_at).toBeNull();
+    expect(
+      profileSchema.parse({ ...validRow, handle_changed_at: null }).handle_changed_at,
+    ).toBeNull();
   });
 
   it('parses a row from a project without the column', () => {

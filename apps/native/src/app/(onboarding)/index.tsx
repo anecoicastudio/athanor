@@ -50,8 +50,8 @@ const MAX_BIRTH_YEARS_BACK = 120;
  * and flushed to the profile after OTP (see `lib/flush-onboarding.ts`). The photo
  * is stashed as a LOCAL uri for the same reason: every `avatars` storage policy
  * keys on auth.uid(), and there is no uid here yet. The NAME is not asked here —
- * (auth)/welcome collects it a screen later and handle_new_user writes it. The @handle is no longer
- * asked here; it's auto-derived from the email post-auth. Final step routes to
+ * (auth)/welcome collects it a screen later and handle_new_user writes it. Nor the @handle (#782):
+ * chosen after sign-up on `(onboarding)/handle`, never from the email. Final step routes to
  * `(auth)/welcome` to create the account; «Accedi» jumps existing users to login.
  */
 export default function OnboardingScreen() {

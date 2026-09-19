@@ -1,5 +1,6 @@
 import {
   DECAY,
+  HANDLE_RENAME_COOLDOWN_DAYS,
   MIN_MEMBER_AGE,
   REACTION_AUTHOR_MIN_SCORE,
   SCORE_MAX,
@@ -106,7 +107,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: "Nell'app: il tuo account",
         body: [
           "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google: in quel caso Google ci passa indirizzo email, nome e foto del tuo account; il nome diventa quello che mostri, e puoi cambiarlo nel profilo, mentre la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
-          "Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. Dalla prima parte del tuo indirizzo email ricaviamo la tua @handle, il nome con cui compari: da mario.rossi@… nasce @mario_rossi. Dall'app non si può cambiare; se vuoi cambiarla, scrivici.",
+          `Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. La tua @handle, il nome con cui compari, la scegli tu dopo l'iscrizione: non la ricaviamo dal tuo indirizzo email. Puoi cambiarla dal profilo una volta ogni ${HANDLE_RENAME_COOLDOWN_DAYS} giorni; il nome di prima torna subito libero e i link al tuo profilo che lo contengono smettono di funzionare, anche se la pagina già pronta può restare per un breve periodo nella cache della rete e l'immagine di anteprima che accompagnava quei link resta raggiungibile finché non pubblichiamo una nuova versione del sito.`,
           "La data di nascita serve a verificare che tu abbia l'età minima e a calcolare il tuo segno zodiacale. La data la vedi solo tu; il segno compare sul tuo profilo.",
           'Conserviamo anche la lingua che usi e, se ti ha invitato qualcuno, il collegamento con quella persona.',
         ],
@@ -116,7 +117,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         body: [
           `Nel profilo puoi aggiungere una bio, la tua missione, la professione, le competenze, la città, le parole che ti descrivono, ciò che cerchi e il tuo sogno con le sue tappe. Per ciascuna di queste parti scegli tu «${tIt('profile.visibility.label')}»: «${tIt('visibility.public')}», «${tIt('visibility.members')}» o «${tIt('visibility.private')}». Se non scegli, vale «${tIt('visibility.members')}». Ciò che imposti su «${tIt('visibility.private')}» lo vedi solo tu.`,
           `Nome, foto e @handle li vedono tutte le persone iscritte. Per questi scegli tra «${tIt('visibility.public')}» e «${tIt('visibility.members')}», e all'inizio è «${tIt('visibility.public')}»: vuol dire che hai una pagina pubblica su questo sito, visibile a chiunque e ai motori di ricerca, con @handle, nome, foto e segno zodiacale, e con il tuo sogno e le sue tappe se li hai resi visibili a «${tIt('visibility.public')}». Se scegli «${tIt('visibility.members')}», la pagina non viene più mostrata; la versione già pronta può restare per un breve periodo nella cache della rete. L'immagine di anteprima che accompagna il link alla pagina (nome, foto, @handle e, se era visibile a «${tIt('visibility.public')}», il tuo sogno) si aggiorna invece solo quando pubblichiamo una nuova versione del sito: fino ad allora resta raggiungibile.`,
-          'Il tuo punteggio Aura, compreso il dettaglio per tipo di azione, il massimo che hai raggiunto e la data della tua ultima azione che conta, e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche se hai verificato la tua identità, a quali eventi partecipi, anche con un biglietto, e quanti eventi e aiuti hai completato.',
+          'Il tuo punteggio Aura e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche il dettaglio del punteggio per tipo di azione, il massimo che hai raggiunto e la data della tua ultima azione che conta, se hai verificato la tua identità, a quali eventi partecipi, anche con un biglietto, e quanti eventi e aiuti hai completato.',
         ],
       },
       {
@@ -277,7 +278,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'In the app: your account',
         body: [
           "To join, we ask for an email address and a password, or you can sign in with Google: in that case Google passes us your Google account's email address, name and photo; the name becomes the one you show, and you can change it in your profile, while the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
-          'If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. From the first part of your email address we derive your @handle, the name you appear under: mario.rossi@… becomes @mario_rossi. It cannot be changed in the app; if you want to change it, write to us.',
+          `If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. You choose your @handle, the name you appear under, after signing up: we do not derive it from your email address. You can change it from your profile once every ${HANDLE_RENAME_COOLDOWN_DAYS} days; the old name becomes free at once and links to your profile that use it stop working, although the page already rendered may stay in the network's cache for a short time and the preview image that went with those links stays reachable until we release a new version of the site.`,
           'Your date of birth is used to check that you meet the minimum age and to work out your zodiac sign. Only you see the date; the sign appears on your profile.',
           'We also keep the language you use and, if someone invited you, the link to that person.',
         ],
@@ -287,7 +288,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         body: [
           `In your profile you can add a bio, your mission, your profession, your skills, your city, the words that describe you, what you are looking for, and your dream with its milestones. For each of these you choose “${tEn('profile.visibility.label')}”: “${tEn('visibility.public')}”, “${tEn('visibility.members')}” or “${tEn('visibility.private')}”. If you don't choose, “${tEn('visibility.members')}” applies. What you set to “${tEn('visibility.private')}” is seen by you alone.`,
           `Your name, photo and @handle are seen by every member. For these you choose between “${tEn('visibility.public')}” and “${tEn('visibility.members')}”, and it starts as “${tEn('visibility.public')}”: this means you have a public page on this site, visible to anyone and to search engines, with your @handle, name, photo and zodiac sign, and with your dream and its milestones if you made them visible to “${tEn('visibility.public')}”. If you choose “${tEn('visibility.members')}”, the page is no longer shown; the version already rendered may stay in the network's cache for a short time. The preview image that goes with a link to the page (name, photo, @handle and, if it was visible to “${tEn('visibility.public')}”, your dream) only updates when we release a new version of the site: until then it stays reachable.`,
-          'Your Aura score — including its breakdown by kind of action, the highest it has reached and the date of your last action that counted — and the stars you have earned are public. Other members can also see whether you have verified your identity, which events you are attending, including with a ticket, and how many events and helps you have completed.',
+          'Your Aura score and the stars you have earned are public. Other members can also see the score’s breakdown by kind of action, the highest it has reached and the date of your last action that counted, whether you have verified your identity, which events you are attending, including with a ticket, and how many events and helps you have completed.',
         ],
       },
       {

@@ -13,6 +13,7 @@ vi.mock('@athanor/core', async (importOriginal) => {
   return {
     ...actual,
     MIN_MEMBER_AGE: 97,
+    HANDLE_RENAME_COOLDOWN_DAYS: 41,
     SCORE_MIN: 3,
     SCORE_MAX: 4321,
     REACTION_AUTHOR_MIN_SCORE: 777,
@@ -43,6 +44,15 @@ describe('privacy follows @athanor/core', () => {
       for (const part of parts) expect(text, part).toContain(part);
     },
   );
+});
+
+describe('privacy states the handle rename window the trigger enforces (#782)', () => {
+  it.each([
+    ['it', "Nell'app: il tuo account", 'una volta ogni 41 giorni'],
+    ['en', 'In the app: your account', 'once every 41 days'],
+  ] as const)('%s', (loc, heading, part) => {
+    expect(section(loc, heading)).toContain(part);
+  });
 });
 
 describe('child safety follows @athanor/core', () => {

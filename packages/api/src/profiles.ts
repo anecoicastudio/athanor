@@ -156,7 +156,11 @@ export type HandleClaimRefusal =
  */
 export function handleClaimRefusal(err: unknown): HandleClaimRefusal | null {
   if (typeof err !== 'object' || err === null) return null;
-  const { code, message, details } = err as { code?: unknown; message?: unknown; details?: unknown };
+  const { code, message, details } = err as {
+    code?: unknown;
+    message?: unknown;
+    details?: unknown;
+  };
   if (typeof code !== 'string' || typeof message !== 'string') return null;
   if (code === '23505' && message.includes('"profiles_handle_key"')) return { reason: 'taken' };
   if (code === '23514' && message.includes('"profiles_handle_not_reserved"')) {

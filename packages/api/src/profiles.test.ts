@@ -346,7 +346,7 @@ describe('isHandleTaken', () => {
 });
 
 describe('claimHandle', () => {
-  it('writes the handle and nothing else, on the caller\'s own row', async () => {
+  it("writes the handle and nothing else, on the caller's own row", async () => {
     const { fake, client } = db();
     await claimHandle(client, USER, 'luna_rossa');
     const call = fake.calls[0]!;
@@ -369,14 +369,17 @@ describe('claimHandle', () => {
   });
 
   it('surfaces the database refusal as it came, for handleClaimRefusal to read', async () => {
-    const refusal = { code: '23505', message: 'duplicate key value violates unique constraint "profiles_handle_key"' };
+    const refusal = {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "profiles_handle_key"',
+    };
     const { client } = db({ 'profiles.update': [{ error: refusal }] });
     await expect(claimHandle(client, USER, 'luna_rossa')).rejects.toMatchObject(refusal);
   });
 });
 
 describe('handleClaimRefusal', () => {
-  it('reads a clash on the handle\'s unique index as taken', () => {
+  it("reads a clash on the handle's unique index as taken", () => {
     expect(
       handleClaimRefusal({
         code: '23505',
@@ -398,7 +401,8 @@ describe('handleClaimRefusal', () => {
     expect(
       handleClaimRefusal({
         code: '23514',
-        message: 'new row for relation "profiles" violates check constraint "profiles_handle_not_reserved"',
+        message:
+          'new row for relation "profiles" violates check constraint "profiles_handle_not_reserved"',
       }),
     ).toEqual({ reason: 'reserved' });
   });
@@ -407,12 +411,13 @@ describe('handleClaimRefusal', () => {
     expect(
       handleClaimRefusal({
         code: '23514',
-        message: 'new row for relation "profiles" violates check constraint "profiles_handle_check"',
+        message:
+          'new row for relation "profiles" violates check constraint "profiles_handle_check"',
       }),
     ).toEqual({ reason: 'malformed' });
   });
 
-  it('does not read another column\'s CHECK as a handle refusal', () => {
+  it("does not read another column's CHECK as a handle refusal", () => {
     expect(
       handleClaimRefusal({
         code: '23514',
@@ -446,7 +451,16 @@ describe('handleClaimRefusal', () => {
   });
 
   it('is null for anything that is not a PostgREST refusal of the handle', () => {
-    for (const v of [null, undefined, 'PT429', 0, [], {}, { message: 'handle_cooldown' }, { code: 23505 }]) {
+    for (const v of [
+      null,
+      undefined,
+      'PT429',
+      0,
+      [],
+      {},
+      { message: 'handle_cooldown' },
+      { code: 23505 },
+    ]) {
       expect(handleClaimRefusal(v), JSON.stringify(v)).toBeNull();
     }
     expect(handleClaimRefusal({ code: '42501', message: 'rls denied' })).toBeNull();

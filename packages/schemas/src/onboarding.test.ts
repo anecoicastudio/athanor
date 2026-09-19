@@ -48,7 +48,7 @@ describe('onboardingAnswersSchema carries no handle (#782)', () => {
     birth_date: '1990-08-10',
   };
 
-  test('is exactly the funnel\'s answers', () => {
+  test("is exactly the funnel's answers", () => {
     expect(Object.keys(onboardingAnswersSchema.shape).sort()).toEqual([
       'birth_date',
       'identity_tags',

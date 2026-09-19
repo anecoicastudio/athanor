@@ -3406,6 +3406,14 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
       autoComplete: `autoComplete="email"`,
       textContentType: `textContentType="emailAddress"`,
     },
+    {
+      // #782: the @handle is CREATED — at the onboarding step and in the profile editor, one
+      // component for both — so neither platform may fill it.
+      what: 'handle, chosen or renamed',
+      file: `${SRC}components/profile/HandleField.tsx`,
+      autoComplete: `autoComplete="off"`,
+      textContentType: `textContentType="none"`,
+    },
   ];
 
   const flat = (s: string) => s.replace(/\s+/g, ' ');
