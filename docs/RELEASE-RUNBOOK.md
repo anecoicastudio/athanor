@@ -62,7 +62,7 @@
 
 | ID   | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| S-4  | **Privacy nutrition labels (iOS) / Data Safety (Android)** — declare: email (account), profile content, approximate location (PRD §9 "approximate by default"), payments handled by Stripe (not stored by app). **No tracking / no data sold / no third-party trackers.** In-app data deletion available (M9 export/erasure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `⬜ ops`          | Fill App Store Connect Privacy → Data Types and Play Data Safety form. Must match B-4 (no analytics SDK). Declare data-deletion mechanism.                                                                                                                                                                                                                                                 |
+| S-4  | **Privacy nutrition labels (iOS) / Data Safety (Android)** — declare: email (account), profile content, approximate location (PRD §9 "approximate by default"), payments handled by Stripe (not stored by app). **No tracking / no data sold / no third-party trackers.** In-app data deletion available (M9 export/erasure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `⬜ ops`          | Fill App Store Connect Privacy → Data Types and Play Data Safety form. Must match B-4 (no analytics SDK). Declare data-deletion mechanism. Play's delete-account URL is `https://www.athanor.world/delete-account` (#767) — the `www` host, since the apex redirects; live once the release carrying it deploys web. Emailed requests: §7.7.                                               |
 | S-5  | **Age rating** — social-networking app with UGC + user-to-user messaging → 12+/Teen. Reporting/blocking present (M9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `⬜ ops`          | Complete each store's age-rating questionnaire honestly. M9 moderation features (reports + blocks) support UGC policy compliance.                                                                                                                                                                                                                                                          |
 | S-6  | **Circle subscription IAP compliance (iOS)** — Apple requires auto-renewable IAP for digital subscriptions consumed in-app (Guideline 3.1.1). M8 ships Stripe Billing; iOS branch requires Apple IAP (StoreKit / `expo-in-app-purchases`) or the Circle CTA must be absent on iOS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `⬜ M8 follow-up` | M8 must branch by platform: Stripe Billing = Android/web; Apple IAP or no-CTA = iOS. This is not resolved in Fase 1 code; document it and do not ship a Stripe in-app subscribe button on iOS. See §5 (S-IAP-1).                                                                                                                                                                           |
 | S-7  | **Fund contributions IAP compliance (iOS)** — one-off donation to a pooled fund via Stripe Checkout in an external web sheet on iOS (external purchase link), NOT an in-app Payment Sheet. Also gated by the `fund_editions.contributions_enabled` legal gate plus the `fund_surfaces_enabled` client flag (PRD §4.11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `🔁 verify`       | Verify the M7 contribute CTA on iOS opens `expo-web-browser` / Safari checkout and never an in-app Stripe Payment Sheet. Confirm `fund_surfaces_enabled` is OFF by default in `remote_config`. See §5 (S-IAP-2).                                                                                                                                                                           |
@@ -1469,6 +1469,56 @@ FENCE rejecting its own writes, the same regression shape §7.5 records for eras
 write fences on the `claimed_at` the claim handed back, so if that value ever stopped surviving the
 round trip out of `claim_export_jobs` and back in as a filter, no job could leave `processing`.
 Releasing leases will not help; the fix is in the code, not here.
+
+### 7.7 A deletion request by email — filing it on the member's behalf (#767)
+
+`/delete-account` — the URL in Play's Data safety form — tells somebody who cannot or will not
+use the app to write to `info@anecoica.net` from the address they sign in with, and promises that
+we check the request, record it for them, and reply within one month (GDPR Art. 12(3)). This is
+how that promise is kept. The in-app button inserts one `gdpr_erasure_requests` row
+(`requestErasure`, `packages/api/src/gdpr.ts`); the operator inserts the same row, and from there
+the path is identical: the insert bans sign-in in the same transaction (#733) and tonight's
+`erasure-nightly` runs the cascade.
+
+Run in the **production** project's SQL editor (it runs as `postgres`, so the client RLS insert
+policy does not apply).
+
+1. **Identify.** The request must come from the account's own address. Anything else — a
+   different address, a request on somebody else's behalf — gets a reply asking them to write
+   from the account's address, and nothing is filed.
+
+   ```sql
+   select u.id, u.email, u.banned_until,
+          (select string_agg(r.status || ' ' || r.created_at::date, ', ')
+             from public.gdpr_erasure_requests r where r.profile_id = u.id) as requests
+     from auth.users u
+    where lower(u.email) = lower('<sender address>');
+   ```
+
+   Exactly one row, or stop. If `requests` already lists a row that is not `done`, do not file a
+   second one: `requested` / `processing` is already on its way, and `partial` / `failed` is §7.5's.
+
+2. **File.**
+
+   ```sql
+   insert into public.gdpr_erasure_requests (profile_id)
+   values ('<id from step 1>')
+   on conflict do nothing
+   returning id, status;
+   ```
+
+   One row back, `requested`, is the filed request. No row back means an open `requested` row
+   already existed (`gdpr_erasure_requests_one_open_per_profile`) — the same outcome the app treats
+   as success on its `23505`. Re-run step 1: `banned_until` now reads a century out.
+
+3. **Reply** — the request is recorded, sign-in is already blocked, the deletion runs overnight
+   and usually completes within a day. Say nothing the page does not.
+
+4. **Next day**, confirm it finished: the row reads `done`. `partial` or `failed` → §7.5.
+
+Smoked on staging 2026-09-19 inside a DO block that always raises: the address lookup matched
+case-insensitively, the insert returned `requested` and set `banned_until` a century out, a second
+insert was a no-op leaving one open row, and nothing persisted.
 
 ## 8. Acceptance Gates (G1–G7)
 
