@@ -64,8 +64,8 @@ export async function flushOnboardingDraft(userId: string, email: string): Promi
     return 'flushed';
   } catch (e) {
     devWarn('[onboarding] flush', e);
-    // A check_violation is the database refusing the CONTENT — the 14+ guard or the 1900 floor
-    // on birth_date (#694). Retrying the same draft can only fail the same way, and the guard
+    // A check_violation is the database refusing the CONTENT — the min-age guard (18, #778) or
+    // the 1900 floor on birth_date (#694). Retrying the same draft can only fail the same way, and the guard
     // would route the member back to a funnel that rehydrates and re-accepts the date: a trap
     // until a cold restart. Drop it; the fresh funnel asks again.
     if (isCheckViolation(e)) {

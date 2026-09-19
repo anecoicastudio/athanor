@@ -10,8 +10,8 @@ import { birthDateSchema } from './zodiac.ts';
  * `birth_date` is REQUIRED here and nowhere else (#694): this schema is what a NEW sign-up's
  * draft is flushed through, so it is the one place requiredness belongs. The column itself is
  * nullable and `isProfileComplete` ignores it — a pre-#694 member must not be routed back
- * into the funnel. The 14+ floor is @athanor/core's `isAtLeastAge` (needs a clock) plus the
- * DB trigger; shape alone cannot know today's date.
+ * into the funnel. The age floor (`MIN_MEMBER_AGE`, 18 — #778) is @athanor/core's `isAtLeastAge`
+ * (needs a clock) plus the DB trigger; shape alone cannot know today's date.
  */
 export const onboardingAnswersSchema = z.object({
   // `claimableHandleSchema`, not `handleSchema`: this is a claim (#430).
