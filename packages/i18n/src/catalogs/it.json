@@ -306,7 +306,7 @@
   "handle.status.reserved": "Questo nome è riservato. Scegline un altro.",
   "handle.status.malformed": "Solo lettere minuscole, numeri e _, da 3 a 30.",
   "handle.status.unchecked": "Non riusciamo a controllarlo adesso. Puoi provare lo stesso.",
-  "handle.renameHint": "Puoi cambiarlo una volta ogni {days} giorni. I link al tuo profilo con il nome di prima smetteranno di funzionare.",
+  "handle.renameHint": "Puoi cambiarlo una volta ogni {days} giorni. I link al tuo profilo con il nome di prima non porteranno più a te.",
   "handle.cooldown": "Puoi cambiarlo di nuovo dal {date}.",
   "handle.error": "Non siamo riusciti a salvarlo. Riprova.",
   "onboarding.locale.label": "Lingua",

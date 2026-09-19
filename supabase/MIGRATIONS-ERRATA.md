@@ -2327,3 +2327,16 @@ This is why `20260919124730` could revoke anon's `SELECT (geo)` and leave `publi
 `supabase_realtime` publication with no column list. `realtime.*` is platform-managed and outside
 the migrations, so no pgTAP file here can assert it — re-query `pg_get_functiondef('realtime.apply_rls'::regproc)`
 before relying on it for a new column.
+
+## `20260617104656_aura_scores.sql` — "anon … read any row" and «World-readable» are superseded
+
+The header (`:1-2`) says anon and authenticated "read any row", and the table comment (`:15-16`)
+called the snapshot «World-readable». Both described the table-level anon SELECT that
+`20260617105734:8` granted. Since `20260919174008` (#782) anon holds SELECT on `profile_id` and
+`score` only — the breakdown by kind of action, the peak and the two dates are for members — and
+the table comment was rewritten there with the #180 marker kept. The row policy is unchanged:
+anon still sees every ROW, just not every column.
+
+Asserted by: `supabase/tests/0036_aura_scores_rls.test.sql` (the column privileges, and 42501 on
+`select breakdown` / `select *` as anon) and `supabase/tests/0121_grant_catalog_sweep.test.sql`
+(`aura_scores` column-scoped for anon; eight tables with column-level ACLs).

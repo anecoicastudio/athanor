@@ -2,7 +2,7 @@
  * Profile completeness for the M1 acceptance criterion (PRD §4.1: ≥70% complete).
  * Pure — the caller injects `hasDream` (the dream lives in a separate table).
  *
- * The required trio (handle + ≥1 identity + ≥1 seeking) is what `isProfileComplete`
+ * The required trio (handle + ≥1 identity + ≥1 seeking) is what `nextOnboardingStep`
  * gates on; its weights sum to 0.75 so a minimally-complete profile already reads ≥70%.
  * Bio and dream are the remaining encouragement.
  */

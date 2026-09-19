@@ -1,25 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { isProfileComplete, nextOnboardingStep } from './complete';
-
-describe('isProfileComplete', () => {
-  const complete = { handle: 'marco', identity_tags: ['imprenditore'], seeking: ['connessioni'] };
-
-  test('true when handle + at least one tag each', () => {
-    expect(isProfileComplete(complete)).toBe(true);
-  });
-
-  test('false when handle missing', () => {
-    expect(isProfileComplete({ ...complete, handle: null })).toBe(false);
-  });
-
-  test('false when identity_tags empty', () => {
-    expect(isProfileComplete({ ...complete, identity_tags: [] })).toBe(false);
-  });
-
-  test('false when seeking empty', () => {
-    expect(isProfileComplete({ ...complete, seeking: [] })).toBe(false);
-  });
-});
+import { nextOnboardingStep } from './complete';
 
 /**
  * #782 — the handle is chosen on its own screen AFTER the account exists, never derived from the
@@ -51,7 +31,7 @@ describe('nextOnboardingStep', () => {
     expect(nextOnboardingStep({ handle: 'marco', identity_tags: [], seeking: [] })).toBe('funnel');
   });
 
-  test('an empty-string handle counts as missing, like isProfileComplete', () => {
+  test('an empty-string handle counts as missing', () => {
     expect(nextOnboardingStep({ ...answered, handle: '' })).toBe('handle');
   });
 });
