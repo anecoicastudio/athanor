@@ -214,8 +214,8 @@ describe('deleteAccount', () => {
       deleteAccount[loc].sections.at(-1)!.body.find((p) => /Circle/.test(p))!;
     expect(payments('it')).toMatch(/per dieci anni per i nostri obblighi contabili e fiscali/);
     expect(payments('en')).toMatch(/for ten years for our accounting and tax obligations/);
-    expect(payments('it')).not.toMatch(/la legge/);
-    expect(payments('en')).not.toMatch(/the law/);
+    expect(payments('it')).not.toMatch(/\blegge\b/i);
+    expect(payments('en')).not.toMatch(/\blaw\b|legally/i);
   });
 
   it.each(['it', 'en'] as const)(
@@ -264,7 +264,7 @@ describe('deleteAccount', () => {
  * existed. What these pin is the part that must not drift: the scope, the labels a person has to
  * find in the app (read from the catalog, as /delete-account does), and the retention sentences
  * that /delete-account already states — the same words, not a second paraphrase of the cascade.
- * The minimum age follows `MIN_MEMBER_AGE` (see legal-content.age.test.ts).
+ * The minimum age and the Aura numbers follow `@athanor/core` (see legal-content.constants.test.ts).
  */
 describe('privacy', () => {
   const locales = ['it', 'en'] as const;
@@ -294,31 +294,45 @@ describe('privacy', () => {
     expect(firstSite).toBeGreaterThan(lastApp);
   });
 
-  it.each(locales)("%s walks people to the app's own labels", (loc) => {
-    const text = all(loc);
-    for (const key of [
-      'settings.title',
-      'settings.section.privacy',
-      'settings.export.title',
-      'account.delete.row',
-      'account.delete.title',
-      'settings.trust.title',
-      'gdpr.consent.section',
-      'gdpr.consent.diagnostics',
-      'settings.notif.title',
-      'profile.visibility.label',
-      'visibility.public',
-      'visibility.members',
-      'visibility.private',
-      'story.own.pin',
-      'live.tab.vicino',
-      'momenti.title',
-      'momenti.suggestionsTitle',
-      'gdpr.location.label',
-      'gdpr.consent.comms',
-    ] as const) {
-      expect(text, key).toContain(t(key, loc));
-    }
+  it.each(locales)(
+    "%s walks people to the app's own labels, quoted as the app shows them",
+    (loc) => {
+      // Quoted, because several labels are also ordinary words («Notifiche», «Momenti») that the
+      // prose would contain anyway — an unquoted match could pass with the interpolation gone.
+      const text = all(loc);
+      const quote = (label: string) => (loc === 'it' ? `«${label}»` : `“${label}”`);
+      for (const key of [
+        'settings.title',
+        'settings.section.privacy',
+        'settings.export.title',
+        'account.delete.row',
+        'account.delete.title',
+        'settings.trust.title',
+        'gdpr.consent.section',
+        'gdpr.consent.diagnostics',
+        'settings.notif.title',
+        'profile.visibility.label',
+        'visibility.public',
+        'visibility.members',
+        'visibility.private',
+        'story.own.pin',
+        'live.tab.vicino',
+        'momenti.suggestionsTitle',
+        'gdpr.location.label',
+        'gdpr.consent.comms',
+      ] as const) {
+        expect(text, key).toContain(quote(t(key, loc)));
+      }
+    },
+  );
+
+  it.each(locales)('%s names Momenti by its catalog name in the heading', (loc) => {
+    const headings = privacy[loc].sections.map((s) => s.heading);
+    expect(
+      headings.some((h) =>
+        h.endsWith(`Aura ${loc === 'it' ? 'e' : 'and'} ${t('momenti.title', loc)}`),
+      ),
+    ).toBe(true);
   });
 
   it.each(locales)(
@@ -347,7 +361,7 @@ describe('privacy', () => {
       // one sentence allowed to name the law, and it names no period.
       const tenYears = paragraphs(loc).filter((p) => /dieci anni|ten years/.test(p));
       expect(tenYears.length).toBeGreaterThan(0);
-      for (const p of tenYears) expect(p).not.toMatch(/la legge|the law/);
+      for (const p of tenYears) expect(p).not.toMatch(/\blegge\b|\blaw\b|legally/i);
     },
   );
 

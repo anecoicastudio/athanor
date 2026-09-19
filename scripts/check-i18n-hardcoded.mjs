@@ -114,7 +114,8 @@ const ALLOWLIST = new Set([]);
 /**
  * The files permitted to carry `i18n-ignore-file`, repo-relative, one per genuine reason.
  *
- * `legal-content.ts` IS the translation source for the presentation site's two legal documents:
+ * `legal-content.ts` IS the translation source for the site's three legal documents (the privacy
+ * policy, which covers the app too, the terms, and the account-deletion page):
  * every export is a `Record<Locale, …>`, so IT/EN parity is enforced by the type rather than by
  * the catalog, and rule 5's object-literal pass would otherwise report every heading in it.
  *

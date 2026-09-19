@@ -1,4 +1,10 @@
-import { MIN_MEMBER_AGE } from '@athanor/core';
+import {
+  DECAY,
+  MIN_MEMBER_AGE,
+  REACTION_AUTHOR_MIN_SCORE,
+  SCORE_MAX,
+  SCORE_MIN,
+} from '@athanor/core';
 import { t, type Locale, type MessageKey } from '@athanor/i18n';
 
 /**
@@ -27,6 +33,15 @@ const EMAIL = 'info@anecoica.net';
 
 const tIt = (key: MessageKey) => t(key, 'it');
 const tEn = (key: MessageKey) => t(key, 'en');
+
+/**
+ * The score engine's own numbers, as the policy states them. Read from `@athanor/core` rather
+ * than copied (rule 10: they are server-tunable), so retuning the engine cannot leave the published
+ * explanation of the score describing the old one. `legal-content.constants.test.ts` pins it.
+ */
+const DECAY_IDLE_DAYS = DECAY.IDLE_DAYS_BEFORE;
+const DECAY_WEEKLY_PCT = Math.round((1 - DECAY.WEEKLY_FACTOR) * 100);
+const DECAY_FLOOR_PCT = Math.round(DECAY.PEAK_FLOOR_RATIO * 100);
 
 /**
  * What the erasure cascade deletes beyond the in-app deferral line, and what it keeps. Written
@@ -60,7 +75,7 @@ const ERASURE_KEEPS: Record<Locale, string[]> = {
 
 /**
  * /privacy — one policy for the app and this site (#774). The app part says only what the tree
- * does; the PR that introduced it carries a claim-by-claim source table. Labels a person has to find in
+ * does; the PR for #774 carries a claim-by-claim source table. Labels a person has to find in
  * the app are read from the UI catalog, the minimum age from `MIN_MEMBER_AGE`, and the erasure
  * sentences are /delete-account's own (`ERASURE_DELETES` / `ERASURE_KEEPS`), so neither page can
  * drift from the other. The fund is OFF on production (#249): contribution records are described
@@ -124,9 +139,9 @@ export const privacy: Record<Locale, LegalDoc> = {
         ],
       },
       {
-        heading: "Nell'app: Aura e Momenti",
+        heading: `Nell'app: Aura e ${tIt('momenti.title')}`,
         body: [
-          "L'Aura è il tuo punteggio di reputazione, da 0 a 1000. Lo calcola un programma sui nostri server, solo a partire da ciò che fai nell'app: verificare la tua identità, partecipare a eventi o organizzarli, completare le tappe del tuo sogno (le segni tu), aiutare altre persone con le loro, le conversazioni in chat in cui scrivete entrambi e che arrivano ad almeno dieci messaggi, e le stelle che altre persone accendono sui tuoi post. Alcune azioni hanno un limite per periodo, gli scambi ripetuti con la stessa persona valgono via via meno, e una stella conta solo se chi la accende ha più di 300 punti di Aura. Se per più di 30 giorni non ricevi punti, il punteggio cala del 2% a settimana, mai sotto il 40% del massimo che hai raggiunto.",
+          `L'Aura è il tuo punteggio di reputazione, da ${SCORE_MIN} a ${SCORE_MAX}. Lo calcola un programma sui nostri server, solo a partire da ciò che fai nell'app: verificare la tua identità, partecipare a eventi o organizzarli, completare le tappe del tuo sogno (le segni tu), aiutare altre persone con le loro, le conversazioni in chat in cui scrivete entrambi e che arrivano ad almeno dieci messaggi, e le stelle che altre persone accendono sui tuoi post. Alcune azioni hanno un limite per periodo, gli scambi ripetuti con la stessa persona valgono via via meno, e una stella conta solo se chi la accende ha più di ${REACTION_AUTHOR_MIN_SCORE} punti di Aura. Se per più di ${DECAY_IDLE_DAYS} giorni non ricevi punti, il punteggio cala del ${DECAY_WEEKLY_PCT}% a settimana, mai sotto il ${DECAY_FLOOR_PCT}% del massimo che hai raggiunto.`,
           "L'abbonamento Circle e i contributi al fondo non danno punti: l'Aura non si compra. Se il team di moderazione, decidendo su una segnalazione contro di te, sceglie una penalità, l'Aura scende. L'Aura compare sul tuo profilo, decide se le stelle che accendi contano, e chi ha Circle può usarla per filtrare la ricerca delle persone.",
           `Ogni notte un programma propone a chi ha un sogno attivo fino a tre persone con cui parlare: sono i ${tIt('momenti.title')}. Confronta le parole che vi descrivono, ciò che cercate, le competenze, le professioni, la vicinanza delle vostre città e gli eventi a cui avete partecipato entrambi; se non trova affinità, può proporti chi ha un sogno nuovo. A chi riceve la proposta mostriamo il perché, per esempio un evento in comune. Lo stesso confronto sceglie fino a tre persone per «${tIt('momenti.suggestionsTitle')}».`,
           `Ciò che imposti su «${tIt('visibility.private')}» non lo usiamo mai per proporti ad altre persone e non lo mostriamo a nessuno; lo usiamo solo per scegliere chi proporre a te. Non proponiamo tra loro persone che si sono bloccate, e se imposti il tuo sogno su «${tIt('visibility.private')}» non ti proponiamo a nessuno.`,
@@ -201,7 +216,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Basi giuridiche',
         body: [
-          "Trattiamo i dati dell'app per darti il servizio che chiedi iscrivendoti — account, profilo, contenuti, messaggi, eventi, biglietti, Circle, Aura e Momenti: la base giuridica è il contratto tra te e noi. Senza questi dati l'app non può funzionare.",
+          `Trattiamo i dati dell'app per darti il servizio che chiedi iscrivendoti — account, profilo, contenuti, messaggi, eventi, biglietti, Circle, Aura e ${tIt('momenti.title')}: la base giuridica è il contratto tra te e noi. Senza questi dati l'app non può funzionare.`,
           `Diagnostica, notifiche push e «${tIt('gdpr.consent.comms')}» si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Per ora non mandiamo email di comunicazione, anche se hai acceso quel consenso. Anche la lista d’attesa del sito si basa sul tuo consenso.`,
           `Segnalazioni, blocchi, moderazione e protezione dagli abusi, come i log tecnici e il cookie della lingua sul sito, si basano sul nostro legittimo interesse a tenere ${tIt('store.name')} sicuro e funzionante. Puoi opporti in qualsiasi momento scrivendoci.`,
           'Conserviamo i pagamenti per i nostri obblighi contabili e fiscali.',
@@ -293,9 +308,9 @@ export const privacy: Record<Locale, LegalDoc> = {
         ],
       },
       {
-        heading: 'In the app: Aura and Momenti',
+        heading: `In the app: Aura and ${tEn('momenti.title')}`,
         body: [
-          "Aura is your reputation score, from 0 to 1000. A program on our servers calculates it only from what you do in the app: verifying your identity, attending or organizing events, completing your dream's milestones (you mark them done yourself), helping other people with theirs, chat conversations in which you both write and that reach at least ten messages, and the stars other people light on your posts. Some actions have a limit per period, repeated exchanges with the same person are worth less and less, and a star counts only if the person lighting it has more than 300 Aura. If you receive no points for more than 30 days, the score drops by 2% a week, never below 40% of the highest it has reached.",
+          `Aura is your reputation score, from ${SCORE_MIN} to ${SCORE_MAX}. A program on our servers calculates it only from what you do in the app: verifying your identity, attending or organizing events, completing your dream's milestones (you mark them done yourself), helping other people with theirs, chat conversations in which you both write and that reach at least ten messages, and the stars other people light on your posts. Some actions have a limit per period, repeated exchanges with the same person are worth less and less, and a star counts only if the person lighting it has more than ${REACTION_AUTHOR_MIN_SCORE} Aura. If you receive no points for more than ${DECAY_IDLE_DAYS} days, the score drops by ${DECAY_WEEKLY_PCT}% a week, never below ${DECAY_FLOOR_PCT}% of the highest it has reached.`,
           'A Circle subscription and fund contributions earn no points: Aura cannot be bought. If the moderation team, deciding on a report against you, chooses a penalty, your Aura goes down. Aura appears on your profile, decides whether the stars you light count, and Circle members can use it to filter people search.',
           `Every night a program suggests, to people with an active dream, up to three people to talk to: these are ${tEn('momenti.title')}. It compares the words that describe you both, what you are looking for, skills, professions, how close your cities are and the events you both attended; when it finds no affinity, it may suggest someone with a new dream. We show the person receiving the suggestion why, for example an event in common. The same comparison picks up to three people for “${tEn('momenti.suggestionsTitle')}”.`,
           `Anything you set to “${tEn('visibility.private')}” is never used to suggest you to others and never shown to anyone; we use it only to choose whom to suggest to you. We never suggest people who have blocked each other, and if you set your dream to “${tEn('visibility.private')}” we suggest you to no one.`,
@@ -370,7 +385,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'Legal bases',
         body: [
-          'We process app data to give you the service you ask for when you join — account, profile, content, messages, events, tickets, Circle, Aura and Momenti: the legal basis is the contract between you and us. Without this data the app cannot work.',
+          `We process app data to give you the service you ask for when you join — account, profile, content, messages, events, tickets, Circle, Aura and ${tEn('momenti.title')}: the legal basis is the contract between you and us. Without this data the app cannot work.`,
           `Diagnostics, push notifications and “${tEn('gdpr.consent.comms')}” rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. For now we send no update emails, even if you turned that consent on. The site's waitlist rests on your consent too.`,
           `Reports, blocks, moderation and protection against abuse, like the site's technical logs and language cookie, rest on our legitimate interest in keeping ${tEn('store.name')} safe and working. You can object at any time by writing to us.`,
           'We keep payments for our accounting and tax obligations.',
