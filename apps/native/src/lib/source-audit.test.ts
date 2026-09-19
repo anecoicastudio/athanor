@@ -3519,6 +3519,13 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
   /** The app's two field primitives. Either one on a registered screen owes a reveal. */
   const FIELDS = ['Input', 'Field'];
 
+  /**
+   * The forms whose CTA rides along with the focused row (#752). Revealing the row alone landed
+   * the password field and left «Accedi» under the keyboard, and nothing but a device can see
+   * that happen again — the browser harness has no keyboard to cover anything.
+   */
+  const SUBMITS = [`${SRC}app/(auth)/welcome.tsx`, `${SRC}app/(auth)/forgot-password.tsx`];
+
   const SEAM = 'lib/reveal-on-focus.ts';
 
   /** Keys quoted at a `.rowRef('…')` / `.fieldProps('…')` call, receiver-agnostic. */
@@ -3600,6 +3607,21 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
       `a reveal key is spelled two ways, or the registry is stale:\n  ${wrong.join('\n  ')}\n` +
         'A key that matches nothing fails SILENTLY — the reveal measures a row it was never ' +
         'given and returns, so the field stays under the keyboard with nothing to see (#689).',
+    ).toEqual([]);
+  });
+
+  it('the registered forms bring their submit along with the focused row', () => {
+    const wrong = SUBMITS.filter(
+      (p) =>
+        !FILES.includes(p) ||
+        !/\bref=\{[A-Za-z_$][\w$]*\.submitRef\(\)\}/.test(stripComments(read(p))),
+    ).map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(
+      wrong,
+      `a form no longer hands its CTA to the reveal:\n  ${wrong.join('\n  ')}\n` +
+        'Without `ref={reveal.submitRef()}` on the CTA block the reveal lands the field and ' +
+        'leaves the only button under the keyboard — #752, on a screen nothing but a device can ' +
+        'check. A moved file fails here too.',
     ).toEqual([]);
   });
 

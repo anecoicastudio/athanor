@@ -61,13 +61,24 @@ export const REVEAL_PAD = 12;
  */
 export const KEYBOARD_SETTLE_MS = 350;
 
-/** What `measureLayout` measures against: a node handle, or the host instance itself. */
-export type MeasureRelativeTo = number | object;
+/**
+ * What `measureLayout` measures against: the host INSTANCE, never a node handle (#752).
+ *
+ * This used to be `number | object`, and the `number` is what let a handle typecheck all the way
+ * to the call. On the New Architecture RN's `ReactNativeElement.measureLayout` rejects anything
+ * that is not a host instance by returning early — a `__DEV__`-only warning («ref.measureLayout
+ * must be called with a ref to a native component») and NEITHER callback — so the reveal below
+ * was a silent no-op on every Fabric build, and a release build said nothing at all.
+ */
+export type MeasureRelativeTo = object;
 
 /** The half of a native View this file uses — every RN and react-native-web host node has it. */
 export type RowHandle = {
   measureLayout(
-    relativeTo: MeasureRelativeTo,
+    // Still admits a `number`, because RN's own signature does and a View has to satisfy this
+    // type. What keeps a handle from ever arriving is the other end: `ScrollHandle` can only
+    // hand out a `MeasureRelativeTo`.
+    relativeTo: number | MeasureRelativeTo,
     onSuccess: (x: number, y: number, width: number, height: number) => void,
     onFail?: () => void,
   ): void;
@@ -75,11 +86,18 @@ export type RowHandle = {
 
 /**
  * The half of a ScrollView this file uses. Two of the three are optional because they are the
- * ones that can be absent: react-native-web attaches `getInnerViewNode` to the ref node after
+ * ones that can be absent: react-native-web attaches `getInnerViewRef` to the ref node after
  * mount, and `measure` belongs to the host instance rather than to the component's own API.
+ *
+ * `getInnerViewRef`, not `getInnerViewNode`: RN 0.86 returns the content view's host instance
+ * from the first and a `findNodeHandle` number from the second (`ScrollView.js`), and only the
+ * instance survives `measureLayout` (see `MeasureRelativeTo`). react-native-web returns the same
+ * DOM node from both, which is why the browser harness never saw the difference. RN's `.d.ts`
+ * omits the method — it is on the Flow `ScrollViewImperativeMethods` — and points at the
+ * `innerViewRef` PROP instead, which react-native-web does not have.
  */
 export type ScrollHandle = {
-  getInnerViewNode?: () => MeasureRelativeTo | null | undefined;
+  getInnerViewRef?: () => MeasureRelativeTo | null | undefined;
   measure?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
   scrollTo(options: { y: number; animated?: boolean }): void;
 };
@@ -105,6 +123,26 @@ export type RevealOnFocus = {
    * mounting under a failed submit) scrolls the form back to a field nobody is typing in.
    */
   fieldProps: (key: string) => { onFocus: () => void; onBlur: () => void };
+  /**
+   * `ref` for the form's submit — the CTA's own block, not a row (#752). Optional: a screen that
+   * wires it gets the submit scrolled into view WITH whichever row is focused, whenever the two
+   * fit in the viewport together (`revealSpan`); one that does not keeps the row-only reveal.
+   *
+   * It exists because revealing the row is not the same as keeping the form usable. On
+   * `(auth)/welcome` the password row ends at «Forgot your password?», and the CTA sits under it
+   * — so the reveal could land the field perfectly and still leave «Sign in» under the keyboard,
+   * with nothing on screen to press. On an iPhone with a home indicator the viewport also stops
+   * 34pt short of the keyboard: on Fabric, `Screen`'s bottom padding is the safe-area PROVIDER's
+   * inset (`RNCSafeAreaViewShadowNode.cpp`), not the view's own, so it stays reserved while
+   * `KeyboardAvoiding` has lifted the view off the home indicator. Measured on the iOS
+   * simulator, 2026-09-18; the reveal works inside whatever viewport it is given, so it does not
+   * depend on that being fixed.
+   *
+   * A call that hands back one stable ref, like `rowRef(key)`, rather than a ref-valued property:
+   * the React Compiler's lint reads a `…Ref` property passed as a value as a ref OBJECT, and then
+   * flags every `reveal.*` read during render on the screen (`react-hooks/refs`).
+   */
+  submitRef: () => (node: RowHandle | null) => void;
 };
 
 export type RevealOptions = {
@@ -143,6 +181,22 @@ export function revealOffset(
 }
 
 /**
+ * What the reveal aims at: the focused row, stretched to take in the form's submit when the two
+ * fit in the viewport together — pads included, the same test `revealOffset` applies — and the
+ * row alone when they do not, because a field pushed off the top to show its button is worse
+ * than a button one scroll away (the return key still submits, #752).
+ */
+export function revealSpan(
+  row: { top: number; height: number },
+  submit: { top: number; height: number },
+  viewport: number,
+): { top: number; height: number } {
+  const top = Math.min(row.top, submit.top);
+  const bottom = Math.max(row.top + row.height, submit.top + submit.height);
+  return bottom - top + 2 * REVEAL_PAD < viewport ? { top, height: bottom - top } : row;
+}
+
+/**
  * One reveal controller per screen. Holds the list, the rows by key and the three numbers the
  * arithmetic needs; hands back props to spread and per-key callbacks that are stable for the
  * life of the screen (a fresh ref identity per render would detach and re-attach every row).
@@ -158,23 +212,56 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
   let content = 0;
   let offset = 0;
   let focused: string | null = null;
+  let submit: RowHandle | null = null;
+  const submitRef = (node: RowHandle | null) => {
+    submit = node;
+  };
   const rows = new Map<string, RowHandle | null>();
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
 
-  const reveal = (key: string) => {
+  /**
+   * Which event asked for the reveal, because two of them must be more careful than the rest:
+   *
+   * - `tap` measures a viewport the keyboard has not shrunk yet, so it reveals the row ALONE: a
+   *   row and a submit that fit in THAT viewport are no reason to drag a field the member can
+   *   already see from under their finger, towards a button the keyboard is about to cover (it
+   *   did, on the iPhone SE signup form). Every later pass runs with the keyboard up and brings
+   *   the submit along.
+   * - `grow` never moves a target taller than the viewport. Growth under a focused row that
+   *   already does not fit is a multiline field being typed into — an event or project
+   *   description — and "show its top" would bury the caret, which sits at the BOTTOM, once per
+   *   new line; on Android it would fight the native caret-follow on every keystroke. Only the
+   *   first reveal of a tall row shows its top. Latent until #752: before it, no pass ever
+   *   measured anything on a native build.
+   */
+  const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow') => {
     const row = rows.get(key);
-    const inner = list?.getInnerViewNode?.();
+    const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
     const scroll = list;
+    const land = (target: { top: number; height: number }, height: number) => {
+      if (pass === 'grow' && target.height + 2 * REVEAL_PAD >= height) return;
+      const y = revealOffset(target, { height, offset, content });
+      if (y === null) return;
+      scroll.scrollTo({ y, animated: true });
+    };
     const against = (height: number) => {
       if (height <= 0) return;
       row.measureLayout(
         inner,
         (_x, top, _width, rowHeight) => {
-          const y = revealOffset({ top, height: rowHeight }, { height, offset, content });
-          if (y === null) return;
-          scroll.scrollTo({ y, animated: true });
+          const field = { top, height: rowHeight };
+          // Read at callback time: the submit can mount or unmount between the tap and here.
+          const cta = pass === 'tap' ? null : submit;
+          if (!cta) return land(field, height);
+          cta.measureLayout(
+            inner,
+            (_sx, submitTop, _sw, submitHeight) =>
+              land(revealSpan(field, { top: submitTop, height: submitHeight }, height), height),
+            // A submit that cannot be measured costs the ride-along, never the row's own reveal.
+            () => land(field, height),
+          );
         },
         // The row unmounted between the tap and the callback — a mode switch mid-focus does it.
         () => undefined,
@@ -201,7 +288,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         // scroll the form the moment the member dismissed the keyboard.
         const shrank = viewport > 0 && next < viewport;
         viewport = next;
-        if (shrank && focused) reveal(focused);
+        if (shrank && focused) reveal(focused, 'shrink');
       },
       onScroll: (event) => {
         offset = event.nativeEvent.contentOffset.y;
@@ -211,7 +298,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         content = height;
         // The password checklist mounts on the first keystroke, under a field that was fully
         // visible when it was tapped. Growth under the focused row is a second reveal.
-        if (grew && focused) reveal(focused);
+        if (grew && focused) reveal(focused, 'grow');
       },
       scrollEventThrottle: 16,
     },
@@ -231,11 +318,11 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         props = {
           onFocus: () => {
             focused = key;
-            reveal(key);
+            reveal(key, 'tap');
             // Again once the keyboard has landed — see KEYBOARD_SETTLE_MS. Skipped if focus has
             // moved on by then, so a fast tap-through does not drag the form back.
             schedule(() => {
-              if (focused === key) reveal(key);
+              if (focused === key) reveal(key, 'settle');
             });
           },
           // Only if this field is still the armed one: moving between fields can deliver the
@@ -249,5 +336,6 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
       }
       return props;
     },
+    submitRef: () => submitRef,
   };
 }

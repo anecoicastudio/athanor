@@ -6,7 +6,8 @@ import { createRevealOnFocus, type RevealOnFocus } from '@/lib/reveal-on-focus';
  * scrolled into view when it is tapped. Companion to `KeyboardAvoiding`, which uncovers the
  * viewport but moves nothing inside it.
  *
- * Wire it three ways on the screen and nowhere else:
+ * Wire it three ways on the screen and nowhere else — plus a fourth, optional one for the form's
+ * submit:
  *
  * ```tsx
  * const reveal = useRevealOnFocus();
@@ -17,11 +18,17 @@ import { createRevealOnFocus, type RevealOnFocus } from '@/lib/reveal-on-focus';
  *       <Input … {...reveal.fieldProps('password')} />
  *       …hint, checklist…
  *     </View>
+ *     <View className="mt-7" ref={reveal.submitRef()}>   // optional (#752)
+ *       <Button … />
+ *     </View>
  * ```
  *
  * The ref goes on the ROW, not on the field: what has to end up visible is the label, the field
- * and whatever hangs off it. Row and field take the same key — mismatched keys is the one way to
- * wire this and get silence, so `lib/source-audit.test.ts` §36 pins the two sets equal.
+ * and whatever hangs off it. `submitRef` goes on the CTA's block, and brings it up with whichever
+ * row is focused whenever the two fit together — without it a reveal can land the last field
+ * perfectly and still leave the only button under the keyboard. Row and field take the same key —
+ * mismatched keys is the one way to wire this and get silence, so `lib/source-audit.test.ts` §36
+ * pins the two sets equal.
  *
  * Everything the arithmetic does lives in `lib/reveal-on-focus.ts`, where a node-environment
  * test can reach it; this is the React half, and there is nothing else to it. The controller is

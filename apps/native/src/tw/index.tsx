@@ -97,7 +97,14 @@ export function FlatList<ItemT>(props: FlatListProps<ItemT>) {
 }
 FlatList.displayName = 'CSS(FlatList)';
 
-export type TextInputProps = React.ComponentProps<typeof RNTextInput> & { className?: string };
+// `ref` for the same reason View and ScrollView declare theirs: a form moves focus from one field
+// to the next on the return key (#752), and `focus()` lives on the instance. `TextInputRef` names
+// that instance for call sites, which §30 keeps from importing TextInput from react-native.
+export type TextInputRef = RNTextInput;
+export type TextInputProps = React.ComponentProps<typeof RNTextInput> & {
+  className?: string;
+  ref?: React.Ref<TextInputRef>;
+};
 export const TextInput = (props: TextInputProps) =>
   useCssElement(RNTextInput, withTextDefaults(props), { className: 'style' });
 TextInput.displayName = 'CSS(TextInput)';

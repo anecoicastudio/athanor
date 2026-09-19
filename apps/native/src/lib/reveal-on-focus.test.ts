@@ -3,14 +3,36 @@ import {
   createRevealOnFocus,
   REVEAL_PAD,
   revealOffset,
+  revealSpan,
   type RowHandle,
   type ScrollHandle,
 } from './reveal-on-focus';
 
-/** A row that answers `measureLayout` synchronously, the way the native call answers late. */
+/**
+ * The list's content view as Fabric hands it out: a host INSTANCE, which is the only thing
+ * `measureLayout` accepts as its relative-to argument on the New Architecture.
+ */
+const INNER = { host: 'content view' };
+
+/**
+ * The node HANDLE the same list still offers through `getInnerViewNode()`. Every fake list below
+ * carries it, so a reveal that reached for it again would find it — and get silence back.
+ */
+const HANDLE = 7;
+
+/**
+ * A row that answers `measureLayout` synchronously, the way the native call answers late — and
+ * only the way Fabric does (#752). RN 0.86's `ReactNativeElement.measureLayout` returns early for
+ * anything that is not a host instance: a dev-only warning, and NEITHER callback, so nothing
+ * downstream ever learns the measurement was refused. This fake refuses the same way; a fake that
+ * ignored `relativeTo` is what let a node handle pass here for three weeks.
+ */
 function row(top: number, height: number): RowHandle {
   return {
-    measureLayout: (_relativeTo, onSuccess) => onSuccess(0, top, 320, height),
+    measureLayout: (relativeTo, onSuccess) => {
+      if (relativeTo !== INNER) return;
+      onSuccess(0, top, 320, height);
+    },
   };
 }
 
@@ -21,17 +43,24 @@ function deadRow(): RowHandle {
   };
 }
 
-function list(): ScrollHandle & { scrollTo: ReturnType<typeof vi.fn> } {
+type FakeList = ScrollHandle & {
+  getInnerViewNode: () => number;
+  scrollTo: ReturnType<typeof vi.fn>;
+};
+
+function list(): FakeList {
   return {
-    getInnerViewNode: () => 7,
+    getInnerViewNode: () => HANDLE,
+    getInnerViewRef: () => INNER,
     scrollTo: vi.fn(),
   };
 }
 
 /** A list that answers `measure` — every real host instance does; the fakes above do not. */
-function measurableList(height: number) {
+function measurableList(height: number): FakeList {
   return {
-    getInnerViewNode: () => 7,
+    getInnerViewNode: () => HANDLE,
+    getInnerViewRef: () => INNER,
     measure: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 0, 320, height),
     scrollTo: vi.fn(),
   };
@@ -96,6 +125,171 @@ describe('revealOffset — the minimal scroll that puts a row on screen', () => 
   });
 });
 
+describe('revealSpan — the submit rides along only when it fits (#752)', () => {
+  it('stretches the target down to the submit when the two fit together', () => {
+    // Row 300–380, submit 420–472: 172 tall, plus a pad either side, inside 400.
+    expect(revealSpan({ top: 300, height: 80 }, { top: 420, height: 52 }, 400)).toEqual({
+      top: 300,
+      height: 172,
+    });
+  });
+
+  it('keeps the row alone when row and submit together would not fit', () => {
+    // 300 → 700 is 400 tall before the pads: showing it would push the field off the top.
+    expect(revealSpan({ top: 300, height: 80 }, { top: 648, height: 52 }, 400)).toEqual({
+      top: 300,
+      height: 80,
+    });
+  });
+
+  it('treats an exact fit as too tall — the pads are part of the span', () => {
+    const height = 400 - 2 * REVEAL_PAD;
+    expect(revealSpan({ top: 0, height: 100 }, { top: height - 52, height: 52 }, 400)).toEqual({
+      top: 0,
+      height: 100,
+    });
+    expect(revealSpan({ top: 0, height: 100 }, { top: height - 53, height: 52 }, 400)).toEqual({
+      top: 0,
+      height: height - 1,
+    });
+  });
+
+  it('spans both whichever sits higher', () => {
+    expect(revealSpan({ top: 300, height: 80 }, { top: 200, height: 52 }, 400)).toEqual({
+      top: 200,
+      height: 180,
+    });
+  });
+});
+
+describe('createRevealOnFocus — the form submit comes along (#752)', () => {
+  /** `mounted`, with the settle pass captured: firing it is «the keyboard has landed». */
+  function settling(opts: { viewport: number; node?: RowHandle; submit: RowHandle }) {
+    const passes: (() => void)[] = [];
+    const reveal = createRevealOnFocus({ schedule: (run) => passes.push(run) });
+    const scroll = list();
+    reveal.scrollProps.ref(scroll);
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: opts.viewport } } });
+    reveal.scrollProps.onContentSizeChange(320, 2000);
+    reveal.rowRef('password')(opts.node ?? row(600, 120));
+    reveal.submitRef()(opts.submit);
+    const settle = () => passes.splice(0).forEach((run) => run());
+    return { reveal, scroll, settle };
+  }
+
+  it('brings the submit up with the row once the keyboard has landed', () => {
+    // The login shape: the password row is on screen, the CTA sits under the fold.
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 344 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('the tap itself reveals the row alone — a field on screen is not moved to show its button', () => {
+    // The first pass measures a viewport the keyboard has not shrunk yet. Row and submit fit in
+    // THAT one, and chasing it would drag a visible field under the member's finger towards a
+    // button the keyboard is about to cover (the signup name field on an iPhone SE did it).
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(900, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('leaves the list alone when row and submit are both already on screen', () => {
+    const { reveal, scroll, settle } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('reveals the row alone when the submit is too far below it to share the viewport', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: row(1000, 52) });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('re-reveals both when the keyboard arrives', () => {
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 344 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('brings the submit along when the row grows under the field', () => {
+    // The signup checklist mounting on the first keystroke pushes the CTA down with it.
+    const { reveal, scroll } = settling({
+      viewport: 400,
+      node: row(200, 100),
+      submit: row(324, 52),
+    });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(200, 160));
+    reveal.submitRef()(row(384, 52));
+    reveal.scrollProps.onContentSizeChange(320, 2060);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 384 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('still reveals the row when the submit cannot be measured', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: deadRow() });
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('hands back the SAME submit ref on every call', () => {
+    const reveal = createRevealOnFocus();
+    // A call, not a property, for the same reason `rowRef` is one — and a fresh identity per
+    // render would detach and re-attach the CTA's ref every frame.
+    expect(reveal.submitRef()).toBe(reveal.submitRef());
+  });
+
+  it('forgets the submit once it unmounts', () => {
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
+    reveal.submitRef()(null);
+    reveal.fieldProps('password').onFocus();
+    settle();
+    // The row alone fits (200–320 + pad), so with no submit there is nothing to do.
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+});
+
 describe('createRevealOnFocus — a focused row is brought into view', () => {
   it('scrolls on focus when the row is under the fold', () => {
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
@@ -151,6 +345,29 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     });
   });
 
+  it('does not chase a row that has GROWN taller than the viewport — a multiline field', () => {
+    // An event or project description, typed into line by line. Once the row outgrows the
+    // viewport, "show its top" would bury the caret — which sits at the BOTTOM — on every new
+    // line, and on Android fight the native caret-follow on every keystroke.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.rowRef('password')(row(100, 420));
+    reveal.scrollProps.onContentSizeChange(320, 2220);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('keeps following a growing row while it still fits — the caret is at its foot', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 320));
+    reveal.scrollProps.onContentSizeChange(320, 2120);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 100 + 320 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
   it('ignores a content size that shrinks', () => {
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
     reveal.fieldProps('password').onFocus();
@@ -187,9 +404,28 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     expect(() => reveal.fieldProps('password').onFocus()).not.toThrow();
   });
 
+  it('measures against the content view INSTANCE, never its node handle (#752)', () => {
+    // The regression, named: Fabric drops a handle without calling back, so a reveal that
+    // measured against `getInnerViewNode()` was a silent no-op on every New-Architecture build.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
+    const relativeTo: unknown[] = [];
+    reveal.rowRef('password')({
+      measureLayout: (target, onSuccess) => {
+        relativeTo.push(target);
+        if (target === INNER) onSuccess(0, 600, 320, 120);
+      },
+    });
+    reveal.fieldProps('password').onFocus();
+    expect(relativeTo).toEqual([INNER]);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
   it('does nothing while the list has no measurable content view (web before mount)', () => {
     const reveal = createRevealOnFocus();
-    const scroll = { getInnerViewNode: () => null, scrollTo: vi.fn() };
+    const scroll = { getInnerViewRef: () => null, scrollTo: vi.fn() };
     reveal.scrollProps.ref(scroll);
     reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
     reveal.rowRef('password')(row(600, 120));
@@ -267,8 +503,9 @@ describe('createRevealOnFocus — the settle pass', () => {
   function withSchedule(height: () => number) {
     const passes: (() => void)[] = [];
     const reveal = createRevealOnFocus({ schedule: (run) => passes.push(run) });
-    const scroll = {
-      getInnerViewNode: () => 7,
+    const scroll: FakeList = {
+      getInnerViewNode: () => HANDLE,
+      getInnerViewRef: () => INNER,
       measure: (cb: (x: number, y: number, w: number, h: number) => void) =>
         cb(0, 0, 320, height()),
       scrollTo: vi.fn(),

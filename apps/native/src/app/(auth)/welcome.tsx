@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { t, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, type TextInputRef } from '@/tw';
 import { Button } from '@/components/Button';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { providerMark } from '@/components/provider-marks';
@@ -92,6 +92,9 @@ export default function WelcomeScreen() {
   // #689: the keyboard no longer covers the viewport (#614), but nothing brought the tapped
   // field INTO it — the password field is last in the column and stayed off screen.
   const reveal = useRevealOnFocus();
+  // #752: the return key walks the form — name → email → password — and the password's submits.
+  const emailRef = useRef<TextInputRef>(null);
+  const passwordRef = useRef<TextInputRef>(null);
   const appleEnabled = useFeatureFlags()[APPLE_FLAG] === true;
   // `true` in every state today, since `GOOGLE_ENABLED` is a `const true` — the `else` branch
   // below is unreachable and kept deliberately. It moved out of module scope with the flag not
@@ -229,6 +232,13 @@ export default function WelcomeScreen() {
   const busy = submitting || oauthBusy !== null;
   const disabled =
     busy || !EMAIL_RE.test(email.trim()) || (login ? password.length === 0 : unmet.length > 0);
+  // #752: the keyboard's `go` key is a second way to press the CTA, so it goes through the CTA's own
+  // gate. `submit` does not re-check it — the login branch spends the referral stash before it
+  // ever reaches Supabase — and until now the Button's `inert` was the only thing between that
+  // branch and a malformed email or a second press mid-flight.
+  const submitFromKeyboard = () => {
+    if (!disabled) void submit();
+  };
 
   const toggleMode = () =>
     router.replace(
@@ -415,6 +425,11 @@ export default function WelcomeScreen() {
                       placeholder={t('auth.name.placeholder', locale)}
                       value={name}
                       onChangeText={setName}
+                      // `submit`, not the single-line default `blurAndSubmit`: moving to the next
+                      // field must not drop the keyboard and raise it again under the member.
+                      returnKeyType="next"
+                      submitBehavior="submit"
+                      onSubmitEditing={() => emailRef.current?.focus()}
                     />
                   </View>
                 ) : null}
@@ -425,6 +440,7 @@ export default function WelcomeScreen() {
                   </Text>
                   <Input
                     {...reveal.fieldProps('email')}
+                    ref={emailRef}
                     autoCapitalize="none"
                     autoComplete="email"
                     textContentType={login ? 'emailAddress' : 'none'}
@@ -432,6 +448,9 @@ export default function WelcomeScreen() {
                     placeholder={t('auth.email.placeholder', locale)}
                     value={email}
                     onChangeText={setEmail}
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
                   />
                 </View>
 
@@ -456,6 +475,11 @@ export default function WelcomeScreen() {
                     placeholder={t('auth.password.placeholder', locale)}
                     value={password}
                     onChangeText={setPassword}
+                    ref={passwordRef}
+                    // The last field submits. Default `blurAndSubmit` here: the keyboard going
+                    // down with the press is what uncovers the CTA's spinner and in-flight line.
+                    returnKeyType="go"
+                    onSubmitEditing={submitFromKeyboard}
                     // The `eye` from the esoteric set (DESIGN §6), inside the field where the
                     // affordance is looked for. SHAPE carries the state — struck vs open — so
                     // both variants keep the same muted token: a reveal is confirmation-grade,
@@ -524,8 +548,11 @@ export default function WelcomeScreen() {
               </View>
 
               {/* `Button` owns the pill; the screen keeps the gap above it, because a
-                component that carried its own outer margin could not be reused in a row. */}
-              <View className="mt-7 gap-3">
+                component that carried its own outer margin could not be reused in a row.
+                #752: the reveal brings this block up WITH the focused field — the password row
+                ends at the forgot link, so revealing the row alone left the CTA under the
+                keyboard. The whole block, so signup's consent notice rides with its button. */}
+              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
                 <Button
                   variant="light"
                   label={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
