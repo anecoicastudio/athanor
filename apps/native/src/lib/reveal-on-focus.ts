@@ -181,6 +181,21 @@ export function revealOffset(
 }
 
 /**
+ * Where the list must sit for the FOOT of a row taller than the viewport to be on screen — the
+ * foot at the bottom edge, padded — or `null` to stay where it is. The caret of a multiline
+ * field being typed into at its end sits down there (#766); see the `grow` rule below.
+ */
+export function followFoot(
+  row: { top: number; height: number },
+  view: { height: number; offset: number; content: number },
+): number | null {
+  if (view.height <= 0) return null;
+  const end = view.content > 0 ? Math.max(0, view.content - view.height) : Number.POSITIVE_INFINITY;
+  const y = Math.min(Math.max(row.top + row.height + REVEAL_PAD - view.height, 0), end);
+  return Math.abs(y - view.offset) < 1 ? null : y;
+}
+
+/**
  * What the reveal aims at: the focused row, stretched to take in the form's submit when the two
  * fit in the viewport together — pads included, the same test `revealOffset` applies — and the
  * row alone when they do not, because a field pushed off the top to show its button is worse
@@ -217,6 +232,8 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
     submit = node;
   };
   const rows = new Map<string, RowHandle | null>();
+  /** Where each row sat when a pass last measured it — what the `grow` rule reads. */
+  const seen = new Map<string, { top: number; foot: number }>();
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
 
@@ -228,20 +245,51 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *   already see from under their finger, towards a button the keyboard is about to cover (it
    *   did, on the iPhone SE signup form). Every later pass runs with the keyboard up and brings
    *   the submit along.
-   * - `grow` never moves a target taller than the viewport. Growth under a focused row that
-   *   already does not fit is a multiline field being typed into — an event or project
+   * - `grow` never shows the TOP of a target taller than the viewport. Growth under a focused
+   *   row that already does not fit is a multiline field being typed into — an event or project
    *   description — and "show its top" would bury the caret, which sits at the BOTTOM, once per
    *   new line; on Android it would fight the native caret-follow on every keystroke. Only the
    *   first reveal of a tall row shows its top. Latent until #752: before it, no pass ever
    *   measured anything on a native build.
+   *
+   *   What it does instead is follow the row's FOOT, and only when that foot was on screen the
+   *   last time a pass measured it: the member was at the end of the text, typing there (#766).
+   *   Leaving the row alone, as #752 did, buried the caret too — on iOS, where Fabric's
+   *   ScrollView never follows a multiline field's caret, so the text ran on under the keyboard
+   *   (walked on the iPhone SE, 2026-09-19). A foot that was off screen means the member is
+   *   elsewhere — scrolled up, or editing mid-text — and the list stays put; on Android the
+   *   native caret-follow owns that case.
+   *
+   *   And `grow` of any row only chases one the member could still see. A focused field is not
+   *   always the one being looked at: under `keyboardShouldPersistTaps="handled"` a chip tap
+   *   lands without blurring it, so on `event-create` «Titolo» (the `name` row) stays armed while the member
+   *   scrolls down and taps «A pagamento» — and the price row mounting would otherwise snap the
+   *   list back up to «Titolo» (#766).
+   *
+   *   Every scroll `grow` makes is instant, and recorded rather than waiting for `onScroll`: the
+   *   content itself just jumped, and the next line can land before an animated scroll reports
+   *   — read against the old offset, a row the list was on its way to would look like one the
+   *   member scrolled away from, and the follow would stop for the rest of the focus.
    */
   const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow') => {
     const row = rows.get(key);
     const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
     const scroll = list;
+    // Where the row sat BEFORE this pass — read now, because the measurement below replaces it.
+    const last = seen.get(key);
     const land = (target: { top: number; height: number }, height: number) => {
-      if (pass === 'grow' && target.height + 2 * REVEAL_PAD >= height) return;
+      if (pass === 'grow') {
+        if (last && (last.foot < offset || last.top > offset + height)) return;
+        const tall = target.height + 2 * REVEAL_PAD >= height;
+        if (tall && (!last || last.foot > offset + height)) return;
+        const view = { height, offset, content };
+        const y = tall ? followFoot(target, view) : revealOffset(target, view);
+        if (y === null) return;
+        scroll.scrollTo({ y, animated: false });
+        offset = y;
+        return;
+      }
       const y = revealOffset(target, { height, offset, content });
       if (y === null) return;
       scroll.scrollTo({ y, animated: true });
@@ -252,6 +300,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         inner,
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
+          seen.set(key, { top, foot: top + rowHeight });
           // Read at callback time: the submit can mount or unmount between the tap and here.
           const cta = pass === 'tap' ? null : submit;
           if (!cta) return land(field, height);

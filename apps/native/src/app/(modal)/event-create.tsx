@@ -353,10 +353,14 @@ export default function EventCreateScreen() {
     <KeyboardAvoiding>
       <Screen>
         <ModalHeader title={t('event.create.title', locale)} backLabel={t('common.back', locale)} />
+        {/* `handled`: the first tap on a chip or on the submit lands on it instead of only
+            dismissing the keyboard — on the capacity and price pads, which have no return key
+            on iOS, tapping out is the only other way down (#766). */}
         <ScrollView
           {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="gap-5 px-5 pb-16"
+          keyboardShouldPersistTaps="handled"
         >
           <View className="gap-2" ref={reveal.rowRef('name')}>
             {label('event.create.name')}
@@ -620,12 +624,18 @@ export default function EventCreateScreen() {
 
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
-          <Button
-            label={t('event.create.submit', locale)}
-            onPress={onSubmit}
-            disabled={mutation.isPending}
-            variant="light"
-          />
+          {/* Revealed with the focused row whenever the two fit (#766) — see the same block in
+              (auth)/welcome.tsx. It matters most on the last fields: capacity and price are
+              number pads, so there is no return key to send from. A tall row (the price with
+              its settlement box) is revealed alone, and the list still scrolls to the button. */}
+          <View ref={reveal.submitRef()}>
+            <Button
+              label={t('event.create.submit', locale)}
+              onPress={onSubmit}
+              disabled={mutation.isPending}
+              variant="light"
+            />
+          </View>
         </ScrollView>
       </Screen>
     </KeyboardAvoiding>

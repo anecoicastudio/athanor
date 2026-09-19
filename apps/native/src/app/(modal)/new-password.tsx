@@ -48,6 +48,12 @@ export default function NewPasswordScreen() {
 
   const unmet = unmetPasswordRequirements(password);
   const disabled = saving || password.length === 0 || unmet.length > 0;
+  // #766, the #752 shape: the keyboard's `go` is a second way to press «Salva», so it asks the
+  // CTA's own question. `submit` re-parses the policy but never checks `saving`, so without
+  // this gate a second key press mid-flight would send a second `updateUser`.
+  const submitFromKeyboard = () => {
+    if (!disabled) void submit();
+  };
 
   useAnnounceOnMount(t('auth.newPassword.display', locale));
 
@@ -121,6 +127,10 @@ export default function NewPasswordScreen() {
               placeholder={t('auth.password.placeholder', locale)}
               value={password}
               onChangeText={setPassword}
+              // The only field, so it submits. Default `blurAndSubmit`, as on sign-in: the
+              // keyboard going down with the press uncovers the CTA's spinner.
+              returnKeyType="go"
+              onSubmitEditing={submitFromKeyboard}
               trailing={{
                 icon: revealed ? <EyeOffGlyph size={20} /> : <EyeGlyph size={20} />,
                 onPress: () => setRevealed((shown) => !shown),
@@ -158,7 +168,10 @@ export default function NewPasswordScreen() {
 
           {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
 
-          <View className="mt-7 gap-3">
+          {/* Revealed with the password row (#766) — see the same block in (auth)/welcome.tsx.
+            The whole block, so «Più tardi» rides along too: skipping is the sheet's other way
+            out, and dismissing it only re-presents it. */}
+          <View className="mt-7 gap-3" ref={reveal.submitRef()}>
             <Button
               variant="light"
               label={t('auth.newPassword.cta', locale)}
