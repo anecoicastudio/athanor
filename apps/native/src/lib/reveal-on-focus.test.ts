@@ -163,37 +163,67 @@ describe('revealSpan — the submit rides along only when it fits (#752)', () =>
 });
 
 describe('createRevealOnFocus — the form submit comes along (#752)', () => {
-  it('scrolls the submit into view with the focused row when both fit', () => {
+  /** `mounted`, with the settle pass captured: firing it is «the keyboard has landed». */
+  function settling(opts: { viewport: number; node?: RowHandle; submit: RowHandle }) {
+    const passes: (() => void)[] = [];
+    const reveal = createRevealOnFocus({ schedule: (run) => passes.push(run) });
+    const scroll = list();
+    reveal.scrollProps.ref(scroll);
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: opts.viewport } } });
+    reveal.scrollProps.onContentSizeChange(320, 2000);
+    reveal.rowRef('password')(opts.node ?? row(600, 120));
+    reveal.submitRef()(opts.submit);
+    const settle = () => passes.splice(0).forEach((run) => run());
+    return { reveal, scroll, settle };
+  }
+
+  it('brings the submit up with the row once the keyboard has landed', () => {
     // The login shape: the password row is on screen, the CTA sits under the fold.
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(200, 120) });
-    reveal.submitRef()(row(344, 52));
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
     reveal.fieldProps('password').onFocus();
+    settle();
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 344 + 52 + REVEAL_PAD - 400,
       animated: true,
     });
   });
 
-  it('leaves the list alone when row and submit are both already on screen', () => {
-    const { reveal, scroll } = mounted({ viewport: 800, content: 2000, node: row(200, 120) });
-    reveal.submitRef()(row(344, 52));
+  it('the tap itself reveals the row alone — a field on screen is not moved to show its button', () => {
+    // The first pass measures a viewport the keyboard has not shrunk yet. Row and submit fit in
+    // THAT one, and chasing it would drag a visible field under the member's finger towards a
+    // button the keyboard is about to cover (the signup name field on an iPhone SE did it).
+    const { reveal, scroll } = settling({ viewport: 800, node: row(200, 120), submit: row(900, 52) });
     reveal.fieldProps('password').onFocus();
     expect(scroll.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('reveals the row alone when the submit is too far below it to share the viewport', () => {
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
-    reveal.submitRef()(row(1000, 52));
+  it('leaves the list alone when row and submit are both already on screen', () => {
+    const { reveal, scroll, settle } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
     reveal.fieldProps('password').onFocus();
-    expect(scroll.scrollTo).toHaveBeenCalledWith({
+    settle();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('reveals the row alone when the submit is too far below it to share the viewport', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: row(1000, 52) });
+    reveal.fieldProps('password').onFocus();
+    settle();
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
       y: 600 + 120 + REVEAL_PAD - 400,
       animated: true,
     });
   });
 
   it('re-reveals both when the keyboard arrives', () => {
-    const { reveal, scroll } = mounted({ viewport: 800, content: 2000, node: row(200, 120) });
-    reveal.submitRef()(row(344, 52));
+    const { reveal, scroll } = settling({ viewport: 800, node: row(200, 120), submit: row(344, 52) });
     reveal.fieldProps('password').onFocus();
     expect(scroll.scrollTo).not.toHaveBeenCalled();
     reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
@@ -203,10 +233,24 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
     });
   });
 
-  it('still reveals the row when the submit cannot be measured', () => {
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000 });
-    reveal.submitRef()(deadRow());
+  it('brings the submit along when the row grows under the field', () => {
+    // The signup checklist mounting on the first keystroke pushes the CTA down with it.
+    const { reveal, scroll } = settling({ viewport: 400, node: row(200, 100), submit: row(324, 52) });
     reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(200, 160));
+    reveal.submitRef()(row(384, 52));
+    reveal.scrollProps.onContentSizeChange(320, 2060);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 384 + 52 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('still reveals the row when the submit cannot be measured', () => {
+    const { reveal, scroll, settle } = settling({ viewport: 400, submit: deadRow() });
+    reveal.fieldProps('password').onFocus();
+    scroll.scrollTo.mockClear();
+    settle();
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 600 + 120 + REVEAL_PAD - 400,
       animated: true,
@@ -221,10 +265,14 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
   });
 
   it('forgets the submit once it unmounts', () => {
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(200, 120) });
-    reveal.submitRef()(row(344, 52));
+    const { reveal, scroll, settle } = settling({
+      viewport: 400,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
     reveal.submitRef()(null);
     reveal.fieldProps('password').onFocus();
+    settle();
     // The row alone fits (200–320 + pad), so with no submit there is nothing to do.
     expect(scroll.scrollTo).not.toHaveBeenCalled();
   });

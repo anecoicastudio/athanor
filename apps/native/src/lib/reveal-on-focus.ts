@@ -220,7 +220,14 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
 
-  const reveal = (key: string) => {
+  /**
+   * `withSubmit` is false only for the pass that runs ON the tap, which measures a viewport the
+   * keyboard has not shrunk yet: a row and a submit that fit in THAT one are no reason to drag a
+   * field the member can already see from under their finger, towards a button the keyboard is
+   * about to cover (it did, on the iPhone SE signup form). Every later pass — the shrink, the
+   * settle timer, the content growing — runs with the keyboard up and brings the submit along.
+   */
+  const reveal = (key: string, withSubmit: boolean) => {
     const row = rows.get(key);
     const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
@@ -237,7 +244,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
           // Read at callback time: the submit can mount or unmount between the tap and here.
-          const cta = submit;
+          const cta = withSubmit ? submit : null;
           if (!cta) return land(field, height);
           cta.measureLayout(
             inner,
@@ -272,7 +279,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         // scroll the form the moment the member dismissed the keyboard.
         const shrank = viewport > 0 && next < viewport;
         viewport = next;
-        if (shrank && focused) reveal(focused);
+        if (shrank && focused) reveal(focused, true);
       },
       onScroll: (event) => {
         offset = event.nativeEvent.contentOffset.y;
@@ -282,7 +289,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         content = height;
         // The password checklist mounts on the first keystroke, under a field that was fully
         // visible when it was tapped. Growth under the focused row is a second reveal.
-        if (grew && focused) reveal(focused);
+        if (grew && focused) reveal(focused, true);
       },
       scrollEventThrottle: 16,
     },
@@ -302,11 +309,11 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         props = {
           onFocus: () => {
             focused = key;
-            reveal(key);
+            reveal(key, false);
             // Again once the keyboard has landed — see KEYBOARD_SETTLE_MS. Skipped if focus has
             // moved on by then, so a fast tap-through does not drag the form back.
             schedule(() => {
-              if (focused === key) reveal(key);
+              if (focused === key) reveal(key, true);
             });
           },
           // Only if this field is still the armed one: moving between fields can deliver the
