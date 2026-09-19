@@ -39,7 +39,7 @@ beforeEach(() => {
 
 describe('capturePushFailure (#746)', () => {
   it('holds a failure raised before consent and sends it when Sentry inits', async () => {
-    const { Sentry, capturePushFailure, initSentry } = await launch();
+    const { Sentry, capturePushFailure, closeSentry, initSentry } = await launch();
 
     capturePushFailure(
       'token',
@@ -55,8 +55,12 @@ describe('capturePushFailure (#746)', () => {
       tags: { push_stage: 'token', push_error_code: 'E_REGISTRATION_FAILED' },
     });
 
-    // Sent once: a consent toggle re-inits, and must not replay what already left.
+    // Sent once: a consent toggle is close + re-init (SentryConsentGate), and the re-init must
+    // not replay what already left. Without the close, the second init returns early and this
+    // would pass whether or not the held reports were cleared.
+    closeSentry();
     initSentry();
+    expect(Sentry.init).toHaveBeenCalledTimes(2);
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
   });
 
