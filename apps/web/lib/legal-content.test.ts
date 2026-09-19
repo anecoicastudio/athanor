@@ -603,14 +603,18 @@ describe('terms', () => {
   };
 
   it('no longer describes a presentation site, an unpublished app or a draft', () => {
-    // The old copy spelled «L’app» with U+2019 and the file mixes both apostrophes, so the pin
-    // takes either form — a pin written with the ASCII one alone would pass with the sentence back.
-    const OLD_IT =
-      /L['’]app non è ancora pubblicata|ancora pubblicata|sito di presentazione|bozza|da rivedere con un legale/i;
-    const OLD_EN = /not yet published|presentation site|draft|review with counsel/i;
+    // The old copy spelled «L’app» with U+2019 and the file mixes both apostrophes, so the
+    // sentence is pinned in either form — and that pattern alone is checked against each, since
+    // the wider pattern below would also match through «ancora pubblicata».
+    const OLD_SENTENCE = /L['’]app non è ancora pubblicata/;
     for (const old of ["L'app non è ancora pubblicata", 'L’app non è ancora pubblicata']) {
-      expect(old, 'the pin must catch both apostrophe forms').toMatch(OLD_IT);
+      expect(old, 'the pin must catch both apostrophe forms').toMatch(OLD_SENTENCE);
     }
+    const OLD_IT = new RegExp(
+      `${OLD_SENTENCE.source}|ancora pubblicata|sito di presentazione|bozza|da rivedere con un legale`,
+      'i',
+    );
+    const OLD_EN = /not yet published|presentation site|draft|review with counsel/i;
     expect(all('it')).not.toMatch(OLD_IT);
     expect(all('en')).not.toMatch(OLD_EN);
   });
