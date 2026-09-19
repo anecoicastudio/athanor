@@ -335,6 +335,13 @@ describe('external destinations', () => {
     const { links } = await resolve(undefined);
     expect(links.SUPPORT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
   });
+
+  it('support email is the mailbox Marco ruled — on our own domain, never a personal inbox', async () => {
+    // Ruled 2026-09-19 (#777): the Help row is the in-app concern route Play's Child Safety
+    // standard relies on, so it must reach the team's alias, not somebody's gmail.
+    const { links } = await resolve(undefined);
+    expect(links.SUPPORT_EMAIL).toBe('athanor@anecoica.net');
+  });
 });
 
 describe('every claimed universal-link prefix has a native screen (#544)', () => {

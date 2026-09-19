@@ -11,7 +11,7 @@ import { t, type Locale, type MessageKey } from '@athanor/i18n';
  * Long-form legal copy lives here as per-locale content (not in the @athanor/i18n
  * UI catalog, which is for short interface strings). Scope: `privacy` is the ONE policy for
  * both the app and this site (#774) — the app links it from Settings, sign-up and the Circle
- * screen, and it is the URL in the Play Console. `terms` still covers the site only (#777).
+ * screen, and it is the URL in the Play Console. `terms` covers the app and this site (#777).
  * `deleteAccount` is about the app account (#767). `childSafety` is the page Play's Child
  * Safety Standards declaration links to (#779).
  *
@@ -433,78 +433,236 @@ export const privacy: Record<Locale, LegalDoc> = {
   },
 };
 
+/**
+ * /terms — the terms of the app AND this site (#777). Sign-up, Settings and the Circle screen link
+ * here, and the sign-up notice asks people to accept them — on the sign-in screen too, because a
+ * first Google sign-in there creates an account. Every clause is bounded by what the product does,
+ * and the PR for #777 carries the source of each:
+ * - The provider and the address are /privacy's, and `EMAIL` is the one address: never the app's
+ *   support mailbox. The minimum age is `MIN_MEMBER_AGE`, the labels are the catalog's, and each
+ *   link to another legal page carries `?lang=` because a section link is a full page load.
+ * - What is not allowed: harassment, spam, impersonation and the three ethical rules (aggressive
+ *   selling, guaranteed income, MLM) are `REPORT_CATEGORIES` and PRD §4.13; the rest is the floor
+ *   Google Play's UGC policy asks terms to define. Child sexual abuse is /child-safety's, linked
+ *   rather than restated.
+ * - Moderation is `resolve_report` v5's warn | penalty | suspend | ban, taken by a person (#106).
+ *   Both enforcement halves apply to a suspension as to a ban: RLS closes writing and
+ *   `moderation-enforce` closes sign-in (a GoTrue ban until the date, so it lifts itself). A ban
+ *   also hides the profile, posts and stories, deleting nothing (#314). Removal is an operator
+ *   action by hand until the panel has one (#788), as /child-safety says.
+ * - Only tickets are on sale: Stripe Checkout (`create-ticket-checkout`), the organiser paid net of
+ *   `events.fee_pct` as the composer makes them accept (`event.create.settlement.ack`). Circle
+ *   checkout is closed on production (`circle_checkout_enabled` absent) and the fund is off
+ *   (`fund_surfaces_enabled`, `contributions_enabled`), so both are named only to say they buy no
+ *   Aura (rule 1). Opening either needs no code: its terms have to land here first.
+ * - It states no refund, withdrawal-right, arbitration, VAT or seller-of-record regime. Refunds are
+ *   issued by hand in the Stripe Dashboard, never by code, and the rest is with counsel (#711, #250).
+ *
+ * COUNSEL HAS NOT REVIEWED THESE TERMS. Until #777 the page said so in its `reviewNote` («Bozza —
+ * da rivedere con un legale»), which `legal-doc.tsx` renders publicly, on the document members
+ * accept at sign-up. Marco ruled (2026-09-19) that the reminder lives here and in the PR's
+ * "For counsel" list, not on the page; `reviewNote` carries /privacy's impressum line instead.
+ */
 export const terms: Record<Locale, LegalDoc> = {
   it: {
     title: 'Termini di servizio',
-    updated: 'Giugno 2026',
-    intro: `Usando il sito di presentazione di Athanor accetti questi termini. Il sito è offerto da ${CONTROLLER} a scopo informativo.`,
+    updated: 'Settembre 2026',
+    intro: `Questi termini valgono per l'app ${tIt('store.name')} e per questo sito. Creando un account, o usando l'app o il sito, li accetti.`,
     sections: [
       {
-        heading: 'Oggetto',
+        id: 'provider',
+        heading: `Chi offre ${tIt('store.name')}`,
         body: [
-          'Il sito presenta il progetto Athanor. L’app non è ancora pubblicata: i riferimenti agli store sono indicativi e potranno cambiare.',
+          `L'app ${tIt('store.name')} e questo sito li offre ${CONTROLLER}, Thaerstrasse 17, 12049 Berlino, Germania.`,
         ],
       },
       {
-        heading: 'Uso del sito',
+        id: 'account',
+        heading: 'Il tuo account',
         body: [
-          'Puoi consultare liberamente i contenuti. Non è consentito usare il sito in modo illecito o tentare di comprometterne la sicurezza o la disponibilità.',
+          `${tIt('store.name')} è per chi ha almeno ${MIN_MEMBER_AGE} anni. All'iscrizione ti chiediamo la data di nascita e non accettiamo chi non ha ancora quell'età.`,
+          `Puoi eliminare l'account quando vuoi, dall'app o scrivendoci. Come fare, cosa eliminiamo e cosa conserviamo lo trovi nella pagina «${tIt('account.delete.title')}».`,
+          "Come trattiamo i tuoi dati lo spiega l'informativa sulla privacy.",
+        ],
+        links: [
+          { label: tIt('account.delete.title'), href: '/delete-account?lang=it' },
+          { label: tIt('settings.legal.privacy'), href: '/privacy?lang=it' },
         ],
       },
       {
+        id: 'content',
+        heading: 'Ciò che pubblichi',
+        body: [
+          'Ciò che pubblichi — il profilo, il tuo sogno, post, commenti, storie, messaggi, eventi e progetti — resta tuo.',
+          `Ci dai il permesso di conservarlo e di mostrarlo — alle persone che possono vederlo secondo le tue scelte, e su questo sito ciò che è pubblico — solo per far funzionare ${tIt('store.name')}. Non lo vendiamo e non lo usiamo per la pubblicità.`,
+          "Quando togli qualcosa che hai pubblicato non lo vedono più gli altri, e lo cancelliamo del tutto quando elimini l'account.",
+        ],
+      },
+      {
+        id: 'rules',
+        heading: 'Cosa non è ammesso',
+        body: [
+          `Su ${tIt('store.name')} non tolleriamo contenuti offensivi né chi abusa degli altri. Nell'app — messaggi compresi — e su questo sito non sono ammessi:`,
+          'Molestie, minacce, insulti e offese.',
+          "Incitamento all'odio o alla violenza.",
+          'Vendite aggressive, promesse di guadagno garantito e reclutamento multilivello.',
+          'Spam o contenuti ingannevoli.',
+          "Fingersi un'altra persona.",
+          'Contenuti sessualmente espliciti.',
+          "Contenuti illegali, o che violano i diritti di altri, come il diritto d'autore o la riservatezza.",
+          "Tentativi di compromettere la sicurezza o il funzionamento dell'app o del sito.",
+          `Ogni forma di abuso o sfruttamento sessuale di minori è vietata: cosa vietiamo e cosa facciamo lo trovi nella pagina «${tIt('legal.childSafety')}».`,
+        ],
+        links: [{ label: tIt('legal.childSafety'), href: '/child-safety?lang=it' }],
+      },
+      {
+        id: 'moderation',
+        heading: 'Segnalazioni e moderazione',
+        body: [
+          'Puoi segnalare una persona, un post, un messaggio o un comportamento, e puoi bloccare chi vuoi.',
+          'Le decisioni su una segnalazione le prende sempre una persona del team di moderazione, mai un programma. Se la segnalazione è fondata, il team può mandarti un avviso, togliere punti alla tua Aura, sospendere il tuo account per un periodo o escluderti in modo definitivo, e può rimuovere il contenuto.',
+          "Durante una sospensione non puoi accedere, scrivere né partecipare; finisce da sola, alla data stabilita. Con l'esclusione non puoi più accedere, e il tuo profilo, i tuoi post e le tue storie non li vede più nessuno, tranne il team di moderazione.",
+        ],
+      },
+      {
+        id: 'aura',
+        heading: "L'Aura",
+        body: [
+          "L'Aura è il tuo punteggio di reputazione: la calcola un programma sui nostri server, solo a partire da ciò che fai nell'app. Come, lo spiega l'informativa sulla privacy.",
+          "L'abbonamento Circle e i contributi al fondo non danno punti: l'Aura non si compra.",
+        ],
+      },
+      {
+        id: 'payments',
+        heading: 'Eventi a pagamento',
+        body: [
+          "Alcuni eventi hanno un biglietto a pagamento. Lo paghi su una pagina di Stripe, che gestisce il pagamento: i dati della tua carta non passano da noi. Vedi il prezzo prima di pagare, e il biglietto, con il suo codice QR, lo trovi poi nell'app.",
+          `Per vendere biglietti devi verificare la tua identità e collegare un conto presso Stripe su cui ricevere i pagamenti. Ricevi il prezzo del biglietto meno la percentuale che trattiene ${tIt('store.name')}, che vedi e accetti quando crei l'evento; Stripe ti versa la tua parte secondo il calendario del tuo conto.`,
+        ],
+      },
+      {
+        id: 'ip',
         heading: 'Proprietà intellettuale',
         body: [
-          `Il marchio Athanor, i testi, la grafica e il logo sono di ${CONTROLLER}. Non possono essere riprodotti senza autorizzazione.`,
+          `Il marchio ${tIt('store.name')}, i testi, la grafica e il logo dell'app e di questo sito sono di ${CONTROLLER}, tranne ciò che pubblicano le persone iscritte. Non possono essere riprodotti senza autorizzazione.`,
         ],
       },
       {
+        id: 'liability',
         heading: 'Limitazione di responsabilità',
         body: [
           `I contenuti sono forniti “così come sono”, senza garanzie. ${CONTROLLER} non risponde di eventuali interruzioni del servizio o imprecisioni dei contenuti.`,
         ],
       },
       {
+        id: 'contact',
         heading: 'Legge applicabile e contatti',
         body: [`Si applica la legge dell’Unione Europea. Per domande scrivi a ${EMAIL}.`],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
       },
     ],
-    reviewNote: 'Bozza — da rivedere con un legale prima del lancio.',
+    reviewNote:
+      'La ragione sociale completa e i dati di registrazione sono nell’impressum su anecoica.net.',
   },
   en: {
     title: 'Terms of Service',
-    updated: 'June 2026',
-    intro: `By using the Athanor presentation site you accept these terms. The site is provided by ${CONTROLLER} for informational purposes.`,
+    updated: 'September 2026',
+    intro: `These terms apply to the ${tEn('store.name')} app and to this site. By creating an account, or by using the app or the site, you accept them.`,
     sections: [
       {
-        heading: 'Purpose',
+        id: 'provider',
+        heading: `Who provides ${tEn('store.name')}`,
         body: [
-          'The site presents the Athanor project. The app is not yet published: store references are indicative and may change.',
+          `The ${tEn('store.name')} app and this site are provided by ${CONTROLLER}, Thaerstrasse 17, 12049 Berlin, Germany.`,
         ],
       },
       {
-        heading: 'Use of the site',
+        id: 'account',
+        heading: 'Your account',
         body: [
-          'You may browse the content freely. You may not use the site unlawfully or attempt to compromise its security or availability.',
+          `${tEn('store.name')} is for people aged ${MIN_MEMBER_AGE} and over. When you join we ask for your date of birth and do not accept anyone younger.`,
+          `You can delete your account at any time, from the app or by writing to us. How to do it, what we delete and what we keep are on the “${tEn('account.delete.title')}” page.`,
+          'How we handle your data is explained in the privacy policy.',
+        ],
+        links: [
+          { label: tEn('account.delete.title'), href: '/delete-account?lang=en' },
+          { label: tEn('settings.legal.privacy'), href: '/privacy?lang=en' },
         ],
       },
       {
+        id: 'content',
+        heading: 'What you post',
+        body: [
+          'What you post — your profile, your dream, posts, comments, stories, messages, events and projects — stays yours.',
+          `You give us permission to store it and to show it — to the people who can see it under your choices, and on this site whatever is public — only to run ${tEn('store.name')}. We do not sell it and we do not use it for advertising.`,
+          'When you remove something you published, others no longer see it, and we delete it for good when you delete your account.',
+        ],
+      },
+      {
+        id: 'rules',
+        heading: 'What is not allowed',
+        body: [
+          `${tEn('store.name')} has no tolerance for offensive content or for people who abuse others. In the app — messages included — and on this site, the following are not allowed:`,
+          'Harassment, threats, insults and abuse.',
+          'Incitement to hatred or violence.',
+          'Aggressive selling, promises of guaranteed income and multi-level recruiting.',
+          'Spam or misleading content.',
+          'Impersonating someone else.',
+          'Sexually explicit content.',
+          "Illegal content, or content that infringes other people's rights, such as copyright or privacy.",
+          'Attempts to compromise the security or the working of the app or the site.',
+          `Any form of child sexual abuse or exploitation is prohibited: what we prohibit and what we do is on the “${tEn('legal.childSafety')}” page.`,
+        ],
+        links: [{ label: tEn('legal.childSafety'), href: '/child-safety?lang=en' }],
+      },
+      {
+        id: 'moderation',
+        heading: 'Reports and moderation',
+        body: [
+          'You can report a person, a post, a message or a behavior, and you can block anyone.',
+          'Decisions on a report are always taken by a person on the moderation team, never by a program. If a report is upheld, the team can send you a warning, take points off your Aura, suspend your account for a period or ban you for good, and it can remove the content.',
+          'During a suspension you cannot sign in, write or take part; it ends by itself on the set date. With a ban you can no longer sign in, and your profile, posts and stories are hidden from everyone but the moderation team.',
+        ],
+      },
+      {
+        id: 'aura',
+        heading: 'Aura',
+        body: [
+          'Aura is your reputation score: a program on our servers calculates it only from what you do in the app. How it does so is explained in the privacy policy.',
+          'A Circle subscription and fund contributions earn no points: Aura cannot be bought.',
+        ],
+      },
+      {
+        id: 'payments',
+        heading: 'Paid events',
+        body: [
+          'Some events have a paid ticket. You pay on a Stripe page, and Stripe handles the payment: your card details never pass through us. You see the price before you pay, and your ticket, with its QR code, then appears in the app.',
+          `To sell tickets you need to verify your identity and connect an account with Stripe to receive payments. You receive the ticket price minus the percentage ${tEn('store.name')} keeps, which you see and accept when you create the event; Stripe pays out your share on your account's schedule.`,
+        ],
+      },
+      {
+        id: 'ip',
         heading: 'Intellectual property',
         body: [
-          `The Athanor name, text, graphics and logo belong to ${CONTROLLER}. They may not be reproduced without permission.`,
+          `The ${tEn('store.name')} name, and the text, graphics and logo of the app and this site, belong to ${CONTROLLER}, except what members post. They may not be reproduced without permission.`,
         ],
       },
       {
+        id: 'liability',
         heading: 'Limitation of liability',
         body: [
           `Content is provided “as is”, without warranty. ${CONTROLLER} is not liable for service interruptions or inaccuracies in the content.`,
         ],
       },
       {
+        id: 'contact',
         heading: 'Governing law and contact',
         body: [`European Union law applies. For questions, write to ${EMAIL}.`],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
       },
     ],
-    reviewNote: 'Draft — review with counsel before launch.',
+    reviewNote:
+      'Our full legal name and registration details are in the impressum at anecoica.net.',
   },
 };
 

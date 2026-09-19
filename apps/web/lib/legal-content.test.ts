@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES } from '@athanor/schemas';
 import { childSafety, deleteAccount, privacy, terms, type LegalDoc } from './legal-content';
+import { LEGAL_ROUTES } from './legal-routes';
 
 /**
  * These are the published privacy policy, the terms, the account-deletion page and the child
@@ -565,5 +566,179 @@ describe('childSafety', () => {
   it('points to the privacy policy for the data in a report', () => {
     expect(childSafety.it.reviewNote).toMatch(/informativa sulla privacy/);
     expect(childSafety.en.reviewNote).toMatch(/privacy policy/);
+  });
+});
+
+/**
+ * /terms covers the app and this site (#777). Sign-up, Settings and the Circle screen link it, and
+ * the sign-up notice asks people to accept it — yet until #777 it described a presentation site
+ * whose app was «not yet published», under a public «Bozza» note: the first page a store reviewer
+ * opens from that notice. What these pin is what must not come back or drift: the scope, the one
+ * address, rule 1, the verdicts moderation really has, the paid things that are really on sale,
+ * and the other legal pages in the reader's language. The minimum age follows `@athanor/core`
+ * (see legal-content.constants.test.ts).
+ */
+describe('terms', () => {
+  const locales = ['it', 'en'] as const;
+  const section = (loc: 'it' | 'en', id: string) => {
+    const found = terms[loc].sections.find((s) => s.id === id);
+    if (!found) throw new Error(`${loc} has no section #${id}`);
+    return found;
+  };
+  const body = (loc: 'it' | 'en', id: string) => section(loc, id).body.join('\n');
+  const paragraphs = (loc: 'it' | 'en') => terms[loc].sections.flatMap((s) => s.body);
+  const links = (loc: 'it' | 'en') => terms[loc].sections.flatMap((s) => s.links ?? []);
+  const all = (loc: 'it' | 'en') => {
+    const d = terms[loc];
+    return [
+      d.title,
+      d.intro,
+      ...d.sections.flatMap((s) => [
+        s.heading,
+        ...s.body,
+        ...(s.links ?? []).flatMap((l) => [l.label, l.href]),
+      ]),
+      d.reviewNote,
+    ].join('\n');
+  };
+
+  it('no longer describes a presentation site, an unpublished app or a draft', () => {
+    // The old copy spelled «L’app» with U+2019 and the file mixes both apostrophes, so the
+    // sentence is pinned in either form — and that pattern alone is checked against each, since
+    // the wider pattern below would also match through «ancora pubblicata».
+    const OLD_SENTENCE = /L['’]app non è ancora pubblicata/;
+    for (const old of ["L'app non è ancora pubblicata", 'L’app non è ancora pubblicata']) {
+      expect(old, 'the pin must catch both apostrophe forms').toMatch(OLD_SENTENCE);
+    }
+    const OLD_IT = new RegExp(
+      `${OLD_SENTENCE.source}|ancora pubblicata|sito di presentazione|bozza|da rivedere con un legale`,
+      'i',
+    );
+    const OLD_EN = /not yet published|presentation site|draft|review with counsel/i;
+    expect(all('it')).not.toMatch(OLD_IT);
+    expect(all('en')).not.toMatch(OLD_EN);
+  });
+
+  it.each(locales)('%s covers the app as the store listing names it, and this site', (loc) => {
+    expect(terms[loc].intro).toContain(t('store.name', loc));
+    expect(terms[loc].intro).toMatch(loc === 'it' ? /questo sito/ : /this site/);
+  });
+
+  it('gives every section an anchor, the same one in both locales', () => {
+    const ids = (loc: 'it' | 'en') => terms[loc].sections.map((s) => s.id);
+    expect(ids('it').every(Boolean)).toBe(true);
+    expect(new Set(ids('it')).size).toBe(ids('it').length);
+    expect(ids('en')).toEqual(ids('it'));
+  });
+
+  it.each(locales)("%s publishes one address — the controller's, as a mailto", (loc) => {
+    // The app's support mailbox is a different address and must not appear here as a second way in.
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+    expect(section(loc, 'contact').links).toEqual([
+      { label: 'info@anecoica.net', href: 'mailto:info@anecoica.net' },
+    ]);
+  });
+
+  it.each(locales)(
+    '%s links the other legal pages in the language it is read in, by their catalog names',
+    (loc) => {
+      // A section link is a plain <a>: a full page load, which drops the in-memory locale and falls
+      // back to the cookie — and a reader who arrived through the app's `?lang=` has no cookie
+      // (locale-provider.tsx never writes the hint back). So the link carries the hint itself.
+      const expected = [
+        ['/privacy', 'settings.legal.privacy'],
+        ['/delete-account', 'account.delete.title'],
+        ['/child-safety', 'legal.childSafety'],
+      ] as const;
+      const internal = links(loc).filter((l) => l.href.startsWith('/'));
+      for (const [path, key] of expected) {
+        expect(internal, path).toContainEqual({ label: t(key, loc), href: `${path}?lang=${loc}` });
+      }
+      const published = LEGAL_ROUTES.map((r) => r.path as string);
+      for (const { href } of internal) {
+        const [path, query] = href.split('?');
+        expect(published, href).toContain(path);
+        expect(query, href).toBe(`lang=${loc}`);
+      }
+    },
+  );
+
+  it.each(locales)('%s states the age in the account section', (loc) => {
+    // The number itself is pinned to MIN_MEMBER_AGE in legal-content.constants.test.ts.
+    expect(body(loc, 'account')).toMatch(loc === 'it' ? /almeno \d+ anni/ : /aged \d+ and over/);
+  });
+
+  it('says a Circle subscription and fund contributions buy no Aura (rule 1)', () => {
+    expect(all('it')).toMatch(/Circle[^.]*contributi al fondo non danno punti/);
+    expect(all('en')).toMatch(/Circle[^.]*fund contributions earn no points/);
+  });
+
+  it.each(locales)(
+    '%s names Circle and the fund only to say they buy no Aura — neither is on sale',
+    (loc) => {
+      // Production, queried 2026-09-19: `circle_checkout_enabled` absent (fails closed) and
+      // `fund_surfaces_enabled` false; `contributions_enabled` defaults false as a LEGAL FLAG.
+      // Opening either needs no code, so its terms (renewal, cancellation, what a contribution
+      // buys) must land here FIRST — and this goes red when they do, which is the point.
+      for (const p of paragraphs(loc).filter((p) => /Circle|fondo|\bfund\b/.test(p))) {
+        expect(p).toMatch(loc === 'it' ? /non danno punti/ : /earn no points/);
+      }
+    },
+  );
+
+  it('sells only what is on sale — tickets through Stripe, the organiser paid net of our share', () => {
+    expect(body('it', 'payments')).toMatch(/Stripe/);
+    expect(body('en', 'payments')).toMatch(/Stripe/);
+    // The share is the one the composer makes the organiser accept (`event.create.settlement.ack`).
+    expect(body('it', 'payments')).toMatch(/meno la percentuale che trattiene Athanor/);
+    expect(body('en', 'payments')).toMatch(/minus the percentage Athanor keeps/);
+  });
+
+  it.each(locales)('%s promises no regime the product does not implement', (loc) => {
+    // No refund is ever initiated by code (stripe-webhook/handlers.ts: an operator refunds in the
+    // Stripe Dashboard), and arbitration, a withdrawal-right regime and VAT are with counsel
+    // (#711, #250). None may be promised here until they exist.
+    expect(all(loc)).not.toMatch(
+      /rimbors|refund|arbitra|recesso|right of withdrawal|\bIVA\b|\bVAT\b|seller of record/i,
+    );
+  });
+
+  it('names the verdicts moderation really has, and that a person takes them', () => {
+    // resolve_report v5: dismiss | warn | penalty | suspend | ban, gated on is_admin. Removal is
+    // an operator action by hand until the panel has one (#788), as /child-safety says. The
+    // person clause is pinned whole: «una persona» alone also matches «segnalare una persona».
+    for (const word of [
+      /avviso/,
+      /Aura/,
+      /sospendere/,
+      /escluder/,
+      /rimuovere/,
+      /sempre una persona del team di moderazione, mai un programma/,
+    ]) {
+      expect(body('it', 'moderation')).toMatch(word);
+    }
+    for (const word of [
+      /warning/,
+      /Aura/,
+      /suspend/,
+      /\bban\b/,
+      /remove/,
+      /always taken by a person on the moderation team, never by a program/,
+    ]) {
+      expect(body('en', 'moderation')).toMatch(word);
+    }
+  });
+
+  it('says a suspension closes sign-in as well as writing — both #106 halves apply to it', () => {
+    // resolve_report enqueues moderation-enforce for 'suspend' too, which sets a GoTrue ban until
+    // the date. Saying only «you cannot write» would promise a suspended member they can still
+    // sign in and read.
+    expect(body('it', 'moderation')).toMatch(/sospensione non puoi accedere/);
+    expect(body('en', 'moderation')).toMatch(/suspension you cannot sign in/);
+  });
+
+  it.each(locales)('%s sends child safety to its own page rather than restating it', (loc) => {
+    expect(section(loc, 'rules').links?.map((l) => l.href)).toContain(`/child-safety?lang=${loc}`);
   });
 });
