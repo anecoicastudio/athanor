@@ -1656,7 +1656,8 @@ erasure, and whether one should wait is a question for counsel, not an operator 
 A ban has two halves (#106): `profiles.banned_at`, which RLS reads at once, and a GoTrue ban that
 closes sign-in, written by `moderation-enforce` through the Vault pair
 `app.settings.moderation_enforce_url` / `_key` (present on production, 2026-09-19). Both are
-written by `resolve_report(…, 'ban')`, and it is also the only writer of `audit_log` — the log the
+written by `resolve_report(…, 'ban')`, and it is also the only writer of `audit_log`'s moderation
+rows — the log the
 privacy policy says records every decision, with who took it and why. So a ban goes through that
 RPC and nowhere else: an `update profiles set banned_at` by hand bans nobody from signing in and
 leaves no log.
@@ -1694,7 +1695,7 @@ end $$;
 ```
 
 **A post report, a behaviour report, or an email** — file a person report on the author as
-yourself, ban on that, then close the original upheld. For a post the author is
+yourself and ban on that; the original report stays open until step 7. For a post the author is
 `select author_id from public.posts where id = '<post id>'`; for a behaviour report or an email it
 is the member named (`select id from public.profiles where handle = '<handle>'`). For an email,
 write `null` as the original report.
@@ -1715,25 +1716,19 @@ begin
   returning id into v_filed;
   perform public.resolve_report(v_filed, 'upheld',
     '<ids of what was found and where — never a description of the material>', 'ban');
-  if v_original is not null then
-    perform public.resolve_report(v_original, 'upheld',
-      'Author banned through report ' || v_filed, 'warn');
-  end if;
   raise notice 'person report %', v_filed;
 end $$;
 ```
 
-`warn` is the only upheld verdict v5 accepts on a post or behaviour report. On a post it sends the
-author a notification carrying the report's category and nothing else; on a behaviour report with
-no target it is audit-only. The person report is resolved in the same transaction it is filed in,
-so the 15-minute alert never announces it. `set_config(…, true)` ends with the block's transaction,
-so no admin identity lingers on the editor's connection.
+The person report is resolved in the same transaction it is filed in, so the 15-minute alert
+never announces it. `set_config(…, true)` ends with the block's transaction, so no admin identity
+lingers on the editor's connection.
 
-Smoked on staging 2026-09-19, the second block as written plus a closing `raise`, so nothing
-persisted: with the claims set, `is_admin()` answered true and a `'ban'` on a post report raised
-`22023`; the block's person report took the ban — `banned_at` set, one `audit_log` row with the
-admin as actor, status `upheld` — `'warn'` closed the post report `upheld`, and a second `'ban'` on
-the resolved report changed nothing.
+Smoked on staging 2026-09-19, this block plus a closing `raise`, so nothing persisted: with the
+claims set, `is_admin()` answered true and a `'ban'` on a post report raised `22023`; the block's
+person report took the ban — `banned_at` set, one `audit_log` row with the admin as actor, status
+`upheld` — a second `'ban'` on the resolved report changed nothing, and step 7's `'warn'` closed
+the post report `upheld`.
 
 **Then check the sign-in half**, a minute later:
 
@@ -1745,9 +1740,12 @@ select p.banned_at, u.banned_until
 
 Both set, `banned_until` roughly a century out, is done. `banned_at` null means the RPC did
 nothing: the report was not open. `banned_until` null means the GoTrue half did not land. Look at
-`select status_code, content from net._http_response order by created desc limit 5;`, then call
+`net._http_response` — never its newest rows, which every pg*net caller shares, the 15-minute
+alert included — with
+`select id, created, status_code, timed_out, content from net._http_response where content like '%"applied"%' or content like '%auth update failed%' or timed_out order by id desc limit 3;`,
+then call
 the function directly — the call `resolve_report` would have made (§9 has the header rule: the
-`sb_secret_…` key on `apikey`, never `Authorization`):
+`sb_secret*…`key on`apikey`, never `Authorization`):
 
 ```bash
 curl -sS -X POST "https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/moderation-enforce" \
@@ -1824,7 +1822,8 @@ the data.
   fields; never its upload field.
 
 Record, on the report the ban landed on, what was sent where, and the reference each answered
-with. `audit_log` is append-only and written only by the RPC, so the note goes on the report:
+with. `audit_log` is append-only and its moderation rows are written only by `resolve_report`, so the
+note goes on the report:
 
 ```sql
 update public.reports
@@ -1870,6 +1869,23 @@ the key from the dashboard (Project Settings → API Keys, revealed): `supabase 
 prints a masked one, and that answers 401.
 
 #### Step 7 — Close
+
+**A post or behaviour report** that step 3 banned through a person report is still open. Close it
+upheld now, after step 5 and not before: `warn` is the only upheld verdict v5 accepts on it, and on
+a post it sends the author a notification carrying the report's category. `notification-fan-out`
+filters banned members out of broadcasts only, not out of a single recipient's push
+(`supabase/functions/notification-fan-out/logic.ts`), so it can still reach their phone, and it
+must not arrive before the police have the report. On a behaviour report with no target it is audit-only.
+
+```sql
+do $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', '<your admin id>',
+    'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  perform public.resolve_report('<the original post or behaviour report id>', 'upheld',
+    'Author banned through report <person report id>', 'warn');
+end $$;
+```
 
 Reply to whoever reported by email that the report was received and acted on; say nothing the
 page does not. Nothing about the case goes into GitHub, a commit or a chat.

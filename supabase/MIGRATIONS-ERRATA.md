@@ -2341,12 +2341,24 @@ Asserted by: `supabase/tests/0036_aura_scores_rls.test.sql` (the column privileg
 `select breakdown` / `select *` as anon) and `supabase/tests/0121_grant_catalog_sweep.test.sql`
 (`aura_scores` column-scoped for anon; eight tables with column-level ACLs).
 
-## `20260919124730_event_geo_grid.sql:51` — «one of the seven tables with column-level ACLs» is eight
+## «one of the seven tables with column-level ACLs» — eight since `20260919174008`
 
-True when it was written. `20260919174008_handle_rename_cooldown_and_anon_aura_score.sql` (#782)
-column-scoped `aura_scores` for anon the same day and made it the eighth. The instruction the
-sentence carries — revoke by column, never `revoke all on table` — is unchanged; only the count
-moved.
+Eight migrations count the tables carrying column-level ACLs as seven. The count was true when each
+was written; `20260919174008_handle_rename_cooldown_and_anon_aura_score.sql` (#782) column-scoped
+`aura_scores` for anon and made it the eighth. The instruction the sentence carries — revoke by
+column, never `revoke all on table` — holds for every one of the tables; only the number moved, so read "seven"
+as "eight" in each of:
+
+| Migration                                                                                    | Line |
+| -------------------------------------------------------------------------------------------- | ---- |
+| `20260816164834_hosted_grant_sweep.sql`                                                      | 28   |
+| `20260818190348_organiser_settlement_ack.sql`                                                | 35   |
+| `20260819041755_events_column_scoped_client_grants.sql`                                      | 21   |
+| `20260821164731_notifications_touch_trigger_and_convention_exemptions.sql`                   | 43   |
+| `20260823121933_fund_broadcast_notifications.sql`                                            | 56   |
+| `20260908133119_gdpr_erasure_claim_lease_fences.sql` — "0121 pins that count": it pins 8 now | 38   |
+| `20260908152740_gdpr_export_claim_lease.sql` — `gdpr_export_jobs` is still not one of them   | 115  |
+| `20260919124730_event_geo_grid.sql`                                                          | 51   |
 
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` (the count of tables carrying
 column-level ACLs, pinned at 8).
