@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
@@ -18,9 +18,16 @@ import { type MessageKey, t } from '@athanor/i18n';
 import {
   DEFAULT_TICKET_FEE_PCT,
   MIN_PAID_TICKET_CENTS,
+  type EventPointSource,
+  type GeoPoint,
+  type VenueLookup,
+  type VenuePoint,
+  eventPointState,
   formatEuroAmount,
   parseEuroToCents,
+  shouldLookUpVenue,
   snapToEventGrid,
+  venueQuery,
 } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -69,7 +76,22 @@ export default function EventCreateScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('');
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  /**
+   * The event's point (#781, ruling 2026-09-19 evening): the typed venue + city, geocoded on the
+   * phone by the OS geocoder and snapped to the event grid, with the organiser's own rounded
+   * position as the fallback they choose with «Usa la mia posizione». `eventPointState` decides
+   * which one the event is saved with and what the line under the city says — never the phone
+   * position silently standing in for a venue the geocoder could not find.
+   */
+  const [venuePoint, setVenuePoint] = useState<VenuePoint | null>(null);
+  const [devicePoint, setDevicePoint] = useState<GeoPoint | null>(null);
+  const [pointSource, setPointSource] = useState<EventPointSource | null>(null);
+  const [lookup, setLookup] = useState<VenueLookup>({ state: 'idle', query: null });
+  // The query the newest lookup was started for: an older lookup that lands late must not
+  // overwrite the answer to what is typed now.
+  const latestLookup = useRef<string | null>(null);
+  // The lookup in flight, so «Pubblica» tapped mid-lookup waits for its answer instead of refusing.
+  const inflight = useRef<{ query: string; answer: Promise<GeoPoint | null> } | null>(null);
   const [streamUrl, setStreamUrl] = useState('');
   const [startsAt, setStartsAt] = useState<Date>(() => new Date(Date.now() + 7 * 86400000));
   const [showPicker, setShowPicker] = useState(false);
@@ -112,7 +134,8 @@ export default function EventCreateScreen() {
     isOnline: false,
     venue: '',
     city: '',
-    coords: null,
+    venuePoint: null,
+    devicePoint: null,
     streamUrl: '',
     startsAt,
     capacity: '',
@@ -199,6 +222,11 @@ export default function EventCreateScreen() {
     }
   }, [locale, queryClient]);
 
+  // A point arriving answers the «Scrivi luogo e città…» refusal, and only that one: any other
+  // error is about a different field and stays until the next submit re-checks it.
+  const clearLocationError = () =>
+    setError((current) => (current === t('event.create.locationNeeded', locale) ? null : current));
+
   const requestMyLocation = async () => {
     setLocationRefusal(null);
     let pos: Location.LocationObject;
@@ -226,12 +254,14 @@ export default function EventCreateScreen() {
     // Snapped here, before the point reaches the OS geocoder or create_event: the event's point
     // is the grid cell, never the organiser's phone (#781). events_snap_geo snaps it again on
     // the table with the same arithmetic, so what is stored is exactly what was sent.
-    const point = snapToEventGrid({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-    setCoords(point);
+    const fix = snapToEventGrid({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    setDevicePoint(fix);
+    setPointSource('device');
+    clearLocationError();
     try {
       const [place] = await Location.reverseGeocodeAsync({
-        latitude: point.lat,
-        longitude: point.lng,
+        latitude: fix.lat,
+        longitude: fix.lng,
       });
       if (place?.city && !city) setCity(place.city);
     } catch (e) {
@@ -240,8 +270,75 @@ export default function EventCreateScreen() {
     }
   };
 
+  const query = venueQuery(venue, city);
+  const { point, status: pointStatus } = eventPointState({
+    query,
+    venue: venuePoint,
+    device: devicePoint,
+    source: pointSource,
+    lookup,
+  });
+
+  /**
+   * Looks the typed venue up with the OS geocoder — Apple's on iOS, Google's on Android — and snaps
+   * the answer to the event grid before it goes anywhere else. Nothing else is sent: no third-party
+   * geocoder, no key. What it cannot do is said on screen (the line under the city), and the phone
+   * position stays one tap away rather than being used behind the organiser's back.
+   *
+   * Android only: expo-location's geocoder refuses without a foreground location grant
+   * (`LocationModule.kt` `geocode` → LocationUnauthorizedException), so the same approximate-location
+   * prompt comes first. iOS's CLGeocoder needs no grant. On web `geocodeAsync` returns `[]`, which
+   * lands on the not-found line with «Usa la mia posizione» beside it.
+   */
+  const geocodeVenue = async (q: string): Promise<GeoPoint | null> => {
+    latestLookup.current = q;
+    setLookup({ state: 'looking', query: q });
+    const settle = (next: VenueLookup) => {
+      if (latestLookup.current === q) setLookup(next);
+    };
+    try {
+      if (Platform.OS === 'android') {
+        const res = await Location.requestForegroundPermissionsAsync();
+        if (!res.granted) {
+          setLocationRefusal(toStatus(res) === 'blocked' ? 'blocked' : 'denied');
+          settle({ state: 'failed', query: q });
+          return null;
+        }
+      }
+      const [hit] = await Location.geocodeAsync(q);
+      if (!hit) {
+        settle({ state: 'notFound', query: q });
+        return null;
+      }
+      const found = snapToEventGrid({ lat: hit.latitude, lng: hit.longitude });
+      if (latestLookup.current === q) {
+        setVenuePoint({ query: q, point: found });
+        setPointSource('venue');
+        setLookup({ state: 'idle', query: null });
+        clearLocationError();
+      }
+      return found;
+    } catch (e) {
+      devWarn('[event-create] geocode', e);
+      settle({ state: 'failed', query: q });
+      return null;
+    }
+  };
+
+  const lookUpVenue = (q: string): Promise<GeoPoint | null> => {
+    const answer = geocodeVenue(q);
+    inflight.current = { query: q, answer };
+    return answer;
+  };
+
+  // Venue and city are looked up when the organiser leaves either field, so the point is on
+  // screen before they reach «Pubblica»; onSubmit catches a form sent straight from the keyboard.
+  const lookUpIfNeeded = () => {
+    if (query !== null && shouldLookUpVenue(query, venuePoint, lookup)) void lookUpVenue(query);
+  };
+
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (at: GeoPoint | null) => {
       const parsed = eventCreateSchema.parse({
         title,
         category,
@@ -253,8 +350,8 @@ export default function EventCreateScreen() {
         // The schema trims and turns blank into null — a null renders as NOTHING on the
         // detail, which is the whole point of #634: no more fabricated fallback paragraph.
         description,
-        lat: isOnline ? null : (coords?.lat ?? null),
-        long: isOnline ? null : (coords?.lng ?? null),
+        lat: at?.lat ?? null,
+        long: at?.lng ?? null,
         stream_url: isOnline ? streamUrl || null : null,
         starts_at: startsAt.toISOString(),
         ends_at: null,
@@ -294,7 +391,7 @@ export default function EventCreateScreen() {
     },
   });
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     setError(null);
     // The four paid-event refusals, in the order BOTH server gates raise them: price floor
     // (22003), acknowledgement (22023), then identity (42501), then payout (55000). The order is
@@ -334,8 +431,21 @@ export default function EventCreateScreen() {
       return;
     }
     if (title.trim().length === 0) return setError(t('event.create.error', locale));
-    if (!isOnline && !coords) return setError(t('event.create.locationNeeded', locale));
-    mutation.mutate();
+    if (isOnline) return mutation.mutate(null);
+    // A venue typed and sent without leaving the field has not been looked up yet: do it now, and
+    // save with the answer. No answer means no point — the line under the city already says why.
+    const pending = inflight.current;
+    const at =
+      point ??
+      (query === null
+        ? null
+        : lookup.state === 'looking' && pending?.query === query
+          ? await pending.answer
+          : shouldLookUpVenue(query, venuePoint, lookup)
+            ? await lookUpVenue(query)
+            : null);
+    if (!at) return setError(t('event.create.locationNeeded', locale));
+    mutation.mutate(at);
   };
 
   const label = (key: MessageKey) => <SectionLabel>{t(key, locale)}</SectionLabel>;
@@ -348,7 +458,8 @@ export default function EventCreateScreen() {
       isOnline,
       venue,
       city,
-      coords,
+      venuePoint,
+      devicePoint,
       streamUrl,
       startsAt,
       capacity,
@@ -451,6 +562,7 @@ export default function EventCreateScreen() {
                   placeholder={t('event.create.venuePlaceholder', locale)}
                   value={venue}
                   onChangeText={setVenue}
+                  onEndEditing={lookUpIfNeeded}
                   maxLength={240}
                 />
               </View>
@@ -461,8 +573,29 @@ export default function EventCreateScreen() {
                   placeholder={t('event.create.cityPlaceholder', locale)}
                   value={city}
                   onChangeText={setCity}
+                  onEndEditing={lookUpIfNeeded}
                   maxLength={120}
                 />
+                {/* Where the point comes from, always said (#781): the venue that was found, the
+                    phone position the organiser chose, or why neither is there yet. Literal keys
+                    on every arm for the i18n checker. Neutral chrome — finding a place is not a
+                    moment-grade event (rule #4). */}
+                <Text
+                  className="text-[13px] text-muted-foreground"
+                  accessibilityLiveRegion="polite"
+                >
+                  {pointStatus === 'venue'
+                    ? t('event.create.point.venue', locale, { place: query ?? '' })
+                    : pointStatus === 'device'
+                      ? t('event.create.point.device', locale)
+                      : pointStatus === 'looking'
+                        ? t('event.create.point.looking', locale)
+                        : pointStatus === 'notFound'
+                          ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                          : pointStatus === 'failed'
+                            ? t('event.create.point.failed', locale)
+                            : t('event.create.point.hint', locale)}
+                </Text>
               </View>
               <Pressable
                 onPress={() => void requestMyLocation()}
@@ -470,7 +603,7 @@ export default function EventCreateScreen() {
                 accessibilityRole="button"
               >
                 <Text className="text-[13px] text-aura">
-                  {coords
+                  {pointStatus === 'device'
                     ? t('event.create.locationSet', locale)
                     : t('event.create.useLocation', locale)}
                 </Text>
@@ -642,7 +775,7 @@ export default function EventCreateScreen() {
           <View ref={reveal.submitRef()}>
             <Button
               label={t('event.create.submit', locale)}
-              onPress={onSubmit}
+              onPress={() => void onSubmit()}
               disabled={mutation.isPending}
               variant="light"
             />

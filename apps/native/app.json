@@ -126,6 +126,7 @@
           "locationWhenInUsePermission": "Athanor uses your approximate location to show events near you and to place an event you create — never in the background."
         }
       ],
+      "./plugins/without-location-task-service.js",
       [
         "expo-calendar",
         {

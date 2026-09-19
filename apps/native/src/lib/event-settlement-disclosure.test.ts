@@ -124,10 +124,13 @@ describe('the minimum paid ticket price (#701)', () => {
     // event.create.price.min would never be shown. Order is the assertion.
     const s = screen();
     const guard = s.indexOf('parseEuroToCents(price, MIN_PAID_TICKET_CENTS)');
-    const submit = s.indexOf('mutation.mutate();');
+    // Every submit CALL, not the prose that names it: since #781 the call carries the event's
+    // point (`mutation.mutate(null)` online, `mutation.mutate(at)` in person), and the comment
+    // above the guard mentions `mutation.mutate()` by name.
+    const submits = [...s.matchAll(/mutation\.mutate\((?!\))[^)]*\);/g)].map((m) => m.index);
     expect(guard, 'the floor guard is gone from onSubmit').toBeGreaterThan(-1);
-    expect(submit).toBeGreaterThan(-1);
-    expect(guard).toBeLessThan(submit);
+    expect(submits.length).toBeGreaterThan(0);
+    for (const submit of submits) expect(guard).toBeLessThan(submit);
   });
 
   it('takes the floor from the constant, never a literal', () => {

@@ -18,10 +18,10 @@
  */
 export const EVENT_GEO_CELLS_PER_DEGREE = 40;
 
-export interface GeoPoint {
+export type GeoPoint = {
   lat: number;
   lng: number;
-}
+};
 
 function snap(degrees: number): number {
   return Math.floor(degrees * EVENT_GEO_CELLS_PER_DEGREE + 0.5) / EVENT_GEO_CELLS_PER_DEGREE;

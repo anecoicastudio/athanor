@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { semantic } from '@athanor/config';
@@ -80,10 +81,75 @@ describe.each([
     expect(pluginProps(config, 'expo-video')?.supportsBackgroundPlayback).not.toBe(true);
   });
 
+  it('removes expo-location’s LocationTaskService with the local plugin (#776)', () => {
+    // The library manifest declares it with foregroundServiceType="location"; nothing in app.json
+    // can take it out except a `tools:node="remove"` element, which only a config plugin writes.
+    expect(pluginProps(config, LOCATION_PLUGIN)).toEqual({});
+  });
+
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
     expect(props?.color).toBe(semantic.aura);
+  });
+});
+
+const LOCATION_PLUGIN = './plugins/without-location-task-service.js';
+
+describe('without-location-task-service plugin (#776)', () => {
+  const plugin = createRequire(import.meta.url)(`../../${LOCATION_PLUGIN.slice(2)}`) as {
+    removeLocationTaskService: (manifest: unknown) => {
+      manifest: {
+        $: Record<string, string>;
+        application: { $: Record<string, string>; service?: { $: Record<string, string> }[] }[];
+      };
+    };
+    LOCATION_TASK_SERVICE: string;
+  };
+  const manifest = (services: { $: Record<string, string> }[]) => ({
+    manifest: {
+      $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      application: [{ $: { 'android:name': '.MainApplication' }, service: services }],
+    },
+  });
+  const OTHER = {
+    $: { 'android:name': 'expo.modules.notifications.service.ExpoFirebaseMessagingService' },
+  };
+
+  it('names the service expo-location declares', () => {
+    expect(plugin.LOCATION_TASK_SERVICE).toBe('expo.modules.location.services.LocationTaskService');
+  });
+
+  it('marks the service for removal at manifest merge and keeps every other service', () => {
+    const out = plugin.removeLocationTaskService(manifest([OTHER]));
+    expect(out.manifest.$['xmlns:tools']).toBe('http://schemas.android.com/tools');
+    expect(out.manifest.application[0]!.service).toEqual([
+      OTHER,
+      {
+        $: {
+          'android:name': 'expo.modules.location.services.LocationTaskService',
+          'tools:node': 'remove',
+        },
+      },
+    ]);
+  });
+
+  it('is idempotent — a second run, or a manifest that already names it, leaves one entry', () => {
+    const once = plugin.removeLocationTaskService(manifest([OTHER]));
+    const twice = plugin.removeLocationTaskService(once);
+    const named = twice.manifest.application[0]!.service!.filter(
+      (s) => s.$['android:name'] === plugin.LOCATION_TASK_SERVICE,
+    );
+    expect(named).toEqual([
+      { $: { 'android:name': plugin.LOCATION_TASK_SERVICE, 'tools:node': 'remove' } },
+    ]);
+  });
+
+  it('works on an application that declares no services at all', () => {
+    const out = plugin.removeLocationTaskService(manifest(undefined as never));
+    expect(out.manifest.application[0]!.service).toEqual([
+      { $: { 'android:name': plugin.LOCATION_TASK_SERVICE, 'tools:node': 'remove' } },
+    ]);
   });
 });
 
@@ -141,6 +207,12 @@ describe('location fixes in the app (#781)', () => {
       expect(text).not.toMatch(/reverseGeocodeAsync\(\s*pos\.coords\s*\)/);
     },
   );
+
+  it('snaps a geocoded venue before it is used — the venue is the point, on the grid (#781)', () => {
+    const { text } = callers.find(({ path }) => path.endsWith('event-create.tsx'))!;
+    expect(text).toContain('Location.geocodeAsync(');
+    expect(text).toMatch(/snapToEventGrid\(\{ lat: hit\.latitude, lng: hit\.longitude \}\)/);
+  });
 
   it('takes no other kind of fix — no watch, no last-known position', () => {
     for (const { text } of sources(SRC).map((path) => ({ text: readFileSync(path, 'utf8') }))) {
