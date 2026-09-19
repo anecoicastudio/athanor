@@ -1068,6 +1068,8 @@
   "notif.prefs.projects": "Responses to your searches",
   "notif.prefs.push": "Push notifications",
   "notif.prefs.osOff": "Notifications are off in your phone settings. While they stay off, nothing reaches you.",
+  "notif.channel.name": "When it matters",
+  "notif.channel.description": "Momenti, messages and reminders meant for you.",
   "notif.tpl.moment": "{name} has a strong affinity with your dream.",
   "notif.tpl.message": "New message",
   "notif.tpl.dreamMilestone": "{name} offered to mentor your dream.",

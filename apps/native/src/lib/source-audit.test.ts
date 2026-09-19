@@ -126,6 +126,8 @@ const codeLines = (): [string, string][] =>
  * `.env.example` rule does bind it: it reads EXPO_PUBLIC_SITE_ORIGIN to decide which host the
  * binary claims as a universal link, and an EAS build missing that variable resolves a
  * different host from the one `links.ts` hands URLs out on — silently, which is #486 itself.
+ * Its build-time-only names (the Firebase config path, #746) are pinned by the carve-out below
+ * instead, because they are neither EXPO_PUBLIC_ nor public.
  */
 const BUILD_TIME_CONFIG = `${NATIVE}app.config.ts`;
 const configLines = (): [string, string][] =>
@@ -151,7 +153,7 @@ describe('env reads survive Metro inlining', () => {
     expect(aliased.map(([where, t]) => `${where}  ${t.trim()}`)).toEqual([]);
   });
 
-  it('reads only EXPO_PUBLIC_* names, all declared in .env.example', () => {
+  it('reads only EXPO_PUBLIC_* names, all declared in .env.example (build-time config aside)', () => {
     // Anything not prefixed EXPO_PUBLIC_ is stripped from the bundle by Expo, so it is
     // always `undefined` at runtime — and if it were NOT stripped it would be a secret leak.
     const example = readFileSync(`${NATIVE}.env.example`, 'utf8');
@@ -159,12 +161,39 @@ describe('env reads survive Metro inlining', () => {
       [...example.matchAll(/^[ \t]*([A-Z0-9_]+)\s*=/gm)].map((m) => m[1] as string),
     );
 
-    const reads = [...codeLines(), ...configLines()].flatMap(([where, t]) =>
+    const allReads = [...codeLines(), ...configLines()].flatMap(([where, t]) =>
       [...t.matchAll(/process\s*\.\s*env\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)/g)].map(
         (m) => [where, m[1] as string] as const,
       ),
     );
 
+    // The one carve-out: names that exist only while a build runs and that app.config.ts reads
+    // at config time (#746). They are NOT EXPO_PUBLIC_ — EAS materialises GOOGLE_SERVICES_JSON
+    // as a secret file variable and sets EAS_BUILD_PLATFORM itself — and they are not in
+    // `.env.example`, which holds public values only. So they may appear in app.config.ts and
+    // in the tests that drive it, and never in code that ships: in the bundle they would be
+    // `undefined`, or, if ever inlined, a build machine's path. Pinned, so a new one is a
+    // reviewed edit here.
+    const BUILD_TIME_ONLY = ['EAS_BUILD_PLATFORM', 'GOOGLE_SERVICES_JSON'];
+    const buildTime = allReads.filter(([, name]) => BUILD_TIME_ONLY.includes(name));
+    expect(
+      buildTime
+        .filter(([where]) => !where.startsWith(`${rel(BUILD_TIME_CONFIG)}:`))
+        .filter(([where]) => !/\.test\.tsx?:\d+$/.test(where))
+        .map(([w, n]) => `${w}  ${n}`),
+      'a build-time name read by shipped code',
+    ).toEqual([]);
+    expect(
+      [
+        ...new Set(
+          buildTime
+            .filter(([where]) => where.startsWith(`${rel(BUILD_TIME_CONFIG)}:`))
+            .map(([, n]) => n),
+        ),
+      ].sort(),
+    ).toEqual(BUILD_TIME_ONLY);
+
+    const reads = allReads.filter(([, name]) => !BUILD_TIME_ONLY.includes(name));
     expect(reads.filter(([, name]) => !name.startsWith('EXPO_PUBLIC_'))).toEqual([]);
     expect(
       reads.filter(([, name]) => !declared.has(name)).map(([w, n]) => `${w}  ${n}`),
@@ -995,6 +1024,10 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
     'components/boot/ForceUpdateScreen.tsx',
     'components/boot/MaintenanceScreen.tsx',
     'components/boot/ProfileErrorScreen.tsx',
+    // The Android notification channel's name (#746) is drawn by the SYSTEM settings screen,
+    // among the phone's own labels in the device language — not by an Athanor screen, and
+    // registration runs outside React, where useLocale() cannot be called.
+    'lib/push.ts',
   ];
 
   it('no screen hardcodes a locale fallback', () => {

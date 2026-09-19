@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 /**
@@ -16,7 +18,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * `$TURBO_ROOT$/apps/native/app.json` cache input keep working untouched.
  *
  * Unset is a fallback, never a throw. No staging web host exists, so every EAS profile
- * resolves to the production origin today and this file changes no shipped bytes.
+ * resolves to the production origin today and the host rewrite changes no shipped bytes.
  * A *malformed* value is a throw, because config time is the last place a wrong host is still
  * visible — past it the binary ships claiming a domain nobody serves.
  *
@@ -100,7 +102,45 @@ function asDevVariant(config: ExpoConfig): ExpoConfig {
   };
 }
 
-export default ({ config }: StaticConfig): ExpoConfig => {
+/**
+ * Firebase's Android client config (#746). Without it in the binary Firebase never initialises,
+ * `getExpoPushTokenAsync` throws on every boot, and production collects zero Android push
+ * tokens. The file lists both package ids (the production app and the dev variant above), so
+ * one path serves both.
+ *
+ * It stays out of this public repo (.gitignore), which means a build's working tree never has
+ * it: EAS copies the tree honouring .gitignore, locally (`eas build --local`) as much as in the
+ * cloud. So the path comes from outside, in this order:
+ *
+ *  1. `GOOGLE_SERVICES_JSON` — the EAS file variable, which EAS materialises and points at; for
+ *     a local build the shell supplies it (README §Android dev client);
+ *  2. `google-services.json` beside this file — `expo prebuild` / `expo run` from the checkout;
+ *  3. nothing. CI's prebuild job has neither, and the plugin throws on a path that is set but
+ *     missing, so the key is omitted rather than guessed.
+ *
+ * Except that (3) on an Android EAS build is a throw: that build would ship a binary that can
+ * never receive a push, and say so nowhere — which is #746 exactly. `EAS_BUILD_PLATFORM` is set
+ * by EAS inside every build job, cloud and local, and by nothing else.
+ */
+const GOOGLE_SERVICES_FILE = 'google-services.json';
+
+function googleServicesFile(projectRoot: string | undefined): string | undefined {
+  const fromEnv = process.env.GOOGLE_SERVICES_JSON;
+  if (fromEnv) return fromEnv;
+  if (projectRoot && existsSync(join(projectRoot, GOOGLE_SERVICES_FILE))) {
+    return `./${GOOGLE_SERVICES_FILE}`;
+  }
+  if (process.env.EAS_BUILD_PLATFORM === 'android') {
+    throw new Error(
+      `No ${GOOGLE_SERVICES_FILE} for this Android build, so push could never register. Set ` +
+        'GOOGLE_SERVICES_JSON: the EAS file variable for cloud builds, or ' +
+        `GOOGLE_SERVICES_JSON="$PWD/${GOOGLE_SERVICES_FILE}" in front of eas build --local.`,
+    );
+  }
+  return undefined;
+}
+
+export default ({ config, projectRoot }: StaticConfig): ExpoConfig => {
   const configured = process.env.EXPO_PUBLIC_SITE_ORIGIN;
   const host = configured ? configuredHost(configured) : defaultHost(config);
 
@@ -111,6 +151,7 @@ export default ({ config }: StaticConfig): ExpoConfig => {
     );
   }
 
+  const firebase = googleServicesFile(projectRoot);
   const resolved: ExpoConfig = {
     ...config,
     ios: config.ios && { ...config.ios, associatedDomains: [`applinks:${host}`] },
@@ -119,6 +160,8 @@ export default ({ config }: StaticConfig): ExpoConfig => {
       intentFilters: config.android.intentFilters?.map((filter) =>
         filter.data ? { ...filter, data: rehost(filter.data, host) } : filter,
       ),
+      // Absent rather than `undefined` when unresolved, so the unset case is app.json exactly.
+      ...(firebase && { googleServicesFile: firebase }),
     },
   };
   return variant ? asDevVariant(resolved) : resolved;

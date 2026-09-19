@@ -99,15 +99,24 @@ dev client only when a native dependency or a config plugin changes, locally wit
 USB (needs the Android SDK + JDK 17; the first build takes ~20 min and ~10 GB of disk):
 
 ```bash
-cd apps/native && pnpm dlx eas-cli build -p android --profile development --local --output athanor-dev.apk
+cd apps/native && GOOGLE_SERVICES_JSON="$PWD/google-services.json" \
+  pnpm dlx eas-cli build -p android --profile development --local --output athanor-dev.apk
 adb install -r athanor-dev.apk              # installs next to the store app as "Athanor Dev"
 adb reverse tcp:8081 tcp:8081               # USB: the phone reaches Metro on localhost
 ```
 
-In the dev variant, **email + password sign-in on
-staging works; Google sign-in, sign-up confirmation links, app links and push do not** — it
-has its own scheme (`athanor-dev`), which no Supabase redirect allow-list was set up for, it
-claims no web domain, and it has no FCM config. Those are checked on the store build at release, not per branch.
+`google-services.json` is Firebase's Android config (Firebase project `athanor-play` → Project
+settings → General; it lists both package ids). It is gitignored — this repo is public — so
+download it into `apps/native/` yourself. EAS copies the tree without ignored files, locally
+too, so the variable is what hands the file to the build; an Android EAS build without it
+stops with an error instead of shipping an app that can never receive a push. A cloud build
+would need the same name as an EAS file variable; none is set, because Android builds run
+locally.
+
+In the dev variant, **email + password sign-in on staging works, and so does push; Google
+sign-in, sign-up confirmation links and app links do not** — it has its own scheme
+(`athanor-dev`), which no Supabase redirect allow-list was set up for, and it claims no web
+domain. Those are checked on the store build at release, not per branch.
 
 `pnpm gen:types` reads the **staging** project rather than a local stack, so it needs
 `supabase login` once (or a `SUPABASE_ACCESS_TOKEN`) plus membership of the org that owns

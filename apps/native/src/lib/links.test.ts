@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExpoConfig } from 'expo/config';
@@ -55,6 +56,14 @@ const CONFIGURED_ORIGIN = 'https://staging.athanor.invalid';
 
 const ORIGINAL_ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN;
 
+// Build-time names app.config.ts reads for the Firebase config (#746). A shell that exports
+// either would move `android.googleServicesFile` under every assertion below, so the suite
+// starts from neither and restores both.
+const ORIGINAL_GOOGLE_SERVICES = process.env.GOOGLE_SERVICES_JSON;
+const ORIGINAL_EAS_PLATFORM = process.env.EAS_BUILD_PLATFORM;
+delete process.env.GOOGLE_SERVICES_JSON;
+delete process.env.EAS_BUILD_PLATFORM;
+
 /**
  * links.ts reads the variable at module scope (Metro inlines it at bundle time), so the
  * module has to be re-evaluated per value — hence resetModules + a dynamic import.
@@ -71,6 +80,10 @@ async function resolve(origin: string | undefined) {
 afterAll(() => {
   if (ORIGINAL_ORIGIN === undefined) delete process.env.EXPO_PUBLIC_SITE_ORIGIN;
   else process.env.EXPO_PUBLIC_SITE_ORIGIN = ORIGINAL_ORIGIN;
+  if (ORIGINAL_GOOGLE_SERVICES === undefined) delete process.env.GOOGLE_SERVICES_JSON;
+  else process.env.GOOGLE_SERVICES_JSON = ORIGINAL_GOOGLE_SERVICES;
+  if (ORIGINAL_EAS_PLATFORM === undefined) delete process.env.EAS_BUILD_PLATFORM;
+  else process.env.EAS_BUILD_PLATFORM = ORIGINAL_EAS_PLATFORM;
   vi.resetModules();
 });
 
@@ -227,6 +240,91 @@ describe('EXPO_PUBLIC_APP_VARIANT (#755)', () => {
     for (const profile of ['preview', 'production']) {
       expect(eas.build[profile].env?.EXPO_PUBLIC_APP_VARIANT, profile).toBeUndefined();
     }
+  });
+});
+
+describe('android.googleServicesFile (#746)', () => {
+  /*
+   * Without google-services.json in the binary, Firebase never initialises, the push token call
+   * throws on every boot, and production collects zero Android tokens with nothing in any log.
+   * The file stays out of this public repo, so the path is resolved per build: the
+   * GOOGLE_SERVICES_JSON file variable (EAS materialises it; a local `eas build --local` gets it
+   * from the shell), else the file beside app.config.ts, else nothing — CI's prebuild has
+   * neither and must still pass. An Android EAS build with neither is the one case that
+   * throws, because it is the case that would ship that binary.
+   */
+  const FILE_VAR = '/eas/materialised/google-services.json';
+  const withFile = mkdtempSync(join(tmpdir(), 'athanor-gs-'));
+  writeFileSync(join(withFile, 'google-services.json'), '{}');
+  const withoutFile = mkdtempSync(join(tmpdir(), 'athanor-no-gs-'));
+
+  const resolveWith = (opts: {
+    fileVar?: string;
+    easPlatform?: string;
+    projectRoot?: string;
+    variant?: string;
+  }) => {
+    // Longhand, never `process.env[name]`: source-audit §1 rejects a computed env read anywhere
+    // under src/, tests included.
+    delete process.env.EXPO_PUBLIC_SITE_ORIGIN;
+    if (opts.fileVar === undefined) delete process.env.GOOGLE_SERVICES_JSON;
+    else process.env.GOOGLE_SERVICES_JSON = opts.fileVar;
+    if (opts.easPlatform === undefined) delete process.env.EAS_BUILD_PLATFORM;
+    else process.env.EAS_BUILD_PLATFORM = opts.easPlatform;
+    if (opts.variant === undefined) delete process.env.EXPO_PUBLIC_APP_VARIANT;
+    else process.env.EXPO_PUBLIC_APP_VARIANT = opts.variant;
+    return resolveAppConfig({ config: staticConfig(), projectRoot: opts.projectRoot });
+  };
+
+  afterAll(() => {
+    rmSync(withFile, { recursive: true, force: true });
+    rmSync(withoutFile, { recursive: true, force: true });
+    delete process.env.GOOGLE_SERVICES_JSON;
+    delete process.env.EAS_BUILD_PLATFORM;
+    delete process.env.EXPO_PUBLIC_APP_VARIANT;
+  });
+
+  it('app.json never names the file — the path is a per-build decision', () => {
+    expect(STATIC.android?.googleServicesFile).toBeUndefined();
+  });
+
+  it('the file variable wins over a file on disk', () => {
+    const config = resolveWith({
+      fileVar: FILE_VAR,
+      projectRoot: withFile,
+      easPlatform: 'android',
+    });
+    expect(config.android?.googleServicesFile).toBe(FILE_VAR);
+  });
+
+  it('falls back to the file beside app.config.ts, relative to the project root', () => {
+    const config = resolveWith({ projectRoot: withFile });
+    expect(config.android?.googleServicesFile).toBe('./google-services.json');
+  });
+
+  it.each([
+    { where: 'CI prebuild / dev machine', easPlatform: undefined },
+    { where: 'an iOS EAS build', easPlatform: 'ios' },
+  ])('is omitted when neither exists — $where', ({ easPlatform }) => {
+    for (const projectRoot of [withoutFile, undefined]) {
+      const config = resolveWith({ projectRoot, easPlatform });
+      expect(config.android?.googleServicesFile, String(projectRoot)).toBeUndefined();
+      expect(config.android).toEqual(STATIC.android);
+    }
+  });
+
+  it('an Android EAS build with neither throws, naming the variable', () => {
+    for (const projectRoot of [withoutFile, undefined]) {
+      expect(() => resolveWith({ projectRoot, easPlatform: 'android' })).toThrow(
+        /GOOGLE_SERVICES_JSON/,
+      );
+    }
+  });
+
+  it('the development variant keeps it — both package ids are registered in Firebase', () => {
+    const config = resolveWith({ fileVar: FILE_VAR, variant: 'development' });
+    expect(config.android?.package).toBe(`${STATIC.android?.package}.dev`);
+    expect(config.android?.googleServicesFile).toBe(FILE_VAR);
   });
 });
 
