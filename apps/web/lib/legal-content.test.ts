@@ -195,4 +195,13 @@ describe('deleteAccount', () => {
     expect(ledger('it')).not.toMatch(/anni/);
     expect(ledger('en')).not.toMatch(/years/);
   });
+
+  it('names the one ledger event the redaction cannot reach, until something closes it', () => {
+    // 20260912070533's accepted limit: a fund contribution's refund or dispute already in the
+    // ledger at erasure time keeps its billing details. «We remove your identifying details»
+    // with no exception would promise what the cascade does not do.
+    const ledger = (loc: 'it' | 'en') => deleteAccount[loc].sections.at(-1)!.body.at(-1)!;
+    expect(ledger('it')).toMatch(/tranne[^.]*rimborso[^.]*contributo al fondo/);
+    expect(ledger('en')).toMatch(/except[^.]*refund[^.]*fund contribution/);
+  });
 });

@@ -215,8 +215,8 @@ const tEn = (key: MessageKey) => t(key, 'en');
  * `account.delete.deferred` verbatim, so this page and the in-app screen cannot promise different
  * things. What the rest may claim is bounded by the erasure cascade as built: `erasure-job`
  * cancels the Circle subscription, pseudonymises the payment rows (#107) that the reaper drops
- * after ten years (#715), redacts the webhook ledger with NO retention window (#725,
- * MIGRATIONS-ERRATA), and disowns and hides the member's events rather than deleting them
+ * after ten years (#715), redacts the webhook ledger with NO retention window and one accepted hole — a fund
+ * contribution's refund or dispute already in the ledger at erasure (#725, `20260912070533`), and disowns and hides the member's events rather than deleting them
  * (`gdpr_release_profile_references`).
  */
 export const deleteAccount: Record<Locale, LegalDoc> = {
@@ -252,14 +252,14 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         body: [
           tIt('account.delete.deferred'),
           "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se eri nella lista d'attesa, togliamo anche il tuo indirizzo email.",
-          'Gli eventi che hai organizzato vengono nascosti e non portano più il tuo nome. Restano solo perché i biglietti di chi vi ha partecipato sono registrazioni di pagamento.',
+          'Gli eventi che hai organizzato vengono nascosti e non portano più il tuo nome. Restano solo per non cancellare con loro i biglietti e le iscrizioni delle altre persone.',
         ],
       },
       {
         heading: 'Cosa conserviamo',
         body: [
-          'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili, e la legge ci obbliga a tenerle per dieci anni. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano importo, valuta, data e gli identificativi del pagamento presso Stripe. Passati i dieci anni le eliminiamo.',
-          'Conserviamo anche il registro delle notifiche di pagamento che Stripe ci invia, dopo averne tolto i tuoi dati identificativi: ci serve a non registrare mai due volte lo stesso pagamento.',
+          'I pagamenti — biglietti degli eventi, abbonamenti Circle, contributi al fondo — sono registrazioni contabili, e la legge ci obbliga a tenerle per dieci anni. Le conserviamo senza il tuo nome e senza i tuoi contatti: restano solo i dati del pagamento e i suoi identificativi presso Stripe. Passati i dieci anni le eliminiamo.',
+          'Conserviamo anche il registro delle notifiche di pagamento che Stripe ci invia: ci serve a non registrare mai due volte lo stesso pagamento. Ne togliamo i tuoi dati identificativi, tranne che dalle notifiche di rimborso o di contestazione di un contributo al fondo arrivate prima della cancellazione.',
         ],
       },
     ],
@@ -297,14 +297,14 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         body: [
           tEn('account.delete.deferred'),
           'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you were on the waitlist, we remove your email address from it too.',
-          'Events you organized are hidden and no longer carry your name. They stay only because the tickets of the people who attended them are payment records.',
+          "Events you organized are hidden and no longer carry your name. They remain only so that other people's tickets and sign-ups are not deleted with them.",
         ],
       },
       {
         heading: 'What we keep',
         body: [
-          "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records, and the law requires us to keep them for ten years. We keep them without your name or contact details: the amount, currency, date and the payment's identifiers at Stripe remain. After ten years we delete them.",
-          'We also keep the log of payment notifications Stripe sends us, with your identifying details removed: it is how we make sure no payment is ever recorded twice.',
+          "Payments — event tickets, Circle subscriptions, fund contributions — are accounting records, and the law requires us to keep them for ten years. We keep them without your name or contact details: only the payment's own details and its identifiers at Stripe remain. After ten years we delete them.",
+          'We also keep the log of payment notifications Stripe sends us: it is how we make sure no payment is ever recorded twice. We remove your identifying details from it, except from refund or dispute notifications about a fund contribution that arrived before the deletion.',
         ],
       },
     ],

@@ -1485,7 +1485,8 @@ policy does not apply).
 
 1. **Identify.** The request must come from the account's own address. Anything else — a
    different address, a request on somebody else's behalf — gets a reply asking them to write
-   from the account's address, and nothing is filed.
+   from the account's address, and nothing is filed. A matching sender is necessary, **not
+   sufficient**: a From header is forgeable, and step 2 bans and erases whoever it names.
 
    ```sql
    select u.id, u.email, u.banned_until,
@@ -1497,6 +1498,11 @@ policy does not apply).
 
    Exactly one row, or stop. If `requests` already lists a row that is not `done`, do not file a
    second one: `requested` / `processing` is already on its way, and `partial` / `failed` is §7.5's.
+
+   **Confirm through that mailbox.** Write a NEW message to the `email` the query returned —
+   never a reply to the incoming one — saying the account will be deleted and asking them to
+   confirm. File only on an answer received at that address. This is the check the page promises
+   («Verifichiamo che la richiesta venga da te»).
 
 2. **File.**
 
@@ -1514,7 +1520,14 @@ policy does not apply).
 3. **Reply** — the request is recorded, sign-in is already blocked, the deletion runs overnight
    and usually completes within a day. Say nothing the page does not.
 
-4. **Next day**, confirm it finished: the row reads `done`. `partial` or `failed` → §7.5.
+4. **Next day**, confirm it finished — by the request id, since a clean pass deletes the account
+   and nulls the row's `profile_id`, so step 1 finds nothing:
+
+   ```sql
+   select status, updated_at from public.gdpr_erasure_requests where id = '<id from step 2>';
+   ```
+
+   `done` is finished. `partial` or `failed` → §7.5.
 
 Smoked on staging 2026-09-19 inside a DO block that always raises: the address lookup matched
 case-insensitively, the insert returned `requested` and set `banned_until` a century out, a second
