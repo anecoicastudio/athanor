@@ -221,18 +221,27 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
 
   /**
-   * `withSubmit` is false only for the pass that runs ON the tap, which measures a viewport the
-   * keyboard has not shrunk yet: a row and a submit that fit in THAT one are no reason to drag a
-   * field the member can already see from under their finger, towards a button the keyboard is
-   * about to cover (it did, on the iPhone SE signup form). Every later pass — the shrink, the
-   * settle timer, the content growing — runs with the keyboard up and brings the submit along.
+   * Which event asked for the reveal, because two of them must be more careful than the rest:
+   *
+   * - `tap` measures a viewport the keyboard has not shrunk yet, so it reveals the row ALONE: a
+   *   row and a submit that fit in THAT viewport are no reason to drag a field the member can
+   *   already see from under their finger, towards a button the keyboard is about to cover (it
+   *   did, on the iPhone SE signup form). Every later pass runs with the keyboard up and brings
+   *   the submit along.
+   * - `grow` never moves a target taller than the viewport. Growth under a focused row that
+   *   already does not fit is a multiline field being typed into — an event or project
+   *   description — and "show its top" would bury the caret, which sits at the BOTTOM, once per
+   *   new line; on Android it would fight the native caret-follow on every keystroke. Only the
+   *   first reveal of a tall row shows its top. Latent until #752: before it, no pass ever
+   *   measured anything on a native build.
    */
-  const reveal = (key: string, withSubmit: boolean) => {
+  const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow') => {
     const row = rows.get(key);
     const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
     const scroll = list;
     const land = (target: { top: number; height: number }, height: number) => {
+      if (pass === 'grow' && target.height + 2 * REVEAL_PAD >= height) return;
       const y = revealOffset(target, { height, offset, content });
       if (y === null) return;
       scroll.scrollTo({ y, animated: true });
@@ -244,7 +253,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
           // Read at callback time: the submit can mount or unmount between the tap and here.
-          const cta = withSubmit ? submit : null;
+          const cta = pass === 'tap' ? null : submit;
           if (!cta) return land(field, height);
           cta.measureLayout(
             inner,
@@ -279,7 +288,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         // scroll the form the moment the member dismissed the keyboard.
         const shrank = viewport > 0 && next < viewport;
         viewport = next;
-        if (shrank && focused) reveal(focused, true);
+        if (shrank && focused) reveal(focused, 'shrink');
       },
       onScroll: (event) => {
         offset = event.nativeEvent.contentOffset.y;
@@ -289,7 +298,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         content = height;
         // The password checklist mounts on the first keystroke, under a field that was fully
         // visible when it was tapped. Growth under the focused row is a second reveal.
-        if (grew && focused) reveal(focused, true);
+        if (grew && focused) reveal(focused, 'grow');
       },
       scrollEventThrottle: 16,
     },
@@ -309,11 +318,11 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         props = {
           onFocus: () => {
             focused = key;
-            reveal(key, false);
+            reveal(key, 'tap');
             // Again once the keyboard has landed — see KEYBOARD_SETTLE_MS. Skipped if focus has
             // moved on by then, so a fast tap-through does not drag the form back.
             schedule(() => {
-              if (focused === key) reveal(key, true);
+              if (focused === key) reveal(key, 'settle');
             });
           },
           // Only if this field is still the armed one: moving between fields can deliver the

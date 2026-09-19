@@ -196,7 +196,11 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
     // The first pass measures a viewport the keyboard has not shrunk yet. Row and submit fit in
     // THAT one, and chasing it would drag a visible field under the member's finger towards a
     // button the keyboard is about to cover (the signup name field on an iPhone SE did it).
-    const { reveal, scroll } = settling({ viewport: 800, node: row(200, 120), submit: row(900, 52) });
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(900, 52),
+    });
     reveal.fieldProps('password').onFocus();
     expect(scroll.scrollTo).not.toHaveBeenCalled();
   });
@@ -223,7 +227,11 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
   });
 
   it('re-reveals both when the keyboard arrives', () => {
-    const { reveal, scroll } = settling({ viewport: 800, node: row(200, 120), submit: row(344, 52) });
+    const { reveal, scroll } = settling({
+      viewport: 800,
+      node: row(200, 120),
+      submit: row(344, 52),
+    });
     reveal.fieldProps('password').onFocus();
     expect(scroll.scrollTo).not.toHaveBeenCalled();
     reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
@@ -235,7 +243,11 @@ describe('createRevealOnFocus — the form submit comes along (#752)', () => {
 
   it('brings the submit along when the row grows under the field', () => {
     // The signup checklist mounting on the first keystroke pushes the CTA down with it.
-    const { reveal, scroll } = settling({ viewport: 400, node: row(200, 100), submit: row(324, 52) });
+    const { reveal, scroll } = settling({
+      viewport: 400,
+      node: row(200, 100),
+      submit: row(324, 52),
+    });
     reveal.fieldProps('password').onFocus();
     reveal.rowRef('password')(row(200, 160));
     reveal.submitRef()(row(384, 52));
@@ -329,6 +341,29 @@ describe('createRevealOnFocus — a focused row is brought into view', () => {
     reveal.scrollProps.onContentSizeChange(320, 860);
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 200 + 260 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('does not chase a row that has GROWN taller than the viewport — a multiline field', () => {
+    // An event or project description, typed into line by line. Once the row outgrows the
+    // viewport, "show its top" would bury the caret — which sits at the BOTTOM — on every new
+    // line, and on Android fight the native caret-follow on every keystroke.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.rowRef('password')(row(100, 420));
+    reveal.scrollProps.onContentSizeChange(320, 2220);
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('keeps following a growing row while it still fits — the caret is at its foot', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(100, 200) });
+    reveal.fieldProps('password').onFocus();
+    reveal.rowRef('password')(row(100, 320));
+    reveal.scrollProps.onContentSizeChange(320, 2120);
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 100 + 320 + REVEAL_PAD - 400,
       animated: true,
     });
   });
