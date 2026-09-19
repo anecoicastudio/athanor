@@ -1684,7 +1684,7 @@ revoke is the only guard, and this migration's own test is the only witness».
 It does not supersede the other correction to this file: §1's `service_role` claim is corrected
 under the `20260905170330…` heading above, which is a different sentence.
 
-Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:81-84` — `anon` and
+Asserted by: `supabase/tests/0146_profile_birth_date_zodiac.test.sql:84-87` — `anon` and
 `authenticated` cannot execute `athanor.profiles_birth_date_guard()`. Neither assertion names
 PUBLIC, but `has_function_privilege` counts a PUBLIC grant for every role, so a restored
 `grant … to public` reddens both.
