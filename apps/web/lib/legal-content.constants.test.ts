@@ -20,7 +20,7 @@ vi.mock('@athanor/core', async (importOriginal) => {
   };
 });
 
-const { childSafety, privacy } = await import('./legal-content');
+const { childSafety, privacy, terms } = await import('./legal-content');
 
 const section = (loc: 'it' | 'en', starts: string) =>
   privacy[loc].sections.find((s) => s.heading.startsWith(starts))?.body.join('\n') ?? '';
@@ -48,6 +48,13 @@ describe('privacy follows @athanor/core', () => {
 describe('child safety follows @athanor/core', () => {
   it.each(['it', 'en'] as const)('%s states the age MIN_MEMBER_AGE enforces', (loc) => {
     const age = childSafety[loc].sections.find((s) => s.id === 'age')?.body.join('\n') ?? '';
+    expect(age).toContain('97');
+  });
+});
+
+describe('terms follow @athanor/core', () => {
+  it.each(['it', 'en'] as const)('%s states the age MIN_MEMBER_AGE enforces', (loc) => {
+    const age = terms[loc].sections.find((s) => s.id === 'account')?.body.join('\n') ?? '';
     expect(age).toContain('97');
   });
 });
