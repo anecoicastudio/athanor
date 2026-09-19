@@ -159,6 +159,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: "Nell'app: segnalazioni e blocchi",
         body: [
           "Puoi segnalare una persona, un post, un messaggio o un comportamento. Della segnalazione conserviamo chi l'ha fatta, cosa riguarda, il motivo e la nota facoltativa. Oltre a te, può leggerla solo il team di moderazione, e chi viene segnalato non sa chi l'ha fatta.",
+          `Se una segnalazione riguarda materiale che appare come abuso sessuale su minori, quel materiale lo segnaliamo alle autorità competenti, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           "Quando il team decide su una segnalazione — un avviso, una penalità sull'Aura, una sospensione o un'esclusione — la decisione resta in un registro, con chi l'ha presa e perché.",
           'Puoi bloccare chi vuoi. Da quel momento non vedete più a vicenda profili, post, commenti, storie, Momenti e messaggi; eventi e progetti restano visibili. Nella tua lista dei bloccati continui a vedere nome e foto di chi hai bloccato, e quella lista la vedi solo tu.',
         ],
@@ -217,6 +218,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
           'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google, se lo scegli, gestisce anche l’accesso con il tuo account Google.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
+          `Alla polizia e alle linee di segnalazione nazionali, il materiale che appare come abuso sessuale su minori, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           `Alcuni di questi fornitori hanno sede negli Stati Uniti o possono trattare dati fuori dall’Unione Europea. In quei casi il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nei loro accordi sul trattamento dei dati (per Cloudflare: cloudflare.com/cloudflare-customer-dpa), o sull’adesione al Data Privacy Framework UE-USA, come per Cloudflare. Puoi chiederne copia scrivendo a ${EMAIL}.`,
         ],
       },
@@ -328,6 +330,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'In the app: reports and blocks',
         body: [
           'You can report a person, a post, a message or a behavior. For each report we keep who made it, what it concerns, the reason and the optional note. Apart from you, only the moderation team reads it, and the person reported is not told who reported them.',
+          `If a report concerns what appears to be child sexual abuse material, we report that material to the competent authorities, as this site's “${tEn('legal.childSafety')}” page explains.`,
           'When the team decides on a report — a warning, an Aura penalty, a suspension or a ban — the decision is kept in a log, with who took it and why.',
           "You can block anyone. From then on you no longer see each other's profiles, posts, comments, stories, Moments and messages; events and projects stay visible. Your list of blocked people keeps showing you their names and photos, and only you see that list.",
         ],
@@ -386,6 +389,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
           'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google, if you choose it, also handles sign-in with your Google account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
+          `The police and national hotlines receive what appears to be child sexual abuse material, as this site's “${tEn('legal.childSafety')}” page explains.`,
           `Some of these providers are based in the United States or may process data outside the European Union. In those cases the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in their data processing agreements (for Cloudflare: cloudflare.com/cloudflare-customer-dpa), or on their certification under the EU–US Data Privacy Framework, as for Cloudflare. You can request a copy by writing to ${EMAIL}.`,
         ],
       },
@@ -658,9 +662,10 @@ const HOTLINES: Record<Locale, LegalLink[]> = {
  *   «Segnala un comportamento» in Settings. `REPORT_CATEGORIES` has no child-safety reason, so the
  *   page names «Altro» and the note rather than a reason that does not exist.
  * - A ban exists only on a person or message report (`resolve_report` v5), and it hides the
- *   profile, posts and stories without deleting anything (#314); messages and comments stay.
+ *   profile, posts and stories without deleting anything (#314); messages and comments stay. On a
+ *   post, behaviour or email report the operator bans through a person report on the author.
  *   Nothing in the panel deletes content, so «we remove it» is an operator action Marco ruled on
- *   #779 to take by hand until the panel has one — the follow-up issue linked from that PR.
+ *   #779 to take by hand until the panel has one (#788).
  * - The 24-hour review and the police-then-hotlines order are Marco's rulings on #779.
  * - It claims no scanning, no hash matching, no age verification (the birth date is
  *   self-declared) and no copy kept as evidence: none of them exists.
@@ -716,7 +721,7 @@ export const childSafety: Record<Locale, LegalDoc> = {
         heading: 'Cosa facciamo',
         body: [
           'Una segnalazione di materiale di abuso sessuale su minori la esaminiamo con priorità, entro 24 ore.',
-          `Se la segnalazione è fondata, rimuoviamo il contenuto da ${tIt('store.name')} ed escludiamo chi l'ha pubblicato o inviato, o chi ha tenuto quel comportamento: non può più accedere, e il suo profilo, i suoi post e le sue storie non sono più visibili a nessuno.`,
+          `Se la segnalazione è fondata, rimuoviamo il contenuto da ${tIt('store.name')} ed escludiamo chi l'ha pubblicato o inviato, o chi ha tenuto quel comportamento: non può più accedere, e il suo profilo, i suoi post e le sue storie non li vede più nessuno, tranne il team di moderazione.`,
           'Ciò che appare come materiale di abuso sessuale su minori lo segnaliamo alle autorità competenti: alla polizia e alle linee di segnalazione nazionali elencate qui sotto.',
         ],
       },
@@ -782,7 +787,7 @@ export const childSafety: Record<Locale, LegalDoc> = {
         heading: 'What we do',
         body: [
           'A report of child sexual abuse material is reviewed with priority, within 24 hours.',
-          `If the report is upheld, we remove the content from ${tEn('store.name')} and ban whoever posted or sent it, or behaved that way: they can no longer sign in, and their profile, posts and stories are no longer visible to anyone.`,
+          `If the report is upheld, we remove the content from ${tEn('store.name')} and ban whoever posted or sent it, or behaved that way: they can no longer sign in, and their profile, posts and stories are hidden from everyone but the moderation team.`,
           'Anything that appears to be child sexual abuse material is reported to the competent authorities: to the police and to the national hotlines listed below.',
         ],
       },

@@ -375,6 +375,30 @@ describe('privacy', () => {
     expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
   });
 
+  it.each(locales)(
+    '%s names the authorities as recipients of apparent CSAM, as /child-safety promises',
+    (loc) => {
+      // #779: /child-safety reports apparent CSAM to the police and the national hotlines and
+      // points to this policy for the data in a report. Without these lines the policy would still
+      // say only the moderation team reads a report, and name no recipient beyond providers.
+      const label = t('legal.childSafety', loc);
+      const pointer = loc === 'it' ? `«${label}»` : `“${label}”`;
+      const reports = privacy[loc].sections.find((s) =>
+        s.heading.startsWith(loc === 'it' ? "Nell'app: segnalazioni" : 'In the app: reports'),
+      )!;
+      const recipients = privacy[loc].sections.find((s) =>
+        s.heading.startsWith(loc === 'it' ? 'A chi arrivano' : 'Who receives'),
+      )!;
+      for (const section of [reports, recipients]) {
+        const text = section.body.join('\n');
+        expect(text, section.heading).toContain(pointer);
+        expect(text, section.heading).toMatch(
+          loc === 'it' ? /polizia|autorità/ : /police|authorities/,
+        );
+      }
+    },
+  );
+
   it('claims no parental consent — the app performs no such step', () => {
     expect(all('it')).not.toMatch(/genitor|tutore|responsabilità genitoriale/i);
     expect(all('en')).not.toMatch(/parent|guardian/i);
