@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createRevealOnFocus,
   followFoot,
@@ -46,14 +46,14 @@ function deadRow(): RowHandle {
 
 type FakeList = ScrollHandle & {
   getInnerViewNode: () => number;
-  scrollTo: ReturnType<typeof vi.fn>;
+  scrollTo: Mock<ScrollHandle['scrollTo']>;
 };
 
 function list(): FakeList {
   return {
     getInnerViewNode: () => HANDLE,
     getInnerViewRef: () => INNER,
-    scrollTo: vi.fn(),
+    scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
   };
 }
 
@@ -63,7 +63,7 @@ function measurableList(height: number): FakeList {
     getInnerViewNode: () => HANDLE,
     getInnerViewRef: () => INNER,
     measure: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 0, 320, height),
-    scrollTo: vi.fn(),
+    scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
   };
 }
 
@@ -664,7 +664,7 @@ describe('createRevealOnFocus — the settle pass', () => {
       getInnerViewRef: () => INNER,
       measure: (cb: (x: number, y: number, w: number, h: number) => void) =>
         cb(0, 0, 320, height()),
-      scrollTo: vi.fn(),
+      scrollTo: vi.fn<ScrollHandle['scrollTo']>(),
     };
     reveal.scrollProps.ref(scroll);
     reveal.scrollProps.onContentSizeChange(320, 2000);

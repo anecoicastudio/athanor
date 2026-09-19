@@ -29,8 +29,9 @@ import { defineConfig } from 'vitest/config';
 //     819 → 847. A threshold set flush against the measured percentage can go red on a commit that
 //     strictly adds tests.
 //
-// So the band is computed, not felt: 825 covered, `96` absorbs 12 new uncovered branches
-// (825/859 = 96.04%), roughly four new functions of the `if (error) throw error` + `?? []` shape.
+// So the band is computed, not felt: under vitest 4, 1068 of 1137 covered, and `92.9` absorbs 12
+// new uncovered branches (1068/1149 = 92.95%), roughly four new functions of the
+// `if (error) throw error` + `?? []` shape — the same 12 the vitest 3 floor (825/859 at `96`) held.
 // Recompute rather than widening by feel — solve covered/(total+n) >= break for n. Ratchet UP as
 // tests land, never down (core.md precedent).
 export default defineConfig({
@@ -42,9 +43,12 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**'],
       exclude: ['src/index.ts', 'src/database.types.ts', 'src/test-support/**'],
+      // Branches re-baselined 96 → 92.9 for vitest 4 (PR #737), a change of measurement and
+      // not of coverage: the same suite measured 97.35 under vitest 3 and 93.93 under 4. The
+      // band is recomputed by the rule above and still absorbs 12 branches.
       thresholds: {
         lines: 95,
-        branches: 96,
+        branches: 92.9,
         functions: 93,
         statements: 95,
       },
