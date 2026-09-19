@@ -121,10 +121,13 @@ export default function ProjectComposeScreen() {
           title={t('create.project.title', locale)}
           backLabel={t('common.back', locale)}
         />
+        {/* `handled`: the first tap on a category chip lands on it instead of only dismissing
+            the keyboard (#748, #766). */}
         <ScrollView
           {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="gap-5 px-5 pb-8"
+          keyboardShouldPersistTaps="handled"
         >
           <Text className="text-[14px] text-faint">{t('create.project.desc', locale)}</Text>
 
@@ -171,15 +174,22 @@ export default function ProjectComposeScreen() {
               onChangeText={setDescription}
             />
           </View>
+        </ScrollView>
 
-          {/* P2.5 hint-truth: no create-hint — the engine never rewards publishing (anti-gaming). */}
+        {/* Publish pinned below the list, as in post-compose and story-compose (#748). Inside the
+            ScrollView it sat under the keyboard (#766), and no ride-along with the reveal could
+            hold it: the description's return key types a newline, so nothing on the keyboard
+            sends, and once the text outgrows the room beside the button the reveal keeps the
+            caret and lets the button go. P2.5 hint-truth: no create-hint — the engine never
+            rewards publishing (anti-gaming). */}
+        <View className="border-t border-hair bg-background px-5 py-3">
           <Button
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={mutation.isPending}
             variant="light"
           />
-        </ScrollView>
+        </View>
       </Screen>
     </KeyboardAvoiding>
   );

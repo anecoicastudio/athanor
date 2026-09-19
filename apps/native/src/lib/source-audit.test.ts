@@ -3502,6 +3502,17 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
  * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
  * like a composer and shaped like a form — a title field, a chip row, then a tall description at
  * the foot — so it is in.
+ *
+ * ## The CTA is part of the reveal (#752, #766)
+ *
+ * A field landed above the keyboard with its only button still under it is a form nobody can
+ * send, so every registered form says where its CTA goes — carried up with the focused row
+ * (`SUBMITS`), or pinned below the list where the keyboard cannot reach it (`PINNED`) — and a
+ * form that says neither fails. Two more things decide whether the member can actually press
+ * it: `keyboardShouldPersistTaps="handled"` on the list, without which the first tap on a
+ * control the reveal just brought up only dismisses the keyboard (RN's default, `never`, eats
+ * it); and, where the last field is single-line, a return key that submits through the CTA's
+ * own gate (`KEY_SUBMITS`).
  */
 describe('a focused field is revealed, not merely uncovered (#689)', () => {
   /** The form screens that wire the reveal, with the key each of their fields is filed under. */
@@ -3524,7 +3535,35 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
    * the password field and left «Accedi» under the keyboard, and nothing but a device can see
    * that happen again — the browser harness has no keyboard to cover anything.
    */
-  const SUBMITS = [`${SRC}app/(auth)/welcome.tsx`, `${SRC}app/(auth)/forgot-password.tsx`];
+  const SUBMITS = [
+    `${SRC}app/(auth)/welcome.tsx`,
+    `${SRC}app/(auth)/forgot-password.tsx`,
+    `${SRC}app/(modal)/new-password.tsx`,
+    `${SRC}app/(modal)/event-create.tsx`,
+  ];
+
+  /**
+   * The screens whose CTA is pinned BELOW the list instead, where no ride-along can keep it
+   * (#766). `project-compose` ends on a tall multiline description whose return key types a
+   * newline: once the text grows past what fits beside the button, `revealSpan` drops the CTA
+   * and nothing on the keyboard can send. Pinned the way the two composers pin theirs (#748),
+   * which are named here too — nothing guarded their bars before.
+   */
+  const PINNED = [
+    `${SRC}app/(modal)/project-compose.tsx`,
+    `${SRC}app/(modal)/post-compose.tsx`,
+    `${SRC}app/(modal)/story-compose.tsx`,
+  ];
+
+  /**
+   * The forms whose last field is single-line and submits from the return key (#752). Not
+   * `event-create`: its last fields are number pads, and iOS draws no return key on those.
+   */
+  const KEY_SUBMITS = [
+    `${SRC}app/(auth)/welcome.tsx`,
+    `${SRC}app/(auth)/forgot-password.tsx`,
+    `${SRC}app/(modal)/new-password.tsx`,
+  ];
 
   const SEAM = 'lib/reveal-on-focus.ts';
 
@@ -3536,9 +3575,11 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
 
   it('finds the screens it is walking', () => {
     // A registry naming a moved file would pass everything below by finding nothing.
-    const missing = FORMS.map((f) => f.file).filter((p) => !FILES.includes(p));
+    const missing = [...FORMS.map((f) => f.file), ...SUBMITS, ...PINNED, ...KEY_SUBMITS].filter(
+      (p) => !FILES.includes(p),
+    );
     expect(
-      missing.map(rel),
+      [...new Set(missing)].map(rel),
       'a registered form screen has moved — this section is vacuous until the paths are fixed.',
     ).toEqual([]);
   });
@@ -3622,6 +3663,97 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
         'Without `ref={reveal.submitRef()}` on the CTA block the reveal lands the field and ' +
         'leaves the only button under the keyboard — #752, on a screen nothing but a device can ' +
         'check. A moved file fails here too.',
+    ).toEqual([]);
+  });
+
+  it('every registered form says where its CTA goes', () => {
+    // Exactly one of the two: neither leaves the button wherever the scroll happens to put it,
+    // and both is a ref on a bar outside the list, measured against a list it is not in.
+    const wrong = FORMS.map((f) => f.file)
+      .filter((p) => SUBMITS.includes(p) === PINNED.includes(p))
+      .map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(
+      wrong,
+      `a form's CTA is in neither SUBMITS nor PINNED, or in both:\n  ${wrong.join('\n  ')}\n` +
+        'Revealing the field is half the job — a CTA left under the keyboard is a form nobody ' +
+        'can send (#766). Hand the CTA block to `reveal.submitRef()`, or pin it below the list.',
+    ).toEqual([]);
+  });
+
+  it('a pinned CTA sits below the list, inside the keyboard lift', () => {
+    const wrong: string[] = [];
+    for (const p of PINNED) {
+      const src = stripComments(read(p));
+      const where = rel(p).replace('apps/native/src/', '');
+      const lineOf = (i: number) => (i === -1 ? -1 : src.slice(0, i).split('\n').length);
+      const listEnd = lineOf(src.lastIndexOf('</ScrollView>'));
+      const liftEnd = lineOf(src.lastIndexOf('</KeyboardAvoiding>'));
+      const cta = jsxOpeningTags(src)
+        .filter((t) => t.base === 'Button')
+        .at(-1);
+      if (!cta || listEnd === -1 || cta.line < listEnd) {
+        wrong.push(`${where}: its last Button is not below the list`);
+      } else if (liftEnd === -1 || cta.line > liftEnd) {
+        wrong.push(`${where}:${cta.line} is outside KeyboardAvoiding — the keyboard covers it`);
+      }
+    }
+    expect(
+      wrong,
+      `a pinned CTA moved back into the scroll, or out of the lift:\n  ${wrong.join('\n  ')}\n` +
+        'Inside the ScrollView the wrapper shrinks the list around the button and it stays under ' +
+        'the keyboard (#748, #766); outside `KeyboardAvoiding` nothing lifts it at all.',
+    ).toEqual([]);
+  });
+
+  it('the first tap on these lists lands on the control', () => {
+    const wrong: string[] = [];
+    for (const p of new Set([...FORMS.map((f) => f.file), ...PINNED])) {
+      const src = stripComments(read(p));
+      const where = rel(p).replace('apps/native/src/', '');
+      for (const list of jsxOpeningTags(src).filter((t) => t.base === 'ScrollView')) {
+        if (!/\bkeyboardShouldPersistTaps="handled"/.test(list.raw)) {
+          wrong.push(`${where}:${list.line}`);
+        }
+      }
+    }
+    expect(
+      wrong,
+      `a list with the keyboard up swallows the first tap:\n  ${wrong.join('\n  ')}\n` +
+        "RN's default (`never`) spends the first tap on a control dismissing the keyboard, so the " +
+        'CTA the reveal just brought up needs a second press. `keyboardShouldPersistTaps=' +
+        '"handled"` (#748, #766).',
+    ).toEqual([]);
+  });
+
+  it('a single-line last field submits from the return key, through the CTA gate', () => {
+    const wrong: string[] = [];
+    for (const p of KEY_SUBMITS) {
+      const src = stripComments(read(p));
+      const where = rel(p).replace('apps/native/src/', '');
+      const tags = jsxOpeningTags(src);
+      // The key is a second way to press the CTA, so it must ask the CTA's own question: a
+      // `submit` that does not re-check is reachable mid-flight or with a malformed field (#752).
+      if (
+        !/const submitFromKeyboard = \(\) => \{ if \(!disabled\) void submit\(\); \};/.test(
+          src.replace(/\s+/g, ' '),
+        )
+      ) {
+        wrong.push(`${where}: submitFromKeyboard does not go through \`disabled\``);
+      }
+      if (!tags.some((t) => t.base === 'Button' && /\bdisabled=\{disabled\}/.test(t.raw))) {
+        wrong.push(`${where}: no Button is gated by the same \`disabled\``);
+      }
+      const keys = tags.filter((t) => /\bonSubmitEditing=\{submitFromKeyboard\}/.test(t.raw));
+      if (keys.length === 0) wrong.push(`${where}: no field submits from the return key`);
+      for (const key of keys.filter((t) => !/\breturnKeyType="(?:go|send)"/.test(t.raw))) {
+        wrong.push(`${where}:${key.line} submits from a return key that does not say so`);
+      }
+    }
+    expect(
+      wrong,
+      `a form's return key no longer sends it:\n  ${wrong.join('\n  ')}\n` +
+        'On a form whose last field is single-line the return key is the one control the ' +
+        'keyboard never covers (#752, #766).',
     ).toEqual([]);
   });
 
