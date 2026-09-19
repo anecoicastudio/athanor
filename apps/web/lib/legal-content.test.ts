@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
-import { deleteAccount, privacy, terms, type LegalDoc } from './legal-content';
+import { REPORT_CATEGORIES } from '@athanor/schemas';
+import { childSafety, deleteAccount, privacy, terms, type LegalDoc } from './legal-content';
 
 /**
- * These are the published privacy policy, the terms and the account-deletion page, reachable at
- * /privacy, /terms and /delete-account in both locales. i18n.md's parity rule applies for the same
- * reason it applies to the UI catalog: a section present in one language and missing in the other
- * is a legal document that differs by locale. The site is EU-facing, so an empty section is a
- * compliance gap, not a typo.
+ * These are the published privacy policy, the terms, the account-deletion page and the child
+ * safety standards, reachable at /privacy, /terms, /delete-account and /child-safety in both
+ * locales. i18n.md's parity rule applies for the same reason it applies to the UI catalog: a
+ * section present in one language and missing in the other is a legal document that differs by
+ * locale. The site is EU-facing, so an empty section is a compliance gap, not a typo.
  */
 const docs: [string, Record<'it' | 'en', LegalDoc>][] = [
   ['privacy', privacy],
   ['terms', terms],
   ['deleteAccount', deleteAccount],
+  ['childSafety', childSafety],
 ];
 
 const MONTHS: Record<string, number> = {
@@ -388,5 +390,134 @@ describe('privacy', () => {
     // cannot catch another sentence presenting the fund as live — that is the copy read.
     expect(all('it')).toMatch(/Quando il fondo è aperto/);
     expect(all('en')).toMatch(/When the fund is open/);
+  });
+});
+
+/**
+ * /child-safety is the URL in Google Play's Child Safety Standards declaration (#779). Play reads
+ * it for the app or developer name as the listing shows it, a mention of child safety, the way to
+ * report inside the app and a point of contact. What these pin beyond that is what must not drift
+ * or grow: the app's own report labels (read from the catalog, as /delete-account does), the one
+ * address, the hotlines Marco ruled, the promises he ruled, and the claims nothing in the product
+ * backs.
+ */
+describe('childSafety', () => {
+  const locales = ['it', 'en'] as const;
+  const section = (loc: 'it' | 'en', id: string) => {
+    const found = childSafety[loc].sections.find((s) => s.id === id);
+    if (!found) throw new Error(`${loc} has no section #${id}`);
+    return found;
+  };
+  const body = (loc: 'it' | 'en', id: string) => section(loc, id).body.join('\n');
+  const all = (loc: 'it' | 'en') => {
+    const d = childSafety[loc];
+    return [
+      d.title,
+      d.intro,
+      ...d.sections.flatMap((s) => [
+        s.heading,
+        ...s.body,
+        ...(s.links ?? []).flatMap((l) => [l.label, l.href]),
+      ]),
+      d.reviewNote,
+    ].join('\n');
+  };
+  const quote = (loc: 'it' | 'en', label: string) => (loc === 'it' ? `«${label}»` : `“${label}”`);
+
+  it.each(locales)('%s names the app as the store listing does, and its developer', (loc) => {
+    expect(childSafety[loc].intro).toContain(t('store.name', loc));
+    expect(childSafety[loc].intro).toContain('Anecoica Studio');
+  });
+
+  it('says what it is about in its title', () => {
+    expect(childSafety.en.title).toMatch(/child safety/i);
+    expect(childSafety.it.title).toMatch(/tutela dei minori/i);
+  });
+
+  it('gives every section an anchor, the same one in both locales', () => {
+    const ids = (loc: 'it' | 'en') => childSafety[loc].sections.map((s) => s.id);
+    expect(ids('it').every(Boolean)).toBe(true);
+    expect(new Set(ids('it')).size).toBe(ids('it').length);
+    expect(ids('en')).toEqual(ids('it'));
+  });
+
+  it.each(locales)("%s walks every in-app report path with the app's own labels", (loc) => {
+    const steps = body(loc, 'report');
+    for (const key of [
+      'report.title',
+      'chat.report',
+      'chat.message.report',
+      'tabs.profile',
+      'settings.section.privacy',
+      'report.behavior.row',
+      'report.reason.other',
+      'report.cta',
+    ] as const) {
+      expect(steps, key).toContain(quote(loc, t(key, loc)));
+    }
+  });
+
+  it('points at «Altro» only while no report reason is about children', () => {
+    // The page tells people there is no dedicated reason. A child-safety category (the optional
+    // follow-up on #779) makes that false, and this goes red so the page names it instead.
+    for (const category of REPORT_CATEGORIES) {
+      expect(t(`report.reason.${category}`, 'en'), category).not.toMatch(/child|minor/i);
+      expect(t(`report.reason.${category}`, 'it'), category).not.toMatch(/minor|bambin/i);
+    }
+  });
+
+  it.each(locales)("%s publishes one address — the controller's, as a mailto", (loc) => {
+    const found = all(loc).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? [];
+    expect(new Set(found)).toEqual(new Set(['info@anecoica.net']));
+    expect(section(loc, 'contact').links).toEqual([
+      { label: 'info@anecoica.net', href: 'mailto:info@anecoica.net' },
+    ]);
+  });
+
+  it.each(locales)('%s names the point of contact Marco ruled', (loc) => {
+    expect(body(loc, 'contact')).toContain('Marco Accardi');
+  });
+
+  it('promises the review time Marco ruled — 24 hours', () => {
+    expect(body('it', 'action')).toMatch(/entro 24 ore/);
+    expect(body('en', 'action')).toMatch(/within 24 hours/);
+  });
+
+  it('promises removal, a ban and a report to the authorities', () => {
+    // Removal is an operator action until the panel has one (Marco's ruling on #779); the ban and
+    // what it hides are resolve_report's and #314's. Nothing weaker, nothing more.
+    expect(body('it', 'action')).toMatch(/rimuoviamo il contenuto[^.]*escludiamo/);
+    expect(body('en', 'action')).toMatch(/remove the content[^.]*ban/);
+    expect(body('it', 'action')).toMatch(/segnaliamo alle autorità competenti/);
+    expect(body('en', 'action')).toMatch(/reported to the competent authorities/);
+  });
+
+  it('sends people to the police first, then to the hotlines Marco ruled', () => {
+    const hotlines = [
+      'https://www.jugendschutz.net/en/make-a-report',
+      'https://www.fsm.de/en/fsm/hotline/',
+      'https://international.eco.de/topics/policy-law/eco-complaints-office/report-a-complaint/',
+      'https://www.azzurro.it/clicca-e-segnala/',
+      'https://stop-it.savethechildren.it/',
+      'https://inhope.org/',
+    ];
+    for (const loc of locales) {
+      const s = section(loc, 'authorities');
+      expect(s.body[0]).toMatch(loc === 'it' ? /polizia[^.]*112/ : /police[^.]*112/);
+      expect(s.links?.map((l) => l.href)).toEqual(hotlines);
+    }
+  });
+
+  it.each(locales)('%s claims nothing the product does not do', (loc) => {
+    // No scanning, no hash matching, no age verification (the birth date is self-declared) and
+    // no copy kept as evidence exist, so none may be promised.
+    expect(all(loc)).not.toMatch(
+      /scan|hash|automat|verifich\w* l'età|age verification|verif\w* (your |their )?age|evidence|preserv|come prova|conserviamo/i,
+    );
+  });
+
+  it('points to the privacy policy for the data in a report', () => {
+    expect(childSafety.it.reviewNote).toMatch(/informativa sulla privacy/);
+    expect(childSafety.en.reviewNote).toMatch(/privacy policy/);
   });
 });

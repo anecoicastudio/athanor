@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { listPublicDreamIds, listPublicHandles, listUpcomingEventIds } from '@athanor/api';
+import { LEGAL_ROUTES } from '@/lib/legal-routes';
 import { SITE_URL } from '@/lib/site';
 import {
   SITEMAP_DREAM_LIMIT,
@@ -18,9 +19,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
   const staticEntries: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified, changeFrequency: 'monthly', priority: 1 },
-    { url: `${SITE_URL}/privacy`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
-    { url: `${SITE_URL}/terms`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
-    { url: `${SITE_URL}/delete-account`, lastModified, changeFrequency: 'yearly', priority: 0.4 },
+    ...LEGAL_ROUTES.map(({ path }) => ({
+      url: `${SITE_URL}${path}`,
+      lastModified,
+      changeFrequency: 'yearly' as const,
+      priority: 0.4,
+    })),
   ];
 
   let handleEntries: MetadataRoute.Sitemap = [];
