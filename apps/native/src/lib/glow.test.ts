@@ -11,6 +11,16 @@ describe('auraGlow', () => {
     expect(auraGlow(-1)).toEqual({});
   });
 
+  it('a non-finite level is no glow, not a malformed one', () => {
+    // NaN fails every comparison, so a `level <= 0` guard would pass it through to
+    // `0 0 NaNpx rgba(…,NaN)` — a string RN's length parser rejects, dropping the shadow
+    // with no error. `auraGlowLevel()` clamps, so nothing reaches this today; the point is
+    // that the failure is a returned {} rather than a glow that silently disappears.
+    expect(auraGlow(Number.NaN)).toEqual({});
+    expect(auraGlow(Number.POSITIVE_INFINITY)).toEqual({});
+    expect(auraGlow(Number.NEGATIVE_INFINITY)).toEqual({});
+  });
+
   it('level 1 → full Foundation §3 recipe as a CSS box-shadow', () => {
     expect(auraGlow(1)).toEqual({ boxShadow: `0 0 24px rgba(${rgb},0.45)` });
   });

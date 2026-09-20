@@ -27,7 +27,11 @@ function round(value: number, places: number) {
  * architecture — RN types `boxShadow` with no `@platform` tag.
  */
 export function auraGlow(level: number) {
-  if (level <= 0) return {};
+  // Finite AND positive, not `level > 0`: NaN fails every comparison and Infinity passes it,
+  // so either would reach `0 0 NaNpx` / `0 0 Infinitypx` — strings RN's length parser rejects,
+  // dropping the whole shadow with no error. Unreachable today, since `auraGlowLevel()` clamps
+  // both to 0; a glow that vanishes silently is still the failure worth closing by hand.
+  if (!Number.isFinite(level) || level <= 0) return {};
   return {
     boxShadow: `0 0 ${round(24 * level, 2)}px rgba(${channels(semantic.aura)},${round(0.45 * level, 3)})`,
   } as const;
