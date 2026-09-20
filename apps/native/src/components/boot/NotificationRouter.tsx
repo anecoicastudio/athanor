@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { devWarn } from '@/lib/log';
-import { routeForPushData } from '@/lib/notification-route';
+import {
+  consumeResponse,
+  decideRoute,
+  mergeResponse,
+  type TappedResponse,
+} from '@/lib/notification-router-state';
 
 /**
  * Sends a tapped OS banner where it says it is going (#637 item 1). No UI.
@@ -23,34 +29,55 @@ import { routeForPushData } from '@/lib/notification-route';
  * which a member-facing destination is safe to open. A cold-start tap therefore lands on the deck
  * for an instant and then opens its target, rather than racing the guard and losing.
  *
+ * That argument is about mount ordering, and on a cold start the mount is itself produced by the
+ * guard's own `router.replace('/(tabs)')` once the profile hydrates — so it is worth saying what
+ * makes the destination stick rather than assuming it. With a complete profile the guard has no
+ * branch left that fires: `next` is null, and the only replace on that arm is gated on
+ * `inAuth || inOnboarding`. Once the push moves the segments to `(modal)`, every branch in the
+ * guard's effect falls through. It cannot take the destination back.
+ *
  * A tap that arrives while the member is signed out, mid-onboarding or on the recovery sheet is
  * not dropped — `getLastNotificationResponse` reads NATIVE state that survives until it is
  * cleared, so it is still there to be read the moment the tabs mount.
  *
- * ## Two sources, one consumption
+ * ## Two sources, one consumption — and both of them can miss (#820)
  *
  * `addNotificationResponseReceivedListener` covers a tap while the app is backgrounded;
  * `getLastNotificationResponse` covers the cold start, where the tap happened before any JS ran.
- * `clearLastNotificationResponse` afterwards is what stops the cold-start route re-firing every
- * time this component remounts (leaving the tabs for a modal can unmount it).
+ * The background arm was the only one that worked on a real device, and the shape of the
+ * component is why:
+ *
+ *  - the cold read was a lazy `useState` initializer, so it ran ONCE, during the first render,
+ *    and nothing ever read it again;
+ *  - the listener was registered in an effect, AFTER that render — and it cannot recover a tap
+ *    it was too late for, because the native `sendEvent` that accompanies a cold-start replay
+ *    fires at module-registration time, before the JS bundle has evaluated, and expo's emitter
+ *    does not buffer.
+ *
+ * So the subscription is now established FIRST, in a layout effect (the same reason Expo's own
+ * `useLastNotificationResponse` uses one), and the native read happens inside it, behind the
+ * listener rather than ahead of it. The read is repeated whenever the app returns to the
+ * foreground: that is the one edge a tap is guaranteed to produce on BOTH arms, and it is what
+ * makes a response the first read missed recoverable at all. `mergeResponse` is what keeps the
+ * repeat cheap — the same tap read twice returns the object already held, so the consuming
+ * effect does not re-run.
+ *
+ * The decision and the ordering live in `lib/notification-router-state`, which the node test
+ * harness can reach; this file is the wiring. Navigation happens BEFORE the latch and the native
+ * clear — see that module's docblock for why that ordering is the fix and not a detail.
  *
  * `getLastNotificationResponse` and not the deprecated `…Async` — the installed
- * expo-notifications@0.32.17 says so in its own JSDoc. Both calls are wrapped: on expo-web (the
- * QA surface here, since no simulator can run on this machine) the native module is absent and
- * the emitter throws `UnavailabilityError`. A missing route must never be a crashed boot.
+ * expo-notifications@57.0.20 says so in its own JSDoc. Every native call is wrapped: on expo-web
+ * (the QA surface here, since this cannot be exercised on a simulator) the native module is
+ * absent and the emitter throws `UnavailabilityError`. A missing route must never be a crashed
+ * boot.
  *
  * NOTE: a FOREGROUND tap cannot reach this. `lib/push.ts` sets `shouldShowBanner: false`, so a
  * notification arriving while the app is open shows no banner to tap — by design (rule #3, the
  * in-app ✦ pip updates instead). Everything here is background and cold start, which is also why
  * it cannot be exercised on expo-web at all.
  */
-/**
- * The cold-start read, as a lazy `useState` initializer rather than a `setState` inside the
- * mount effect (#691). It reads NATIVE state that is already there before any JS ran, so
- * reading it once while the component first renders is the same answer the effect got, one
- * commit earlier — and the effect below still consumes it after routing has settled.
- */
-function lastResponse(): Notifications.NotificationResponse | null {
+function lastResponse(): TappedResponse | null {
   try {
     return Notifications.getLastNotificationResponse() ?? null;
   } catch (e) {
@@ -61,39 +88,55 @@ function lastResponse(): Notifications.NotificationResponse | null {
 
 export function NotificationRouter() {
   const router = useRouter();
-  const [response, setResponse] = useState<Notifications.NotificationResponse | null>(lastResponse);
-  // Which response has already been routed. A ref, and written from the effect below: clearing
-  // STATE was the old "run once" mechanism, and that was a `setState` inside an effect.
-  const handled = useRef<Notifications.NotificationResponse | null>(null);
+  const [response, setResponse] = useState<TappedResponse | null>(null);
+  // Which tap has already been acted on, by notification identifier. An identifier and not the
+  // object, because the native state is now read more than once and a re-read returns a freshly
+  // mapped object for the same tap.
+  const handledId = useRef<string | null>(null);
 
-  useEffect(() => {
-    let subscription: { remove: () => void } | null = null;
+  useLayoutEffect(() => {
+    const observe = (seen: TappedResponse | null) =>
+      setResponse((held) => mergeResponse(held, seen));
+
+    let subscription: { remove: () => void };
     try {
-      subscription = Notifications.addNotificationResponseReceivedListener(setResponse);
+      subscription = Notifications.addNotificationResponseReceivedListener(observe);
     } catch (e) {
+      // No native module — expo-web. There is no native state to read either, so there is
+      // nothing to observe and no foreground edge worth subscribing to.
       devWarn('[push] response listener unavailable', e);
+      return;
     }
-    return () => subscription?.remove();
+    // Only now, with the listener in place: a tap that lands between the two would otherwise be
+    // seen by neither.
+    observe(lastResponse());
+
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') observe(lastResponse());
+    });
+    return () => {
+      subscription.remove();
+      appState.remove();
+    };
   }, []);
 
   useEffect(() => {
-    if (!response || handled.current === response) return;
-    // Only the plain tap. An action button (none are registered today) must not inherit the
-    // body's destination the day one is, which is the trap Expo's own example calls out.
-    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-
-    const href = routeForPushData(response.notification.request.content.data);
-    try {
-      Notifications.clearLastNotificationResponse();
-    } catch (e) {
-      devWarn('[push] clearing the last response', e);
-    }
-    // Marking it handled is what makes this run once — together with the native clear above, a
-    // remount cannot replay a route the member already took.
-    handled.current = response;
-    // A type with no destination (a warn, the moderation queue) still opened the app, which is
-    // the whole of what it had to do. Staying put is the answer, not a fallback.
-    if (href) router.push(href as Parameters<typeof router.push>[0]);
+    const outcome = consumeResponse(
+      decideRoute(response, handledId.current, Notifications.DEFAULT_ACTION_IDENTIFIER),
+      {
+        navigate: (href) => router.push(href as Parameters<typeof router.push>[0]),
+        latch: (id) => {
+          handledId.current = id;
+        },
+        clearNative: () => Notifications.clearLastNotificationResponse(),
+        onError: (stage, e) => devWarn(`[push] tapped banner: ${stage}`, e),
+      },
+    );
+    // The navigation did not take, so nothing was latched and the native response is intact.
+    // Letting go of what we hold is what re-arms it: `mergeResponse` folds a re-read of the same
+    // tap back into the object already held, so without this the next foreground read would
+    // change nothing and this effect would never run again for it.
+    if (outcome === 'deferred') setResponse(null);
   }, [response, router]);
 
   return null;
