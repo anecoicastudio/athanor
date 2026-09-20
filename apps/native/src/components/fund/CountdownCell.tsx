@@ -4,13 +4,13 @@ import { FONT_SCALE_CAP } from '@/lib/type-scale';
 /**
  * One countdown cell — big tabular-nums value + unit label. `accent` lights the `sec` cell cyan.
  *
- * No glow here, deliberately: DESIGN.md §8.12 rules the clock flat — «numbers flat `aura` — no
- * glow on the clock; the live fund ticker owns the only glow on this screen». Read that second
- * clause as the hero's, not the whole screen's: `CandidateCard`'s winner pill glows too, and a
- * dream winning the ballot is moment-grade by rule 4. What binds here is the clock. This cell shipped with
- * `auraGlow(1)` against that, which on Android also bled an elevation rectangle through the
- * translucent fill. What `accent` takes instead is the framed pair `border-aura-line
- * bg-aura-soft` — the ordinary active surface, not a glow (§11, ruled 2026-09-07).
+ * No glow here, deliberately: DESIGN.md §8.12 rules the clock flat — «no glow on the clock».
+ * `/annual` carries two glows and neither is this: the live fund ticker, and `CandidateCard`'s
+ * winner pill on a decided ballot (ruled 2026-09-20 — a dream winning is moment-grade). This
+ * cell shipped with `auraGlow(1)` against that, which on Android also bled an elevation
+ * rectangle through the translucent fill. What `accent` takes instead is the framed pair
+ * `border-aura-line bg-aura-soft` — the ordinary active surface, not a glow (§11, 2026-09-07).
+ * `lib/source-audit.test.ts` pins the files that may call `auraGlow()`, so this cannot drift back.
  *
  * Every cell carries a 1px border so the row reads as one object: colour alone marks the live
  * one. The quiet cells were borderless before, which made the accent cell look heavy rather
