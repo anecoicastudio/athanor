@@ -4367,9 +4367,11 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
       'an emoji-capable character in rendered source:\n' +
         "Whether it draws as a glyph, a colour emoji or a «?» box is the platform font's " +
         'decision, not ours (#753). Draw it instead — `components/glyphs.tsx` has Play, Pause, ' +
-        'Lock, Waves, Scales and the SettingsIcon gear, and a new mark is designed in the same ' +
-        'system and recorded in DESIGN §6. If the character is genuinely right, add its ' +
-        '`file:line` to EMOJI_OK with the reason.',
+        'Lock, Scales and the SettingsIcon gear, and a new mark is designed in the same system ' +
+        'and recorded in DESIGN §6. Audio is the settled case: it takes the transport mark plus ' +
+        "its «Audio · m:ss» text, never a mark of its own (ruling 2026-09-20 — the set's " +
+        '`waves` read as a Wi-Fi signal on the device). If the character is genuinely right, ' +
+        'add its `file:line` to EMOJI_OK with the reason.',
     ).toEqual([]);
   });
 });
