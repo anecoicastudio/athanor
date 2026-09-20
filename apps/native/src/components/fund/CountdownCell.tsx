@@ -1,8 +1,21 @@
 import { Text, View } from '@/tw';
-import { auraGlow } from '@/lib/glow';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
-/** One countdown cell — big tabular-nums value + unit label. `accent` lights the `sec` cell cyan (rule #4 sec glow). */
+/**
+ * One countdown cell — big tabular-nums value + unit label. `accent` lights the `sec` cell cyan.
+ *
+ * No glow here, deliberately: DESIGN.md §8.12 rules the clock flat — «no glow on the clock».
+ * `/annual` carries two glows and neither is this: the live fund ticker, and `CandidateCard`'s
+ * winner pill on a decided ballot (ruled 2026-09-20 — a dream winning is moment-grade). This
+ * cell shipped with `auraGlow(1)` against that, which on Android also bled an elevation
+ * rectangle through the translucent fill. What `accent` takes instead is the framed pair
+ * `border-aura-line bg-aura-soft` — the ordinary active surface, not a glow (§11, 2026-09-07).
+ * `lib/source-audit.test.ts` pins the files that may call `auraGlow()`, so this cannot drift back.
+ *
+ * Every cell carries a 1px border so the row reads as one object: colour alone marks the live
+ * one. The quiet cells were borderless before, which made the accent cell look heavy rather
+ * than lit.
+ */
 export function CountdownCell({
   value,
   unitLabel,
@@ -15,10 +28,9 @@ export function CountdownCell({
   const padded = value < 10 ? `0${value}` : String(value);
   return (
     <View
-      className={`flex-1 items-center rounded-card py-3 ${
-        accent ? 'border border-aura-line bg-aura-soft' : 'bg-raise'
+      className={`flex-1 items-center rounded-card border py-3 ${
+        accent ? 'border-aura-line bg-aura-soft' : 'border-hair bg-raise'
       }`}
-      style={accent ? auraGlow(1) : undefined}
     >
       {/* The one place a numeral is capped tighter than the app default (#639): four cells
           divide the row with `flex-1`, so the cell cannot widen for a bigger digit pair and

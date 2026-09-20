@@ -4382,3 +4382,49 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
     ).toEqual([]);
   });
 });
+
+describe('the glow surfaces are a named set, and the clock is not one (rule 4, DESIGN.md §8.12)', () => {
+  /**
+   * `auraGlow()` is the glow rule 4 reserves for moment-grade events, and §8.12 rules the
+   * `/annual` clock flat. `CountdownCell` glowed anyway from `30628309` (2026-06-17) until
+   * 2026-09-20 — nothing failed, because no render test could have caught it (this file's own
+   * `walk()` DOES read `.tsx`; the vitest run collects only `*.test.ts`) and the shape tests in
+   * `lib/glow.test.ts` pin what the helper RETURNS, never who calls it. A phone caught it,
+   * three months on. This pins the callers, so the next one is a deliberate edit to this list.
+   *
+   * What it pins is the CALLERS, not «the clock is unglowed»: a raw `boxShadow` or a NativeWind
+   * `shadow-*` on a countdown file would evade it. Nothing in `apps/native/src` outside
+   * `lib/glow*` uses either today, so the coverage is total by circumstance, not construction.
+   */
+  const GLOW_SURFACES = [
+    'app/(modal)/favor.tsx',
+    'components/Button.tsx',
+    'components/Mandorla.tsx',
+    'components/circle/SubscriptionStatusCard.tsx',
+    'components/fund/CandidateCard.tsx',
+    'components/fund/FundTicker.tsx',
+    'components/profile/MomentFlash.tsx',
+  ];
+
+  it('is called from exactly these files, and no countdown file is among them', () => {
+    const callers = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => text.includes('auraGlow('))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ]
+      // The helper and its own test, named exactly: a `lib/glow*` prefix would also swallow a
+      // future `lib/glow-<something>.tsx` that calls it, and swallow it silently.
+      .filter((p) => p !== 'lib/glow.ts' && p !== 'lib/glow.test.ts')
+      .sort();
+
+    expect(
+      callers,
+      'A glow means something happened (rule 4). Adding one is a design decision, so add the ' +
+        'file here in the same edit and say in the PR what moment it marks. If a COUNTDOWN file ' +
+        'appears, that is DESIGN.md §8.12 being broken again — the clock takes the framed pair ' +
+        '`border-aura-line bg-aura-soft`, never the shadow.',
+    ).toEqual(GLOW_SURFACES);
+  });
+});
