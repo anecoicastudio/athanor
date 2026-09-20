@@ -44,38 +44,44 @@ import {
  *
  * `addNotificationResponseReceivedListener` covers a tap while the app is backgrounded;
  * `getLastNotificationResponse` covers the cold start, where the tap happened before any JS ran.
- * The background arm was the only one that worked on a real device, and the shape of the
- * component is why:
+ * Only the backgrounded arm routed on a real device. #820 is fixed on the ORDERING below —
+ * the latch and the native clear were spent before `router.push`, which is what makes a push
+ * that does not take unrecoverable. That is the mechanism; `lib/notification-router-state`
+ * carries the argument.
+ *
+ * The sources are hardened alongside it, because each is one-shot in its own way and neither
+ * was positioned to cover for the other:
  *
  *  - the cold read was a lazy `useState` initializer, so it ran ONCE, during the first render,
- *    and nothing ever read it again;
- *  - the listener was registered in an effect, AFTER that render — and it cannot recover a tap
- *    it was too late for, because the native `sendEvent` that accompanies a cold-start replay
- *    fires at module-registration time, before the JS bundle has evaluated, and expo's emitter
- *    does not buffer.
+ *    and nothing ever read it again. On Android the native bundle is normally populated well
+ *    before that render — `NotificationManager` replays a queued tap into the emitter at
+ *    module-registration time — so this read usually SUCCEEDS. It has no second chance if it
+ *    ever does not;
+ *  - the listener cannot be that second chance for a cold start, because the `sendEvent` that
+ *    accompanies that same replay fires before the JS bundle has evaluated and expo's emitter
+ *    does not buffer. It is a second window that can miss, not a fallback.
  *
  * So the subscription is now established FIRST, in a layout effect (the same reason Expo's own
  * `useLastNotificationResponse` uses one), and the native read happens inside it, behind the
- * listener rather than ahead of it. The read is repeated whenever the app returns to the
- * foreground: that is the one edge a tap is guaranteed to produce on BOTH arms, and it is what
- * makes a response the first read missed recoverable at all. `mergeResponse` is what keeps the
- * repeat cheap — the same tap read twice returns the object already held, so the consuming
- * effect does not re-run.
+ * listener rather than ahead of it — a tap landing between the two would otherwise be seen by
+ * neither. The read is repeated whenever the app returns to the foreground: that is the one edge
+ * a tap is guaranteed to produce on BOTH arms. `mergeResponse` keeps the repeat cheap — the same
+ * tap read twice returns the object already held, so the consuming effect does not re-run.
  *
  * The decision and the ordering live in `lib/notification-router-state`, which the node test
- * harness can reach; this file is the wiring. Navigation happens BEFORE the latch and the native
- * clear — see that module's docblock for why that ordering is the fix and not a detail.
+ * harness can reach; this file is the wiring.
  *
  * `getLastNotificationResponse` and not the deprecated `…Async` — the installed
  * expo-notifications@57.0.20 says so in its own JSDoc. Every native call is wrapped: on expo-web
- * (the QA surface here, since this cannot be exercised on a simulator) the native module is
- * absent and the emitter throws `UnavailabilityError`. A missing route must never be a crashed
- * boot.
+ * the native module is absent and the emitter throws `UnavailabilityError`. A missing route must
+ * never be a crashed boot.
  *
  * NOTE: a FOREGROUND tap cannot reach this. `lib/push.ts` sets `shouldShowBanner: false`, so a
  * notification arriving while the app is open shows no banner to tap — by design (rule #3, the
- * in-app ✦ pip updates instead). Everything here is background and cold start, which is also why
- * it cannot be exercised on expo-web at all.
+ * in-app ✦ pip updates instead). Everything here is background and cold start, which is why it
+ * cannot be exercised on expo-web at all, and why a simulator cannot exercise it either:
+ * `registerForPush` returns null on anything but a device (`!Device.isDevice`), so there is no
+ * token to push to and no banner to tap. It takes a real device and a real push.
  */
 function lastResponse(): TappedResponse | null {
   try {
@@ -136,6 +142,12 @@ export function NotificationRouter() {
     // Letting go of what we hold is what re-arms it: `mergeResponse` folds a re-read of the same
     // tap back into the object already held, so without this the next foreground read would
     // change nothing and this effect would never run again for it.
+    //
+    // Yes, this is a `setState` on the effect's own dependency — the shape the removed
+    // cold-read initializer was written to avoid (#691). The objection there was that the value
+    // was DERIVABLE during render and a reset made it lag by a commit. Nothing is derivable
+    // here: whether `router.push` threw is knowable only after it is called. It terminates, too
+    // — `null` decides to `idle` on the next pass, and only a fresh native read revives it.
     if (outcome === 'deferred') setResponse(null);
   }, [response, router]);
 

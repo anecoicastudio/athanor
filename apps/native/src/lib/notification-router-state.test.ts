@@ -6,6 +6,10 @@ import {
   type TappedResponse,
 } from './notification-router-state';
 
+// The value expo ships as `Notifications.DEFAULT_ACTION_IDENTIFIER` (its `NotificationsEmitter`
+// declares it as this literal). Spelled out rather than imported, so this file stays collectable
+// by a node harness with no native module. Nothing drifts if expo changes it: production injects
+// the real constant — this module never names one — so only the fixture's fidelity is at stake.
 const DEFAULT_ACTION = 'expo.modules.notifications.actions.DEFAULT';
 
 function tap(identifier: string, data: unknown, actionIdentifier = DEFAULT_ACTION): TappedResponse {
