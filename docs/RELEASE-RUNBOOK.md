@@ -572,6 +572,16 @@ configured"}` means an id is unset or its Price failed a gate (archived, one-off
    before relying on it. Staging carries the row as `true` from `seed-staging.sql`; production
    must not get it before the proof.
 
+   **What the flag does NOT gate: creating a paid event.** `create_event` carries no
+   `remote_config` check — gating it would need a migration, so #806 deliberately did not. The
+   two server gates cover BUYING a ticket and OPENING a payout account, which is what keeps money
+   from moving; an organiser on a pre-#806 build who already has a `payouts_enabled` Connect
+   account can therefore still publish a paid event while the rail is closed. It renders a price
+   and a permanently disabled Buy button, and sells nothing. On production the residual is
+   currently empty rather than merely small — nobody there has a payouts-enabled account, because
+   Connect is not enabled at all (#699) and `payout_accounts` has zero rows. Re-check that before
+   relying on the sentence after the cutover.
+
 ### 4.3 Deploy parity — `pnpm deploy:check` (#472)
 
 Nothing else in this repo can see whether an edge function is actually **deployed**.

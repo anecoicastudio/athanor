@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -30,7 +30,6 @@ import {
   venueQuery,
 } from '@athanor/core';
 import { type EventCategory, eventCreateSchema } from '@athanor/schemas';
-import { semantic } from '@athanor/config';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
@@ -698,27 +697,24 @@ export default function EventCreateScreen() {
 
           <View className="gap-2">
             {label('event.create.ticket')}
-            {/* #806 — while the paid-events rail is closed, the Paid option is not OFFERED: the
-                choice disappears rather than being shown and then refused. `'loading'` renders the
-                spinner instead of the free-only row, so the option never flickers into existence
-                (or out of it) as the read lands — the arm Circle's CTA uses for the same reason. */}
-            {paidGate === 'loading' ? (
-              <View className="items-center py-2">
-                <ActivityIndicator color={semantic.aura} />
-              </View>
-            ) : (
-              <View className="flex-row gap-2">
-                {(paidGate === 'open' ? [false, true] : [false]).map((p) => (
-                  <Chip
-                    key={String(p)}
-                    className="flex-1 items-center"
-                    label={t(p ? 'event.create.paid' : 'event.create.free', locale)}
-                    selected={p === paid}
-                    onPress={() => setPaidSelected(p)}
-                  />
-                ))}
-              </View>
-            )}
+            {/* #806 — the Paid option is OFFERED only on an open rail: the choice disappears
+                rather than being shown and then refused. Free is always in the list, in every
+                gate state — a closed or still-loading paid rail must not cost anyone the ability
+                to list a free event, which is most of them. That is why this is not a spinner:
+                one would take the Free chip away too, and under a paused offline fetch it would
+                never come back. The closed LINE is what waits for the read (below), so nothing
+                claims «non ancora aperti» before anything has been read. */}
+            <View className="flex-row gap-2">
+              {(paidGate === 'open' ? [false, true] : [false]).map((p) => (
+                <Chip
+                  key={String(p)}
+                  className="flex-1 items-center"
+                  label={t(p ? 'event.create.paid' : 'event.create.free', locale)}
+                  selected={p === paid}
+                  onPress={() => setPaidSelected(p)}
+                />
+              ))}
+            </View>
             {/* One honest line, in the same muted treatment as the floor hint and the verify note:
                 a rail that is not open yet is a fact about the world, not an error the organiser
                 made (rule #4 — no cyan, no glow). */}

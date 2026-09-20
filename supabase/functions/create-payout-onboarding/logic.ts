@@ -117,6 +117,14 @@ export async function createPayoutOnboarding(
   // writes no payout_accounts row. Ahead of the config arm deliberately — «not open yet» is the
   // true answer on a production that has neither the flag nor the env, and a 500 there would send
   // an organiser chasing a fault that is not one. FAILS CLOSED on every doubt.
+  //
+  // KNOWN COUPLING, named rather than left implicit: this is also the only way a `payout_accounts`
+  // row is ever created, and `release-fund-payout` reads that row for a DREAM WINNER's transfer
+  // (#247) — a rail that has nothing to do with paid events. So a closed `paid_events_enabled`
+  // also closes winner onboarding, and the refusal such a winner would read is «paid events
+  // closed», about something they are not doing. Unreachable today: no winner-facing onboarding
+  // entry point exists and the fund surfaces are off. When #247 grows one, it needs its own gate
+  // (or none) rather than inheriting this one.
   const paidEvents = await readFlagGate(userClient, PAID_EVENTS_FLAG);
   if (!paidEvents.open) {
     logFlagClosed(

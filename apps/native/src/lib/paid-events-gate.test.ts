@@ -69,6 +69,15 @@ describe('the paid-events gate fails closed (#806)', () => {
     expect(gateBody).toContain("q.status === 'success' && q.data.flags[PAID_EVENTS_FLAG] === true");
   });
 
+  it('resolves rather than hanging when the device is offline', () => {
+    // Without `networkMode: 'always'` React Query PAUSES the fetch offline: `status` stays
+    // `'pending'`, the gate stays `'loading'`, and everything keyed on it hangs — TicketBar's
+    // Buy button dimmed and busy with nothing said, the composer's chip row gone. A `'loading'`
+    // that never ends is a hang, not a third state. `payableQ` in TicketBar carries the same
+    // flag, with the same note.
+    expect(gateBody).toContain("networkMode: 'always'");
+  });
+
   it('shares Circle’s query key, so a second gate is not a second request', () => {
     // `getRemoteConfig` selects the whole table with no key filter, so one cached snapshot answers
     // both gates. A key of its own would double the traffic to read the same rows.
@@ -86,14 +95,22 @@ describe('the composer offers no paid event while the rail is closed (#806)', ()
     expect(COMPOSER).toContain("(paidGate === 'open' ? [false, true] : [false]).map");
   });
 
-  it('never flashes the closed line while the read is still in flight', () => {
-    // `'loading'` is neither open nor closed. Rendering the closed arm on it would show «non
-    // ancora aperti» for a beat on every cold start of a rail that is open.
-    expect(COMPOSER).toContain("paidGate === 'loading' ?");
+  it('never claims the rail is closed before anything has been read', () => {
+    // The closed LINE waits for `'closed'` specifically, so a cold start does not show «non
+    // ancora aperti» for a beat on a rail that is open. Only the line waits — see below for why
+    // the chips must not.
     expect(COMPOSER).toContain("paidGate === 'closed' ?");
-    const closed = COMPOSER.indexOf("paidGate === 'closed' ?");
-    const loading = COMPOSER.indexOf("paidGate === 'loading' ?");
-    expect(loading).toBeLessThan(closed);
+    expect(COMPOSER).toContain('event.create.paidClosed');
+  });
+
+  it('never blocks the FREE path on the gate, in any state', () => {
+    // The regression this pins: a spinner in place of the chip row meant an organiser could not
+    // create a free event while the gate was loading — and under a paused offline fetch
+    // `'loading'` never ends, so that was forever. Free is in the rendered list unconditionally;
+    // only Paid is conditional.
+    expect(COMPOSER).toContain("(paidGate === 'open' ? [false, true] : [false]).map");
+    expect(COMPOSER).not.toContain("paidGate === 'loading' ?");
+    expect(COMPOSER).not.toContain('ActivityIndicator');
   });
 
   it('falls back to free if the rail closes with the sheet open', () => {

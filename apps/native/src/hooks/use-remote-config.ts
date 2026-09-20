@@ -87,6 +87,15 @@ export function usePaidEventsGate(): 'loading' | 'open' | 'closed' {
     staleTime: 60_000,
     retry: 1,
     meta: { persist: false },
+    // `networkMode: 'always'`, the one place this departs from `useCircleCheckoutGate` — and it
+    // is about RESOLVING, not about failing open. Under the default `'online'` mode an offline
+    // client PAUSES the fetch: `status` stays `'pending'`, this returns `'loading'` forever, and
+    // a `'loading'` that never ends is not a third state, it is a hang. It held TicketBar's Buy
+    // button dimmed-and-busy with nothing said, and — worse — the composer's chip row with it,
+    // so an offline organiser could not create a FREE event either. `payableQ` in TicketBar
+    // carries this same flag for this same reason. Offline now fails fast to `'closed'`, which
+    // is the honest answer and still the fail-closed one.
+    networkMode: 'always',
   });
   if (q.status === 'pending') return 'loading';
   return q.status === 'success' && q.data.flags[PAID_EVENTS_FLAG] === true ? 'open' : 'closed';

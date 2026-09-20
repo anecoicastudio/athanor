@@ -918,7 +918,7 @@
   "ticket.error.alreadyOwned": "You already have your ticket ✦",
   "ticket.error.soldOut": "The seats ran out while you were checking out.",
   "ticket.error.checkoutOpen": "You already have a purchase in progress. Finish it, or try again later.",
-  "ticket.error.paidClosed": "Sales aren't open yet. We'll tell you as soon as they start.",
+  "ticket.error.paidClosed": "Ticket sales aren't open yet.",
   "ticket.viewer.title": "Your ticket",
   "ticket.show": "Show this code at the entrance",
   "ticket.status.valid": "Valid",
