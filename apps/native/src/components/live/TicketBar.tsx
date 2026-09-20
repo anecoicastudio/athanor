@@ -20,6 +20,7 @@ import { Pressable, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { usePaidEventsGate } from '@/hooks/use-remote-config';
 
 type Phase = 'idle' | 'opening' | 'confirming' | 'confirmSlow';
 
@@ -44,6 +45,11 @@ const ERROR_COPY: Record<string, MessageKey> = {
   // above is: unmapped it degraded to the generic fallback, which told the buyer to try again when
   // nothing the BUYER can do fixes it. The copy says whose problem it is.
   'ticket below minimum price': 'ticket.error.belowMinimum',
+  // #806 — the whole paid-events rail is switched off in remote_config. Mapped for the same
+  // reason as the two arms above: nothing the buyer does fixes it, and the generic fallback would
+  // tell them to try again at a rail that is deliberately shut. Reached only by a client whose
+  // read said open inside the 60s staleness window, or by one that predates this change.
+  'paid events closed': 'ticket.error.paidClosed',
   'organizer cannot buy': 'ticket.error.organizerSelf',
   'event ended': 'ticket.error.eventEnded',
   'ticket already owned': 'ticket.error.alreadyOwned',
@@ -103,6 +109,10 @@ export function TicketBar({
     networkMode: 'always',
   });
   const organizerUnpayable = payableQ.data === false;
+  // #806 — the platform-wide paid-events switch, the same row create-ticket-checkout reads first.
+  // 'loading' is neither open nor closed: it only holds the button inert (see `checking`), so the
+  // bar never flashes «non in vendita» at an event that is.
+  const paidGate = usePaidEventsGate();
   const hasTicket = ticket?.status === 'paid' || ticket?.status === 'checked_in';
 
   useEffect(() => {
@@ -212,6 +222,31 @@ export function TicketBar({
     );
   }
 
+  // #806 — paid events are switched off platform-wide. Above sold-out and above the payability
+  // arm because it outranks both: when the rail is shut, «tutto esaurito» and «chi organizza non
+  // può ricevere pagamenti» are both true-sounding and both the wrong reason. Below the two
+  // branches above it, deliberately: a ticket already held stays viewable, and a buyer whose
+  // Checkout is mid-confirmation keeps their spinner rather than being told sales never opened.
+  //
+  // The price is still shown. An event that says «10 €» and offers no way to pay is honest; an
+  // event that quietly drops its price reads as free. Same quiet ink as the payability arm —
+  // nothing the buyer did went wrong.
+  if (paidGate === 'closed') {
+    return (
+      <View className="gap-2 rounded-card border border-hair bg-raise p-4">
+        <Text className="text-center text-[14px] text-foreground">
+          {formatPrice(event.price_cents, event.currency, locale)}
+        </Text>
+        <Button label={t('ticket.notOnSale', locale)} variant="ghost" disabled onPress={() => {}} />
+        <Text className="text-center text-[12px] text-ink-2">
+          {t('ticket.error.paidClosed', locale)}
+        </Text>
+        {/* Kept like the sold-out arm: a refusal from the tap that preceded this state. */}
+        {errorMsg ? <Text className="text-center text-[12px] text-error">{errorMsg}</Text> : null}
+      </View>
+    );
+  }
+
   // Sold out (#105): same disabled surface as RsvpBar's «Tutto esaurito». A ticket holder
   // never sees it (the hasTicket branch returns first), and a buyer mid-confirmation keeps
   // their spinner — this replaces only the buy button.
@@ -244,7 +279,9 @@ export function TicketBar({
   // A buyer never reaches Checkout while the payability read is still in flight (#747) — and
   // the button SAYS so: dimmed like Button's inert state and marked busy, instead of a fully
   // lit control that ignores the tap. The label keeps the price, so nothing jumps.
-  const checking = !!uid && payableQ.isPending;
+  // #806 folds the flag read in: a tap while the gate is still `'loading'` would reach a server
+  // that may refuse, so the button says it is busy rather than ignoring the tap.
+  const checking = (!!uid && payableQ.isPending) || paidGate === 'loading';
   return (
     <View className="gap-2">
       <Pressable

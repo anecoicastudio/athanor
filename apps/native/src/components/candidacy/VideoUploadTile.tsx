@@ -1,8 +1,10 @@
 import { ActivityIndicator, Linking } from 'react-native';
+import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
+import { PlayGlyph } from '@/components/glyphs';
 import {
   type StandingVideo,
   type UploadStatus,
@@ -143,14 +145,13 @@ export function VideoUploadTile({
           // failure, so `media.unavailable.video` would be a lie — same hand-rolled ▶ as the
           // ballot card, faint because nothing happened here (rule #4).
           <View accessible accessibilityLabel={t('media.noPoster.video', locale)}>
-            <Text
-              className="text-4xl text-faint"
+            <View
               // Decorative: the wrapper announces the sentence (same pairing as MediaFrame).
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              ▶
-            </Text>
+              <PlayGlyph size={36} color={semantic.faint} />
+            </View>
           </View>
         ) : (
           <Text

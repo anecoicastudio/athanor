@@ -8,6 +8,7 @@ import { Pressable, Text, View } from '@/tw';
 import { authorParts, categoryLabel, confirmedHistory } from '@/lib/ballot-card';
 import { auraGlow } from '@/lib/glow';
 import { MediaFrame } from '@/components/media/MediaFrame';
+import { PlayGlyph } from '@/components/glyphs';
 import { VoteBar } from './VoteBar';
 
 export type VoteState =
@@ -95,15 +96,13 @@ export function CandidateCard({
           // A candidacy with no poster is a STATE, not a failure: the video plays fine in the
           // detail, it just has no still. `media.unavailable.video` would be a lie here, which
           // is why this branch stays hand-rolled instead of becoming a fourth MediaFrame state.
-          <View className="absolute inset-0 items-center justify-center">
-            <Text
-              className="text-4xl text-faint"
-              // Decorative: the no-poster sentence rides the Pressable's label above (#292).
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              ▶
-            </Text>
+          <View
+            className="absolute inset-0 items-center justify-center"
+            // Decorative: the no-poster sentence rides the Pressable's label above (#292).
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <PlayGlyph size={36} color={semantic.faint} />
           </View>
         ) : (
           // Three states, not two. A `posterUrl ? <Image/> : ▶` ternary would render "still

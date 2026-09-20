@@ -740,3 +740,47 @@ describe('onboarding birth step names the minimum age as a placeholder (#778)', 
     expect(t('onboarding.birth.tooYoung', 'en', { age: 18 })).toContain('18');
   });
 });
+
+// #753: a catalog value is the other road an emoji-capable character takes to the screen — the
+// native source guard (`apps/native/src/lib/source-audit.test.ts` §42) sees `t('…')`, never the
+// string it resolves to. Same property as there: Unicode `Emoji`, ASCII carved out (keycap
+// digits), U+FE0F added. The ornaments the voice uses (✦ ✧ ·) are not emoji-capable and pass on
+// the property, not on an exemption.
+describe('no emoji-capable character in a catalog value (#753)', () => {
+  const emojiCapable = (ch: string) =>
+    (ch.codePointAt(0) ?? 0) >= 0x80 && /\p{Emoji}|\u{FE0F}/u.test(ch);
+
+  /** Keyed by message key, with the reason. */
+  const CATALOG_EMOJI_OK: Partial<Record<MessageKey, string>> = {
+    'landing.footer.copyright':
+      '© in the web landing footer only (apps/web/components/landing-view.tsx) — text-default ' +
+      'presentation, carried by every web font, and never rendered by the app',
+  };
+
+  test('the ornaments the voice uses pass, and the #753 characters do not', () => {
+    for (const ch of ['✦', '✧', '·', '«', '»', '…', '—']) expect(emojiCapable(ch), ch).toBe(false);
+    for (const ch of ['▶', '🔒', '🎧', '©']) expect(emojiCapable(ch), ch).toBe(true);
+  });
+
+  test.each([
+    ['it', it],
+    ['en', en],
+  ] as const)('%s: no value carries one outside the exemptions', (_, catalog) => {
+    const hits = Object.entries(catalog)
+      .filter(([key]) => CATALOG_EMOJI_OK[key as MessageKey] === undefined)
+      .filter(([, value]) => [...value].some(emojiCapable))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(
+      hits,
+      'an emoji-capable character in a catalog value: the platform font decides whether it is a ' +
+        'glyph, a colour emoji or a «?» box (#753). Draw the mark in the component instead.',
+    ).toEqual([]);
+  });
+
+  test('every exemption still names a value that needs it', () => {
+    // An exemption whose value no longer carries the character is a hole for the next one.
+    for (const key of Object.keys(CATALOG_EMOJI_OK) as MessageKey[]) {
+      expect([...it[key]].some(emojiCapable), `${key} no longer needs its exemption`).toBe(true);
+    }
+  });
+});

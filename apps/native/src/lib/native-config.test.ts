@@ -19,6 +19,9 @@ import resolveAppConfig from '../../app.config';
  * Asserted on BOTH resolved variants, not on app.json alone: app.config.ts rewrites the Android
  * block for the dev client (world.athanor.app.dev), and a resolver that dropped blockedPermissions
  * would ship the dev build a manifest nobody tested.
+ *
+ * It also pins the eas.json half of #466 — which profiles upload Sentry symbols — because that is
+ * native build config in the same sense, and nothing else in the tree asserted it.
  */
 
 const NATIVE = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -91,6 +94,16 @@ describe.each([
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
     expect(props?.color).toBe(semantic.aura);
+  });
+
+  it('registers the Sentry plugin and gives it no auth token (#466)', () => {
+    // The plugin is what writes sentry.properties at prebuild; without it there is no gradle
+    // upload task and no Xcode phase, so the profile assertions below would be pinning a switch
+    // on a machine nobody wired up. `organization`/`project` props are fine — `authToken` is not:
+    // the plugin itself warns about it, and this repo is public.
+    const props = pluginProps(config, '@sentry/react-native/expo');
+    expect(props).toBeDefined();
+    expect(props).not.toHaveProperty('authToken');
   });
 });
 
@@ -219,6 +232,100 @@ describe('location fixes in the app (#781)', () => {
       expect(text).not.toMatch(
         /watchPositionAsync|getLastKnownPositionAsync|startLocationUpdatesAsync/,
       );
+    }
+  });
+});
+
+/*
+ * One environment variable decides whether a build ships symbolicatable crashes:
+ * `SENTRY_DISABLE_AUTO_UPLOAD` gates the Android gradle task, the iOS source-map phase and the
+ * iOS dSYM phase, all three. From 2026-08-19 it sat on `base`, and eas-cli's `mergeProfiles`
+ * SHALLOW-MERGES `env` down an `extends` chain, so every profile inherited it — production
+ * included, which is the bug #466 names.
+ *
+ * Asserted on the RESOLVED env, never on one profile's own keys: the inheritance is the whole
+ * failure mode, so a pin that reads `base` alone would stay green the moment the key came back
+ * one level down.
+ */
+const EAS_PLATFORMS = ['android', 'ios'] as const;
+type EasPlatform = (typeof EAS_PLATFORMS)[number];
+type EasEnv = Record<string, string>;
+type EasProfile = { extends?: string; env?: EasEnv } & Partial<
+  Record<EasPlatform, { env?: EasEnv }>
+>;
+
+/*
+ * eas-cli resolves a profile PER PLATFORM, in two steps: walk `extends` shallow-merging `env`
+ * (child keys win, parent-only keys survive), then merge the profile's own `android`/`ios` block
+ * over the result. `env` sits on the schema both platform blocks concat, so `production.android.env`
+ * is legal eas.json that overrides everything above it — and both `preview` and `production`
+ * already carry an `android` block, which makes it the natural place for an override to land.
+ *
+ * Resolving without that second step is how these guards would pass for the wrong reason: the
+ * disable, or an auth token, could sit in a platform block that no top-level read ever sees.
+ *
+ * Read from @expo/eas-json 24.5.0 `build/build/resolver.js`, not from memory — eas-cli is not a
+ * dependency here, it runs via `pnpm dlx`, so the copy this was checked against is the one that
+ * lands in the pnpm store. `resolveBuildProfile` destructures `{ android, ios, ...base }` and
+ * calls `mergeProfiles(base, profile[platform] ?? {})`; `mergeProfiles` merges `env` with the
+ * update winning. The `depth >= 5` bound below is the same one `resolveProfile` uses.
+ */
+function resolveEnv(
+  build: Record<string, EasProfile>,
+  name: string,
+  platform: EasPlatform,
+  depth = 0,
+): EasEnv {
+  if (depth >= 5) throw new Error(`eas.json: extends chain too long or cyclic at "${name}"`);
+  const profile = build[name];
+  if (!profile) throw new Error(`eas.json: no build profile named "${name}"`);
+  const inherited = profile.extends ? resolveEnv(build, profile.extends, platform, depth + 1) : {};
+  return { ...inherited, ...(profile.env ?? {}), ...(profile[platform]?.env ?? {}) };
+}
+
+describe.each(EAS_PLATFORMS)('Sentry symbol upload per EAS profile — %s (#466)', (platform) => {
+  const build = JSON.parse(readFileSync(join(NATIVE, 'eas.json'), 'utf8')).build as Record<
+    string,
+    EasProfile
+  >;
+  const envOf = (name: string) => resolveEnv(build, name, platform);
+
+  it('production uploads — nothing it resolves from disables it', () => {
+    expect(envOf('production').SENTRY_DISABLE_AUTO_UPLOAD).toBeUndefined();
+  });
+
+  it.each(['development', 'preview'])(
+    '%s stays disabled, so an internal build never needs the auth token',
+    (profile) => {
+      expect(envOf(profile).SENTRY_DISABLE_AUTO_UPLOAD).toBe('true');
+    },
+  );
+
+  it('no profile carries the auth token — it comes from EAS env or the build shell', () => {
+    // The repo is public. A token belongs in a `secret`-visibility EAS variable or in the
+    // operator's shell, never in a file anyone can read.
+    for (const name of Object.keys(build)) {
+      expect(Object.keys(envOf(name)), name).not.toContain('SENTRY_AUTH_TOKEN');
+    }
+  });
+
+  it('no profile pins SENTRY_URL — the org token carries its own region', () => {
+    // Not a credential, so it is banned for a different reason: an organization auth token
+    // embeds its server URL and sentry-cli prefers it, warning when both are set. A pinned URL
+    // is therefore either redundant or wrong. If the org ever needs an explicit endpoint, the
+    // plugin's own `url` prop is the place for it — delete this assertion deliberately.
+    for (const name of Object.keys(build)) {
+      expect(Object.keys(envOf(name)), name).not.toContain('SENTRY_URL');
+    }
+  });
+
+  it('only development resolves the dev variant — a parent profile cannot smuggle it in', () => {
+    // links.test.ts asserts this on each profile's OWN env, which is the read this helper exists
+    // to replace: put the key one level up and that one stays green while preview and production
+    // quietly build as the dev client.
+    expect(envOf('development').EXPO_PUBLIC_APP_VARIANT).toBe('development');
+    for (const profile of ['preview', 'production']) {
+      expect(envOf(profile).EXPO_PUBLIC_APP_VARIANT, profile).toBeUndefined();
     }
   });
 });

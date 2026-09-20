@@ -687,7 +687,7 @@ describe('terms', () => {
     },
   );
 
-  it('sells only what is on sale — tickets through Stripe, the organiser paid net of our share', () => {
+  it('states the ticket terms through Stripe, the organiser paid net of our share', () => {
     expect(body('it', 'payments')).toMatch(/Stripe/);
     expect(body('en', 'payments')).toMatch(/Stripe/);
     // The share is the one the composer makes the organiser accept (`event.create.settlement.ack`).

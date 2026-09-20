@@ -451,11 +451,19 @@ export const privacy: Record<Locale, LegalDoc> = {
  *   `moderation-enforce` closes sign-in (a GoTrue ban until the date, so it lifts itself). A ban
  *   also hides the profile, posts and stories, deleting nothing (#314). Removal is an operator
  *   action by hand until the panel has one (#788), as /child-safety says.
- * - Only tickets are on sale: Stripe Checkout (`create-ticket-checkout`), the organiser paid net of
- *   `events.fee_pct` as the composer makes them accept (`event.create.settlement.ack`). Circle
- *   checkout is closed on production (`circle_checkout_enabled` absent) and the fund is off
- *   (`fund_surfaces_enabled`, `contributions_enabled`), so both are named only to say they buy no
- *   Aura (rule 1). Opening either needs no code: its terms have to land here first.
+ * - Tickets are the only rail whose terms are stated here: Stripe Checkout
+ *   (`create-ticket-checkout`), the organiser paid net of `events.fee_pct` as the composer makes
+ *   them accept (`event.create.settlement.ack`). Circle checkout is closed on production
+ *   (`circle_checkout_enabled` absent) and the fund is off (`fund_surfaces_enabled`,
+ *   `contributions_enabled`), so both are named only to say they buy no Aura (rule 1). Opening
+ *   either needs no code: its terms have to land here first.
+ * - **Since #806 tickets are closed on production too** (`paid_events_enabled` absent), so at the
+ *   first release NOTHING is on sale. The «Eventi a pagamento» section is left as written — it
+ *   describes a feature («alcuni eventi hanno un biglietto a pagamento»), not a claim that any
+ *   exists today, and production holds zero paid events — but a reader should know the sentence
+ *   describes a rail that is switched off until §4.2 step 8. Whether the section should say so
+ *   while it is closed is a counsel question (#711, #250), not one to answer by editing public
+ *   legal copy from a feature branch.
  * - It states no refund, withdrawal-right, arbitration, VAT or seller-of-record regime. Refunds are
  *   issued by hand in the Stripe Dashboard, never by code, and the rest is with counsel (#711, #250).
  *

@@ -2,6 +2,12 @@ import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
 import { logStripeFailure } from '../_shared/stripe-error.ts';
+import {
+  logFlagClosed,
+  PAID_EVENTS_FLAG,
+  readFlagGate,
+  type RefusalSink,
+} from '../_shared/remote-config-gate.ts';
 
 // Onboarding construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -33,6 +39,8 @@ export type PayoutOnboardingCtx = {
    * (PAYOUT_ONBOARDING_RETURN_URL / PAYOUT_ONBOARDING_REFRESH_URL); undefined when unset.
    */
   urls: { returnUrl?: string; refreshUrl?: string };
+  /** where the paid-events refusal line goes; production leaves the default (console.error) */
+  refusalSink?: RefusalSink;
 };
 
 export type PayoutOnboardingInput = {
@@ -100,8 +108,37 @@ export async function createPayoutOnboarding(
   ctx: PayoutOnboardingCtx,
   input: PayoutOnboardingInput,
 ): Promise<Response> {
-  const { userClient, admin, createAccount, createAccountLink, deleteAccount, urls } = ctx;
+  const { userClient, admin, createAccount, createAccountLink, deleteAccount, urls, refusalSink } =
+    ctx;
   const { profileId, email } = input;
+
+  // #806 — first, before the config check and before Stripe is touched: onboarding exists only to
+  // let someone sell tickets, so while paid events are closed it mints no Connect account and
+  // writes no payout_accounts row. Ahead of the config arm deliberately — «not open yet» is the
+  // true answer on a production that has neither the flag nor the env, and a 500 there would send
+  // an organiser chasing a fault that is not one. FAILS CLOSED on every doubt.
+  //
+  // KNOWN COUPLING, named rather than left implicit: this is also the only way a `payout_accounts`
+  // row is ever created, and `release-fund-payout` reads that row for a DREAM WINNER's transfer
+  // (#247) — a rail that has nothing to do with paid events. So a closed `paid_events_enabled`
+  // also closes winner onboarding, and the refusal such a winner would read is «paid events
+  // closed», about something they are not doing. Unreachable today: no winner-facing onboarding
+  // entry point exists and the fund surfaces are off. When #247 grows one, it needs its own gate
+  // (or none) rather than inheriting this one.
+  const paidEvents = await readFlagGate(userClient, PAID_EVENTS_FLAG);
+  if (!paidEvents.open) {
+    logFlagClosed(
+      {
+        tag: 'events',
+        fn: 'create-payout-onboarding',
+        message: 'paid events closed',
+        flag: PAID_EVENTS_FLAG,
+        reason: paidEvents.reason,
+      },
+      refusalSink,
+    );
+    return error('paid events closed', 403);
+  }
 
   // Deploy-deferred config (the STRIPE_PRICE_* pattern): fail loud until the env is set.
   if (!urls.returnUrl || !urls.refreshUrl) return error('payout onboarding not configured', 500);

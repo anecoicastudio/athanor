@@ -1,9 +1,11 @@
+import { semantic } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import { momentPosterPath } from '@/lib/media/moment-media';
 import { Pressable, Text, View } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
+import { PlayGlyph } from '@/components/glyphs';
 
 export type TileVariant = 'gallery' | 'full';
 
@@ -66,15 +68,13 @@ export function MomentTile({
       className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
     >
       {posterPath === null ? (
-        <View className="absolute inset-0 items-center justify-center">
-          <Text
-            className="text-2xl text-faint"
-            // Decorative: the no-poster sentence rides the Pressable's label above (#292).
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            ▶
-          </Text>
+        <View
+          className="absolute inset-0 items-center justify-center"
+          // Decorative: the no-poster sentence rides the Pressable's label above (#292).
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <PlayGlyph size={24} color={semantic.faint} />
         </View>
       ) : (
         <MediaFrame
@@ -91,7 +91,7 @@ export function MomentTile({
               // Ready-state only: over the unavailable glyph this would be two centred marks on
               // top of each other, and ▶ would promise playback that isn't there.
               <View className="absolute inset-0 items-center justify-center">
-                <Text className="text-2xl text-foreground">▶</Text>
+                <PlayGlyph size={24} color={semantic.foreground} />
               </View>
             ) : null
           }

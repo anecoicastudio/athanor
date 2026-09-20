@@ -11,6 +11,12 @@ import {
 } from '../_shared/circle-price.ts';
 import type { CirclePriceIds } from '../_shared/stripe.ts';
 import {
+  CIRCLE_CHECKOUT_FLAG,
+  type FlagGate,
+  logFlagClosed,
+  readFlagGate,
+} from '../_shared/remote-config-gate.ts';
+import {
   blocksNewSubscription,
   circleCustomerTagQuery,
   taggedCircleCustomers,
@@ -89,9 +95,10 @@ const FN = 'create-circle-checkout';
 /**
  * The remote_config row that opens Circle checkout (#747) — the same key the app's
  * `useCircleCheckoutGate` reads. Absent on production until the Stripe cutover
- * (RELEASE-RUNBOOK §4.2 step 7).
+ * (RELEASE-RUNBOOK §4.2 step 7). Re-exported from `_shared/remote-config-gate.ts`, which is
+ * where every flag key lives since #806 gave the fail-closed reader two more callers.
  */
-export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
+export { CIRCLE_CHECKOUT_FLAG };
 
 /**
  * Whether checkout is open: `true` only on a clean read of `{"enabled": true}`. FAILS CLOSED on
@@ -99,28 +106,15 @@ export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
  * `version-gate.ts`, which fails open because it guards nothing money depends on. This one
  * guards a Checkout that may point at test-mode keys.
  *
- * Read through the CALLER's client: `remote_config` is SELECT-granted to `authenticated` with a
- * public-read policy, and `_shared/auth-posture.test.ts` forbids the service role in a
- * user-callable function. It is the same read `version-gate.ts` makes.
+ * The ladder itself moved to `_shared/remote-config-gate.ts` unchanged (#806): the ticket and
+ * payout rails need exactly this behaviour, and three copies of a fail-closed ladder is three
+ * chances for one of them to grow an `||`. This stays as the named entry point Circle's tests
+ * and call site use.
  */
-export type CheckoutGate =
-  | { open: true }
-  | { open: false; reason: 'read-error' | 'absent' | 'malformed' | 'off' };
+export type CheckoutGate = FlagGate;
 
-export async function readCircleCheckoutGate(userClient: SupabaseClient): Promise<CheckoutGate> {
-  const { data, error: readError } = await userClient
-    .from('remote_config')
-    .select('value')
-    .eq('key', CIRCLE_CHECKOUT_FLAG)
-    .maybeSingle();
-  // The error wins over any payload that came with it: a read that failed proved nothing.
-  if (readError) return { open: false, reason: 'read-error' };
-  if (data == null) return { open: false, reason: 'absent' };
-  const value = (data as { value?: unknown }).value;
-  if (typeof value !== 'object' || value === null) return { open: false, reason: 'malformed' };
-  const enabled = (value as { enabled?: unknown }).enabled;
-  if (typeof enabled !== 'boolean') return { open: false, reason: 'malformed' };
-  return enabled ? { open: true } : { open: false, reason: 'off' };
+export function readCircleCheckoutGate(userClient: SupabaseClient): Promise<CheckoutGate> {
+  return readFlagGate(userClient, CIRCLE_CHECKOUT_FLAG);
 }
 
 /**
@@ -132,7 +126,10 @@ export function logCheckoutClosed(
   reason: Exclude<CheckoutGate, { open: true }>['reason'],
   sink: PriceRefusalSink = consoleRefusalSink,
 ): void {
-  sink(`[circle] ${FN}: checkout closed ${JSON.stringify({ flag: CIRCLE_CHECKOUT_FLAG, reason })}`);
+  logFlagClosed(
+    { tag: 'circle', fn: FN, message: 'checkout closed', flag: CIRCLE_CHECKOUT_FLAG, reason },
+    sink,
+  );
 }
 
 export { blocksNewSubscription };
