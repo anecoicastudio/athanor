@@ -2,6 +2,12 @@ import type Stripe from 'npm:stripe@22';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { error, json } from '../_shared/respond.ts';
 import { logStripeFailure } from '../_shared/stripe-error.ts';
+import {
+  logFlagClosed,
+  PAID_EVENTS_FLAG,
+  readFlagGate,
+  type RefusalSink,
+} from '../_shared/remote-config-gate.ts';
 
 // Ticket-checkout construction extracted from index.ts so it is unit-testable (deno test):
 // index.ts keeps the transport shell (OPTIONS/method guard, requireUser, version gate,
@@ -22,6 +28,8 @@ export type TicketCheckoutCtx = {
   appBase: string;
   /** injected clock — the past-event guard is time-dependent (core rule: no bare Date) */
   now: () => Date;
+  /** where the paid-events refusal line goes; production leaves the default (console.error) */
+  refusalSink?: RefusalSink;
 };
 
 export type TicketCheckoutInput = {
@@ -192,8 +200,29 @@ export async function createTicketCheckout(
   ctx: TicketCheckoutCtx,
   input: TicketCheckoutInput,
 ): Promise<Response> {
-  const { userClient, createCheckoutSession, appBase, now } = ctx;
+  const { userClient, createCheckoutSession, appBase, now, refusalSink } = ctx;
   const { profileId, eventId } = input;
+
+  // #806 — first, before the event is even looked up: paid events are a rail that can be switched
+  // off from `remote_config`, and a closed rail mints no Session, claims no seat and answers the
+  // same way for every event. Absent on production until the ticket rail is proven live
+  // (RELEASE-RUNBOOK §4.2 step 8), so the first release sells nothing. FAILS CLOSED on every doubt
+  // — the shared reader's contract — because what it guards is a hosted Checkout whose keys may
+  // still be test-mode. 403 with a stable code the bar maps to its own line.
+  const paidEvents = await readFlagGate(userClient, PAID_EVENTS_FLAG);
+  if (!paidEvents.open) {
+    logFlagClosed(
+      {
+        tag: 'events',
+        fn: 'create-ticket-checkout',
+        message: 'paid events closed',
+        flag: PAID_EVENTS_FLAG,
+        reason: paidEvents.reason,
+      },
+      refusalSink,
+    );
+    return error('paid events closed', 403);
+  }
 
   // Load the event server-side (RLS lets any member read a published event).
   const { data: event, error: evErr } = await userClient

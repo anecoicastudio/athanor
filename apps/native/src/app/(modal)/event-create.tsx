@@ -40,6 +40,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
+import { usePaidEventsGate } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
@@ -96,7 +97,25 @@ export default function EventCreateScreen() {
   const [startsAt, setStartsAt] = useState<Date>(() => new Date(Date.now() + 7 * 86400000));
   const [showPicker, setShowPicker] = useState(false);
   const [capacity, setCapacity] = useState('');
-  const [paid, setPaid] = useState(false);
+  /**
+   * #806 — the platform-wide paid-events switch, the same `remote_config` row that
+   * create-ticket-checkout and create-payout-onboarding read first. Fails closed; `'loading'`
+   * is neither, so the toggle shows a spinner rather than flashing a state.
+   */
+  const paidGate = usePaidEventsGate();
+  /**
+   * What the organiser PICKED, and what the form actually IS — two different things since #806,
+   * because the rail can close while this sheet is open (a 60s refetch, or a flag flipped
+   * mid-session). `paid` is DERIVED rather than reset by an effect: an effect that called
+   * setPaid would be a cascading render the React compiler rejects, and more to the point the
+   * truth here is a function of two inputs, so storing it would be storing a stale copy of one.
+   *
+   * Everything downstream reads `paid`, so a closed rail takes the price field, the settlement
+   * box and the paid half of the payload with it in one step. The pick survives, so a rail that
+   * reopens restores the organiser's choice rather than silently keeping them on free.
+   */
+  const [paidSelected, setPaidSelected] = useState(false);
+  const paid = paidGate === 'open' && paidSelected;
   const [price, setPrice] = useState('');
   // #437 — the settlement acknowledgement. UNTICKED, always, and never remembered: CRD 2011/83/EU
   // Art. 22 excludes pre-ticked boxes, and a remembered tick is a pre-ticked box wearing a
@@ -209,14 +228,17 @@ export default function EventCreateScreen() {
       void queryClient.invalidateQueries({ queryKey: payoutKeys.mine() });
     } catch (e) {
       devWarn('[event-create] payout onboarding', e);
-      setError(
-        t(
-          e instanceof PayoutOnboardingError && e.code === 'identity not verified'
-            ? 'event.create.verifyGate'
-            : 'event.create.payout.error',
-          locale,
-        ),
-      );
+      // The server's refusal codes are the contract (#103's shape). `paid events closed` (#806)
+      // is the rail switch: the same sentence the toggle shows, never «non riesco ad aprire
+      // Stripe», which would describe a fault where there is a deliberate closure.
+      const code = e instanceof PayoutOnboardingError ? e.code : null;
+      const key: MessageKey =
+        code === 'identity not verified'
+          ? 'event.create.verifyGate'
+          : code === 'paid events closed'
+            ? 'event.create.paidClosed'
+            : 'event.create.payout.error';
+      setError(t(key, locale));
     } finally {
       setPayoutOpening(false);
     }
@@ -409,6 +431,14 @@ export default function EventCreateScreen() {
     // amount AND anything under the floor, which are the three inputs this sentence answers.
     // Comparing `parseEuroToCents(price, 0) < MIN_PAID_TICKET_CENTS` would lean on `null` coercing
     // to 0 — true today, and a silent hole the day the parser returns undefined instead.
+    // #806 — the rail itself, ahead of all four, and it reads the PICK rather than the derived
+    // `paid`. That is the point: with the rail closed `paid` is already false, so without this a
+    // «Pubblica» tapped on a form filled in for a paid event would quietly publish it as FREE —
+    // at the organiser's own price, for nothing. Say it instead.
+    if (paidSelected && paidGate !== 'open') {
+      setError(t('event.create.paidClosed', locale));
+      return;
+    }
     if (paid && parseEuroToCents(price, MIN_PAID_TICKET_CENTS) === null) {
       setError(minPriceMessage);
       return;
@@ -667,17 +697,32 @@ export default function EventCreateScreen() {
 
           <View className="gap-2">
             {label('event.create.ticket')}
+            {/* #806 — the Paid option is OFFERED only on an open rail: the choice disappears
+                rather than being shown and then refused. Free is always in the list, in every
+                gate state — a closed or still-loading paid rail must not cost anyone the ability
+                to list a free event, which is most of them. That is why this is not a spinner:
+                one would take the Free chip away too, and under a paused offline fetch it would
+                never come back. The closed LINE is what waits for the read (below), so nothing
+                claims «non ancora aperti» before anything has been read. */}
             <View className="flex-row gap-2">
-              {[false, true].map((p) => (
+              {(paidGate === 'open' ? [false, true] : [false]).map((p) => (
                 <Chip
                   key={String(p)}
                   className="flex-1 items-center"
                   label={t(p ? 'event.create.paid' : 'event.create.free', locale)}
                   selected={p === paid}
-                  onPress={() => setPaid(p)}
+                  onPress={() => setPaidSelected(p)}
                 />
               ))}
             </View>
+            {/* One honest line, in the same muted treatment as the floor hint and the verify note:
+                a rail that is not open yet is a fact about the world, not an error the organiser
+                made (rule #4 — no cyan, no glow). */}
+            {paidGate === 'closed' ? (
+              <Text className="text-[12px] leading-4 text-muted-foreground">
+                {t('event.create.paidClosed', locale)}
+              </Text>
+            ) : null}
             {paid ? (
               <View className="gap-2" ref={reveal.rowRef('price')}>
                 <Input

@@ -996,6 +996,11 @@ on conflict do nothing;
 -- circle_checkout_enabled (#747) is ABSENT on production until the Stripe cutover
 -- (RELEASE-RUNBOOK §4.2); the app fails closed on a missing row, so no Circle purchase
 -- CTA renders there.
+-- paid_events_enabled (#806) is ABSENT on production too, until the ticket rail is proven
+-- live (RELEASE-RUNBOOK §4.2 step 8, after §4.8's rail proof). Same fail-closed shape: with
+-- no row the composer offers no Paid option, the ticket bar shows no Buy button, and
+-- create-ticket-checkout / create-payout-onboarding both refuse 403 before any Stripe call.
+-- It is true here because every paid leg of staging QA and the investor-demo world needs it.
 -- Do not copy this block to production.
 -- ---------------------------------------------------------------------------------
 insert into public.remote_config (key, value) values
@@ -1003,7 +1008,8 @@ insert into public.remote_config (key, value) values
   ('maintenance_mode',          '{"enabled":false,"eta":null}'::jsonb),
   ('fund_surfaces_enabled',     '{"enabled":true}'::jsonb),
   ('prime_stelle_enabled',      '{"enabled":true}'::jsonb),
-  ('circle_checkout_enabled',   '{"enabled":true}'::jsonb)
+  ('circle_checkout_enabled',   '{"enabled":true}'::jsonb),
+  ('paid_events_enabled',       '{"enabled":true}'::jsonb)
 on conflict do nothing;
 
 commit;

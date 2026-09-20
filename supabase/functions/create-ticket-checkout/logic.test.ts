@@ -45,16 +45,27 @@ const sellable = (over: Record<string, unknown> = {}): Record<string, FakeResult
 type Ctx = TicketCheckoutCtx & {
   db: FakeDb;
   created: Stripe.Checkout.SessionCreateParams[];
+  refusals: string[];
 };
 
 const ctx = (
   script: Record<string, FakeResult[]> = {},
   opts: { sessionUrl?: string | null; throwOnCreate?: boolean } = {},
 ): Ctx => {
-  const db = makeFakeDb(script);
+  // #806 — the paid-events flag is the first read now, so the default script opens it: every test
+  // below this line is about a gate FURTHER down the ladder, and an unscripted read is `absent`,
+  // which would close the rail and make all of them assert the same 403. A test that IS about the
+  // flag passes its own `remote_config.select` and overrides this.
+  const db = makeFakeDb({
+    'remote_config.select': [{ data: { value: { enabled: true } } }],
+    ...script,
+  });
   const created: Stripe.Checkout.SessionCreateParams[] = [];
+  const refusals: string[] = [];
   return {
     userClient: db as unknown as TicketCheckoutCtx['userClient'],
+    refusalSink: (line) => refusals.push(line),
+    refusals,
     createCheckoutSession: (params) => {
       created.push(params);
       if (opts.throwOnCreate) return Promise.reject(new Error('stripe down'));
@@ -131,7 +142,9 @@ Deno.test('MIN_PAID_TICKET_CENTS is the ruled 500 (#701)', () => {
 Deno.test('event queried by the given id and deleted_at null', async () => {
   const c = ctx({ 'events.select': [{ data: null }] });
   await run(c, 'evt-OTHER');
-  const q = c.db.calls[0];
+  // `.find`, not `calls[0]`: since #806 the paid-events flag is read first.
+  const q = c.db.calls.find((call) => call.table === 'events');
+  assert(q, 'the events read is gone');
   assertEquals(q.table, 'events');
   assert(q.filters.some(([f, col, v]) => f === 'eq' && col === 'id' && v === 'evt-OTHER'));
   assert(q.filters.some(([f, col, v]) => f === 'is' && col === 'deleted_at' && v === null));
@@ -571,3 +584,93 @@ Deno.test(
     );
   },
 );
+
+// ── #806: the paid-events flag, server side ──────────────────────────────────────
+// The composer hides the Paid option and the bar hides the Buy button on the same flag; this is
+// the half a bypassed, stale or offline-cached client cannot skip. Fails CLOSED on every doubt,
+// like Circle's (#747) and unlike version-gate.ts, because what it guards is a hosted Checkout
+// against keys that may still be test-mode — and, before the cutover, an organiser who cannot be
+// paid at all.
+
+const paidFlag = (r: FakeResult): Record<string, FakeResult[]> => ({
+  ...sellable(),
+  'remote_config.select': [r],
+});
+
+const assertRailClosed = (
+  c: Ctx,
+  res: Response,
+  body: { error?: string },
+  reason: 'read-error' | 'absent' | 'malformed' | 'off',
+) => {
+  assertEquals(res.status, 403);
+  assertEquals(body.error, 'paid events closed');
+  assertEquals(c.created, [], 'no Checkout Session minted');
+  assertEquals(
+    c.db.calls.filter((call) => call.table !== 'remote_config'),
+    [],
+    'nothing else was read or written — not the event, not the seat claim',
+  );
+  assertEquals(
+    c.db.calls.filter((call) => call.table === 'remote_config').length,
+    1,
+    'exactly one flag read',
+  );
+  assertEquals(c.refusals, [
+    `[events] create-ticket-checkout: paid events closed ${JSON.stringify({
+      flag: 'paid_events_enabled',
+      reason,
+    })}`,
+  ]);
+};
+
+Deno.test('#806 flag on → the sale proceeds, and the flag is the FIRST read', async () => {
+  const c = ctx(sellable());
+  const { res } = await run(c);
+  assertEquals(res.status, 200);
+  assertEquals(c.created.length, 1);
+  const first = c.db.calls[0];
+  assertEquals(first.table, 'remote_config', 'the flag is read before the event');
+  assertEquals(first.filters, [['eq', 'key', 'paid_events_enabled']]);
+  assertEquals(c.refusals, [], 'an open rail logs nothing');
+});
+
+Deno.test('#806 flag off → 403 paid events closed, no seat claimed', async () => {
+  const c = ctx(paidFlag({ data: { value: { enabled: false } } }));
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'off');
+});
+
+Deno.test('#806 flag absent → closed (production before the cutover)', async () => {
+  const c = ctx(paidFlag({ data: null }));
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'absent');
+});
+
+Deno.test('#806 flag malformed → closed (truthy is not true)', async () => {
+  for (const value of [{ enabled: 'true' }, { enabled: 1 }, {}, null, 'on', true]) {
+    const c = ctx(paidFlag({ data: { value } }));
+    const { res, body } = await run(c);
+    assertRailClosed(c, res, body, 'malformed');
+  }
+});
+
+Deno.test('#806 flag read error → closed, even when an open payload rides along', async () => {
+  const c = ctx(
+    paidFlag({
+      data: { value: { enabled: true } },
+      error: { message: 'connection reset', code: '08006' },
+    }),
+  );
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'read-error');
+});
+
+Deno.test('#806 a closed rail refuses before the event is even looked up', async () => {
+  // An event that would otherwise 404 still answers «paid events closed»: the rail is shut for
+  // every event, so the refusal must not depend on which one was asked for. It also means a
+  // closed rail leaks nothing about whether an event exists.
+  const c = ctx({ 'remote_config.select': [{ data: null }], 'events.select': [{ data: null }] });
+  const { res, body } = await run(c, 'evt-DOES-NOT-EXIST');
+  assertRailClosed(c, res, body, 'absent');
+});
