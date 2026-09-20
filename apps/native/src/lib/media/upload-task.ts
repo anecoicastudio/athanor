@@ -50,9 +50,10 @@ import type { UploadHandle, Uploader, UploadResponse } from './upload-transport'
  * None of that is new here. `expo@57.0.21` lists `expo-file-system ~57.0.6` in its OWN
  * dependencies, so the module was autolinked and the plugin applied before this file existed;
  * putting it in `apps/native/package.json` pins the version the import resolves against and adds
- * no native module and no permission. Whether a Play-bound manifest should carry two storage
- * permissions the app never uses is a real question, and the lever is `android.blockedPermissions`
- * — not this line, and not this change.
+ * no native module and no permission. Whether a Play-bound manifest should carry those two storage
+ * permissions is a real question — open as #817, where it turns out they are not unused: below API
+ * 33 they are the only permission path `expo-image-picker` has, and minSdk is 24. The lever is
+ * `android.blockedPermissions` — not this line, and not this change.
  */
 
 /** Bridges an `AbortSignal`-free handle onto whatever the platform gives us. */

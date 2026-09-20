@@ -12,11 +12,14 @@ import resolveAppConfig from '../../app.config';
  * the merged manifest is one the Play Console asks the store listing to justify. Until #776 the
  * manifest asked for two foreground-service permissions (expo-audio's background-playback default)
  * and ACCESS_FINE_LOCATION, none of which the app uses — and FINE made the Data safety form's
- * "approximate location only" false (#781). SYSTEM_ALERT_WINDOW joined them in #816: the Expo
- * prebuild template declares it in the app's main manifest under "OPTIONAL PERMISSIONS, REMOVE
- * WHATEVER YOU DO NOT NEED", and nothing in this app draws over other apps. This file pins the
- * config that removes them, the notification icon (#772), and the source half of #781: every fix
- * the app takes is the lowest accuracy, snapped to the event grid before it goes anywhere.
+ * "approximate location only" false (#781). SYSTEM_ALERT_WINDOW joined them in #816: `expo
+ * prebuild` writes it into the generated `android/app/src/main/AndroidManifest.xml` from the bare
+ * template's optional-permission block — run a prebuild and read that file, it is the only place
+ * the claim is checkable — and nothing in this app draws over other apps. Blocking it moves the
+ * release manifest alone: `app/src/debug/AndroidManifest.xml` declares it separately and outranks
+ * the main source set, so the dev client keeps the dev-menu overlay. This file pins the config
+ * that removes them, the notification icon (#772), and the source half of #781: every fix the app
+ * takes is the lowest accuracy, snapped to the event grid before it goes anywhere.
  *
  * Asserted on BOTH resolved variants, not on app.json alone: app.config.ts rewrites the Android
  * block for the dev client (world.athanor.app.dev), and a resolver that dropped blockedPermissions
@@ -78,7 +81,7 @@ describe.each([
     // Exhaustive, not `arrayContaining`: the containment form stayed green when app.json grew an
     // entry this list did not, which is the half that decides the Play listing. Sorted, because
     // the order in app.json is readability only. Blocking a permission the app needs — the
-    // expo-image-picker storage pair is the live example — has to be a deliberate edit here.
+    // expo-image-picker storage pair, still open in #817 — has to be a deliberate edit here.
     expect([...(config.android?.blockedPermissions ?? [])].sort()).toEqual([...BLOCKED].sort());
   });
 
