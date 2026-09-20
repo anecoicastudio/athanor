@@ -69,13 +69,30 @@ describe('the paid-events gate fails closed (#806)', () => {
     expect(gateBody).toContain("q.status === 'success' && q.data.flags[PAID_EVENTS_FLAG] === true");
   });
 
-  it('resolves rather than hanging when the device is offline', () => {
+  it('resolves rather than hanging when the device is offline — in BOTH gates on the key', () => {
     // Without `networkMode: 'always'` React Query PAUSES the fetch offline: `status` stays
     // `'pending'`, the gate stays `'loading'`, and everything keyed on it hangs — TicketBar's
     // Buy button dimmed and busy with nothing said, the composer's chip row gone. A `'loading'`
     // that never ends is a hang, not a third state. `payableQ` in TicketBar carries the same
-    // flag, with the same note.
-    expect(gateBody).toContain("networkMode: 'always'");
+    // flag for the same reason.
+    //
+    // Asserted on BOTH bodies, and that is the whole point of this assertion rather than a
+    // narrower one: `networkMode` is a property of the QUERY, and these two gates share
+    // `remoteConfigKeys.live()`. `QueryCache#build` does not re-apply options to a query that
+    // already exists, and `Query#fetch` returns the in-flight retryer promise BEFORE
+    // `setOptions` runs (query-core 5.101.0) — so a paused fetch started by whichever gate
+    // mounted first is inherited by the other, options and all. One of them carrying the flag
+    // would be a race that reads like a guarantee.
+    const circleBody = (() => {
+      const start = HOOK.indexOf('export function useCircleCheckoutGate');
+      expect(start, 'useCircleCheckoutGate is gone').toBeGreaterThan(-1);
+      const next = HOOK.indexOf('\nexport ', start + 1);
+      return HOOK.slice(start, next === -1 ? undefined : next);
+    })();
+    expect(gateBody, 'the paid-events gate can hang offline').toContain("networkMode: 'always'");
+    expect(circleBody, 'the Circle gate can hang offline, and takes this one with it').toContain(
+      "networkMode: 'always'",
+    );
   });
 
   it('shares Circle’s query key, so a second gate is not a second request', () => {

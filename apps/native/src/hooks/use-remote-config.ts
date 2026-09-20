@@ -43,6 +43,15 @@ export const CIRCLE_CHECKOUT_FLAG = 'circle_checkout_enabled';
  *   A failed REFETCH closes it too: TanStack keeps the old `data` but moves `status` to `'error'`.
  * - `'loading'` while the first read is in flight, so the screen can show a spinner instead of
  *   flashing the closed line and then swapping it for the CTA.
+ * - `networkMode: 'always'` (#806): under the default `'online'` mode an offline client PAUSES
+ *   the fetch, so `status` never leaves `'pending'` and this returns `'loading'` for as long as
+ *   the device is offline — the Circle screen spins forever rather than telling anyone anything.
+ *   It must also match `usePaidEventsGate` below, because the two SHARE this query key and
+ *   `networkMode` is a property of the QUERY, not of the observer: `QueryCache#build` does not
+ *   re-apply options to a query that already exists, and `Query#fetch` returns the in-flight
+ *   retryer promise BEFORE `setOptions` runs (query-core 5.101.0). So whichever gate mounts
+ *   first sets the mode for both, and one of them carrying it would be a race rather than a
+ *   guarantee. Change one, change the other.
  */
 export function useCircleCheckoutGate(): 'loading' | 'open' | 'closed' {
   const q = useQuery<RemoteConfigSnapshot>({
@@ -51,6 +60,7 @@ export function useCircleCheckoutGate(): 'loading' | 'open' | 'closed' {
     staleTime: 60_000,
     retry: 1,
     meta: { persist: false },
+    networkMode: 'always',
   });
   if (q.status === 'pending') return 'loading';
   return q.status === 'success' && q.data.flags[CIRCLE_CHECKOUT_FLAG] === true ? 'open' : 'closed';
@@ -87,14 +97,16 @@ export function usePaidEventsGate(): 'loading' | 'open' | 'closed' {
     staleTime: 60_000,
     retry: 1,
     meta: { persist: false },
-    // `networkMode: 'always'`, the one place this departs from `useCircleCheckoutGate` — and it
-    // is about RESOLVING, not about failing open. Under the default `'online'` mode an offline
+    // About RESOLVING, not about failing open. Under the default `'online'` mode an offline
     // client PAUSES the fetch: `status` stays `'pending'`, this returns `'loading'` forever, and
     // a `'loading'` that never ends is not a third state, it is a hang. It held TicketBar's Buy
     // button dimmed-and-busy with nothing said, and — worse — the composer's chip row with it,
     // so an offline organiser could not create a FREE event either. `payableQ` in TicketBar
     // carries this same flag for this same reason. Offline now fails fast to `'closed'`, which
     // is the honest answer and still the fail-closed one.
+    //
+    // It must stay IDENTICAL to `useCircleCheckoutGate`'s — see the note there: the two share
+    // this query key, and the option belongs to the query, so whichever mounts first wins.
     networkMode: 'always',
   });
   if (q.status === 'pending') return 'loading';
