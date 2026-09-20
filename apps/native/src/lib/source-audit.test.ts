@@ -4386,10 +4386,15 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
 describe('the glow surfaces are a named set, and the clock is not one (rule 4, DESIGN.md §8.12)', () => {
   /**
    * `auraGlow()` is the glow rule 4 reserves for moment-grade events, and §8.12 rules the
-   * `/annual` clock flat. `CountdownCell` glowed anyway from `30628309` until 2026-09-20 —
-   * nothing failed, because a `.tsx` is uncollectable in this harness and the shape tests in
-   * `lib/glow.test.ts` pin what the helper RETURNS, never who calls it. A phone caught it.
-   * This pins the callers instead, so the next one is a deliberate edit to this list.
+   * `/annual` clock flat. `CountdownCell` glowed anyway from `30628309` (2026-06-17) until
+   * 2026-09-20 — nothing failed, because no render test could have caught it (this file's own
+   * `walk()` DOES read `.tsx`; the vitest run collects only `*.test.ts`) and the shape tests in
+   * `lib/glow.test.ts` pin what the helper RETURNS, never who calls it. A phone caught it,
+   * three months on. This pins the callers, so the next one is a deliberate edit to this list.
+   *
+   * What it pins is the CALLERS, not «the clock is unglowed»: a raw `boxShadow` or a NativeWind
+   * `shadow-*` on a countdown file would evade it. Nothing in `apps/native/src` outside
+   * `lib/glow*` uses either today, so the coverage is total by circumstance, not construction.
    */
   const GLOW_SURFACES = [
     'app/(modal)/favor.tsx',
@@ -4409,7 +4414,9 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ]
-      .filter((p) => !p.startsWith('lib/glow'))
+      // The helper and its own test, named exactly: a `lib/glow*` prefix would also swallow a
+      // future `lib/glow-<something>.tsx` that calls it, and swallow it silently.
+      .filter((p) => p !== 'lib/glow.ts' && p !== 'lib/glow.test.ts')
       .sort();
 
     expect(
