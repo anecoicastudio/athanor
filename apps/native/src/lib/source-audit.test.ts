@@ -2628,7 +2628,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:523':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:381': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(onboarding)/index.tsx:440':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +

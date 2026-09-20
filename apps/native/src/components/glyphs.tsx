@@ -233,14 +233,18 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
  * the platform's font fallback, which is the bug the issue records. Every one of these is a
  * drawing instead, so it renders the same pixels on iOS, Android and web.
  *
- * Two are PORTS from the 20-glyph set (DESIGN §6), ported from the prototype's `GLYPHS` table
- * the same way `EyeGlyph` was — `scales` and `waves` are named by the set, so they are debt paid
- * down, not new marks. Three are NEW, drawn in the set's compass-and-ruler system and recorded
- * in DESIGN §6's addendum (ruled 2026-09-19): the set has no mark that honestly means play,
- * pause or locked. All five use `line()`'s 1.8px — they are content marks, not header icons.
- * Two carry a filled point and nothing else is filled: `WavesGlyph`'s source dot, which is the
- * set's own (`fill="currentColor"` in the prototype — do not unfill the port), and `LockGlyph`'s
- * keyhole, the one centre point §6 allows a new mark.
+ * One is a PORT from the 20-glyph set (DESIGN §6), ported from the prototype's `GLYPHS` table
+ * the same way `EyeGlyph` was — `scales` is named by the set, so it is debt paid down, not a new
+ * mark. Three are NEW, drawn in the set's compass-and-ruler system and recorded in DESIGN §6's
+ * addendum (ruled 2026-09-19): the set has no mark that honestly means play, pause or locked.
+ * All four use `line()`'s 1.8px — they are content marks, not header icons — and nothing is
+ * filled except `LockGlyph`'s keyhole, the one centre point §6 allows a new mark.
+ *
+ * 🎧 has NO mark of its own, deliberately. The set's `waves` was ported for it and then dropped
+ * (ruling 2026-09-20): on the phone it reads as a Wi-Fi signal, so an audio surface takes the
+ * transport mark — `PlayGlyph`/`PauseGlyph` — and the «Audio · m:ss» text beside it says what it
+ * is. `waves` remains part of the 20-set for whatever genuinely means a signal; it is simply not
+ * an audio icon here, and re-porting it for one would reopen a settled question.
  *
  * No a11y props here, the same split as the zodiac set below: the caller either sits inside a
  * labelled control or hides the mark on its wrapper.
@@ -257,19 +261,6 @@ export function ScalesGlyph({ size = 20, color }: GlyphProps) {
       <Path d="M5 8 2.6 13.6a2.9 2.9 0 0 0 4.8 0Z" {...line(c)} />
       <Path d="M19 8l2.4 5.6a2.9 2.9 0 0 1-4.8 0Z" {...line(c)} />
       <Path d="M8.5 20h7" {...line(c)} />
-    </Svg>
-  );
-}
-
-/** The set's `waves` — sound radiating from a point: audio. */
-export function WavesGlyph({ size = 16, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
-  return (
-    <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Circle cx={12} cy={16.5} r={1.2} fill={c} />
-      <Path d="M8.4 14a4 4 0 0 1 7.2 0" {...line(c)} />
-      <Path d="M6 11.4a6.4 6.4 0 0 1 12 0" {...line(c)} />
-      <Path d="M4 8.8a8.6 8.6 0 0 1 16 0" {...line(c)} />
     </Svg>
   );
 }

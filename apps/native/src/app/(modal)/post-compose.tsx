@@ -12,7 +12,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
-import { PlayGlyph, WavesGlyph } from '@/components/glyphs';
+import { PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -328,11 +328,13 @@ export default function PostComposeScreen() {
                       <View
                         // A drawing, not the 🎧 character (#753), so it cannot outgrow the hard
                         // 70pt tile at any text size — the job the `ornament` cap did for the
-                        // character. The wrapper above carries the label.
+                        // character. `PlayGlyph`, not the set's `waves`: on the phone that mark
+                        // reads as a Wi-Fi signal (ruling 2026-09-20), and the duration under it
+                        // already says audio. The wrapper above carries the label.
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <WavesGlyph size={24} color={semantic.faint} />
+                        <PlayGlyph size={24} color={semantic.faint} />
                       </View>
                       <Text
                         className="mt-0.5 text-[11px] text-faint"

@@ -8,7 +8,7 @@ import { semantic } from '@athanor/config';
 import type { Locale, MediaKind } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
-import { PauseGlyph, PlayGlyph, WavesGlyph } from '@/components/glyphs';
+import { PauseGlyph, PlayGlyph } from '@/components/glyphs';
 import { MediaFrame, type MediaFrameKind } from '@/components/media/MediaFrame';
 import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
@@ -76,10 +76,12 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
       />
     );
   }
-  // Drawn marks, not the ▶/⏸/🎧 characters (#753 — each fell back to the emoji font). The
-  // label now says which way the toggle goes: the drawing was the only place that state lived,
-  // so a screen reader heard «Audio · 1:23» whether it would play or pause. `min-h-[44px]`
-  // holds the floor the 18px text line used to give the pill.
+  // Drawn marks, not the ▶/⏸/🎧 characters (#753 — each fell back to the emoji font). One mark,
+  // not two: the set's `waves` stood in for 🎧 until it went on the phone, where it reads as a
+  // Wi-Fi signal (Marco's ruling 2026-09-20), so the transport mark carries the pill and the
+  // duration text says what it is. The label says which way the toggle goes: the drawing was the
+  // only place that state lived, so a screen reader heard «Audio · 1:23» whether it would play or
+  // pause. `min-h-[44px]` holds the floor the 18px text line used to give the pill.
   return (
     <Pressable
       className="min-h-[44px] flex-row items-center gap-3 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
@@ -92,10 +94,7 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
       ) : (
         <PlayGlyph size={22} color={semantic.foreground} />
       )}
-      <View className="flex-row items-center gap-1.5">
-        <WavesGlyph size={16} color={semantic.foreground} />
-        <Text className="text-[13px] text-foreground">{label}</Text>
-      </View>
+      <Text className="text-[13px] text-foreground">{label}</Text>
     </Pressable>
   );
 }
@@ -272,7 +271,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               accessibilityRole="button"
               accessibilityLabel={durLabel}
             >
-              <WavesGlyph size={16} color={semantic.foreground} />
+              <PlayGlyph size={16} color={semantic.foreground} />
               <Text className="text-[13px] text-foreground">{durLabel}</Text>
             </Pressable>
           );
