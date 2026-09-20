@@ -69,7 +69,7 @@ describe('the paid-events gate fails closed (#806)', () => {
     expect(gateBody).toContain("q.status === 'success' && q.data.flags[PAID_EVENTS_FLAG] === true");
   });
 
-  it('resolves rather than hanging when the device is offline — in BOTH gates on the key', () => {
+  it('resolves rather than hanging when the device is offline — EVERY gate on the key', () => {
     // Without `networkMode: 'always'` React Query PAUSES the fetch offline: `status` stays
     // `'pending'`, the gate stays `'loading'`, and everything keyed on it hangs — TicketBar's
     // Buy button dimmed and busy with nothing said, the composer's chip row gone. A `'loading'`
@@ -93,6 +93,23 @@ describe('the paid-events gate fails closed (#806)', () => {
     expect(circleBody, 'the Circle gate can hang offline, and takes this one with it').toContain(
       "networkMode: 'always'",
     );
+    // …and then by COUNT, not by name, because the two assertions above enumerate the two gates
+    // that exist TODAY. A third consumer of the shared key added without the flag would
+    // reintroduce exactly the race those two close, and would leave them both green. Counting
+    // makes the guard grow with the file instead of with someone remembering to extend it.
+    // Comments are stripped first: the docblocks quote both literals while explaining them, and
+    // counting prose would make this pass for the wrong reason — the vacuous-pass shape.
+    const code = HOOK.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const uses = (re: RegExp) => [...code.matchAll(re)].length;
+    const liveKeyUses = uses(/remoteConfigKeys\.live\(\)/g);
+    expect(liveKeyUses, 'the shared live key is gone; this guard is now vacuous').toBeGreaterThan(
+      1,
+    );
+    expect(
+      uses(/networkMode: 'always'/g),
+      `${liveKeyUses} queries use remoteConfigKeys.live(), but fewer carry networkMode: 'always' — ` +
+        'a gate on the shared key without it can inherit a paused fetch and hang on loading',
+    ).toBe(liveKeyUses);
   });
 
   it('shares Circle’s query key, so a second gate is not a second request', () => {
