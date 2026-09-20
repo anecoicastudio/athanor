@@ -263,6 +263,12 @@ type EasProfile = { extends?: string; env?: EasEnv } & Partial<
  *
  * Resolving without that second step is how these guards would pass for the wrong reason: the
  * disable, or an auth token, could sit in a platform block that no top-level read ever sees.
+ *
+ * Read from @expo/eas-json 24.5.0 `build/build/resolver.js`, not from memory — eas-cli is not a
+ * dependency here, it runs via `pnpm dlx`, so the copy this was checked against is the one that
+ * lands in the pnpm store. `resolveBuildProfile` destructures `{ android, ios, ...base }` and
+ * calls `mergeProfiles(base, profile[platform] ?? {})`; `mergeProfiles` merges `env` with the
+ * update winning. The `depth >= 5` bound below is the same one `resolveProfile` uses.
  */
 function resolveEnv(
   build: Record<string, EasProfile>,
@@ -295,11 +301,21 @@ describe.each(EAS_PLATFORMS)('Sentry symbol upload per EAS profile — %s (#466)
     },
   );
 
-  it('no profile carries the credentials — they come from EAS env or the build shell', () => {
+  it('no profile carries the auth token — it comes from EAS env or the build shell', () => {
+    // The repo is public. A token belongs in a `secret`-visibility EAS variable or in the
+    // operator's shell, never in a file anyone can read.
     for (const name of Object.keys(build)) {
-      const names = Object.keys(envOf(name));
-      expect(names, name).not.toContain('SENTRY_AUTH_TOKEN');
-      expect(names, name).not.toContain('SENTRY_URL');
+      expect(Object.keys(envOf(name)), name).not.toContain('SENTRY_AUTH_TOKEN');
+    }
+  });
+
+  it('no profile pins SENTRY_URL — the org token carries its own region', () => {
+    // Not a credential, so it is banned for a different reason: an organization auth token
+    // embeds its server URL and sentry-cli prefers it, warning when both are set. A pinned URL
+    // is therefore either redundant or wrong. If the org ever needs an explicit endpoint, the
+    // plugin's own `url` prop is the place for it — delete this assertion deliberately.
+    for (const name of Object.keys(build)) {
+      expect(Object.keys(envOf(name)), name).not.toContain('SENTRY_URL');
     }
   });
 

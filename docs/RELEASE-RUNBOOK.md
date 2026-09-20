@@ -967,8 +967,9 @@ no `ignoreExitValue`, so a non-zero exit fails the task and the build; on iOS th
 `error: sentry-cli - …` and exits 1. sentry-cli needs all three of org, project and token, and the
 generated `sentry.properties` supplies none of them — it says `# no org found…`, `# no project
 found…`, `# Using SENTRY_AUTH_TOKEN environment variable`. Export them before building, or set the
-escape hatch below. A **cloud** `eas build --profile production` cannot use that escape hatch: it
-needs the three EAS environment variables from `docs/PRODUCTION-READINESS.md` §6b to exist first.
+escape hatch below. A **cloud** `eas build --profile production` cannot use the shell form of that
+escape hatch — it needs either the three EAS environment variables from
+`docs/PRODUCTION-READINESS.md` §6b, or the `eas env:create` form of the hatch given below.
 
 **What is config, and what is yours.** `apps/native/eas.json` no longer disables the upload on
 `base`; `development` and `preview` each disable it themselves, and `production` does not, so the
@@ -977,9 +978,11 @@ production profile is the only one that tries to upload. That is asserted by
 and not in `eas.json` — they come from the shell you build in.
 
 **Why the shell wins.** eas-cli builds the environment as
-`{ …EAS server vars, …eas.json env, …process.env }` (`build/local.ts`), so an exported variable
-beats both. That is what makes the exports below authoritative, and it is also why the escape
-hatch below works.
+`{ …EAS server vars, …eas.json env, …process.env }`, so an exported variable beats both. That is
+what makes the exports below authoritative, and it is also why the escape hatch works. Read at
+eas-cli **24.7.0**, `build/build/local.js` (`const mergedEnv = { ...env, ...process.env, … }`) —
+eas-cli is not a dependency of this repo, it runs via `pnpm dlx`, so the copy to check is the one
+in the pnpm store, not `node_modules`. Re-read it if eas-cli has moved a major version.
 
 **Before `eas build --local --profile production`**, in that shell:
 
@@ -1019,7 +1022,9 @@ success, `SENTRY_DISABLE_AUTO_UPLOAD=true, skipping sourcemaps upload` and
 `defaults.url=https://sentry.io/` into the generated `sentry.properties`. That is harmless with an
 **organization** auth token: sentry-cli prefers the URL embedded in the token and says so —
 `Using <url> (embedded in token) rather than manually-configured URL …`. Seeing that warning is
-confirmation, not a problem. A plain user token has no embedded URL, so if the upload 401s or 404s
+confirmation, not a problem. (That string is in the sentry-cli 2.58.4 binary itself, under
+`node_modules/.pnpm/@sentry+cli-darwin@2.58.4/…/bin/sentry-cli`, not in the JS wrapper at
+`@sentry/cli/bin/` — `strings` the former if you want to check it.) A plain user token has no embedded URL, so if the upload 401s or 404s
 against `sentry.io`, that is the first thing to check.
 
 **The one-minute check in Sentry afterwards.** Open the project, **Settings → Debug Files** (or
