@@ -19,6 +19,9 @@ import resolveAppConfig from '../../app.config';
  * Asserted on BOTH resolved variants, not on app.json alone: app.config.ts rewrites the Android
  * block for the dev client (world.athanor.app.dev), and a resolver that dropped blockedPermissions
  * would ship the dev build a manifest nobody tested.
+ *
+ * It also pins the eas.json half of #466 — which profiles upload Sentry symbols — because that is
+ * native build config in the same sense, and nothing else in the tree asserted it.
  */
 
 const NATIVE = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -219,6 +222,66 @@ describe('location fixes in the app (#781)', () => {
       expect(text).not.toMatch(
         /watchPositionAsync|getLastKnownPositionAsync|startLocationUpdatesAsync/,
       );
+    }
+  });
+});
+
+/*
+ * One environment variable decides whether a build ships symbolicatable crashes:
+ * `SENTRY_DISABLE_AUTO_UPLOAD` gates the Android gradle task, the iOS source-map phase and the
+ * iOS dSYM phase, all three. From 2026-08-19 it sat on `base`, and eas-cli's `mergeProfiles`
+ * SHALLOW-MERGES `env` down an `extends` chain, so every profile inherited it — production
+ * included, which is the bug #466 names.
+ *
+ * Asserted on the RESOLVED env, never on one profile's own keys: the inheritance is the whole
+ * failure mode, so a pin that reads `base` alone would stay green the moment the key came back
+ * one level down.
+ */
+type EasProfile = { extends?: string; env?: Record<string, string> };
+
+/** eas-cli `mergeProfiles`: walk `extends`, shallow-merge `env`, child keys win. */
+function resolveEnv(
+  build: Record<string, EasProfile>,
+  name: string,
+  depth = 0,
+): Record<string, string> {
+  if (depth >= 5) throw new Error(`eas.json: extends chain too long or cyclic at "${name}"`);
+  const profile = build[name];
+  if (!profile) throw new Error(`eas.json: no build profile named "${name}"`);
+  const inherited = profile.extends ? resolveEnv(build, profile.extends, depth + 1) : {};
+  return { ...inherited, ...(profile.env ?? {}) };
+}
+
+describe('Sentry symbol upload per EAS profile (#466)', () => {
+  const build = JSON.parse(readFileSync(join(NATIVE, 'eas.json'), 'utf8')).build as Record<
+    string,
+    EasProfile
+  >;
+
+  it('production uploads — nothing in its extends chain disables it', () => {
+    expect(resolveEnv(build, 'production').SENTRY_DISABLE_AUTO_UPLOAD).toBeUndefined();
+  });
+
+  it.each(['development', 'preview'])(
+    '%s stays disabled, so an internal build never needs the auth token',
+    (profile) => {
+      expect(resolveEnv(build, profile).SENTRY_DISABLE_AUTO_UPLOAD).toBe('true');
+    },
+  );
+
+  it('no profile carries the credentials — they come from EAS env or the build shell', () => {
+    for (const name of Object.keys(build)) {
+      const names = Object.keys(resolveEnv(build, name));
+      expect(names, name).not.toContain('SENTRY_AUTH_TOKEN');
+      expect(names, name).not.toContain('SENTRY_URL');
+    }
+  });
+
+  it('registers the Expo plugin, which is what writes sentry.properties at prebuild', () => {
+    // Without it there is no gradle upload task and no Xcode phase at all, so the profiles above
+    // would be asserting a switch on a machine that was never wired up.
+    for (const variant of [undefined, 'development'] as const) {
+      expect(pluginProps(resolveVariant(variant), '@sentry/react-native/expo')).toEqual({});
     }
   });
 });

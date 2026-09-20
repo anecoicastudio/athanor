@@ -5,10 +5,7 @@
   },
   "build": {
     "base": {
-      "node": "22.18.0",
-      "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      }
+      "node": "22.18.0"
     },
     "development": {
       "extends": "base",
@@ -17,7 +14,8 @@
       "channel": "development",
       "environment": "development",
       "env": {
-        "EXPO_PUBLIC_APP_VARIANT": "development"
+        "EXPO_PUBLIC_APP_VARIANT": "development",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
@@ -26,6 +24,9 @@
       "channel": "preview",
       "autoIncrement": true,
       "environment": "preview",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
       "android": {
         "buildType": "apk"
       }
