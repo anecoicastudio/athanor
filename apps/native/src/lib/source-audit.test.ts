@@ -4382,3 +4382,42 @@ describe('no emoji-capable character reaches the screen (#753)', () => {
     ).toEqual([]);
   });
 });
+
+describe('the glow surfaces are a named set, and the clock is not one (rule 4, DESIGN.md §8.12)', () => {
+  /**
+   * `auraGlow()` is the glow rule 4 reserves for moment-grade events, and §8.12 rules the
+   * `/annual` clock flat. `CountdownCell` glowed anyway from `30628309` until 2026-09-20 —
+   * nothing failed, because a `.tsx` is uncollectable in this harness and the shape tests in
+   * `lib/glow.test.ts` pin what the helper RETURNS, never who calls it. A phone caught it.
+   * This pins the callers instead, so the next one is a deliberate edit to this list.
+   */
+  const GLOW_SURFACES = [
+    'app/(modal)/favor.tsx',
+    'components/Button.tsx',
+    'components/Mandorla.tsx',
+    'components/circle/SubscriptionStatusCard.tsx',
+    'components/fund/CandidateCard.tsx',
+    'components/fund/FundTicker.tsx',
+    'components/profile/MomentFlash.tsx',
+  ];
+
+  it('is called from exactly these files, and no countdown file is among them', () => {
+    const callers = [
+      ...new Set(
+        codeLines()
+          .filter(([, text]) => text.includes('auraGlow('))
+          .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
+      ),
+    ]
+      .filter((p) => !p.startsWith('lib/glow'))
+      .sort();
+
+    expect(
+      callers,
+      'A glow means something happened (rule 4). Adding one is a design decision, so add the ' +
+        'file here in the same edit and say in the PR what moment it marks. If a COUNTDOWN file ' +
+        'appears, that is DESIGN.md §8.12 being broken again — the clock takes the framed pair ' +
+        '`border-aura-line bg-aura-soft`, never the shadow.',
+    ).toEqual(GLOW_SURFACES);
+  });
+});
