@@ -4,8 +4,10 @@ import { FONT_SCALE_CAP } from '@/lib/type-scale';
 /**
  * One countdown cell — big tabular-nums value + unit label. `accent` lights the `sec` cell cyan.
  *
- * No glow here, deliberately: DESIGN.md §8.12 gives `/annual` exactly one glow and it is the
- * live fund ticker's («numbers flat `aura` — no glow on the clock»). This cell shipped with
+ * No glow here, deliberately: DESIGN.md §8.12 rules the clock flat — «numbers flat `aura` — no
+ * glow on the clock; the live fund ticker owns the only glow on this screen». Read that second
+ * clause as the hero's, not the whole screen's: `CandidateCard`'s winner pill glows too, and a
+ * dream winning the ballot is moment-grade by rule 4. What binds here is the clock. This cell shipped with
  * `auraGlow(1)` against that, which on Android also bled an elevation rectangle through the
  * translucent fill. What `accent` takes instead is the framed pair `border-aura-line
  * bg-aura-soft` — the ordinary active surface, not a glow (§11, ruled 2026-09-07).

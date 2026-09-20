@@ -49,6 +49,9 @@ describe('auraGlow', () => {
   });
 
   it('is built from the aura token, never a literal hex', () => {
+    // Pinned, because `rgb` above is derived with the same expression as the source's
+    // `channels()` — a wrong slice offset or channel order would otherwise agree with itself.
+    expect(rgb).toBe('43,208,210');
     expect(rgb.split(',')).toHaveLength(3);
     expect(auraGlow(1).boxShadow).toContain(`rgba(${rgb},`);
     expect(auraGlow(1).boxShadow).not.toContain('#');
