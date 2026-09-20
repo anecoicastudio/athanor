@@ -230,6 +230,13 @@ const SECRET_PATTERNS: [string, RegExp][] = [
   ['stripe secret key', new RegExp(`\\b${'sk'}_(live|test)_?`)],
   ['stripe restricted key', new RegExp(`\\b${'rk'}_live`)],
   ['stripe secret env', new RegExp(`${'STRIPE'}_${'SECRET'}`)],
+  // #466 enabled the Sentry symbol upload, which puts an auth token in the release workflow for
+  // the first time. Nothing here had a Sentry shape, and CI's bundle-leak grep never will: the
+  // token is build-time and not EXPO_PUBLIC_*, so it cannot reach the JS bundle it greps. This
+  // file scans eas.json and app.json, which is exactly where one would land.
+  ['sentry auth token', new RegExp(`${'sntry'}[su]_`)],
+  // What the Sentry config plugin writes into sentry.properties if handed an `authToken` prop.
+  ['sentry properties token', new RegExp(`${'auth'}\\.${'token'}\\s*=`)],
 ];
 
 describe('no server-side secret ever reaches the client bundle', () => {
