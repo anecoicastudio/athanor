@@ -27,7 +27,7 @@ export function Mandorla({
          cast from the border box, so on a square View the halo came out square — which is what
          iOS showed the moment `auraGlow()` moved off `shadowRadius` (whose iOS implementation
          derived the shape from the layer's contents, i.e. the round avatar, and so looked
-         right by accident). Rounding the box makes both platforms cast the round halo this
+         right by accident). Rounding the box makes both platforms cast the round halo this mark
          always meant to have. Measured on the iPhone 17 Pro Max sim and the moto g17, #815. */
       style={[{ width: size, height: size, borderRadius: size / 2 }, auraGlow(glowLevel)]}
     >
