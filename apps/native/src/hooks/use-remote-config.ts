@@ -55,3 +55,39 @@ export function useCircleCheckoutGate(): 'loading' | 'open' | 'closed' {
   if (q.status === 'pending') return 'loading';
   return q.status === 'success' && q.data.flags[CIRCLE_CHECKOUT_FLAG] === true ? 'open' : 'closed';
 }
+
+/**
+ * The remote_config key that opens paid events (#806) — the composer's Paid option and the ticket
+ * Buy button alike. Seeded on staging; ABSENT on production until the ticket rail is proven live.
+ *
+ * MIRRORED in `supabase/functions/_shared/remote-config-gate.ts`, which cannot import this file:
+ * `apps/native/src/lib/paid-events-gate.test.ts` reads both as text so the two cannot drift.
+ */
+export const PAID_EVENTS_FLAG = 'paid_events_enabled';
+
+/**
+ * Whether paid events may be offered (#806): `'open'` only when a fetch made in THIS session read
+ * `{"enabled": true}`. Fails CLOSED for the same reason `useCircleCheckoutGate` above does — it
+ * guards money. Production has no Connect account, no webhook signing secret and a test-mode
+ * Stripe until the swap (#699), so a ticket offered there is an offer that cannot complete, and
+ * an organiser sent to payout onboarding is sent to a dead end.
+ *
+ * Deliberately a SECOND copy of the gate above rather than a shared `useFlagGate(flag)` helper.
+ * The body is what `circle-checkout-gate.test.ts` pins literally — each of those three lines is
+ * one way the gate could fail open — and a delegating one-liner would satisfy no assertion at
+ * all. Two pinned bodies beat one abstraction nothing can check. It reuses Circle's QUERY KEY on
+ * purpose: `getRemoteConfig` selects the whole table, so both gates read one cached snapshot and
+ * this fires no second request. A key of its own would double the boot traffic to say the same
+ * thing twice.
+ */
+export function usePaidEventsGate(): 'loading' | 'open' | 'closed' {
+  const q = useQuery<RemoteConfigSnapshot>({
+    queryKey: remoteConfigKeys.live(),
+    queryFn: () => getRemoteConfig(supabase),
+    staleTime: 60_000,
+    retry: 1,
+    meta: { persist: false },
+  });
+  if (q.status === 'pending') return 'loading';
+  return q.status === 'success' && q.data.flags[PAID_EVENTS_FLAG] === true ? 'open' : 'closed';
+}

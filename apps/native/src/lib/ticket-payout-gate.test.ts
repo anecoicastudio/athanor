@@ -36,7 +36,12 @@ describe('the ticket bar withdraws the offer when the organiser cannot be paid (
   });
 
   it('keeps the button inert while the read is in flight, and never for long', () => {
-    expect(BAR).toContain('const checking = !!uid && payableQ.isPending;');
+    // #806 folded the paid-events flag into the same flag: BOTH reads can withdraw the offer, so
+    // a tap while either is still in flight would reach a server that may refuse. The payout half
+    // stays pinned verbatim inside the expression — this is the #747 guard widened, not relaxed.
+    expect(BAR).toContain(
+      "const checking = (!!uid && payableQ.isPending) || paidGate === 'loading';",
+    );
     expect(BAR).toContain("disabled={phase === 'opening' || !uid || checking}");
     // …and visibly so: dimmed and busy, not a lit button that ignores the tap.
     expect(BAR).toContain("checking ? ' opacity-40' : ''");

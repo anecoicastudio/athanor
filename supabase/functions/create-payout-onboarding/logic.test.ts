@@ -27,6 +27,7 @@ type Ctx = PayoutOnboardingCtx & {
   accountsCreated: Stripe.AccountCreateParams[];
   linksCreated: Stripe.AccountLinkCreateParams[];
   accountsDeleted: string[];
+  refusals: string[];
 };
 
 const ctx = (
@@ -39,13 +40,23 @@ const ctx = (
     throwOnDelete?: boolean;
   } = {},
 ): Ctx => {
-  const userDb = makeFakeDb(script.user);
+  // #806 — the paid-events flag is the first read now, so the default script opens it: every test
+  // below this line is about a gate FURTHER down, and an unscripted read is `absent`, which would
+  // close the rail and make all of them assert the same 403. A test that IS about the flag passes
+  // its own `remote_config.select` and overrides this.
+  const userDb = makeFakeDb({
+    'remote_config.select': [{ data: { value: { enabled: true } } }],
+    ...script.user,
+  });
   const adminDb = makeFakeDb(script.admin);
   const accountsCreated: Stripe.AccountCreateParams[] = [];
   const linksCreated: Stripe.AccountLinkCreateParams[] = [];
   const accountsDeleted: string[] = [];
+  const refusals: string[] = [];
   return {
     userClient: userDb as unknown as PayoutOnboardingCtx['userClient'],
+    refusalSink: (line) => refusals.push(line),
+    refusals,
     admin: adminDb as unknown as PayoutOnboardingCtx['admin'],
     createAccount: (params) => {
       accountsCreated.push(params);
@@ -99,7 +110,12 @@ Deno.test('missing return/refresh env → 500 "not configured", nothing touched'
     const { res, body } = await run(c);
     assertEquals(res.status, 500);
     assertEquals(body, { error: 'payout onboarding not configured' });
-    assertEquals(c.userDb.calls.length, 0);
+    // Since #806 the paid-events flag is read ahead of this gate, so "nothing touched" is now
+    // "nothing but the flag" — the identity read and the payout_accounts read still never happen.
+    assertEquals(
+      c.userDb.calls.filter((call) => call.table !== 'remote_config'),
+      [],
+    );
     assertEquals(c.accountsCreated.length, 0);
   }
 });
@@ -303,4 +319,92 @@ Deno.test('buildPayoutLinkParams is pure and deterministic', () => {
   const a = buildPayoutLinkParams('acct_1', URLS.returnUrl, URLS.refreshUrl);
   assertEquals(a, buildPayoutLinkParams('acct_1', URLS.returnUrl, URLS.refreshUrl));
   assertEquals(a.type, 'account_onboarding');
+});
+
+// ── #806: the paid-events flag, server side ──────────────────────────────────────
+// Onboarding exists only so someone can sell tickets, so it hangs off the same rail switch as
+// the checkout. Refusing here is what stops a Connect account and a payout_accounts row being
+// created for a rail that cannot sell anything — state on Stripe's side that nothing reaps.
+// Ahead of the config gate on purpose: on a production carrying neither the flag nor the env,
+// «not open yet» is true and «not configured» is a fault report about a non-fault.
+
+const assertRailClosed = (
+  c: Ctx,
+  res: Response,
+  body: { error?: string },
+  reason: 'read-error' | 'absent' | 'malformed' | 'off',
+) => {
+  assertEquals(res.status, 403);
+  assertEquals(body.error, 'paid events closed');
+  assertEquals(c.accountsCreated, [], 'no Connect account minted');
+  assertEquals(c.linksCreated, [], 'no Account Link minted');
+  assertEquals(c.adminDb.calls, [], 'no payout_accounts row written');
+  assertEquals(
+    c.userDb.calls.filter((call) => call.table !== 'remote_config'),
+    [],
+    'the identity check and the payout_accounts read never happen',
+  );
+  assertEquals(c.refusals, [
+    `[events] create-payout-onboarding: paid events closed ${JSON.stringify({
+      flag: 'paid_events_enabled',
+      reason,
+    })}`,
+  ]);
+};
+
+const paidFlag = (r: FakeResult, over: Record<string, FakeResult[]> = {}) => ({
+  user: { 'remote_config.select': [r], ...over },
+});
+
+Deno.test('#806 flag on → onboarding proceeds, and the flag is the FIRST read', async () => {
+  const c = ctx(verifiedNoRow());
+  const { res } = await run(c);
+  assertEquals(res.status, 200);
+  assertEquals(c.accountsCreated.length, 1);
+  const first = c.userDb.calls[0];
+  assertEquals(first.table, 'remote_config', 'the flag is read before anything else');
+  assertEquals(first.filters, [['eq', 'key', 'paid_events_enabled']]);
+  assertEquals(c.refusals, [], 'an open rail logs nothing');
+});
+
+Deno.test('#806 flag off → 403 paid events closed, no account created', async () => {
+  const c = ctx(paidFlag({ data: { value: { enabled: false } } }));
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'off');
+});
+
+Deno.test('#806 flag absent → closed (production before the cutover)', async () => {
+  const c = ctx(paidFlag({ data: null }));
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'absent');
+});
+
+Deno.test('#806 flag malformed → closed (truthy is not true)', async () => {
+  for (const value of [{ enabled: 'true' }, { enabled: 1 }, {}, null, 'on', true]) {
+    const c = ctx(paidFlag({ data: { value } }));
+    const { res, body } = await run(c);
+    assertRailClosed(c, res, body, 'malformed');
+  }
+});
+
+Deno.test('#806 flag read error → closed, even when an open payload rides along', async () => {
+  const c = ctx(
+    paidFlag({
+      data: { value: { enabled: true } },
+      error: { message: 'connection reset', code: '08006' },
+    }),
+  );
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'read-error');
+});
+
+Deno.test('#806 a closed rail refuses even a verified caller with the env unset', async () => {
+  // Both other gates would also refuse, with different sentences. The flag has to win, or an
+  // organiser on a pre-cutover production is told to verify their identity or handed a 500 for a
+  // rail that was deliberately switched off.
+  const c = ctx(paidFlag({ data: null }, { 'rpc.is_identity_verified': [{ data: true }] }), {
+    urls: {},
+  });
+  const { res, body } = await run(c);
+  assertRailClosed(c, res, body, 'absent');
 });
