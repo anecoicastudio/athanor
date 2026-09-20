@@ -14,12 +14,14 @@ import {
 import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
+import { SettingsIcon } from '@/components/glyphs';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
+import { HIT_SLOP } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
 import { supabase } from '@/lib/supabase';
@@ -93,7 +95,9 @@ export default function NotificationsScreen() {
         title={t('notif.title', locale)}
         backLabel={t('common.back', locale)}
         right={
-          <View className="flex-row items-center gap-4">
+          // gap-6 (21pt on device), not gap-4: the gear's HIT_SLOP (11) plus «Segna lette»'s
+          // slop (8) is 19, and gap-4's 14 let the two hit rects overlap.
+          <View className="flex-row items-center gap-6">
             {unreadItems.length > 0 ? (
               <Pressable
                 onPress={() => markAll.mutate()}
@@ -106,14 +110,16 @@ export default function NotificationsScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            {/* Overflow → preferences. Gear character (settings icon) */}
+            {/* Overflow → preferences. The sun-wheel is the app's gear (#753: a U+2699 text
+                character here fell back to the emoji font); 22pt + HIT_SLOP = 44, the pairing
+                HIT_SLOP is sized for. */}
             <Pressable
               onPress={() => router.push('/(modal)/notif-prefs')}
               accessibilityRole="button"
               accessibilityLabel={t('notif.prefs.title', locale)}
-              hitSlop={8}
+              hitSlop={HIT_SLOP}
             >
-              <Text className="text-[18px] text-muted-foreground">⚙</Text>
+              <SettingsIcon size={22} color={semantic.foregroundMuted} />
             </Pressable>
           </View>
         }

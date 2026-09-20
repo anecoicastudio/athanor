@@ -663,6 +663,8 @@
   "common.publish": "Publish",
   "post.compose.attach": "Add photo, video or audio",
   "feed.audio": "Audio · {dur}",
+  "feed.audio.playLabel": "Play the audio",
+  "feed.audio.pauseLabel": "Pause the audio",
   "feed.video.playLabel": "Play the video",
   "media.processing": "Preparing…",
   "media.uploading": "Uploading… {pct}%",

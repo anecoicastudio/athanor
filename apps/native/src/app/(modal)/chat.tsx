@@ -14,6 +14,7 @@ import {
   sendMessage,
   subscribeMessages,
 } from '@athanor/api';
+import { semantic } from '@athanor/config';
 import { dayBucket, memberLabel } from '@athanor/core';
 import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
@@ -24,6 +25,7 @@ import { isDraftDirty } from '@/lib/dirty-guard';
 import { devWarn } from '@/lib/log';
 import { HIT_SLOP } from '@/lib/a11y';
 import { Avatar } from '@/components/Avatar';
+import { PlayGlyph } from '@/components/glyphs';
 import { Bubble } from '@/components/chat/Bubble';
 import { MessageActionsSheet } from '@/components/chat/MessageActionsSheet';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -440,16 +442,14 @@ export default function ChatScreen() {
                       locale,
                     )}
                   >
-                    <Text
-                      className="text-2xl text-faint"
-                      // `ornament` (#639): same hidden mark in a hard 56pt tile as
-                      // post-compose's — the wrapper above is what announces it.
-                      maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                    <View
+                      // Drawn, not the ▶ character (#753), so it cannot outgrow the hard 56pt
+                      // tile; the wrapper above is what announces it.
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
                     >
-                      ▶
-                    </Text>
+                      <PlayGlyph size={24} color={semantic.faint} />
+                    </View>
                   </View>
                 ) : (
                   <Image

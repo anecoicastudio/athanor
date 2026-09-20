@@ -7,6 +7,7 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
+import { PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
@@ -137,13 +138,9 @@ export default function StoryComposeScreen() {
                   accessible
                   accessibilityLabel={t('media.noPoster.video', locale)}
                 >
-                  <Text
-                    className="text-4xl text-faint"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  >
-                    ▶
-                  </Text>
+                  <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                    <PlayGlyph size={36} color={semantic.faint} />
+                  </View>
                 </View>
               ) : (
                 <Image

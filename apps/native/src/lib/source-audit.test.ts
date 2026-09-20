@@ -1403,7 +1403,7 @@ describe('the events tab has no posts source (#153)', () => {
  * Pressables deep inside a scrim and a sheet that declare no role; both were still `accessible`,
  * so iOS swallowed the descendant anyway — and `MediaSheet.tsx` had the same pair. The mechanism
  * is `accessible`, which `Pressable` sets for you, and #292's note
- * (`components/media/MomentTile.tsx:58`) says so in as many words: "anything `accessible` nested
+ * (`components/media/MomentTile.tsx:60`) says so in as many words: "anything `accessible` nested
  * inside it". Keying on the role would have made this guard agree with the bug.
  *
  * Which is also why the walk reads `accessible={false}`: that attribute is what actually decides
@@ -2628,8 +2628,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:523':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:386': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(modal)/story-compose.tsx:162': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(onboarding)/index.tsx:440':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -4260,5 +4260,118 @@ describe('the consent notice is shown wherever an account can be created (#777)'
     expect(screen()).toMatch(
       /\{!login \? \(\s*<LegalNotice\s+text=\{t\('auth\.legal\.notice', locale\)\}/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 42 — no emoji-capable character is drawn as an icon (#753)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A character is not an icon. ▶ ⏸ ⚙ ⚖ are `Emoji=Yes` with TEXT default presentation: whether
+ * they draw as a monochrome glyph, a colour emoji or a «?» box is decided by the platform's font
+ * fallback, not by this code — #753 found all three outcomes across the simulator, the phone and
+ * the web. 🔒 and 🎧 are worse: `Emoji_Presentation=Yes`, so they are colour emoji everywhere, in
+ * a design system whose icons are stroke glyphs in `currentColor` (DESIGN §6). U+FE0E does not
+ * rescue either kind reliably — Apple's fonts carry no text form for most default-emoji code
+ * points — so the fix is a drawing from `components/glyphs.tsx`, and this pins it.
+ *
+ * The test is Unicode's own `Emoji` property, not a hand-kept list of the characters #753 found:
+ * the next one arrives as a code point nobody listed. ASCII is carved out because `#`, `*` and
+ * the digits are `Emoji=Yes` for keycap sequences, and U+FE0F is added because it exists only to
+ * force emoji presentation. The app's own text marks — ✦ ✧ ✓ ✕ ◎ ◑ ◓ ○ → ★ — are not
+ * emoji-capable and pass on the property, not on an exemption; the first `it` pins that, so a
+ * Unicode update that moved one of them would say so here rather than as a mystery failure.
+ *
+ * Comment-stripped, so the prose that documents a replaced character (this file, the docblocks
+ * at each #753 site) is not a hit. Escapes and JSX entities are decoded first (`decoded` below): the
+ * escaped spelling renders the same pixel, and would otherwise be the way around this guard.
+ * Test files are excluded — the rule is about what the app RENDERS.
+ *
+ * Catalog values are the other road to the screen and are held in `packages/i18n/src/i18n.test.ts`,
+ * beside the catalogs, so this file stays inside `apps/native` and needs no `$TURBO_ROOT$` input.
+ */
+describe('no emoji-capable character reaches the screen (#753)', () => {
+  const EMOJI = /\p{Emoji}|\u{FE0F}/u;
+  const emojiCapable = (ch: string) => (ch.codePointAt(0) ?? 0) >= 0x80 && EMOJI.test(ch);
+
+  /**
+   * The spellings that render a character without writing it: `\u{…}`, `\uXXXX` and `\xHH`
+   * escapes, numeric JSX entities, and the named entities Babel's JSX parser decodes onto an
+   * emoji-capable code point. `NAMED` is that parser's whole XHTML table (253 names, frozen since
+   * XHTML 1.0) filtered by the same property — the complete set, not a sample. Adjacent surrogate
+   * escapes (`\uD83D\uDD12`) rejoin into one code point in the decoded string.
+   */
+  const NAMED: Record<string, string> = {
+    copy: '©',
+    reg: '®',
+    trade: '™',
+    harr: '↔',
+    spades: '♠',
+    clubs: '♣',
+    hearts: '♥',
+    diams: '♦',
+  };
+  const decoded = (text: string) =>
+    text
+      .replace(
+        /\\u\{([0-9a-fA-F]+)\}|\\u([0-9a-fA-F]{4})|\\x([0-9a-fA-F]{2})/g,
+        (_, a?: string, b?: string, c?: string) =>
+          String.fromCodePoint(parseInt(a ?? b ?? c ?? '', 16)),
+      )
+      .replace(/&#(x[0-9a-fA-F]+|\d+);/g, (_, n: string) =>
+        String.fromCodePoint(n.startsWith('x') ? parseInt(n.slice(1), 16) : parseInt(n, 10)),
+      )
+      .replace(/&([a-zA-Z]+);/g, (whole, name: string) => NAMED[name] ?? whole);
+
+  /**
+   * A legitimate emoji-capable character, keyed by `file:line` with the reason. Empty today: every
+   * site #753 found had an honest drawing. Keyed by line, like §29 and §30, so an entry can never
+   * exempt the NEXT character added to the same file.
+   */
+  const EMOJI_OK: Record<string, string> = {};
+
+  it('the property draws the line where #753 needs it', () => {
+    for (const ch of ['▶', '⏸', '⚙', '⚖', '🔒', '🎧', '©', '↗', '\u{FE0F}']) {
+      expect(emojiCapable(ch), `${ch} should be flagged`).toBe(true);
+    }
+    for (const ch of ['✦', '✧', '✓', '✕', '◎', '◑', '◓', '○', '→', '★', '‹', '·', '«', '…', '—']) {
+      expect(emojiCapable(ch), `${ch} is a text mark and must pass`).toBe(false);
+    }
+    for (const ch of ['0', '9', '#', '*']) {
+      expect(emojiCapable(ch), `ASCII ${ch} is Emoji=Yes only for keycaps`).toBe(false);
+    }
+    expect(
+      [
+        ...decoded(
+          String.raw`'\u25B6' '\u{1F512}' '\uD83C\uDFA7' '\xA9' &#x2699; &#9878; &hearts; &amp;`,
+        ),
+      ].filter(emojiCapable),
+    ).toEqual(['▶', '🔒', '🎧', '©', '⚙', '⚖', '♥']);
+  });
+
+  it('no source line outside a comment carries one', () => {
+    const hits = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+      stripComments(read(p))
+        .split('\n')
+        .flatMap((text, i) => {
+          const at = `${rel(p).replace('apps/native/src/', '')}:${i + 1}`;
+          const found = [...decoded(text)].filter(emojiCapable);
+          if (found.length === 0 || EMOJI_OK[at] !== undefined) return [];
+          const cps = found.map((ch) => `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase()}`);
+          return [`${at}  ${found.join(' ')} (${cps.join(' ')})  ${text.trim().slice(0, 80)}`];
+        }),
+    );
+    expect(
+      hits,
+      'an emoji-capable character in rendered source:\n' +
+        "Whether it draws as a glyph, a colour emoji or a «?» box is the platform font's " +
+        'decision, not ours (#753). Draw it instead — `components/glyphs.tsx` has Play, Pause, ' +
+        'Lock, Scales and the SettingsIcon gear, and a new mark is designed in the same system ' +
+        'and recorded in DESIGN §6. Audio is the settled case: it takes the transport mark plus ' +
+        "its «Audio · m:ss» text, never a mark of its own (ruling 2026-09-20 — the set's " +
+        '`waves` read as a Wi-Fi signal on the device). If the character is genuinely right, ' +
+        'add its `file:line` to EMOJI_OK with the reason.',
+    ).toEqual([]);
   });
 });
