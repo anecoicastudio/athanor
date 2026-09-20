@@ -980,9 +980,13 @@ and not in `eas.json` — they come from the shell you build in.
 **Why the shell wins.** eas-cli builds the environment as
 `{ …EAS server vars, …eas.json env, …process.env }`, so an exported variable beats both. That is
 what makes the exports below authoritative, and it is also why the escape hatch works. Read at
-eas-cli **24.7.0**, `build/build/local.js` (`const mergedEnv = { ...env, ...process.env, … }`) —
-eas-cli is not a dependency of this repo, it runs via `pnpm dlx`, so the copy to check is the one
-in the pnpm store, not `node_modules`. Re-read it if eas-cli has moved a major version.
+eas-cli **24.7.0**, `build/build/local.js` (`const mergedEnv = { ...env, ...process.env, … }`).
+eas-cli is not a dependency of this repo — it runs via `pnpm dlx` — so neither half is under
+`node_modules`, and the two halves are not even in the same place: eas-cli itself materialises in
+the **dlx cache** (`~/Library/Caches/pnpm/dlx/<hash>/pkg/node_modules/eas-cli`), while the
+`@expo/eas-json` copy that `native-config.test.ts` cites is in the content-addressed **pnpm store**
+(`~/Library/pnpm/store/v11/links/@expo/eas-json/<version>/`). Re-read both if eas-cli moves a
+major version.
 
 **Before `eas build --local --profile production`**, in that shell:
 
@@ -1024,8 +1028,8 @@ success, `SENTRY_DISABLE_AUTO_UPLOAD=true, skipping sourcemaps upload` and
 `Using <url> (embedded in token) rather than manually-configured URL …`. Seeing that warning is
 confirmation, not a problem. (That string is in the sentry-cli 2.58.4 binary itself, under
 `node_modules/.pnpm/@sentry+cli-darwin@2.58.4/…/bin/sentry-cli`, not in the JS wrapper at
-`@sentry/cli/bin/` — `strings` the former if you want to check it.) A plain user token has no embedded URL, so if the upload 401s or 404s
-against `sentry.io`, that is the first thing to check.
+`@sentry/cli/bin/` — `strings` the former if you want to check it.) A plain user token has no
+embedded URL, so if the upload 401s or 404s against `sentry.io`, that is the first thing to check.
 
 **The one-minute check in Sentry afterwards.** Open the project, **Settings → Debug Files** (or
 **Releases → the release just built**) and confirm an artifact bundle exists for
