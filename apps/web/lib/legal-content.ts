@@ -974,11 +974,14 @@ export const childSafety: Record<Locale, LegalDoc> = {
 
 /**
  * /support — the Support URL App Store Connect and Play Console ask for on the app's listing
- * page. There is no in-app help centre yet: `settings.help.title` opens a `mailto:` draft
- * (`apps/native/src/lib/oauth.ts`'s neighbour, `supportMailto`), and this page is the same
- * address on the web, reachable without the app installed — a store reviewer or a prospective
- * member sees it before either exists. Safety reports point at /child-safety rather than
- * repeating it, so the two pages cannot describe the report flow differently.
+ * page. There is no in-app help centre yet: `settings.help.title` opens a `mailto:` draft to
+ * the app's own support mailbox (`SUPPORT_EMAIL`, `apps/native/src/lib/links.ts`). This page
+ * deliberately uses `EMAIL`, the controller address every other legal page here publishes —
+ * not the app mailbox — because it is reachable without the app installed, by a store
+ * reviewer or a prospective member who has neither yet, and because `legal-content.test.ts`
+ * pins the controller address as the one way in on these pages (see the `terms`/`privacy`
+ * describe blocks). Safety reports point at /child-safety rather than repeating it, so the
+ * two pages cannot describe the report flow differently.
  */
 export const support: Record<Locale, LegalDoc> = {
   it: {
