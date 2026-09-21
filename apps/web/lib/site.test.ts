@@ -66,11 +66,11 @@ describe('apple-app-site-association', () => {
     }
   });
 
-  it('still carries the <TEAMID> placeholder — universal links are NOT live yet', async () => {
-    // Pinned deliberately. When the Apple Team ID lands this test fails, which is the prompt
-    // to set the same value in apps/native/eas.json submit.production.ios.appleTeamId.
+  it('carries the real Apple Team ID, not the <TEAMID> placeholder', async () => {
+    // Same value must be set in apps/native/eas.json submit.production.ios.appleTeamId.
     const doc = await json(aasaGET());
-    expect(doc.applinks.details[0].appID).toContain('<TEAMID>');
+    expect(doc.applinks.details[0].appID).not.toContain('<TEAMID>');
+    expect(doc.applinks.details[0].appID).toMatch(/^[A-Z0-9]{10}\./);
   });
 });
 
