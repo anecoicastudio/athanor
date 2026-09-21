@@ -971,3 +971,82 @@ export const childSafety: Record<Locale, LegalDoc> = {
     reviewNote: `These standards apply to the ${tEn('store.name')} app and to this site. How we handle the data in a report is in the privacy policy.`,
   },
 };
+
+/**
+ * /support — the Support URL App Store Connect and Play Console ask for on the app's listing
+ * page. There is no in-app help centre yet: `settings.help.title` opens a `mailto:` draft
+ * (`apps/native/src/lib/oauth.ts`'s neighbour, `supportMailto`), and this page is the same
+ * address on the web, reachable without the app installed — a store reviewer or a prospective
+ * member sees it before either exists. Safety reports point at /child-safety rather than
+ * repeating it, so the two pages cannot describe the report flow differently.
+ */
+export const support: Record<Locale, LegalDoc> = {
+  it: {
+    title: 'Supporto',
+    updated: 'Settembre 2026',
+    intro: `Hai un problema con ${tIt('store.name')}, l'app di ${CONTROLLER}, o una domanda su come funziona? Ecco come raggiungerci.`,
+    sections: [
+      {
+        id: 'contact',
+        heading: 'Scrivici',
+        body: [
+          `Scrivi a ${EMAIL}: rispondiamo di persona, non con un modulo automatico. Raccontaci cosa è successo — la schermata dove ti trovavi, cosa ti aspettavi — così troviamo la causa più in fretta.`,
+          `Se hai già l'app, trovi la stessa scrittura pronta in «${tIt('tabs.profile')}» → ruota delle impostazioni → «${tIt('settings.section.support')}» → «${tIt('settings.help.title')}»: parte già con l'oggetto compilato.`,
+        ],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
+      },
+      {
+        id: 'report',
+        heading: 'Segnalare un contenuto o un comportamento',
+        body: [
+          `Per un profilo, un post o una chat che violano le regole di ${tIt('store.name')}, usa «${tIt('report.title')}» direttamente su quel contenuto: la segnalazione arriva al nostro team di moderazione, e chi viene segnalato non sa chi l'ha fatto.`,
+          "Per l'abuso o lo sfruttamento di un minore, la pagina dedicata spiega cosa vietiamo e come intervengono le autorità.",
+        ],
+        links: [{ label: tIt('legal.childSafety'), href: '/child-safety?lang=it' }],
+      },
+      {
+        id: 'account',
+        heading: 'Account e dati',
+        body: [
+          `Per eliminare il tuo account puoi farlo direttamente dall'app, oppure scriverci a ${EMAIL}: l'informativa sulla privacy spiega cosa conserviamo e per quanto.`,
+        ],
+        links: [{ label: tIt('settings.legal.privacy'), href: '/privacy?lang=it' }],
+      },
+    ],
+    reviewNote: `Rispondiamo entro qualche giorno lavorativo. Per una segnalazione urgente che riguarda un minore, vedi la pagina sulla tutela dei minori.`,
+  },
+  en: {
+    title: 'Support',
+    updated: 'September 2026',
+    intro: `Having trouble with ${tEn('store.name')}, the app made by ${CONTROLLER}, or a question about how it works? Here's how to reach us.`,
+    sections: [
+      {
+        id: 'contact',
+        heading: 'Write to us',
+        body: [
+          `Write to ${EMAIL}: a person answers, not a form. Tell us what happened — the screen you were on, what you expected — so we find the cause faster.`,
+          `If you already have the app, the same draft is one tap away: "${tEn('tabs.profile')}" → the settings wheel → "${tEn('settings.section.support')}" → "${tEn('settings.help.title')}" — it opens with the subject already filled in.`,
+        ],
+        links: [{ label: EMAIL, href: `mailto:${EMAIL}` }],
+      },
+      {
+        id: 'report',
+        heading: 'Report content or behavior',
+        body: [
+          `For a profile, post or chat that breaks ${tEn('store.name')}'s rules, use "${tEn('report.title')}" right on that content: the report reaches our moderation team, and the person reported is not told who reported them.`,
+          'For the abuse or exploitation of a child, the dedicated page explains what we prohibit and how the authorities get involved.',
+        ],
+        links: [{ label: tEn('legal.childSafety'), href: '/child-safety?lang=en' }],
+      },
+      {
+        id: 'account',
+        heading: 'Account and data',
+        body: [
+          `You can delete your account directly from the app, or write to us at ${EMAIL}: the privacy policy explains what we keep and for how long.`,
+        ],
+        links: [{ label: tEn('settings.legal.privacy'), href: '/privacy?lang=en' }],
+      },
+    ],
+    reviewNote: `We reply within a few business days. For an urgent report involving a child, see the child safety page.`,
+  },
+};
