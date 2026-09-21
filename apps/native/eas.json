@@ -44,8 +44,8 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "TODO(P1.5)",
-        "appleTeamId": "TODO(P1.5)"
+        "ascAppId": "6814581951",
+        "appleTeamId": "V299S78WM5"
       },
       "android": {
         "track": "internal",

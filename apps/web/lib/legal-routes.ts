@@ -11,4 +11,5 @@ export const LEGAL_ROUTES = [
   { path: '/terms', label: 'legal.terms' },
   { path: '/delete-account', label: 'legal.deleteAccount' },
   { path: '/child-safety', label: 'legal.childSafety' },
+  { path: '/support', label: 'legal.support' },
 ] as const satisfies readonly { path: `/${string}`; label: MessageKey }[];

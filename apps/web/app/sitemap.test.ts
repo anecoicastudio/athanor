@@ -25,6 +25,7 @@ const STATIC = [
   'https://athanor.test/terms',
   'https://athanor.test/delete-account',
   'https://athanor.test/child-safety',
+  'https://athanor.test/support',
 ];
 
 const oneHandle = () =>

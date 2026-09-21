@@ -6,7 +6,7 @@ import { LEGAL_ROUTES } from '@/lib/legal-routes';
 
 /**
  * The row of legal links in the landing footer and under every legal page. The dots show only
- * from `sm` up: at phone width the four links wrap, and a dot would end the first line.
+ * from `sm` up: at phone width the links wrap, and a dot would end the first line.
  */
 export function LegalNav({ locale, className }: { locale: Locale; className?: string }) {
   return (

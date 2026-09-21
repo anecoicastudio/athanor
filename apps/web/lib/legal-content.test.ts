@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES } from '@athanor/schemas';
-import { childSafety, deleteAccount, privacy, terms, type LegalDoc } from './legal-content';
+import {
+  childSafety,
+  deleteAccount,
+  privacy,
+  support,
+  terms,
+  type LegalDoc,
+} from './legal-content';
 import { LEGAL_ROUTES } from './legal-routes';
 
 /**
@@ -16,6 +23,7 @@ const docs: [string, Record<'it' | 'en', LegalDoc>][] = [
   ['terms', terms],
   ['deleteAccount', deleteAccount],
   ['childSafety', childSafety],
+  ['support', support],
 ];
 
 const MONTHS: Record<string, number> = {
