@@ -65,8 +65,13 @@ import { auraGlow } from '@/lib/glow';
  *
  * The mark is hidden while `loading` — the spinner has already replaced the label, and a
  * brand mark beside a spinner reads as a second, stalled control.
+ *
+ * `apple` is the one platform-mandated exception to the variant set above: Apple's HIG requires
+ * its own white-fill/black-ink Sign in with Apple button (ruled 2026-09-19 on #79), not
+ * Athanor's `light`/`outline` recipe. It exists to serve exactly one call site, the Apple CTA on
+ * `welcome.tsx` — never reach for it elsewhere.
  */
-type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline';
+type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline' | 'apple';
 
 const VARIANT_CLASSES: Record<Variant, { container: string | false; text: string; ink: string }> = {
   light: { container: 'bg-aura', text: 'text-on-aura', ink: semantic.onAura },
@@ -78,6 +83,11 @@ const VARIANT_CLASSES: Record<Variant, { container: string | false; text: string
     ink: semantic.foreground,
   },
   ghost: { container: false, text: 'text-muted-foreground', ink: semantic.foregroundMuted },
+  apple: {
+    container: 'bg-apple-button-bg',
+    text: 'text-apple-button-ink',
+    ink: semantic.appleButtonInk,
+  },
 };
 
 export function Button({

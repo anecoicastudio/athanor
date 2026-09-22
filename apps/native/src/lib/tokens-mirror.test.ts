@@ -42,6 +42,8 @@ const NAME_MAP: Record<keyof typeof semantic, string> = {
   auraLine: 'aura-line',
   onAura: 'on-aura',
   onError: 'on-error',
+  appleButtonBg: 'apple-button-bg',
+  appleButtonInk: 'apple-button-ink',
 };
 
 /** Read a `--color-*` declaration out of the stylesheet. */
