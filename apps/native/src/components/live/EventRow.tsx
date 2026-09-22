@@ -60,9 +60,12 @@ export function EventRow({
       accessibilityRole="button"
       // The locked state rides the row's label (#753): the chip below is inside this button, so
       // its own label is never reached and the row used to read as an ordinary event.
+      // So does the closed line (#761), for the same reason.
       accessibilityLabel={
         data.premiumLocked
-          ? `${data.title}, ${sub}, ${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`
+          ? `${data.title}, ${sub}, ${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}${
+              surface === 'closed' ? `, ${t('circle.checkoutClosed', locale)}` : ''
+            }`
           : `${data.title}, ${sub}`
       }
     >

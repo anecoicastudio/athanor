@@ -163,7 +163,14 @@ export function CircleGate({
   return (
     <View className="gap-1.5">
       {button}
-      <Text className="text-[12px] text-faint">{closedLine}</Text>
+      {/* The button's hint already says it; hidden from screen readers so it is not read twice. */}
+      <Text
+        className="text-[12px] text-faint"
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      >
+        {closedLine}
+      </Text>
     </View>
   );
 }

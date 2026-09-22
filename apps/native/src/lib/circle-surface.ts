@@ -12,9 +12,10 @@
  * - `closed` — the same person while the flag is off (ruling 2026-09-19): still locked, plus
  *   the Circle screen's own «La membership non è ancora aperta.». Nothing promises a join that
  *   cannot happen.
- * - `pending` — the flag's first read is in flight. The checkout gate fails closed, so this
- *   promises nothing either: surfaces render it as the neutral label rather than flash one
- *   line and swap it for another.
+ * - `pending` — the flag's first read is in flight. `CircleGate` renders it as the neutral
+ *   label rather than flash one line and swap it for another; the Settings row keeps its
+ *   ordinary copy, and the filter sheet's redirect still goes to the Circle screen, which
+ *   shows its own spinner until the flag answers.
  *
  * `os` is an argument rather than a `Platform.OS` read so a node-environment test can reach
  * every row of the table (`src/lib/dirty-guard.ts` states the same reason).
