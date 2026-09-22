@@ -59,3 +59,56 @@ export function scaledWellHeight(
   if (!Number.isFinite(fontScale)) return base;
   return Math.round(base * Math.min(Math.max(fontScale, 1), cap));
 }
+
+/**
+ * The Momenti deck well at the default text size is at most 438pt (DESIGN §8.4, #751). On a
+ * phone whose screen leaves less room than that under the header, 438 pushed «Passa» /
+ * «Connetti» under the tab bar (iPhone SE, 375×667), so 438 is a ceiling, not a size.
+ */
+export const DECK_WELL_MAX = 438;
+
+/**
+ * The floor the well never shrinks under, however small the window (split screen, a tiny
+ * Android). It holds a card's fixed parts at the default text size — `p-5` padding and
+ * border (42), the 56pt avatar row, three `AffinityRow`s with their `mt-4` (~84), the dream
+ * label with its `mt-4` (~36) and two lines of the `text-xl leading-relaxed` quote (65):
+ * ~283, rounded up. `fontScale` multiplies it like the rest, so at 2× it is 600.
+ */
+export const DECK_WELL_MIN = 300;
+
+/**
+ * Height of the Momenti deck well, from what the screen actually has (#751). Every input is
+ * MEASURED by the screen, never a guessed inset:
+ *
+ *  - `viewport`: the ScrollView's own height. The tab bar is a flow sibling below `Screen`
+ *    and `Screen` owns the safe-area insets, so both are already outside it — subtracting
+ *    them again would reserve them twice.
+ *  - `wellTop`: the well's `y` in the scroll content — everything above it (padding, the
+ *    suspension banner's absence or presence, the eyebrow, the h1) in one number.
+ *  - `actionGap` + `actionRow`: the margin above the Passa / Connetti row and its height.
+ *
+ * The room left is clamped to `[DECK_WELL_MIN, DECK_WELL_MAX]` and only THEN multiplied by
+ * `fontScale` through `scaledWellHeight`, so at a large text size the well still grows past
+ * the viewport and the screen scrolls (#639). Before the first measurement `viewport` is
+ * undefined and the answer is the maximum — the size every phone got before #751.
+ */
+export function deckWellHeight({
+  viewport,
+  wellTop,
+  actionGap,
+  actionRow,
+  fontScale,
+}: {
+  viewport: number | undefined;
+  wellTop: number;
+  actionGap: number;
+  actionRow: number;
+  fontScale: number;
+}): number {
+  if (viewport === undefined || !Number.isFinite(viewport)) {
+    return scaledWellHeight(DECK_WELL_MAX, fontScale);
+  }
+  const room = viewport - wellTop - actionGap - actionRow;
+  const base = Math.min(Math.max(room, DECK_WELL_MIN), DECK_WELL_MAX);
+  return scaledWellHeight(Math.floor(base), fontScale);
+}
