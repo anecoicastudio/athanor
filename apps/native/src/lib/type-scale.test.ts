@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { FONT_SCALE_CAP, scaledWellHeight } from './type-scale';
+import {
+  DECK_WELL_MAX,
+  DECK_WELL_MIN,
+  FONT_SCALE_CAP,
+  deckWellHeight,
+  scaledWellHeight,
+} from './type-scale';
 
 describe('the Dynamic Type caps (#639)', () => {
   it('lets ordinary text reach the WCAG 200% floor', () => {
@@ -59,5 +65,55 @@ describe('scaledWellHeight (#639)', () => {
     // side; NaN here would propagate into a style height and blank the deck.
     expect(scaledWellHeight(438, Number.NaN)).toBe(438);
     expect(scaledWellHeight(438, Number.POSITIVE_INFINITY)).toBe(438);
+  });
+});
+
+describe('deckWellHeight (#751)', () => {
+  // An iPhone SE (375×667) Momenti tab, measured shapes: the ScrollView's viewport is the
+  // window minus the status bar (20) and the tab bar (49) — both outside it, so the helper
+  // never sees them. The well sits below pt-4 + eyebrow + h1 + sub + mt-5; the action row
+  // is a 56pt button behind its own mt-5.
+  const SE = { viewport: 598, wellTop: 112, actionGap: 20, actionRow: 56 };
+
+  it('keeps 438 on a large window at the default text size', () => {
+    // iPhone 17 Pro Max: nothing about a phone that already fit may change.
+    expect(deckWellHeight({ ...SE, viewport: 800, fontScale: 1 })).toBe(438);
+    expect(DECK_WELL_MAX).toBe(438);
+  });
+
+  it('shrinks on a 667pt window so the action row stays above the tab bar', () => {
+    const well = deckWellHeight({ ...SE, fontScale: 1 });
+    expect(well).toBeLessThan(DECK_WELL_MAX);
+    expect(SE.wellTop + well + SE.actionGap + SE.actionRow).toBeLessThanOrEqual(SE.viewport);
+    expect(well).toBe(410);
+  });
+
+  it('never goes below the minimum, however little room there is', () => {
+    expect(deckWellHeight({ ...SE, viewport: 320, fontScale: 1 })).toBe(DECK_WELL_MIN);
+    expect(deckWellHeight({ ...SE, viewport: 0, fontScale: 1 })).toBe(DECK_WELL_MIN);
+  });
+
+  it('applies fontScale after the clamp, so #639’s large-text growth holds', () => {
+    expect(deckWellHeight({ ...SE, fontScale: 1.5 })).toBe(615);
+    expect(deckWellHeight({ ...SE, viewport: 800, fontScale: 1.5 })).toBe(657);
+    expect(deckWellHeight({ ...SE, viewport: 0, fontScale: 2 })).toBe(
+      DECK_WELL_MIN * FONT_SCALE_CAP.text,
+    );
+  });
+
+  it('falls back to the maximum until the screen has been measured', () => {
+    expect(deckWellHeight({ ...SE, viewport: undefined, fontScale: 1 })).toBe(DECK_WELL_MAX);
+    expect(deckWellHeight({ ...SE, viewport: Number.NaN, fontScale: 1 })).toBe(DECK_WELL_MAX);
+  });
+
+  it('never exceeds 438 at the default text size, and a smaller text size does not shrink it', () => {
+    expect(deckWellHeight({ ...SE, viewport: 5000, fontScale: 1 })).toBe(DECK_WELL_MAX);
+    expect(deckWellHeight({ ...SE, fontScale: 0.82 })).toBe(410);
+  });
+
+  it('rounds to a whole point', () => {
+    expect(Number.isInteger(deckWellHeight({ ...SE, viewport: 598.5, fontScale: 1.35 }))).toBe(
+      true,
+    );
   });
 });

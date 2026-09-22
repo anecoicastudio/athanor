@@ -26,7 +26,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  *
  * ROUTE-ONLY — a second DELIBERATE DEVIATION, from DESIGN §8.2's `[Scopri][passa]` mockup,
  * which predates the swipe deck. Deciding belongs in the tab now: `acceptMoment` branches into
- * `(modal)/match` plus a toast (`(tabs)/momenti.tsx:55-73`), and `passMoment` is destructive for
+ * `(modal)/match` plus a toast (`(tabs)/momenti.tsx:112-129`), and `passMoment` is destructive for
  * 90 days with no undo (`packages/api/src/momenti.ts:143-153`). A stray tap on a scrolling Home
  * must not be able to spend either. Don't "restore" the buttons from the mockup.
  *
@@ -35,10 +35,10 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * `lib/query-client.ts:13`). Adding `enabled` / `refetchInterval` / `staleTime` here would fork
  * this observer's behaviour from the badge's for no gain — Home would then be able to show a
  * card the tab bar doesn't spark for. The tab's accept/pass mutations already invalidate this
- * key (`(tabs)/momenti.tsx:71,77`), so acting there refreshes Home on return with no wiring.
+ * key (`(tabs)/momenti.tsx:106-110`), so acting there refreshes Home on return with no wiring.
  *
  * An error WITH cached data still renders: tapping through re-reads the deck in the tab, which
- * owns an error branch and a retry (`(tabs)/momenti.tsx:107-117`). This deliberately is NOT the
+ * owns an error branch and a retry (`(tabs)/momenti.tsx:197-207`). This deliberately is NOT the
  * isError-wins rule of `lib/aura-display.ts` — a stale Aura number is a claim about a person's
  * worth, a stale proposal costs one wasted tap.
  *

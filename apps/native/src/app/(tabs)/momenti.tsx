@@ -15,14 +15,16 @@ import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { momentiDeckView } from '@/lib/momenti-deck-state';
-import { scaledWellHeight } from '@/lib/type-scale';
+import { deckWellHeight } from '@/lib/type-scale';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentiAnswered } from '@/hooks/use-momenti-answered';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
-/** Deck-well height at the default text size (DESIGN §8.4). Scales with `fontScale`. */
-const DECK_WELL = 438;
+/** The action row's `mt-5` (20pt) — the one gap under the well `deckWellHeight` must leave. */
+const ACTION_GAP = 20;
+/** `SwipeActionButton`'s `min-h-[56px]`: the action row's height until it has been measured. */
+const ACTION_ROW_FALLBACK = 56;
 
 /**
  * The Momenti tab (frontend §1/§2): few, curated proposals on a swipe deck.
@@ -154,10 +156,28 @@ export default function MomentiScreen() {
   // The well scales with the member's text size instead, bounded by the same 2x the text
   // cap uses — this screen is inside a ScrollView, so a taller well simply scrolls.
   const { fontScale } = useWindowDimensions();
+  // …and 438 is a MAXIMUM (#751): on an iPhone SE a 438pt well pushed Passa / Connetti under
+  // the tab bar. The room is measured, not derived from insets — the ScrollView's own height
+  // already excludes the tab bar, `Screen`'s safe-area edges and its suspension banner, and
+  // the well's `y` already includes the header and the eyebrow.
+  const [viewport, setViewport] = useState<number | undefined>(undefined);
+  const [wellTop, setWellTop] = useState(0);
+  const [actionRow, setActionRow] = useState(ACTION_ROW_FALLBACK);
+  const wellHeight = deckWellHeight({
+    viewport,
+    wellTop,
+    actionGap: ACTION_GAP,
+    actionRow,
+    fontScale,
+  });
 
   return (
     <Screen>
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pt-4 pb-12">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pt-4 pb-12"
+        onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
+      >
         {hasMomento ? (
           <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
         ) : null}
@@ -167,7 +187,11 @@ export default function MomentiScreen() {
         </Text>
         <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
 
-        <View className="mt-5" style={{ height: scaledWellHeight(DECK_WELL, fontScale) }}>
+        <View
+          className="mt-5"
+          style={{ height: wellHeight }}
+          onLayout={(e) => setWellTop(e.nativeEvent.layout.y)}
+        >
           {deck.isLoading ? (
             <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
           ) : deck.isError ? (
@@ -204,7 +228,10 @@ export default function MomentiScreen() {
         </View>
 
         {hasMomento ? (
-          <View className="mt-5 flex-row gap-4">
+          <View
+            className="mt-5 flex-row gap-4"
+            onLayout={(e) => setActionRow(e.nativeEvent.layout.height)}
+          >
             <SwipeActionButton
               variant="pass"
               label={t('momenti.pass', locale)}
