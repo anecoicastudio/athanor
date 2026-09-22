@@ -68,13 +68,15 @@ export function scaledWellHeight(
 export const DECK_WELL_MAX = 438;
 
 /**
- * The floor the well never shrinks under, however small the window (split screen, a tiny
- * Android). It holds a card's fixed parts at the default text size — `p-5` padding and
- * border (42), the 56pt avatar row, three `AffinityRow`s with their `mt-4` (~84), the dream
- * label with its `mt-4` (~36) and two lines of the `text-xl leading-relaxed` quote (65):
- * ~283, rounded up. `fontScale` multiplies it like the rest, so at 2× it is 600.
+ * The floor the well never shrinks under. At the default text size it rarely binds — an
+ * iPhone SE leaves ~426 — so it is chosen for the LARGEST text size, where the header and the
+ * action row grow and eat the room while the card's text wraps faster than it scales. Measured
+ * on an iPhone SE at AX5 (fontScale capped at 2×): a card with three reasons and a two-line
+ * dream needs ~646pt, i.e. a base of ~323; 300 clipped its quote. 380 → 760 at 2× leaves
+ * ~114pt, about three more lines of AX quote. It stays under the SE's default-size room, so
+ * the fit #751 exists for is not traded away.
  */
-export const DECK_WELL_MIN = 300;
+export const DECK_WELL_MIN = 380;
 
 /**
  * Height of the Momenti deck well, from what the screen actually has (#751). Every input is
