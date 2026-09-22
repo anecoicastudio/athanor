@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
-import * as Calendar from 'expo-calendar';
+// `/legacy`, not the root entry: since expo-calendar@57 the root exports the object-oriented
+// API, and every legacy function it still re-exports is a stub that throws (#826).
+import * as Calendar from 'expo-calendar/legacy';
 import { toStatus } from '@/lib/media/permission-status';
 
 /**
@@ -9,7 +11,7 @@ import { toStatus } from '@/lib/media/permission-status';
  * permission prompt already informed the user». That holds for the FIRST tap and no other:
  * iOS shows the calendar prompt once per app, and every later request resolves denied
  * immediately with no dialog. Two further ways to land here having seen no prompt at all —
- * iOS 17's «Add Events Only», which `expo-calendar@15.0.8` maps to denied
+ * iOS 17's «Add Events Only», which `expo-calendar@57.0.4` maps to denied
  * (`CalendarPermissionsRequester.swift:35`, `.writeOnly` → `EXPermissionStatusDenied`), and
  * Expo Go, where the grant belongs to Expo Go and is shared by every project ever run on the
  * phone. In all three the button was a permanent no-op with no feedback.
@@ -45,7 +47,7 @@ async function writableCalendarId(): Promise<string | null> {
  * and never sees a rejected promise, and the member gets no toast, no notice and no Settings
  * route. That is the silent no-op #531 exists to remove, surviving on a narrower path — and it
  * made "'error' on any failure" above a false claim. The rejection is device-only (e.g. an
- * in-flight permission conflict): expo-calendar DOES ship a web stub (`ExpoCalendar.web.ts`),
+ * in-flight permission conflict): expo-calendar DOES ship a web stub (`legacy/ExpoCalendar.web.ts`),
  * whose request resolves UNDETERMINED with canAskAgain:true and never throws — so the expo-web
  * QA harness lands in the `denied` notice on every tap and cannot reach this catch.
  */
