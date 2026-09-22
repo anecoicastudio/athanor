@@ -127,7 +127,9 @@ export function CircleGate({
   // nowhere to go. The same face, so the lock reads the same on every platform.
   if (surface === 'reserved' || surface === 'pending') {
     return (
-      <View className={shape} accessibilityLabel={a11yLabel} style={{ minHeight }}>
+      // `accessible` makes the View one element: without it iOS skips the label and VoiceOver
+      // reads only the child text, losing «bloccato».
+      <View className={shape} accessible accessibilityLabel={a11yLabel} style={{ minHeight }}>
         {face}
       </View>
     );
