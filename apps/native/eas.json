@@ -16,6 +16,9 @@
       "env": {
         "EXPO_PUBLIC_APP_VARIANT": "development",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "preview": {
