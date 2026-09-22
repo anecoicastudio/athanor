@@ -2,6 +2,7 @@ import { semantic } from '@athanor/config';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { LockGlyph } from '@/components/glyphs';
+import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { type EventRowData, toRowData } from '@/lib/event-row';
 import { DateBadge } from './DateBadge';
 
@@ -16,6 +17,10 @@ export type { EventRowData };
  * A single tappable event row. Sub line: «{city} · dal vivo · {km} km · {categoria}»
  * (physical) or «Online · {categoria}», plus «Athanor Day» when it is one. Tap → event
  * detail. One accessible button (frontend 04 §13). No vanity counts (rule #3).
+ *
+ * A premium row a non-member sees carries a lock chip — a label, never a button, so it is the
+ * neutral lock on every platform. While Circle checkout is closed it adds the Circle screen's
+ * «La membership non è ancora aperta.» (#761, via `useCircleSurface`); on iOS it never does.
  */
 export function EventRow({
   data,
@@ -46,6 +51,7 @@ export function EventRow({
   if (data.is_athanor_day) parts.push(t('live.chip.athanorDay', locale));
   parts.push(catLabel);
   const sub = parts.join(' · ');
+  const surface = useCircleSurface(!data.premiumLocked);
 
   return (
     <Pressable
@@ -86,6 +92,9 @@ export function EventRow({
               {t('circle.gate.premiumEvents', locale)}
             </Text>
           </View>
+        ) : null}
+        {surface === 'closed' ? (
+          <Text className="text-[11px] text-faint">{t('circle.checkoutClosed', locale)}</Text>
         ) : null}
       </View>
     </Pressable>
