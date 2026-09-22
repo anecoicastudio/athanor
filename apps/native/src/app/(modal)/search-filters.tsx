@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
@@ -73,14 +73,11 @@ export default function SearchFiltersScreen() {
   // ── Guard: if entitlement lapsed mid-session, redirect ────────────────────────
   // To the Circle upsell — except on iOS, where a non-member has no route to the Circle screen
   // (#761, ruling 2026-09-22): back to search, whose filter pill is then the neutral lock.
+  // `<Redirect>` replaces (so back-press doesn't loop back here) from a focus effect; the
+  // `router.replace` this used to call during render tripped React's «Cannot update a component
+  // while rendering a different component».
   if (surface !== 'unlocked') {
-    // Use replace so back-press doesn't loop back here
-    router.replace(
-      (surface === 'reserved' ? '/(modal)/search' : '/(modal)/circle') as Parameters<
-        typeof router.replace
-      >[0],
-    );
-    return null;
+    return <Redirect href={surface === 'reserved' ? '/(modal)/search' : '/(modal)/circle'} />;
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
