@@ -84,9 +84,10 @@ export const DECK_WELL_MIN = 380;
  *
  *  - `viewport`: the ScrollView's own height. The tab bar is a flow sibling below `Screen`
  *    and `Screen` owns the safe-area insets, so both are already outside it — subtracting
- *    them again would reserve them twice.
+ *    them again would reserve them twice. `Screen`'s suspension banner is a sibling of the
+ *    ScrollView, so when it shows it shrinks this number too.
  *  - `wellTop`: the well's `y` in the scroll content — everything above it (padding, the
- *    suspension banner's absence or presence, the eyebrow, the h1) in one number.
+ *    eyebrow, the h1 and its sub line) in one number.
  *  - `actionGap` + `actionRow`: the margin above the Passa / Connetti row and its height.
  *
  * The room left is clamped to `[DECK_WELL_MIN, DECK_WELL_MAX]` and only THEN multiplied by

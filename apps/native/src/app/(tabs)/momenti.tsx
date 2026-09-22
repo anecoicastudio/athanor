@@ -158,8 +158,8 @@ export default function MomentiScreen() {
   const { fontScale } = useWindowDimensions();
   // …and 438 is a MAXIMUM (#751): on an iPhone SE a 438pt well pushed Passa / Connetti under
   // the tab bar. The room is measured, not derived from insets — the ScrollView's own height
-  // already excludes the tab bar and `Screen`'s safe-area edges, and the well's `y` already
-  // includes the header, the eyebrow and a suspension banner when one shows.
+  // already excludes the tab bar, `Screen`'s safe-area edges and its suspension banner, and
+  // the well's `y` already includes the header and the eyebrow.
   const [viewport, setViewport] = useState<number | undefined>(undefined);
   const [wellTop, setWellTop] = useState(0);
   const [actionRow, setActionRow] = useState(ACTION_ROW_FALLBACK);
