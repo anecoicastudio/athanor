@@ -523,13 +523,14 @@ describe('author-only reaction counts (rule 3)', () => {
  * wrapper; #616 found the measurement itself was taken once, at mount, and so was wrong on
  * exactly the screen that needed it most (a sheet pushed from a sheet).
  *
- * The mechanism is now `hooks/use-keyboard-inset.ts`: it measures inside the keyboard event
- * and pads. `KeyboardAvoidingView` is therefore gone from the app — the first assertion pins
- * its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
+ * The mechanism is now `hooks/use-keyboard-inset.ts`: it reads the keyboard's height from
+ * the event and pads by it — no measurement. `KeyboardAvoidingView` is therefore gone from
+ * the app — the first assertion pins its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
  * this section exists to catch. The second keeps the old copied branch out even so, since a
  * reintroduction would most likely arrive in that shape. The third pins the new single point
  * of truth: nothing else subscribes to keyboard show/hide, so nobody hand-rolls avoidance at
- * a call site again.
+ * a call site again. The last pins #765: both lifted surfaces drop their bottom safe-area
+ * edge by the ONE platform rule, `keyboardCoversBottomInset`, rather than each deciding.
  */
 describe('keyboard avoidance goes through the one hook (#163, #616)', () => {
   const INSET_CONSUMERS = [
@@ -571,6 +572,20 @@ describe('keyboard avoidance goes through the one hook (#163, #616)', () => {
       .map((p) => rel(p).replace('apps/native/src/', ''))
       .sort();
     expect(users).toEqual([...INSET_CONSUMERS].sort());
+  });
+
+  it('a lifted view drops its bottom safe-area edge by the one platform rule (#765)', () => {
+    // The native SafeAreaView pads by the provider's inset whatever the view's position, so
+    // without these the home indicator is reserved on top of an iOS keyboard (34pt dead band).
+    const screen = stripComments(read(`${SRC}components/Screen.tsx`));
+    expect(screen).toMatch(/const lifted = useLiftedOverBottomInset\(\);/);
+    expect(screen).toMatch(/edges: lifted \? \['top'\] : \['top', 'bottom'\]/);
+    const wrapper = stripComments(read(`${SRC}components/KeyboardAvoiding.tsx`));
+    expect(wrapper).toMatch(/value=\{inset > 0 && keyboardCoversBottomInset\}/);
+    const stories = stripComments(read(`${SRC}components/stories/StoriesViewer.tsx`));
+    expect(stories).toMatch(
+      /edges=\{keyboardInset > 0 && keyboardCoversBottomInset \? \[\] : \['bottom'\]\}/,
+    );
   });
 });
 
@@ -2644,7 +2659,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:370': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
     'components/stories/StoryRing.tsx:111':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',

@@ -156,12 +156,9 @@ export type RevealOnFocus = {
    * It exists because revealing the row is not the same as keeping the form usable. On
    * `(auth)/welcome` the password row ends at «Forgot your password?», and the CTA sits under it
    * — so the reveal could land the field perfectly and still leave «Sign in» under the keyboard,
-   * with nothing on screen to press. On an iPhone with a home indicator the viewport also stops
-   * 34pt short of the keyboard: on Fabric, `Screen`'s bottom padding is the safe-area PROVIDER's
-   * inset (`RNCSafeAreaViewShadowNode.cpp`), not the view's own, so it stays reserved while
-   * `KeyboardAvoiding` has lifted the view off the home indicator. Measured on the iOS
-   * simulator, 2026-09-18; the reveal works inside whatever viewport it is given, so it does not
-   * depend on that being fixed.
+   * with nothing on screen to press. The reveal works inside whatever viewport it is given; the
+   * 34pt band a home-indicator iPhone used to leave between that viewport and the keyboard
+   * (#765) is `Screen`'s to drop, not this hook's to compensate.
    *
    * A call that hands back one stable ref, like `rowRef(key)`, rather than a ref-valued property:
    * the React Compiler's lint reads a `…Ref` property passed as a value as a ref OBJECT, and then

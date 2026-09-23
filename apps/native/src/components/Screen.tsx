@@ -2,6 +2,7 @@ import React from 'react';
 import { useCssElement } from 'react-native-css';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, cn } from '@/tw';
+import { useLiftedOverBottomInset } from '@/components/KeyboardAvoiding';
 import { SuspendedNotice } from '@/components/SuspendedNotice';
 import { ToastViewport } from '@/components/ToastHost';
 
@@ -18,24 +19,21 @@ import { ToastViewport } from '@/components/ToastHost';
  * and correct again on a sheet-over-sheet push (`messages` → `chat`). A prop
  * would have to mirror `(modal)/_layout.tsx` per screen and drift.
  *
- * The bottom edge rides the same measurement: home-indicator height on sheets
- * (a composer bar never sits on the indicator), 0 on tab screens (the tab bar
- * is a flow sibling below this view and already carries its own inset), and 0
- * while the keyboard-avoiding wrapper has lifted this view off the window
- * bottom. Trailing breathing room stays in scroll content as `pb-12` — the one
- * shared value (#163) — because container padding cannot scroll.
+ * The bottom edge: home-indicator height on sheets (a composer bar never sits on
+ * the indicator), 0 on tab screens (the tab bar is a flow sibling below this view
+ * and already carries its own inset). Trailing breathing room stays in scroll
+ * content as `pb-12` — the one shared value (#163) — because container padding
+ * cannot scroll.
  *
- * That last clause has an exception, and it is INSIDE A SHEET — which is every
- * `(modal)/*` route, since the group itself carries `presentation: 'modal'`.
- * `SafeAreaView`'s Fabric implementation walks the NATIVE superview chain for a
- * provider and falls back to measuring itself when it finds none, and a presented
- * modal has none: react-native-screens reparents modal views out of the RN root
- * tree. In that fallback the keyboard observers and the `RNCSafeAreaDidChange`
- * broadcast that would refresh the inset both belong to the provider, so neither
- * reaches this view. The bottom inset inside a sheet therefore stays at its
- * home-indicator value while the keyboard is up instead of going to 0 — a ~34pt
- * over-reservation, not a hidden control, and not something this component can
- * fix from JS. Named here so the next reader does not spend a device round on it.
+ * The native view does NOT see the keyboard. Its bottom padding is the inset it
+ * was given, whatever the view's position — on Fabric, `RNCSafeAreaViewShadowNode`
+ * pads by it after the keyboard-avoiding wrapper has lifted the view off the
+ * window bottom — so on a home-indicator iPhone a lifted screen reserved ~34pt of
+ * dead band on top of the keyboard (#765; measured on welcome, content end 576.8
+ * against a keyboard top of 611). So the edge is dropped here, in JS, while an
+ * enclosing `KeyboardAvoiding` reports a lift that already spans the inset
+ * (`useLiftedOverBottomInset`) — iOS only: Android's keyboard height is net of
+ * the system bars, and there this inset is what closes the gap.
  *
  * `gutter` adds the DESIGN.md §6 20pt horizontal screen padding
  * (`spacing.gutter` / `--spacing-gutter`) for screens whose content doesn't
@@ -78,6 +76,7 @@ export type ScreenProps = React.ComponentProps<typeof SafeAreaView> & {
 const SafeAreaViewImpl = SafeAreaView as unknown as React.ComponentType<Record<string, unknown>>;
 
 export function Screen({ className, gutter, footer, toastInset, children, ...rest }: ScreenProps) {
+  const lifted = useLiftedOverBottomInset();
   const content = (
     <>
       {/* Sanction banner (#312) rides every Screen the way the toast viewport does,
@@ -91,7 +90,7 @@ export function Screen({ className, gutter, footer, toastInset, children, ...res
   return useCssElement(
     SafeAreaViewImpl,
     {
-      edges: ['top', 'bottom'],
+      edges: lifted ? ['top'] : ['top', 'bottom'],
       ...rest,
       className: cn('flex-1 bg-background', gutter && 'pl-gutter pr-gutter', className),
       children:

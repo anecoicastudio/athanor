@@ -1,6 +1,18 @@
-import { type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { View } from 'react-native';
-import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
+import { keyboardCoversBottomInset, useKeyboardInset } from '@/hooks/use-keyboard-inset';
+
+const LiftedOverBottomInset = createContext(false);
+
+/**
+ * True while an enclosing `KeyboardAvoiding` has lifted its content by a keyboard that already
+ * covers the bottom safe-area inset — `Screen` drops its bottom edge then (#765). False outside
+ * the wrapper, so `plan` and `progress`, whose `Screen` sits OUTSIDE it, keep the inset under
+ * their pinned footer.
+ */
+export function useLiftedOverBottomInset(): boolean {
+  return useContext(LiftedOverBottomInset);
+}
 
 /**
  * The one keyboard-avoidance recipe (#163, remeasured for #616). Wrap a screen
@@ -8,9 +20,12 @@ import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
  *
  * Goes OUTSIDE `Screen`, not inside — every consumer spells it that way except the
  * two that use `Screen footer` (`plan`, `progress`), which pin an action bar this
- * wrapper is not meant to lift. `Screen`'s docblock is written for the outside
- * form: its bottom safe-area inset measures 0 while this wrapper has lifted the
- * view off the window bottom, so the home indicator is not reserved twice.
+ * wrapper is not meant to lift. In the outside form the bottom inset is never
+ * reserved twice (#765): the native `SafeAreaView` pads its bottom by the PROVIDER's
+ * inset whatever the view's position (`RNCSafeAreaViewShadowNode.cpp` on Fabric), so
+ * it cannot see the lift — this wrapper tells `Screen` through context instead, and
+ * `Screen` drops its bottom edge while the keyboard is up on a platform where the
+ * keyboard's height already spans that inset (`keyboardCoversBottomInset`).
  *
  * The lift is the keyboard's own height, from `hooks/use-keyboard-inset.ts` — read
  * that docblock for why `KeyboardAvoidingView` is gone and why nothing here
@@ -27,5 +42,9 @@ import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
  */
 export function KeyboardAvoiding({ children }: { children: ReactNode }) {
   const inset = useKeyboardInset();
-  return <View style={{ flex: 1, paddingBottom: inset }}>{children}</View>;
+  return (
+    <LiftedOverBottomInset.Provider value={inset > 0 && keyboardCoversBottomInset}>
+      <View style={{ flex: 1, paddingBottom: inset }}>{children}</View>
+    </LiftedOverBottomInset.Provider>
+  );
 }
