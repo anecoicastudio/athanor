@@ -23,7 +23,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(73);
+select plan(74);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
 values
@@ -454,6 +454,9 @@ select is(
 select is(
   (select count(*)::int from public.audit_log where report_id = 'f1550000-0000-4000-8000-000000000001'),
   0, 'I3 the report''s VERDICT row still cascades with it — audit_log_moderation_shape needs its report');
+select is(
+  has_function_privilege('authenticated', 'athanor.detach_content_audit_from_report()', 'execute'),
+  false, 'I4 the detach trigger function is not callable by a client role (#409)');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (G) the content shape, in the table
