@@ -1,7 +1,8 @@
+import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale, MomentoDeckCard } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { DreamQuote } from '@/components/DreamQuote';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -14,9 +15,18 @@ import { AffinityRow } from './AffinityRow';
  * API already ranked and capped (`rankReasons`, #384 — this card does not re-decide
  * which ones fit), and the peer's dream quote in the Hanken-italic dream register (the same
  * `font-dream` quote treatment as DreamCard, never a UI font).
+ *
+ * The quote is clamped to DREAM_QUOTE_LINES (#833): a dream runs to 500 characters and the
+ * deck well is a fixed height, so an unclamped quote ran out of the card and under the
+ * «Passa» / «Connetti» row. The whole dream is one tap away on the peer's profile, where
+ * DreamCard renders it unclamped — the deck card carries no dream id, so the profile is the
+ * reachable home for it, not `dream/[id]`.
  */
+const DREAM_QUOTE_LINES = 3;
+
 export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: Locale }) {
   const name = memberLabel(card.displayName, card.handle) ?? '—';
+  const router = useRouter();
   return (
     // Opaque base (bg-background) UNDER the bg-raise tint: the deck stacks the next card behind
     // this one (SwipeDeck), and bg-raise alone (rgba ~4%) is see-through — the peek card bled
@@ -49,7 +59,25 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
         {card.dreamText ? (
           <View className="mt-4">
             <SectionLabel>{t('momenti.theirDream', locale)}</SectionLabel>
-            <DreamQuote text={card.dreamText} className="mt-1" />
+            {/*
+              A tap, not a pan: this Pressable holds the responder only until the deck's
+              PanResponder claims a horizontal move (`onMoveShouldSetPanResponder` bubbles up
+              from here), so a drag that starts on the quote still swipes the card.
+
+              Label = the WHOLE dream, hint = where the tap goes: `numberOfLines` truncates
+              what is drawn, and the label is what keeps the full text spoken (DreamCard's
+              pattern, #356). `min-h-[44px]` gives the target geometry of its own (§10) —
+              a clamped quote is taller anyway, but a one-line dream is not.
+            */}
+            <Pressable
+              className="mt-1 min-h-[44px]"
+              accessibilityRole="button"
+              accessibilityLabel={t('dream.a11y.theirQuote', locale, { dream: card.dreamText })}
+              accessibilityHint={t('momenti.a11y.openProfile', locale)}
+              onPress={() => router.push(`/(modal)/user/${card.candidateId}`)}
+            >
+              <DreamQuote text={card.dreamText} numberOfLines={DREAM_QUOTE_LINES} />
+            </Pressable>
           </View>
         ) : null}
       </View>

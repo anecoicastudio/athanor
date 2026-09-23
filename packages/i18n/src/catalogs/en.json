@@ -957,6 +957,7 @@
   "momenti.a11y.accept": "Connect with {name}",
   "momenti.a11y.pass": "Pass {name}",
   "momenti.a11y.affinity": "Affinity reason",
+  "momenti.a11y.openProfile": "Opens their profile, with the whole dream",
   "momenti.reason.shared": "You both are",
   "momenti.reason.seeking": "You're looking for",
   "momenti.reason.offering": "May be looking for what you offer",
