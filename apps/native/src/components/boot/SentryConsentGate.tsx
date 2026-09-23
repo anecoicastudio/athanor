@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { gdprKeys, getConsents } from '@athanor/api';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { endedCleanly, readPreviousTrail } from '@/lib/crash-trail';
+import { readPreviousTrail, setTrailConsent, shouldReportTrail } from '@/lib/crash-trail';
 import { captureTrail, closeSentry, initSentry, setTelemetryConsent } from '@/lib/sentry';
 
 /**
@@ -35,6 +35,9 @@ export function SentryConsentGate() {
   const trailSent = useRef(false);
 
   useEffect(() => {
+    // The run's own trail remembers whether it had consent (#783), so the NEXT launch can tell a
+    // reportable trail from one recorded while diagnostics was off.
+    void setTrailConsent(granted);
     if (granted) {
       setTelemetryConsent(true);
       initSentry();
@@ -42,10 +45,14 @@ export function SentryConsentGate() {
       // get about it (#452). Sent from here rather than from CrashTrailGate because it has to
       // follow init: captureTrail no-ops before it, and beforeSend/beforeBreadcrumb would drop
       // everything pre-consent anyway.
+      //
+      // Only a trail whose OWN run had consent goes up (#783, ruling 2026-09-23): one recorded
+      // while diagnostics was off, or before any grant, is discarded here and never sent — this
+      // launch already overwrote its slot, so dropping it also removes it from the device.
       if (!trailSent.current) {
         trailSent.current = true;
         void readPreviousTrail().then((previous) => {
-          if (previous && !endedCleanly(previous)) captureTrail(previous.steps);
+          if (previous && shouldReportTrail(previous)) captureTrail(previous.steps);
         });
       }
     } else {

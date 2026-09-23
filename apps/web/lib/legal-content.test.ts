@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NEARBY_RADIUS_KM } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES } from '@athanor/schemas';
 import {
@@ -330,12 +331,39 @@ describe('privacy', () => {
         'live.tab.vicino',
         'momenti.suggestionsTitle',
         'gdpr.location.label',
-        'gdpr.consent.comms',
       ] as const) {
         expect(text, key).toContain(quote(t(key, loc)));
       }
     },
   );
+
+  // #783: the location switch now gates every position read, the comms switch is gone (no
+  // marketing mail exists), and the Vicino radius is the constant the query itself uses.
+  it.each(locales)('%s says the location switch gates the position', (loc) => {
+    const text = all(loc);
+    expect(text).not.toContain(
+      loc === 'it' ? 'non la attiva né la spegne' : 'neither turns it on nor off',
+    );
+    expect(text).toContain(
+      loc === 'it'
+        ? "spento, l'app non legge mai la posizione del telefono"
+        : "when it is off, the app never reads your phone's location",
+    );
+  });
+
+  it.each(locales)('%s states the Vicino radius from the shared constant', (loc) => {
+    expect(all(loc)).toContain(
+      loc === 'it' ? `${NEARBY_RADIUS_KM} chilometri` : `${NEARBY_RADIUS_KM} kilometres`,
+    );
+  });
+
+  it.each(locales)('%s no longer describes a communications consent', (loc) => {
+    const text = all(loc);
+    expect(text).not.toContain(loc === 'it' ? 'email di comunicazione' : 'update emails');
+    expect(text).not.toContain(
+      loc === 'it' ? 'Comunicazioni e novità' : 'Communications and updates',
+    );
+  });
 
   it.each(locales)('%s names Momenti by its catalog name in the heading', (loc) => {
     const headings = privacy[loc].sections.map((s) => s.heading);

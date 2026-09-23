@@ -203,6 +203,71 @@ describe('read-back across an unclean shutdown', () => {
   });
 });
 
+describe('consent — only a run with diagnostics ON may be reported (#783)', () => {
+  // Marco's ruling 2026-09-23: a trail recorded while diagnostics was OFF, or before any grant,
+  // is discarded when consent is granted and never sent. The flag belongs to the run it
+  // describes, so a later grant cannot reach back and release a run that never consented.
+  it('does not report a run that never saw consent', async () => {
+    const first = await launch();
+    await first.markStep('poster.thumbnails');
+
+    const second = await launch();
+    const previous = await second.readPreviousTrail();
+    expect(previous?.consented).toBe(false);
+    expect(previous && second.shouldReportTrail(previous)).toBe(false);
+  });
+
+  it('reports a run that crashed with consent ON', async () => {
+    const first = await launch();
+    await first.setTrailConsent(true);
+    await first.markStep('poster.thumbnails');
+
+    const second = await launch();
+    const previous = await second.readPreviousTrail();
+    expect(previous?.consented).toBe(true);
+    expect(previous && second.shouldReportTrail(previous)).toBe(true);
+  });
+
+  it('discards a run whose consent was revoked before it died', async () => {
+    const first = await launch();
+    await first.setTrailConsent(true);
+    await first.markStep('boot.ready');
+    await first.setTrailConsent(false);
+    await first.markStep('poster.thumbnails');
+
+    const second = await launch();
+    const previous = await second.readPreviousTrail();
+    expect(previous && second.shouldReportTrail(previous)).toBe(false);
+  });
+
+  it('never reports a clean exit, consent or not', async () => {
+    const first = await launch();
+    await first.setTrailConsent(true);
+    await first.markStep('app.background');
+
+    const second = await launch();
+    const previous = await second.readPreviousTrail();
+    expect(previous && second.shouldReportTrail(previous)).toBe(false);
+  });
+
+  it('has written the flag by the time setTrailConsent resolves', async () => {
+    const { setTrailConsent } = await launch();
+    await setTrailConsent(true);
+    expect((stored() as { c?: unknown }).c).toBe(true);
+  });
+
+  it('treats a trail stored before the flag existed as unconsented', async () => {
+    store.mem.set(
+      KEY,
+      JSON.stringify({ v: 1, startedAt: 1, steps: [{ s: 'poster.thumbnails', t: 0 }] }),
+    );
+    const { readPreviousTrail, shouldReportTrail } = await launch();
+    const previous = await readPreviousTrail();
+    expect(previous?.consented).toBe(false);
+    expect(previous && shouldReportTrail(previous)).toBe(false);
+  });
+});
+
 describe('bounds', () => {
   it('keeps the newest MAX_STEPS and drops the oldest', async () => {
     const { markStep, readPreviousTrail, MAX_STEPS } = await launch();
@@ -229,6 +294,7 @@ describe('bounds', () => {
     const worstCase = JSON.stringify({
       v: 1,
       startedAt: 1_755_600_000_000,
+      c: false,
       steps: Array.from({ length: MAX_STEPS }, () => ({ s: longest, t: 9_999_999 })),
     });
 

@@ -39,6 +39,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocationConsent } from '@/hooks/use-location-consent';
 import { useLocale } from '@/hooks/use-locale';
 import { usePaidEventsGate } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
@@ -103,6 +104,13 @@ export default function EventCreateScreen() {
    * is neither, so the toggle shows a spinner rather than flashing a state.
    */
   const paidGate = usePaidEventsGate();
+  /**
+   * «Localizzazione approssimativa» (#783): «Usa la mia posizione» exists only while it is `on`.
+   * Off, the event's point comes from the typed venue alone — the OS geocoder reads no position,
+   * though on Android it still needs the OS grant (see geocodeVenue).
+   */
+  // A failed consent read stays `unknown`: the pill stays hidden and the typed venue still works.
+  const locationConsent = useLocationConsent().state;
   /**
    * What the organiser PICKED, and what the form actually IS — two different things since #806,
    * because the rail can close while this sheet is open (a 60s refetch, or a flag flipped
@@ -247,9 +255,15 @@ export default function EventCreateScreen() {
   // A point arriving answers the «Scrivi luogo e città…» refusal, and only that one: any other
   // error is about a different field and stays until the next submit re-checks it.
   const clearLocationError = () =>
-    setError((current) => (current === t('event.create.locationNeeded', locale) ? null : current));
+    setError((current) =>
+      current === t('event.create.locationNeeded', locale) ||
+      current === t('event.create.locationNeededVenueOnly', locale)
+        ? null
+        : current,
+    );
 
   const requestMyLocation = async () => {
+    if (locationConsent !== 'on') return;
     setLocationRefusal(null);
     let pos: Location.LocationObject;
     try {
@@ -296,7 +310,8 @@ export default function EventCreateScreen() {
   const { point, status: pointStatus } = eventPointState({
     query,
     venue: venuePoint,
-    device: devicePoint,
+    // A fix taken before the switch went off is never saved after it (#783).
+    device: locationConsent === 'on' ? devicePoint : null,
     source: pointSource,
     lookup,
   });
@@ -474,7 +489,13 @@ export default function EventCreateScreen() {
           : shouldLookUpVenue(query, venuePoint, lookup)
             ? await lookUpVenue(query)
             : null);
-    if (!at) return setError(t('event.create.locationNeeded', locale));
+    // #783: with the switch off there is no «Usa la mia posizione» to point at.
+    if (!at)
+      return setError(
+        locationConsent === 'on'
+          ? t('event.create.locationNeeded', locale)
+          : t('event.create.locationNeededVenueOnly', locale),
+      );
     mutation.mutate(at);
   };
 
@@ -621,23 +642,35 @@ export default function EventCreateScreen() {
                       : pointStatus === 'looking'
                         ? t('event.create.point.looking', locale)
                         : pointStatus === 'notFound'
-                          ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                          ? locationConsent === 'on'
+                            ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                            : t('event.create.point.notFoundVenueOnly', locale, {
+                                place: query ?? '',
+                              })
                           : pointStatus === 'failed'
-                            ? t('event.create.point.failed', locale)
+                            ? locationConsent === 'on'
+                              ? t('event.create.point.failed', locale)
+                              : t('event.create.point.failedVenueOnly', locale)
                             : t('event.create.point.hint', locale)}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => void requestMyLocation()}
-                className="self-start rounded-full border border-aura-line px-4 py-2"
-                accessibilityRole="button"
-              >
-                <Text className="text-[13px] text-aura">
-                  {pointStatus === 'device'
-                    ? t('event.create.locationSet', locale)
-                    : t('event.create.useLocation', locale)}
+              {locationConsent === 'on' ? (
+                <Pressable
+                  onPress={() => void requestMyLocation()}
+                  className="self-start rounded-full border border-aura-line px-4 py-2"
+                  accessibilityRole="button"
+                >
+                  <Text className="text-[13px] text-aura">
+                    {pointStatus === 'device'
+                      ? t('event.create.locationSet', locale)
+                      : t('event.create.useLocation', locale)}
+                  </Text>
+                </Pressable>
+              ) : locationConsent === 'off' ? (
+                <Text className="text-[13px] text-faint">
+                  {t('event.create.locationOff', locale)}
                 </Text>
-              </Pressable>
+              ) : null}
               {locationRefusal ? (
                 <View className="gap-2">
                   {/* Literal keys on both arms (i18n checker + orphan-grep property). Blocked
