@@ -71,9 +71,13 @@ import { auraGlow } from '@/lib/glow';
  * Athanor's `light`/`outline` recipe. It exists to serve exactly one call site, the Apple CTA on
  * `welcome.tsx` — never reach for it elsewhere.
  *
- * `compact` halves the side padding (`px-3`) for pills that share a row three across — the
- * profile footer's «Scrivi» · «Accetta» · «Rifiuta», where `px-6` left a third-width pill ~34pt
- * for its label and broke «Accetta» mid-word. Height, label size and tracking are unchanged.
+ * **The label is one line by LAYOUT, not by cap** (#833, Marco's ruling 2026-09-23). DESIGN §10
+ * forbids capping text, so nothing here sets `numberOfLines`, shrinks the font or turns off
+ * `allowFontScaling`. Pills that sit side by side go in `ButtonRow`, which sizes each pill to its
+ * one-line label and wraps the ROW instead; `source-audit` §43 fails the `flex-1` cell that used
+ * to hand a pill a fixed share and break «Accetta» mid-word. The one label that still wraps
+ * inside its own pill is a lone full-width one wider than the screen at 2× — «Entra nel Circle ·
+ * 12,00 €/mese» on an iPhone SE at AX5 — which has no row to drop to.
  */
 type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline' | 'apple';
 
@@ -102,7 +106,6 @@ export function Button({
   loading = false,
   glow = false,
   icon = null,
-  compact = false,
   accessibilityLabel,
 }: {
   label: string;
@@ -118,8 +121,6 @@ export function Button({
    * assistive tech. Pass `null`, never an element that renders null (see the docblock).
    */
   icon?: ReactNode;
-  /** Side padding `px-3` instead of `px-6`, for three pills in one row (see the docblock). */
-  compact?: boolean;
   accessibilityLabel?: string;
 }) {
   const { container, text, ink } = VARIANT_CLASSES[variant];
@@ -129,16 +130,17 @@ export function Button({
   return (
     <Pressable
       className={cn(
-        // `min-h`, not `h` (#639): a label that wraps at AX sizes — «Entra nel Circle ·
-        // 12,00 €/mese» is the long one, and grew by four characters when #644 started
-        // rendering the live amount through `formatPrice` — grows the pill instead of
-        // clipping inside it. `py` is what a wrapped label breathes on; at the default size
-        // the 52pt floor still wins, so nothing moves. DESIGN §9 measures the pill, and a
-        // floor still measures it.
+        // `min-h`, not `h` (#639): the one label that can still wrap — a LONE full-width pill
+        // wider than the screen at 2×, «Entra nel Circle · 12,00 €/mese» (four characters longer
+        // since #644 renders the live amount through `formatPrice`) — grows the pill instead of
+        // clipping inside it. Side-by-side pills never wrap their label: `ButtonRow` wraps the
+        // row (#833). `py` is what a wrapped label breathes on; at the default size the 52pt
+        // floor still wins, so nothing moves. DESIGN §9 measures the pill, and a floor still
+        // measures it.
         'min-h-[52px] items-center justify-center rounded-full py-3',
         // The gutter is keyed on `icon`, not on what is currently drawn, so the padding does
         // not change when `loading` swaps the mark out from under a fixed-width pill.
-        icon ? 'px-14' : compact ? 'px-3' : 'px-6',
+        icon ? 'px-14' : 'px-6',
         container,
         inert && 'opacity-40',
       )}

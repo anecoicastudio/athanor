@@ -16,6 +16,7 @@ import type { Locale, Profile } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
@@ -652,7 +653,7 @@ export function ProfileEditForm({
 
           {error ? <Text className="text-sm text-error">{error}</Text> : null}
 
-          <View className="flex-row items-center gap-4">
+          <ButtonRow>
             <Button
               label={t('profile.save', locale)}
               variant="primary"
@@ -665,7 +666,7 @@ export function ProfileEditForm({
               disabled={saving}
               onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
             />
-          </View>
+          </ButtonRow>
         </View>
 
         {tailSlot}

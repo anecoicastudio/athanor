@@ -15,6 +15,7 @@ import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { ConnectButton } from '@/components/connections/ConnectButton';
@@ -319,38 +320,32 @@ export default function PersonDetailScreen() {
           exists for stay tappable at any scroll position, and the toast band clears them by
           construction. «Scrivi» opens-or-creates the conversation; «Connetti» drives the
           full connection-requests state machine (M5). */
-        <View className="flex-row items-center gap-4 border-t border-hair px-5 pb-3 pt-3">
-          <View className="flex-1">
-            <Button
-              compact
-              label={t('profile.write.cta', locale)}
-              variant="ghost"
-              onPress={async () => {
-                try {
-                  const conversationId = await getOrCreateConversation(supabase, id);
-                  router.push(`/chat?conversationId=${conversationId}`);
-                } catch {
-                  showToast(t('chat.openFailed', locale));
-                }
-              }}
-            />
-          </View>
+        <ButtonRow className="border-t border-hair px-5 pb-3 pt-3">
+          <Button
+            label={t('profile.write.cta', locale)}
+            variant="ghost"
+            onPress={async () => {
+              try {
+                const conversationId = await getOrCreateConversation(supabase, id);
+                router.push(`/chat?conversationId=${conversationId}`);
+              } catch {
+                showToast(t('chat.openFailed', locale));
+              }
+            }}
+          />
           {/* #640 item 1: when a helpable tappa exists, the pinned action is the product's
               claim — «Fai accadere questo sogno» — not the generic «Connetti» (which stays
               the footer everywhere else; the connect state machine is still reachable from
               a profile with nothing to help). */}
           {dreamText != null && hasHelpableTappa ? (
-            <View className="flex-1">
-              <Button
-                compact
-                label={t('dream.makeHappenCta', locale)}
-                onPress={() => router.push({ pathname: '/(modal)/help', params: { userId: id } })}
-              />
-            </View>
+            <Button
+              label={t('dream.makeHappenCta', locale)}
+              onPress={() => router.push({ pathname: '/(modal)/help', params: { userId: id } })}
+            />
           ) : (
             <ConnectButton peerId={id} locale={locale} />
           )}
-        </View>
+        </ButtonRow>
       }
     >
       <ModalHeader
