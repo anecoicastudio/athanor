@@ -14,6 +14,11 @@ export const MODERATION_ACTIONS = ['warn', 'penalty', 'suspend', 'ban'] as const
 export const moderationAction = z.enum(MODERATION_ACTIONS);
 export type ModerationAction = z.infer<typeof moderationAction>;
 
+/** What a takedown acts on (#788). A comment is here though no report can name one. */
+export const TAKEDOWN_TARGET_TYPES = ['post', 'comment', 'message'] as const;
+export const takedownTargetType = z.enum(TAKEDOWN_TARGET_TYPES);
+export type TakedownTargetType = z.infer<typeof takedownTargetType>;
+
 /** Longest suspension the form can hand over — beyond this the honest action is a ban. */
 export const SUSPEND_DAYS_MAX = 365;
 
@@ -55,6 +60,30 @@ export const resolveReportInput = z
 export type ResolveReportInput = z.infer<typeof resolveReportInput>;
 
 /**
+ * A moderator's takedown (#788) — `admin_takedown`'s arguments, camelCase. `reportId` is
+ * optional because two of the three routes have none: a comment cannot be reported, and an
+ * email report never becomes a row. When it is given, the report must already be upheld —
+ * the database refuses otherwise (resolve first, take down second).
+ */
+export const takedownInput = z.object({
+  targetType: takedownTargetType,
+  targetId: z.string().uuid(),
+  reason: trimmedNonBlank(2000),
+  reportId: z.string().uuid().optional(),
+});
+export type TakedownInput = z.infer<typeof takedownInput>;
+
+/**
+ * Releasing a taken-down post's media to post-media-reaper (#788) — the irreversible step,
+ * taken after RELEASE-RUNBOOK §7.8 step 5, never together with the takedown.
+ */
+export const purgePostMediaInput = z.object({
+  postId: z.string().uuid(),
+  reason: trimmedNonBlank(2000),
+});
+export type PurgePostMediaInput = z.infer<typeof purgePostMediaInput>;
+
+/**
  * The audit_log vocabulary, split the way the database splits it. Two CHECK constraints
  * govern it and both are re-declared whole by whichever migration last widened them —
  * currently `20260816110227_fund_tranche_gate.sql:43-54`:
@@ -93,9 +122,21 @@ export const AUDIT_LOG_FUND_ACTIONS = [
   'verify_phase',
 ] as const;
 
+/**
+ * The content half (#788): a moderator's takedown of a post, comment or message, and the
+ * later release of a taken-down post's media for post-media-reaper. Apart from the moderation
+ * half on purpose — MODERATION_ACTIONS is also the verdict vocabulary `resolveReportInput`
+ * accepts, and a takedown is not a verdict: it is its own RPC, taken after one. Two CHECKs
+ * bind it (20260923062248): `audit_log_content_shape` (a content row names its target and an
+ * actor, and carries no edition and no points) and `audit_log_target_only_on_content` (no
+ * other row names a content target).
+ */
+export const AUDIT_LOG_CONTENT_ACTIONS = ['takedown', 'purge_media'] as const;
+
 export const AUDIT_LOG_ACTIONS = [
   ...AUDIT_LOG_MODERATION_ACTIONS,
   ...AUDIT_LOG_FUND_ACTIONS,
+  ...AUDIT_LOG_CONTENT_ACTIONS,
 ] as const;
 
 export const auditLogAction = z.enum(AUDIT_LOG_ACTIONS);
@@ -103,16 +144,19 @@ export type AuditLogAction = z.infer<typeof auditLogAction>;
 
 /** Set lookup so the shape refinement below stays O(1) as the fund vocabulary grows. */
 const FUND_ACTIONS: ReadonlySet<string> = new Set(AUDIT_LOG_FUND_ACTIONS);
+const CONTENT_ACTIONS: ReadonlySet<string> = new Set(AUDIT_LOG_CONTENT_ACTIONS);
 
 /**
- * Append-only audit row (admin-read). Mirrors supabase audit_log, which since #219 holds
- * two shapes: moderation rows (report_id + actor_id set) and fund rows (edition_id set,
- * no report, no user actor — the writer is the service-role edge function; 'publish_plan'
- * alone carries a real actor, being the only fund action a member takes themselves).
+ * Append-only audit row (admin-read). Mirrors supabase audit_log, which holds three shapes:
+ * moderation rows (report_id + actor_id set), fund rows since #219 (edition_id set, no
+ * report, no user actor — the writer is the service-role edge function; 'publish_plan'
+ * alone carries a real actor, being the only fund action a member takes themselves), and
+ * content rows since #788 (target_type + target_id + actor set, report optional — a comment
+ * or an email report has none).
  *
- * The refinement is `audit_log_fund_shape` in TypeScript. Without it this schema accepted
- * `{ action: 'declare_winner', report_id: <uuid> }` — a row the database has never been
- * able to hold.
+ * The refinements are `audit_log_fund_shape` and the two content CHECKs in TypeScript.
+ * Without the first this schema accepted `{ action: 'declare_winner', report_id: <uuid> }` —
+ * a row the database has never been able to hold.
  */
 export const auditLogRow = z
   .object({
@@ -125,6 +169,8 @@ export const auditLogRow = z
     created_at: z.string(),
     edition_id: z.string().uuid().nullable(),
     candidacy_id: z.string().uuid().nullable(),
+    target_type: takedownTargetType.nullable(),
+    target_id: z.string().uuid().nullable(),
   })
   .refine(
     (r) =>
@@ -133,6 +179,23 @@ export const auditLogRow = z
     {
       message: 'a fund action carries an edition and neither a report nor penalty points',
       path: ['edition_id'],
+    },
+  )
+  // `audit_log_content_shape` and `audit_log_target_only_on_content`, as one biconditional:
+  // a content action names its target and an actor and carries no edition and no points,
+  // and no other action names a content target.
+  .refine(
+    (r) =>
+      CONTENT_ACTIONS.has(r.action)
+        ? r.target_type !== null &&
+          r.target_id !== null &&
+          r.actor_id !== null &&
+          r.edition_id === null &&
+          r.penalty_points === null
+        : r.target_type === null && r.target_id === null,
+    {
+      message: 'a content action names its target and actor; no other action names a target',
+      path: ['target_id'],
     },
   );
 export type AuditLogRow = z.infer<typeof auditLogRow>;
@@ -161,7 +224,8 @@ export type AdminReportRow = z.infer<typeof adminReportRow>;
  * `profiles_select_authenticated`, whose symmetric `athanor.not_blocked` nulls every one of
  * them when the admin and the party are a blocked pair. They now come through a DEFINER
  * channel scoped to exactly this projection — `subject_handle` is the person a verdict lands
- * on (a person target, a message's sender), null for a post or behaviour report.
+ * on (a person target, a behaviour report's named profile, a message's sender, a post's
+ * author — `resolve_report` v6's subject, #788), null when that does not resolve.
  * `reporter_handle` is nullable because `profiles.handle` is, not because the join can miss.
  */
 export const adminReportHandlesRow = z.object({

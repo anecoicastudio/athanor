@@ -7,7 +7,9 @@ import {
   adminReportHandlesRow,
   adminReportRow,
   auditLogRow,
+  purgePostMediaInput,
   resolveReportInput,
+  takedownInput,
 } from './admin.ts';
 import { REPORT_TARGET_TYPES } from './report.ts';
 
@@ -140,6 +142,8 @@ describe('auditLogRow', () => {
     penalty_points: null,
     reason: null,
     created_at: new Date().toISOString(),
+    target_type: null,
+    target_id: null,
   };
   const moderation = {
     ...base,
@@ -182,6 +186,8 @@ describe('auditLogRow', () => {
       'rollover_cycle',
       'publish_plan',
       'verify_phase',
+      'takedown',
+      'purge_media',
     ]);
   });
 
@@ -233,6 +239,73 @@ describe('auditLogRow', () => {
     expect(auditLogRow.safeParse({ ...moderation, edition_id: crypto.randomUUID() }).success).toBe(
       true,
     );
+  });
+
+  // #788 — the content shape, both CHECKs. Each rejection drops one conjunct.
+  const content = {
+    ...moderation,
+    action: 'takedown',
+    target_type: 'post',
+    target_id: crypto.randomUUID(),
+  };
+  it('accepts a takedown row with a report, and one without (a comment, an email report)', () => {
+    expect(auditLogRow.parse(content).target_type).toBe('post');
+    expect(auditLogRow.parse({ ...content, report_id: null }).report_id).toBeNull();
+    expect(auditLogRow.parse({ ...content, action: 'purge_media' }).action).toBe('purge_media');
+  });
+  it('rejects a content row missing its target type, its target id or its actor', () => {
+    for (const hole of [{ target_type: null }, { target_id: null }, { actor_id: null }]) {
+      const r = auditLogRow.safeParse({ ...content, ...hole });
+      expect(r.success, JSON.stringify(hole)).toBe(false);
+      expect(r.error?.issues[0]?.path).toEqual(['target_id']);
+    }
+  });
+  it('rejects a content row carrying an edition or penalty points', () => {
+    expect(auditLogRow.safeParse({ ...content, edition_id: crypto.randomUUID() }).success).toBe(
+      false,
+    );
+    expect(auditLogRow.safeParse({ ...content, penalty_points: -50 }).success).toBe(false);
+  });
+  it('rejects a verdict or fund row that names a content target', () => {
+    expect(auditLogRow.safeParse({ ...moderation, target_type: 'post' }).success).toBe(false);
+    expect(auditLogRow.safeParse({ ...fund, target_id: crypto.randomUUID() }).success).toBe(false);
+  });
+  it('rejects a target type no takedown acts on', () => {
+    expect(auditLogRow.safeParse({ ...content, target_type: 'person' }).success).toBe(false);
+  });
+});
+
+describe('takedownInput / purgePostMediaInput (#788)', () => {
+  const id = crypto.randomUUID();
+  it('takes each target type, with or without a report', () => {
+    for (const targetType of ['post', 'comment', 'message'] as const) {
+      expect(takedownInput.parse({ targetType, targetId: id, reason: ' motivo ' }).reason).toBe(
+        'motivo',
+      );
+    }
+    expect(
+      takedownInput.parse({ targetType: 'post', targetId: id, reason: 'x', reportId: id }).reportId,
+    ).toBe(id);
+  });
+  it('refuses a blank reason, a bad id and an unknown target', () => {
+    expect(
+      takedownInput.safeParse({ targetType: 'post', targetId: id, reason: '  ' }).success,
+    ).toBe(false);
+    expect(
+      takedownInput.safeParse({ targetType: 'post', targetId: 'x', reason: 'r' }).success,
+    ).toBe(false);
+    expect(
+      takedownInput.safeParse({ targetType: 'person', targetId: id, reason: 'r' }).success,
+    ).toBe(false);
+    expect(
+      takedownInput.safeParse({ targetType: 'post', targetId: id, reason: 'r', reportId: 'x' })
+        .success,
+    ).toBe(false);
+  });
+  it('purge takes a post id and a reason, nothing blank', () => {
+    expect(purgePostMediaInput.parse({ postId: id, reason: 'fatto' }).postId).toBe(id);
+    expect(purgePostMediaInput.safeParse({ postId: id, reason: '' }).success).toBe(false);
+    expect(purgePostMediaInput.safeParse({ postId: 'nope', reason: 'r' }).success).toBe(false);
   });
 });
 

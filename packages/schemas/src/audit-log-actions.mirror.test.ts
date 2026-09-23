@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AUDIT_LOG_ACTIONS, AUDIT_LOG_FUND_ACTIONS } from './admin.ts';
+import { AUDIT_LOG_ACTIONS, AUDIT_LOG_CONTENT_ACTIONS, AUDIT_LOG_FUND_ACTIONS } from './admin.ts';
 
 /**
  * `admin.ts` says its audit-log vocabulary mirrors two CHECK constraints, and until this
@@ -80,5 +80,21 @@ describe('audit_log_fund_shape mirrors AUDIT_LOG_FUND_ACTIONS', () => {
     expect(currentConstraint('audit_log_fund_shape')).toMatch(
       /edition_id is not null and report_id is null and penalty_points is null/,
     );
+  });
+});
+
+describe('the content CHECKs mirror AUDIT_LOG_CONTENT_ACTIONS (#788)', () => {
+  it('audit_log_content_shape names exactly the content half, and demands the shape', () => {
+    const body = currentConstraint('audit_log_content_shape');
+    expect(actionList(body)).toEqual([...AUDIT_LOG_CONTENT_ACTIONS]);
+    expect(body).toMatch(
+      /target_type is not null and target_id is not null and actor_id is not null\s+and edition_id is null and penalty_points is null/,
+    );
+  });
+
+  it('audit_log_target_only_on_content names the same half, and nulls the target elsewhere', () => {
+    const body = currentConstraint('audit_log_target_only_on_content');
+    expect(actionList(body)).toEqual([...AUDIT_LOG_CONTENT_ACTIONS]);
+    expect(body).toMatch(/target_type is null and target_id is null/);
   });
 });

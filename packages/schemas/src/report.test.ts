@@ -95,7 +95,7 @@ describe('report schemas', () => {
     });
   });
 
-  it('exposes the seven PRD §4.13 reason categories', () => {
+  it('exposes the seven PRD §4.13 reason categories plus child_safety (#788)', () => {
     expect(REPORT_CATEGORIES).toEqual([
       'selling',
       'income',
@@ -103,7 +103,14 @@ describe('report schemas', () => {
       'harassment',
       'spam',
       'impersonation',
+      'child_safety',
       'other',
     ]);
+  });
+
+  it('accepts a child_safety report and still refuses an unknown reason', () => {
+    const base = { targetType: 'post', targetId: '00000000-0000-4000-8000-000000000001' } as const;
+    expect(reportInput.safeParse({ ...base, category: 'child_safety' }).success).toBe(true);
+    expect(reportInput.safeParse({ ...base, category: 'csam' }).success).toBe(false);
   });
 });
