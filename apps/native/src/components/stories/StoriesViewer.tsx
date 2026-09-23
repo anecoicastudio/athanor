@@ -7,7 +7,7 @@ import { Pressable, SafeAreaView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
-import { useKeyboardInset } from '@/hooks/use-keyboard-inset';
+import { keyboardCoversBottomInset, useKeyboardInset } from '@/hooks/use-keyboard-inset';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
@@ -297,9 +297,11 @@ export function StoriesViewer({
         />
 
         {/* Physical `pl-5 pr-5`, not `px-5` (#748): on native `px-*` compiles to the logical
-            inline-start/end pair, which this SafeAreaView drops — the caption sat on the edge. */}
+            inline-start/end pair, which this SafeAreaView drops — the caption sat on the edge.
+            The bottom edge goes while the keyboard lifts the chrome on iOS, where its height
+            already spans the home indicator (#765, `keyboardCoversBottomInset`). */}
         <SafeAreaView
-          edges={['bottom']}
+          edges={keyboardInset > 0 && keyboardCoversBottomInset ? [] : ['bottom']}
           className="gap-3 bg-background/70 pb-3 pl-5 pr-5 pt-3"
           onLayout={(e) => onChromeHeight?.(e.nativeEvent.layout.height)}
         >
