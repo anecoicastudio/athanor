@@ -83,9 +83,11 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   /**
    * «Localizzazione approssimativa» (#783). Only `on` lets this panel ask the OS for anything:
    * `off` renders the switch-off state below, and `unknown` (the consent records still loading)
-   * waits — no permission prompt, no fix, no events_nearby() call.
+   * waits — no permission prompt, no fix, no events_nearby() call; a failed read of it offers the
+   * panel's retry rather than waiting forever.
    */
-  const locationConsent = useLocationConsent();
+  const consent = useLocationConsent();
+  const locationConsent = consent.state;
 
   // Never rejects: both callers fire it as `void requestLocation()` (the consent effect + the
   // retry button).
@@ -193,6 +195,11 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
       </SectionLabel>
     </View>
   );
+
+  // The consent read failed: still no position (fail closed), but a way back (#783).
+  if (consent.failed && locationConsent === 'unknown') {
+    return <PanelError locale={locale} onRetry={consent.retry} />;
+  }
 
   // The switch is off (#783): say so and route to it. Nothing above ran — no prompt, no fix.
   if (locationConsent === 'off') {

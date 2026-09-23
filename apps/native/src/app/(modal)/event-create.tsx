@@ -109,7 +109,8 @@ export default function EventCreateScreen() {
    * Off, the event's point comes from the typed venue alone — the OS geocoder reads no position,
    * though on Android it still needs the OS grant (see geocodeVenue).
    */
-  const locationConsent = useLocationConsent();
+  // A failed consent read stays `unknown`: the pill stays hidden and the typed venue still works.
+  const locationConsent = useLocationConsent().state;
   /**
    * What the organiser PICKED, and what the form actually IS — two different things since #806,
    * because the rail can close while this sheet is open (a 60s refetch, or a flag flipped
