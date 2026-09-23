@@ -22,6 +22,7 @@ import { nextOnboardingStep } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/ToastHost';
+import { FontScaleProvider } from '@/tw/font-scale';
 import { BrandSplash } from '@/components/boot/BrandSplash';
 import { AppErrorScreen } from '@/components/boot/AppErrorScreen';
 import { BootGate } from '@/components/boot/BootGate';
@@ -203,43 +204,47 @@ function RootLayout() {
     // navigator, so this one exists for the trees OUTSIDE it (BrandSplash, ProfileErrorScreen)
     // and to kill the first-frame inset flash via initialWindowMetrics.
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AuthProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{
-            persister: asyncStoragePersister,
-            dehydrateOptions: { shouldDehydrateQuery },
-          }}
-        >
-          <StatusBar style="light" />
-          {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
-          <SentryConsentGate />
-          {/* Reads back the previous run's durable step trail, marks this run's lifecycle (no UI). */}
-          <CrashTrailGate />
-          {/* Toast state lives above the router (#117); the pill renders inside the
+      {/* The live text size every src/tw Text keys on (#754) — outermost, so BrandSplash and
+        every modal reflow too. */}
+      <FontScaleProvider>
+        <AuthProvider>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{
+              persister: asyncStoragePersister,
+              dehydrateOptions: { shouldDehydrateQuery },
+            }}
+          >
+            <StatusBar style="light" />
+            {/* Drives the Sentry egress gate from the user's diagnostics consent (no UI). */}
+            <SentryConsentGate />
+            {/* Reads back the previous run's durable step trail, marks this run's lifecycle (no UI). */}
+            <CrashTrailGate />
+            {/* Toast state lives above the router (#117); the pill renders inside the
             focused Screen's viewport — a root-level mount would sit under (modal)'s
             native modal layer. */}
-          <ToastProvider>
-            <BootGate>
-              <AuthGuard>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: semantic.background },
-                  }}
-                >
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(onboarding)" />
-                  <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
-                </Stack>
-              </AuthGuard>
-            </BootGate>
-          </ToastProvider>
-          {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
-          {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
-        </PersistQueryClientProvider>
-      </AuthProvider>
+            <ToastProvider>
+              <BootGate>
+                <AuthGuard>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      contentStyle: { backgroundColor: semantic.background },
+                    }}
+                  >
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(onboarding)" />
+                    <Stack.Screen name="(modal)" options={{ presentation: 'modal' }} />
+                  </Stack>
+                </AuthGuard>
+              </BootGate>
+            </ToastProvider>
+            {/* Branded brand-beat over the native splash hand-off (prototype §9). */}
+            {!splashDone ? <BrandSplash onDone={() => setSplashDone(true)} /> : null}
+          </PersistQueryClientProvider>
+        </AuthProvider>
+      </FontScaleProvider>
     </SafeAreaProvider>
   );
 }
