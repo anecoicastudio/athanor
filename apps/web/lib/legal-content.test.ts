@@ -483,7 +483,7 @@ describe('childSafety', () => {
       'tabs.profile',
       'settings.section.privacy',
       'report.behavior.row',
-      'report.reason.other',
+      'report.reason.child_safety',
       'report.cta',
     ] as const) {
       expect(steps, key).toContain(quote(loc, t(key, loc)));
@@ -512,13 +512,20 @@ describe('childSafety', () => {
     for (const clause of clauses) expect(body(loc, 'report')).toContain(clause);
   });
 
-  it('points at «Altro» only while no report reason is about children', () => {
-    // The page tells people there is no dedicated reason. A child-safety category (the optional
-    // follow-up on #779) makes that false, and this goes red so the page names it instead.
-    for (const category of REPORT_CATEGORIES) {
-      expect(t(`report.reason.${category}`, 'en'), category).not.toMatch(/child|minor/i);
-      expect(t(`report.reason.${category}`, 'it'), category).not.toMatch(/minor|bambin/i);
-    }
+  it.each(locales)('%s names the child-safety reason, never «Altro» (#788)', (loc) => {
+    // Until #788 the page sent people to «Altro» plus a note, because no reason was about
+    // children. There is one now, and pointing at «Altro» would route a CSAM report around the
+    // queue's triage. The old guard went red on purpose when the reason landed; this is its
+    // replacement, and it fails the other way if the page drifts back.
+    expect(body(loc, 'report')).toContain(quote(loc, t('report.reason.child_safety', loc)));
+    expect(body(loc, 'report')).not.toContain(quote(loc, t('report.reason.other', loc)));
+  });
+
+  it('has exactly one report reason about children, and it is child_safety', () => {
+    const about = (category: (typeof REPORT_CATEGORIES)[number]) =>
+      /child|minor/i.test(t(`report.reason.${category}`, 'en')) &&
+      /minor|bambin/i.test(t(`report.reason.${category}`, 'it'));
+    expect(REPORT_CATEGORIES.filter(about)).toEqual(['child_safety']);
   });
 
   it.each(locales)("%s publishes one address — the controller's, as a mailto", (loc) => {

@@ -11,7 +11,8 @@
 --   (E) the bytes stop being servable the moment the row goes (post-media and chat-media);
 --   (F) admin_purge_post_media — refuses a live post, releases a taken-down one, and the
 --       path-keyed hide survives the purge;
---   (G) audit_log's content shape holds in the table, not only in the functions.
+--   (G) audit_log's content shape holds in the table, not only in the functions;
+--   (H) the takedown sticks — 20260923063705 stops the author clearing deleted_at on it.
 --
 -- Fixture topology. ADMIN holds app_metadata.role = 'admin'. AUTHOR writes post P1 (one image
 -- + a comment K1) and sends RECIPIENT a text message M0-reply and an image message M1.
@@ -21,7 +22,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(68);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
 values
@@ -390,6 +391,42 @@ select is(
      and name = 'a1550000-0000-4000-8000-000000000002/b1550000-0000-4000-8000-000000000001/0.jpg'),
   0, 'F8 the hide survives the purge — keyed on the post, not on the rows the purge deleted');
 reset role;
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- (H) the takedown sticks (20260923063705) — the author cannot clear deleted_at on it
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- AUTHOR is not banned (D13 was a warn), so posts_update_own / post_comments_update_own admit
+-- the UPDATE: only the guard stands between the author and an undo.
+insert into public.posts (id, author_id, category, body, deleted_at) values
+  ('b1550000-0000-4000-8000-000000000003','a1550000-0000-4000-8000-000000000002','human','cancellato da me', now());
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1550000-0000-4000-8000-000000000002","role":"authenticated"}';
+select throws_ok(
+  $$ update public.posts set deleted_at = null where id = 'b1550000-0000-4000-8000-000000000001' $$,
+  '42501', null, 'H1 the author cannot restore a post moderation took down');
+-- A deleted comment is already invisible to its author (post_comments_select_authenticated
+-- requires deleted_at is null), so the UPDATE matches no row and the guard is the second wall,
+-- not the first. Asserted as what the author gets: nothing restored.
+select is_empty(
+  $$ update public.post_comments set deleted_at = null
+      where id = 'c1550000-0000-4000-8000-000000000001' returning id $$,
+  'H2 …nor a comment (it matches no row: the author cannot even see it)');
+select lives_ok(
+  $$ update public.posts set deleted_at = null where id = 'b1550000-0000-4000-8000-000000000003' $$,
+  'H3 the author''s OWN soft delete stays reversible — the guard keys on the takedown record');
+reset role;
+select is(
+  (select count(*)::int from public.posts
+    where id = 'b1550000-0000-4000-8000-000000000003' and deleted_at is null),
+  1, 'H4 …and the restore took (the guard did not swallow it)');
+set local role service_role;
+select lives_ok(
+  $$ update public.posts set deleted_at = null where id = 'b1550000-0000-4000-8000-000000000001' $$,
+  'H5 the service role passes (refresh-staging, an operator reversing a mistake)');
+reset role;
+select is(
+  has_function_privilege('authenticated', 'athanor.guard_takedown_undelete()', 'execute'),
+  false, 'H6 the trigger function is not callable by a client role (#409)');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (G) the content shape, in the table
