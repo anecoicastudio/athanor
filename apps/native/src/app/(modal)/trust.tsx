@@ -28,13 +28,14 @@ import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { LOCATION_CONSENT_DEFAULT } from '@/lib/location-consent';
 import { Screen } from '@/components/Screen';
 
 /**
  * Trust & safety (M9 §3.1 + §3.5.3). Quote (the one cyan statement) · read-only Identity card
  * (status from profiles.identity_verified — the live verify flow is the identity-verify slice) ·
- * Privacy/GDPR toggles (approximate-location consent, comms consent, locked «non venduti»
- * statement) · Ethical-moderation section + «Segnala un comportamento» (→ existing report sheet).
+ * Privacy/GDPR toggles (approximate-location consent, locked «non venduti» statement, diagnostics
+ * consent — there is no comms switch: no marketing mail exists to gate, #783) · Ethical-moderation section + «Segnala un comportamento» (→ existing report sheet).
  * Neutral chrome — no glow (rule #4). Optimistic consent toggles; zero hardcoded strings (rule #5).
  */
 export default function TrustScreen() {
@@ -45,7 +46,8 @@ export default function TrustScreen() {
   const qc = useQueryClient();
   const { showToast } = useToast();
 
-  // Consent records (RLS-own). Absent row → default per kind (location ON, comms OFF).
+  // Consent records (RLS-own). Absent row → default per kind (location ON, diagnostics OFF). A
+  // stored `comms` row from before #783 is still parsed and never read: the switch is gone.
   const consents = useQuery({
     queryKey: gdprKeys.consent(profile?.id ?? ''),
     queryFn: () => getConsents(supabase),
@@ -202,7 +204,8 @@ export default function TrustScreen() {
               <Text className="text-xl text-muted-foreground">›</Text>
             </Pressable>
 
-            {/* approximate-location consent (default ON) */}
+            {/* approximate-location consent (default ON) — gates every device-position read
+                (useLocationConsent: VicinoPanel, event-create), #783 */}
             <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
               <View className="flex-1 gap-0.5">
                 <Text className="text-base text-foreground">
@@ -214,7 +217,7 @@ export default function TrustScreen() {
               </View>
               <Switch
                 accessibilityLabel={t('gdpr.location.label', locale)}
-                value={grantedFor('location_approx', true)}
+                value={grantedFor('location_approx', LOCATION_CONSENT_DEFAULT)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
                 trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
                 thumbColor={semantic.foreground}
@@ -243,27 +246,12 @@ export default function TrustScreen() {
           </View>
         </View>
 
-        {/* Consent management (§3.5.3) — comms opt-in (default OFF) */}
+        {/* Consent management (§3.5.3) — diagnostics opt-in (default OFF) */}
         <View className="gap-2 px-5">
           <SectionLabel tone="muted">{t('gdpr.consent.section', locale)}</SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
-            <View className="flex-row items-center gap-4 border-b border-hair px-5 py-4">
-              <View className="flex-1 gap-0.5">
-                <Text className="text-base text-foreground">{t('gdpr.consent.comms', locale)}</Text>
-                <Text className="text-[13px] leading-snug text-muted-foreground">
-                  {t('gdpr.consent.commsDesc', locale)}
-                </Text>
-              </View>
-              <Switch
-                accessibilityLabel={t('gdpr.consent.comms', locale)}
-                value={grantedFor('comms', false)}
-                onValueChange={(v) => setConsentMut.mutate({ kind: 'comms', granted: v })}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
-              />
-            </View>
-
-            {/* Diagnostics (crash reports) — default OFF; gates Sentry egress (P1.4 / B-5). */}
+            {/* Diagnostics — default OFF; gates Sentry egress (P1.4 / B-5): SentryConsentGate
+                inits the SDK only once this is on and closes it, native side included, when off. */}
             <View className="flex-row items-center gap-4 px-5 py-4">
               <View className="flex-1 gap-0.5">
                 <Text className="text-base text-foreground">

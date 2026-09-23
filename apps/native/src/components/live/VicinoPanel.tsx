@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
   type NearbyCursor,
@@ -8,7 +9,7 @@ import {
   getEventsNearby,
   registerAthanorDaysInterest,
 } from '@athanor/api';
-import { metersToKm, snapToEventGrid } from '@athanor/core';
+import { NEARBY_RADIUS_KM, metersToKm, snapToEventGrid } from '@athanor/core';
 import { type Locale, t } from '@athanor/i18n';
 import type { EventNearby } from '@athanor/schemas';
 import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
@@ -16,6 +17,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
+import { useLocationConsent } from '@/hooks/use-location-consent';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
 import { toStatus } from '@/lib/media/permission-status';
@@ -77,9 +79,18 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
   const [notified, setNotified] = useState(false);
   const { showToast } = useToast();
   const { session } = useAuth();
+  const router = useRouter();
+  /**
+   * «Localizzazione approssimativa» (#783). Only `on` lets this panel ask the OS for anything:
+   * `off` renders the switch-off state below, and `unknown` (the consent records still loading)
+   * waits — no permission prompt, no fix, no events_nearby() call.
+   */
+  const locationConsent = useLocationConsent();
 
-  // Never rejects: both callers fire it as `void requestLocation()` (mount + the retry button).
+  // Never rejects: both callers fire it as `void requestLocation()` (the consent effect + the
+  // retry button).
   const requestLocation = async () => {
+    if (locationConsent !== 'on') return;
     let pos: Location.LocationObject;
     try {
       const res = await Location.requestForegroundPermissionsAsync();
@@ -117,27 +128,40 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
     }
   };
 
-  // Ask the OS for a fix once, on mount. Two directives, two different reasons:
+  // Ask the OS for a fix once the switch is known to be on — on mount when the consent records
+  // are already cached, later when they land, and again after the member turns the switch back
+  // on (`asked` resets on `off`). Two directives, two different reasons:
   //
   // - `set-state-in-effect`: every `setState` inside `requestLocation` sits behind an `await` on
   //   a native permissions or geolocation call, so none of them runs synchronously in this
   //   effect body — the compiler does not model the async boundary and reads the call as if
   //   they did (#691). There is nothing to derive here; asking an external system is the job.
   // - `exhaustive-deps`: `requestLocation` is rebuilt every render and closes over `locale`, so
-  //   listing it would re-prompt for the member's position on a language switch. Mount only.
+  //   listing it would re-prompt for the member's position on a language switch. Consent only.
+  const asked = useRef(false);
   useEffect(() => {
+    if (locationConsent === 'off') asked.current = false;
+    if (locationConsent !== 'on' || asked.current) return;
+    asked.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void requestLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locationConsent]);
 
   const query = useInfiniteQuery({
-    queryKey: eventKeys.nearby(coords?.lat ?? 0, coords?.lng ?? 0, 50),
+    queryKey: eventKeys.nearby(coords?.lat ?? 0, coords?.lng ?? 0, NEARBY_RADIUS_KM),
     queryFn: ({ pageParam }) =>
-      getEventsNearby(supabase, coords!.lat, coords!.lng, 50, pageParam as NearbyCursor | null),
+      getEventsNearby(
+        supabase,
+        coords!.lat,
+        coords!.lng,
+        NEARBY_RADIUS_KM,
+        pageParam as NearbyCursor | null,
+      ),
     initialPageParam: null as NearbyCursor | null,
     getNextPageParam: (last) => last.nextCursor,
-    enabled: !!coords,
+    // A fix taken before the switch went off is never sent after it (#783).
+    enabled: !!coords && locationConsent === 'on',
   });
 
   const onNotify = async () => {
@@ -163,10 +187,36 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
           heading — the same shape as `CalendarPanel`'s month. The card above it is a separate
           block with a title of its own. */}
       <SectionLabel heading>
-        {city ? t('live.vicino.section', locale, { city }) : t('live.vicino.sectionNoCity', locale)}
+        {city && locationConsent === 'on'
+          ? t('live.vicino.section', locale, { city })
+          : t('live.vicino.sectionNoCity', locale)}
       </SectionLabel>
     </View>
   );
+
+  // The switch is off (#783): say so and route to it. Nothing above ran — no prompt, no fix.
+  if (locationConsent === 'off') {
+    return (
+      <View className="flex-1">
+        <ScrollView contentContainerClassName="pb-12">
+          {header}
+          <View className="items-center px-5 pt-8">
+            <EmptyState
+              body={t('live.vicino.locationOffBody', locale, {
+                place: t('settings.trust.title', locale),
+              })}
+              action={{
+                label: t('settings.trust.title', locale),
+                onPress: () => router.push('/(modal)/trust'),
+              }}
+            >
+              {t('live.vicino.locationOff', locale)}
+            </EmptyState>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (refusal) {
     const blocked = refusal === 'blocked';

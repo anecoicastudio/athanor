@@ -2,6 +2,7 @@ import {
   DECAY,
   HANDLE_RENAME_COOLDOWN_DAYS,
   MIN_MEMBER_AGE,
+  NEARBY_RADIUS_KM,
   REACTION_AUTHOR_MIN_SCORE,
   SCORE_MAX,
   SCORE_MIN,
@@ -140,10 +141,10 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: la posizione",
         body: [
-          `L'app usa la posizione del telefono solo se glielo permetti nelle impostazioni del telefono, e solo mentre la stai usando: mai in background. Conta solo quel permesso: l'interruttore «${tIt('gdpr.location.label')}» in «${tIt('settings.trust.title')}» non la attiva né la spegne. Chiede al telefono la posizione meno precisa che offre, e su Android ha solo il permesso per la posizione approssimativa. Prima che la posizione lasci il telefono la arrotondiamo a una griglia di riquadri di circa 2–3 chilometri di lato. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google, partendo dalla posizione arrotondata.`,
-          `In «${tIt('live.tab.vicino')}» la usiamo, arrotondata, per trovare gli eventi nel raggio di 50 chilometri: arriva ai nostri server per la ricerca, ma non la salviamo.`,
-          "Per creare un evento dal vivo scrivi il luogo e la città: per trovarli li mandiamo al servizio di localizzazione del telefono, di Apple o di Google, e il punto che ci restituisce lo arrotondiamo alla stessa griglia. Al posto del luogo puoi scegliere la tua posizione, arrotondata allo stesso modo. Il punto resta salvato con l'evento e indica una zona di qualche chilometro, non un indirizzo. Può leggerlo solo chi ha un account Athanor, e nell'app si vede come distanza dall'evento; la pagina pubblica dell'evento non lo mostra.",
-          'La città del tuo profilo invece la scrivi tu. Puoi negare o revocare il permesso quando vuoi, dalle impostazioni del telefono: senza, non vedi gli eventi vicini, e un evento dal vivo lo crei solo dal luogo che scrivi (su Android il permesso serve anche per cercarlo). Non tracciamo i tuoi spostamenti.',
+          `L'app usa la posizione del telefono solo se l'interruttore «${tIt('gdpr.location.label')}» in «${tIt('settings.trust.title')}» è acceso e se glielo permetti anche nelle impostazioni del telefono, e solo mentre la stai usando: mai in background. L'interruttore è acceso finché non lo spegni; spento, l'app non chiede né legge la posizione del telefono. Chiede al telefono la posizione meno precisa che offre, e su Android ha solo il permesso per la posizione approssimativa. Prima che la posizione lasci il telefono la arrotondiamo a una griglia di riquadri di circa 2–3 chilometri di lato. Il nome della città lo chiede al servizio di localizzazione del telefono, di Apple o di Google, partendo dalla posizione arrotondata.`,
+          `In «${tIt('live.tab.vicino')}» la usiamo, arrotondata, per trovare gli eventi nel raggio di ${NEARBY_RADIUS_KM} chilometri: arriva ai nostri server per la ricerca, ma non la salviamo.`,
+          "Per creare un evento dal vivo scrivi il luogo e la città: per trovarli li mandiamo al servizio di localizzazione del telefono, di Apple o di Google, e il punto che ci restituisce lo arrotondiamo alla stessa griglia. Al posto del luogo, se l'interruttore è acceso, puoi scegliere la tua posizione, arrotondata allo stesso modo. Il punto resta salvato con l'evento e indica una zona di qualche chilometro, non un indirizzo. Può leggerlo solo chi ha un account Athanor, e nell'app si vede come distanza dall'evento; la pagina pubblica dell'evento non lo mostra.",
+          'La città del tuo profilo invece la scrivi tu. Quando vuoi puoi spegnere l’interruttore, oppure negare o revocare il permesso dalle impostazioni del telefono: in entrambi i casi non vedi gli eventi vicini, e un evento dal vivo lo crei solo dal luogo che scrivi (su Android, per cercarlo serve comunque il permesso del telefono, ma la tua posizione non viene letta). Non tracciamo i tuoi spostamenti.',
         ],
       },
       {
@@ -227,7 +228,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Basi giuridiche',
         body: [
           `Trattiamo i dati dell'app per darti il servizio che chiedi iscrivendoti — account, profilo, contenuti, messaggi, eventi, biglietti, Circle, Aura e ${tIt('momenti.title')}: la base giuridica è il contratto tra te e noi. Senza questi dati l'app non può funzionare.`,
-          `Diagnostica, notifiche push e «${tIt('gdpr.consent.comms')}» si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Per ora non mandiamo email di comunicazione, anche se hai acceso quel consenso. Anche la lista d’attesa del sito si basa sul tuo consenso.`,
+          'Diagnostica e notifiche push si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Anche la lista d’attesa del sito si basa sul tuo consenso.',
           `Segnalazioni, blocchi, moderazione e protezione dagli abusi, come i log tecnici e il cookie della lingua sul sito, si basano sul nostro legittimo interesse a tenere ${tIt('store.name')} sicuro e funzionante. Puoi opporti in qualsiasi momento scrivendoci.`,
           'Conserviamo i pagamenti per i nostri obblighi contabili e fiscali.',
         ],
@@ -311,10 +312,10 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: location',
         body: [
-          `The app uses your phone's location only if you allow it in your phone's settings, and only while you are using the app: never in the background. Only that permission counts: the “${tEn('gdpr.location.label')}” switch in “${tEn('settings.trust.title')}” neither turns it on nor off. It asks the phone for the least precise position it offers, and on Android it holds only the approximate-location permission. Before the position leaves your phone we round it to a grid of cells roughly 2–3 kilometres on a side. The name of the city comes from your phone's location service, Apple's or Google's, working from the rounded position.`,
-          `In “${tEn('live.tab.vicino')}” we use it, rounded, to find events within 50 kilometres: it reaches our servers for the search, but we do not store it.`,
-          "To create an in-person event you type the venue and the city: to find them we send them to your phone's location service, Apple's or Google's, and round the point it returns to the same grid. Instead of the venue you can choose your own location, rounded the same way. The point is stored with the event and marks an area a few kilometres across, not an address. Only people with an Athanor account can read it, and in the app it shows as a distance from the event; the event's public page does not show it.",
-          "The city on your profile, instead, is one you type. You can refuse or withdraw the permission at any time in your phone's settings: without it you will not see nearby events, and you can create an in-person event only from the venue you type (on Android, finding the venue needs the permission too). We do not track your movements.",
+          `The app uses your phone's location only if the “${tEn('gdpr.location.label')}” switch in “${tEn('settings.trust.title')}” is on and you also allow it in your phone's settings, and only while you are using the app: never in the background. The switch is on until you turn it off; when it is off, the app neither asks for nor reads your phone's location. It asks the phone for the least precise position it offers, and on Android it holds only the approximate-location permission. Before the position leaves your phone we round it to a grid of cells roughly 2–3 kilometres on a side. The name of the city comes from your phone's location service, Apple's or Google's, working from the rounded position.`,
+          `In “${tEn('live.tab.vicino')}” we use it, rounded, to find events within ${NEARBY_RADIUS_KM} kilometres: it reaches our servers for the search, but we do not store it.`,
+          "To create an in-person event you type the venue and the city: to find them we send them to your phone's location service, Apple's or Google's, and round the point it returns to the same grid. Instead of the venue, if the switch is on, you can choose your own location, rounded the same way. The point is stored with the event and marks an area a few kilometres across, not an address. Only people with an Athanor account can read it, and in the app it shows as a distance from the event; the event's public page does not show it.",
+          "The city on your profile, instead, is one you type. At any time you can turn the switch off, or refuse or withdraw the permission in your phone's settings: either way you will not see nearby events, and you can create an in-person event only from the venue you type (on Android, finding the venue still needs the phone's permission, but your position is not read). We do not track your movements.",
         ],
       },
       {
@@ -398,7 +399,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Legal bases',
         body: [
           `We process app data to give you the service you ask for when you join — account, profile, content, messages, events, tickets, Circle, Aura and ${tEn('momenti.title')}: the legal basis is the contract between you and us. Without this data the app cannot work.`,
-          `Diagnostics, push notifications and “${tEn('gdpr.consent.comms')}” rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. For now we send no update emails, even if you turned that consent on. The site's waitlist rests on your consent too.`,
+          "Diagnostics and push notifications rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. The site's waitlist rests on your consent too.",
           `Reports, blocks, moderation and protection against abuse, like the site's technical logs and language cookie, rest on our legitimate interest in keeping ${tEn('store.name')} safe and working. You can object at any time by writing to us.`,
           'We keep payments for our accounting and tax obligations.',
         ],

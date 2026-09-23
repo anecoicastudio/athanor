@@ -1,3 +1,4 @@
+import { NEARBY_RADIUS_KM } from '@athanor/core';
 import {
   type Attendance,
   type CheckInResult,
@@ -209,7 +210,7 @@ export async function getEventsNearby(
   client: AthanorClient,
   lat: number,
   lng: number,
-  radiusKm = 50,
+  radiusKm = NEARBY_RADIUS_KM,
   cursor?: NearbyCursor | null,
   limit = PAGE_SIZE,
 ): Promise<NearbyPage> {
