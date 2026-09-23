@@ -346,8 +346,8 @@ describe('privacy', () => {
     );
     expect(text).toContain(
       loc === 'it'
-        ? "spento, l'app non chiede né legge la posizione del telefono"
-        : "when it is off, the app neither asks for nor reads your phone's location",
+        ? "spento, l'app non legge mai la posizione del telefono"
+        : "when it is off, the app never reads your phone's location",
     );
   });
 

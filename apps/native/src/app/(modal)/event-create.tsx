@@ -255,7 +255,12 @@ export default function EventCreateScreen() {
   // A point arriving answers the «Scrivi luogo e città…» refusal, and only that one: any other
   // error is about a different field and stays until the next submit re-checks it.
   const clearLocationError = () =>
-    setError((current) => (current === t('event.create.locationNeeded', locale) ? null : current));
+    setError((current) =>
+      current === t('event.create.locationNeeded', locale) ||
+      current === t('event.create.locationNeededVenueOnly', locale)
+        ? null
+        : current,
+    );
 
   const requestMyLocation = async () => {
     if (locationConsent !== 'on') return;
@@ -484,7 +489,13 @@ export default function EventCreateScreen() {
           : shouldLookUpVenue(query, venuePoint, lookup)
             ? await lookUpVenue(query)
             : null);
-    if (!at) return setError(t('event.create.locationNeeded', locale));
+    // #783: with the switch off there is no «Usa la mia posizione» to point at.
+    if (!at)
+      return setError(
+        locationConsent === 'on'
+          ? t('event.create.locationNeeded', locale)
+          : t('event.create.locationNeededVenueOnly', locale),
+      );
     mutation.mutate(at);
   };
 
@@ -631,9 +642,15 @@ export default function EventCreateScreen() {
                       : pointStatus === 'looking'
                         ? t('event.create.point.looking', locale)
                         : pointStatus === 'notFound'
-                          ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                          ? locationConsent === 'on'
+                            ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                            : t('event.create.point.notFoundVenueOnly', locale, {
+                                place: query ?? '',
+                              })
                           : pointStatus === 'failed'
-                            ? t('event.create.point.failed', locale)
+                            ? locationConsent === 'on'
+                              ? t('event.create.point.failed', locale)
+                              : t('event.create.point.failedVenueOnly', locale)
                             : t('event.create.point.hint', locale)}
                 </Text>
               </View>
