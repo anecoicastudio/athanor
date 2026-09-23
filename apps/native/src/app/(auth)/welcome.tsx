@@ -266,9 +266,11 @@ export default function WelcomeScreen() {
     // The stash is kept in BOTH modes (#795), unlike the email sign-in branch above. OAuth
     // cannot tell a signup from a sign-in, and the notice under these buttons (#777) tells a
     // newcomer on «Accedi» that a provider creates the account from here — clearing the stash
-    // there lost their invite. An existing member who carries a friend's code into this round
+    // there lost their invite. An established member who carries a friend's code into this round
     // trip is refused server-side: `redeem_pending_referral`'s account-age gate redeems nothing
-    // for an account older than 7 days (supabase/tests/0135, §9).
+    // for an account older than 7 days (supabase/tests/0135, §9). Inside those 7 days it does
+    // redeem — an account that young signing in here with a stashed code gets attributed. That
+    // is the gate's own limit, accepted by the #795 ruling, not something this line bounds.
     const outcome = await signInWithProvider(provider);
     setOauthBusy(null);
     if (outcome.status === 'error') {
