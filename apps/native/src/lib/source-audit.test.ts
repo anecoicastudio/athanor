@@ -4448,7 +4448,12 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
   it('no <Button> sits directly inside a `flex-1` wrapper View', () => {
     const hits = FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) => {
       const src = stripComments(read(p));
-      return [...src.matchAll(/<View\s+className="flex-1"\s*>\s*<Button\b/g)].map(
+      // `flex-1` or `flex-[N]` leading the class string, in either quoting, with or without
+      // more classes after it, and a JSX comment allowed between the cell and the Button
+      // (`stripComments` leaves its braces behind, so an empty `{ }` counts as one).
+      const cell =
+        /<View\s+className=(?:"|\{['"`])flex-(?:1|\[\d+\])(?:\s[^"'`]*)?(?:"|['"`]\})\s*>\s*(?:\{\s*(?:\/\*[\s\S]*?\*\/)?\s*\}\s*)?<Button\b/g;
+      return [...src.matchAll(cell)].map(
         (m) =>
           `${rel(p).replace('apps/native/src/', '')}:${src.slice(0, m.index).split('\n').length}`,
       );

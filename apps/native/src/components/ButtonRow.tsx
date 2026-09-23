@@ -14,13 +14,16 @@ import { View, cn } from '@/tw';
  * The one wrap left inside a pill: a lone label wider than the screen at 2× (§10), which has no
  * row to drop to. `source-audit` §43 fails a Button handed a `flex-1` cell, pointing here.
  *
+ * `max-w-full` is for react-native-web: Yoga already caps a `basis-auto` cell at the row's width,
+ * the browser does not, and an over-wide pill would otherwise run off the page there.
+ *
  * `null` / `false` children are skipped, so a conditional pill leaves no empty cell and no gap.
  */
 export function ButtonRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <View className={cn('flex-row flex-wrap gap-3', className)}>
       {Children.toArray(children).map((child, i) => (
-        <View key={i} className="shrink-0 grow basis-auto">
+        <View key={i} className="max-w-full shrink-0 grow basis-auto">
           {child}
         </View>
       ))}
