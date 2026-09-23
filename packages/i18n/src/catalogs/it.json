@@ -234,7 +234,7 @@
   "auth.error.oauthFailed": "L'accesso con {provider} non è andato a buon fine. Riprova.",
   "auth.error.suspended": "Questo account è sospeso o in cancellazione. Non puoi entrare.",
   "moderation.suspended.title": "Il tuo account è sospeso fino al {date}.",
-  "moderation.suspended.body": "In questo periodo puoi leggere, ma non scrivere o partecipare.",
+  "moderation.suspended.body": "Fino ad allora il tuo accesso è in pausa: non puoi entrare, scrivere né partecipare. La sospensione finisce da sola, a quella data.",
   "moderation.banned.title": "Il tuo account è sospeso in modo permanente.",
   "moderation.banned.body": "Non puoi più scrivere o partecipare.",
   "auth.codePlaceholder": "123456",

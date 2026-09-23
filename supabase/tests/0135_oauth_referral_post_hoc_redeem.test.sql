@@ -23,13 +23,14 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(22);
 
 -- ── seed ─────────────────────────────────────────────────────────────────────────────────
 -- Top-level, no role switch: inserting into auth.users fires on_auth_user_created, which must
 -- run with full privilege. A = inviter. B = the bug's subject: born confirmed, Google-shaped
 -- metadata (full_name, no referral_code), created now. C = unconfirmed. D = an established
--- account. E = a second new member, used for the codes that must resolve to nothing.
+-- account. E = a second new member, used for the codes that must resolve to nothing. F and G
+-- straddle the 7-day edge (7 days + 1 hour, 6 days), so the window itself is pinned, not just "old".
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at, email_confirmed_at)
 values
   ('00000000-0000-0000-0000-000000000000', 'aaaa0000-0000-0000-0000-000000000078',
@@ -43,7 +44,13 @@ values
    '{"locale":"it"}'::jsonb, now() - interval '30 days', now(), now() - interval '30 days'),
   ('00000000-0000-0000-0000-000000000000', 'eeee0000-0000-0000-0000-000000000078',
    'authenticated', 'authenticated', 'oauth_ref_e@test.athanor',
-   '{"locale":"it"}'::jsonb, now(), now(), now());
+   '{"locale":"it"}'::jsonb, now(), now(), now()),
+  ('00000000-0000-0000-0000-000000000000', 'ffff0000-0000-0000-0000-000000000078',
+   'authenticated', 'authenticated', 'oauth_ref_f@test.athanor',
+   '{"locale":"it"}'::jsonb, now() - interval '7 days 1 hour', now(), now() - interval '7 days 1 hour'),
+  ('00000000-0000-0000-0000-000000000000', '99990000-0000-0000-0000-000000000078',
+   'authenticated', 'authenticated', 'oauth_ref_g@test.athanor',
+   '{"locale":"it"}'::jsonb, now() - interval '6 days', now(), now() - interval '6 days');
 
 -- C is the unconfirmed one — email_confirmed_at omitted, not null'd, so the column default
 -- rather than an explicit write decides it.
@@ -217,6 +224,30 @@ select is(
   'an account older than the window redeems nothing (no trading codes after the fact)'
 );
 
+-- #795: the sign-in screen's OAuth path no longer clears the stash, so this gate is now the
+-- only thing between an existing member who taps «Accedi» → Google and a friend's code. Pin
+-- the window at its edge — 7 days + 1 hour refused, 6 days redeemed — so a gate widened by
+-- more than an hour, or dropped, goes red here rather than only for a 30-day account.
+set local request.jwt.claims = '{"sub":"ffff0000-0000-0000-0000-000000000078","role":"authenticated"}';
+select public.redeem_pending_referral(current_setting('test.code_a'));
+
+select is(
+  (select count(*) from public.invites where invitee_id = 'ffff0000-0000-0000-0000-000000000078')::int,
+  0,
+  'an account 7 days + 1 hour old — just past the window — redeems nothing'
+);
+
+set local request.jwt.claims = '{"sub":"99990000-0000-0000-0000-000000000078","role":"authenticated"}';
+select public.redeem_pending_referral(current_setting('test.code_a'));
+
+select is(
+  (select count(*) from public.invites
+    where inviter_id = 'aaaa0000-0000-0000-0000-000000000078'
+      and invitee_id = '99990000-0000-0000-0000-000000000078')::int,
+  1,
+  'an account 6 days old — inside the window — is still attributed'
+);
+
 reset role;
 
 -- ── 10. rule #1 — invites confer zero Aura, on this path too ─────────────────────────────
@@ -224,7 +255,8 @@ set local role service_role;
 select is(
   (select count(*)::int from public.aura_events
     where profile_id in ('aaaa0000-0000-0000-0000-000000000078',
-                         'bbbb0000-0000-0000-0000-000000000078')),
+                         'bbbb0000-0000-0000-0000-000000000078',
+                         '99990000-0000-0000-0000-000000000078')),
   0,
   'a post-hoc referral activation confers zero Aura (rule #1)'
 );

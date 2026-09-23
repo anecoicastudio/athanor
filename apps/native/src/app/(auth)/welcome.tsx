@@ -170,9 +170,10 @@ export default function WelcomeScreen() {
       // sign into an existing, unrelated account) must never attach to that account.
       // Before the call, not after it: signInWithPassword sets the session, and the
       // boot-time consumer (auth-context) spends the stash off exactly that. Clearing
-      // afterwards races it. The cost is that a mistyped password spends the stash too —
-      // the same trade the OAuth branch makes, and the screen is the reason it is the right
-      // one: the member has said they already have an account.
+      // afterwards races it. The cost is that a mistyped password spends the stash too, and
+      // the screen is the reason it is the right trade: the member has said they already have
+      // an account, and an email sign-in can never create one. The OAuth branch below differs
+      // on exactly that point and keeps the stash (#795).
       await clearPendingReferral();
       const { error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -262,16 +263,14 @@ export default function WelcomeScreen() {
     // Busy first: everything below this line awaits, and `disabled` is what stops a second tap
     // opening a second round trip.
     setOauthBusy(provider);
-    // Same move as the email sign-in branch above: on the sign-in screen the member has said
-    // they already have an account, so a stashed code must not follow them into it. That is
-    // intent, not proof — OAuth cannot tell a signup from a sign-in at all, and an existing
-    // member who arrives on the DEFAULT screen from an invite link is in signup mode and keeps
-    // the stash. What bounds that one is the RPC's account-age gate, not this line. The trade
-    // runs the other way too: the notice under these buttons (#777) tells a newcomer that a
-    // provider creates the account from here, and one who follows it loses the stash.
-    // Cleared BEFORE the round trip: exchangeCodeForSession fires onAuthStateChange while that
-    // call is still awaiting, so auth-context has already read the stash by the time it returns.
-    if (login) await clearPendingReferral();
+    // The stash is kept in BOTH modes (#795), unlike the email sign-in branch above. OAuth
+    // cannot tell a signup from a sign-in, and the notice under these buttons (#777) tells a
+    // newcomer on «Accedi» that a provider creates the account from here — clearing the stash
+    // there lost their invite. An established member who carries a friend's code into this round
+    // trip is refused server-side: `redeem_pending_referral`'s account-age gate redeems nothing
+    // for an account older than 7 days (supabase/tests/0135, §9). Inside those 7 days it does
+    // redeem — an account that young signing in here with a stashed code gets attributed. That
+    // is the gate's own limit, accepted by the #795 ruling, not something this line bounds.
     const outcome = await signInWithProvider(provider);
     setOauthBusy(null);
     if (outcome.status === 'error') {
@@ -435,12 +434,16 @@ export default function WelcomeScreen() {
                     ) : null}
 
                     {/* #777: a first sign-in with a provider CREATES the account, and OAuth
-                      cannot tell which it is — so the sign-in mode shows the notice too, here,
-                      under the buttons it is about. Not by the «Accedi» CTA: the email sign-in
-                      below creates nothing. Signup's notice stays by its own CTA. */}
-                    {login ? (
-                      <LegalNotice text={oauthNotice} locale={locale} onError={legalError} />
-                    ) : null}
+                      cannot tell which it is — so the sign-in mode shows the notice here, under
+                      the buttons it is about. Not by the «Accedi» CTA: the email sign-in below
+                      creates nothing. #795: the signup mode repeats its own notice here too —
+                      on a 667pt screen the one by «Crea account» sits below the fold, and these
+                      buttons create the account without ever reaching it. */}
+                    <LegalNotice
+                      text={login ? oauthNotice : t('auth.legal.notice', locale)}
+                      locale={locale}
+                      onError={legalError}
+                    />
                   </View>
 
                   <View className="my-6 flex-row items-center gap-3">
@@ -631,8 +634,9 @@ export default function WelcomeScreen() {
                   </Text>
                 ) : null}
                 {/* #632: the point of collection is the point of consent — GDPR-scoped
-                  product collecting a name, an email and a dream. The sign-in mode carries
-                  its own, under the provider buttons (#777): its email CTA creates nothing. */}
+                  product collecting a name, an email and a dream. Repeated under the provider
+                  buttons (#795); the sign-in mode carries only that one (#777), since its
+                  email CTA creates nothing. */}
                 {!login ? (
                   <LegalNotice
                     text={t('auth.legal.notice', locale)}
