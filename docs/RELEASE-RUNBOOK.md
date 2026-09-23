@@ -60,19 +60,19 @@
 
 > `store.description` character count must fit each store's limit (App Store ≤4000 chars, Play ≤4000 chars long desc / ≤80 chars short desc).
 
-| ID   | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S-4  | **Privacy nutrition labels (iOS) / Data safety (Android)** — declare every data type the published privacy policy declares, row by row from «Data safety and privacy labels — the data map (S-4)» below. The policy is the source of truth, not this row: the list that stood here until 2026-09-19 named four types and missed date of birth, photos and videos, voice notes, messages, diagnostics and the push token (#783). **No tracking, no data sold, no advertising or third-party analytics SDK.** In-app deletion and a web deletion page.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | Fill App Store Connect → App Privacy and Play Console → App content → Data safety from the map. B-4 is the SDK posture only: the policy also declares a consent-gated signal on every launch and an installation id, and the map declares both. Play's delete-account URL is `https://www.athanor.world/delete-account?lang=en` (#767) — the `www` host, since the apex redirects; live on production (200 and its own title, checked 2026-09-19). Why `?lang=en`: the map's last paragraph. Emailed requests: §7.7.                                                                                                                                       |
-| S-5  | **Age rating and target audience** — Athanor is **18+**: `MIN_MEMBER_AGE = 18` (`packages/core/src/profile/age.ts:8`), refused at sign-up and again by the database (`20260919114816_min_member_age_18.sql`, #778). Social networking with user-generated content, user-to-user messaging, approximate location and paid tickets to in-person events. Report and block present (M9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | The «12+/Teen» this row carried until 2026-09-19 predates the 18+ ruling. **Play → App content → Target audience and content:** select **18 and over** only, and answer that the app is not designed to appeal to children; with no age group under 13 selected, the Families policy does not apply. **Content rating** (Play's IARC questionnaire, App Store Connect's age-rating questionnaire): answer from what the app does — user-generated content, members communicate with each other, location as the S-4 map declares it — and take the rating the questionnaire returns. The 18+ floor is the Target audience answer, not a rating to aim for. |
-| S-6  | **Circle subscription IAP compliance (iOS)** — Apple requires auto-renewable IAP for digital subscriptions consumed in-app (Guideline 3.1.1). M8 ships Stripe Billing; iOS branch requires Apple IAP (StoreKit / `expo-in-app-purchases`) or the Circle CTA must be absent on iOS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `⬜ M8 follow-up` | M8 must branch by platform: Stripe Billing = Android/web; Apple IAP or no-CTA = iOS. This is not resolved in Fase 1 code; document it and do not ship a Stripe in-app subscribe button on iOS. See §5 (S-IAP-1).                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| S-7  | **Fund contributions IAP compliance (iOS)** — one-off donation to a pooled fund via Stripe Checkout in an external web sheet on iOS (external purchase link), NOT an in-app Payment Sheet. Also gated by the `fund_editions.contributions_enabled` legal gate plus the `fund_surfaces_enabled` client flag (PRD §4.11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `🔁 verify`       | Verify the M7 contribute CTA on iOS opens `expo-web-browser` / Safari checkout and never an in-app Stripe Payment Sheet. Confirm `fund_surfaces_enabled` is OFF by default in `remote_config`. See §5 (S-IAP-2).                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| S-8  | **`expo-doctor` clean** — passes after the last native dep change; `app.json` permissions, bundle IDs, version/build numbers correct; no dev-only plugin in the release profile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `🔁 verify`       | Run `pnpm exec expo-doctor` on the release build. Resolve any warnings before submission.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| S-9  | **Deep links** — `athanor://` scheme + universal/app links resolve through the auth gate for: Momento, event, post, `@handle`, invite. Associated-domains (iOS) + intent-filter / assetlinks (Android) configured.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `🔁 verify`       | Verify cold-start deep-link routing on a release build. Configure Apple App Site Association + Android assetlinks.json on the web domain.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| S-10 | **Push entitlements** — `expo-notifications` config plugin; APNs (iOS) + FCM (Android); permission prompt follows Athanor voice; entitlement present in the release build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `⬜ ops`          | Upload APNs key + FCM config to EAS secrets / build profile. Confirm `expo-notifications` plugin is active in `app.json` plugins. Android (#746): FCM V1 key on EAS for both package ids; `google-services.json` reaches a build via `GOOGLE_SERVICES_JSON`; push verified on the dev client vs staging. Owed: a production build + a production token row.                                                                                                                                                                                                                                                                                                |
-| S-11 | **Export compliance & misc metadata** — encryption export-compliance (standard HTTPS → usually exempt, declare it), support URL, marketing URL (web landing), privacy-policy URL, copyright.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `⬜ ops`          | Set in App Store Connect + Play Console. Privacy-policy URL must be live before submission.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| S-12 | **App Review Information — demo account + reviewer notes** (#84, 2026-09-03 comment; rows written 2026-09-10). A social app behind a sign-in wall with no credentials is a same-day 2.1 rejection. Needs a **production** member the reviewer can sign in as, seeded through the app so the world is not empty, and the notes below pasted verbatim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | Procedure and notes text under "App Review Information" below. Credentials live **only** in App Store Connect → App Review Information and Play Console → App content → App access — never in this file (public repo, push protection), never in mail. Prerequisite: the `apple_signin_enabled` flag ON and the Apple provider configured before submission (#79), because Google ships `const true` and 4.8 requires Apple beside it.                                                                                                                                                                                                                     |
-| S-13 | **Guideline 5.1.1(v) — in-app deletion** (#84). The path exists: Settings → «Elimina account» → type the confirm word → confirm (`(modal)/delete-account.tsx`). Since 2026-09-09 production runs `erasure-nightly` at 03:47 UTC, so the account is erased within a day and the copy says so. **#733 (`20260910130552` + `20260910132434` + `20260910134453` + `20260910140902` + `20260910142855`) bans the auth user in the same transaction as the request and closes the Data API's write half** — proven on staging 2026-09-10 by a real password sign-in and a refresh of the pre-request session, both answering `user_banned`, the sticky half by GoTrue's own admin API (a `ban_duration` of 60 s and then `none` against a member with an open request both left the column a century out; `none` cleared it only once the row was `done`), and the re-queue and Data API halves by pgTAP `0151` run against staging's applied migrations. The reviewer notes above assume it; they are true once the release carrying all five migrations is on production. | `🟡 partial`      | The confirm word is localised: `ELIMINA` on an Italian device, `DELETE` on an English one (`account.delete.confirmWord`). Flip to `✅` when all five #733 migrations are on production (rider on #80); the third carries the backfill that bans the legacy `partial` rows' members, §7.5.                                                                                                                                                                                                                                                                                                                                                                  |
-| S-14 | **Child safety standards declaration (Google Play)** — Play Console → App content → Child safety standards. Standards URL `https://www.athanor.world/child-safety?lang=en`, live on production since release PR #801 (#779). In-app reporting: profile, post, chat, received message, behaviour. Point of contact: Marco Accardi, `info@anecoica.net` — the contact the page itself names. The page promises review within 24 hours, removal of the content, a ban, and a report to the police and the national hotlines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `⬜ ops`          | Answer the form from the page, not from memory: the page is what Play holds the answers to. Its removal and ban promises are kept **by hand** until the admin panel can do them (#788, #311) — §7.8 is the procedure, and it has to be runnable before the declaration goes in; its police channel is still Marco's to choose. **Before every release**, re-check the six hotline links on the page (`HOTLINES`, `apps/web/lib/legal-content.ts`) for their final URL and `<title>`: a 200 is not proof, and three of the six URLs ruled on #779 had moved by the time it shipped. All six checked 2026-09-19.                                             |
+| ID   | Item                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S-4  | **Privacy nutrition labels (iOS) / Data safety (Android)** — declare every data type the published privacy policy declares, row by row from «Data safety and privacy labels — the data map (S-4)» below. The policy is the source of truth, not this row: the list that stood here until 2026-09-19 named four types and missed date of birth, photos and videos, voice notes, messages, diagnostics and the push token (#783). **No tracking, no data sold, no advertising or third-party analytics SDK.** In-app deletion and a web deletion page.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | Fill App Store Connect → App Privacy and Play Console → App content → Data safety from the map. B-4 is the SDK posture only: the policy also declares a consent-gated signal on every launch and an installation id, and the map declares both. Play's delete-account URL is `https://www.athanor.world/delete-account?lang=en` (#767) — the `www` host, since the apex redirects; live on production (200 and its own title, checked 2026-09-19). Why `?lang=en`: the map's last paragraph. Emailed requests: §7.7.                                                                                                                                                                                                             |
+| S-5  | **Age rating and target audience** — Athanor is **18+**: `MIN_MEMBER_AGE = 18` (`packages/core/src/profile/age.ts:8`), refused at sign-up and again by the database (`20260919114816_min_member_age_18.sql`, #778). Social networking with user-generated content, user-to-user messaging, approximate location and paid tickets to in-person events. Report and block present (M9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | The «12+/Teen» this row carried until 2026-09-19 predates the 18+ ruling. **Play → App content → Target audience and content:** select **18 and over** only, and answer that the app is not designed to appeal to children; with no age group under 13 selected, the Families policy does not apply. **Content rating** (Play's IARC questionnaire, App Store Connect's age-rating questionnaire): answer from what the app does — user-generated content, members communicate with each other, location as the S-4 map declares it — and take the rating the questionnaire returns. The 18+ floor is the Target audience answer, not a rating to aim for.                                                                       |
+| S-6  | **Circle subscription IAP compliance (iOS)** — Apple requires auto-renewable IAP for digital subscriptions consumed in-app (Guideline 3.1.1). M8 ships Stripe Billing; iOS branch requires Apple IAP (StoreKit / `expo-in-app-purchases`) or the Circle CTA must be absent on iOS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `⬜ M8 follow-up` | M8 must branch by platform: Stripe Billing = Android/web; Apple IAP or no-CTA = iOS. This is not resolved in Fase 1 code; document it and do not ship a Stripe in-app subscribe button on iOS. See §5 (S-IAP-1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S-7  | **Fund contributions IAP compliance (iOS)** — one-off donation to a pooled fund via Stripe Checkout in an external web sheet on iOS (external purchase link), NOT an in-app Payment Sheet. Also gated by the `fund_editions.contributions_enabled` legal gate plus the `fund_surfaces_enabled` client flag (PRD §4.11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `🔁 verify`       | Verify the M7 contribute CTA on iOS opens `expo-web-browser` / Safari checkout and never an in-app Stripe Payment Sheet. Confirm `fund_surfaces_enabled` is OFF by default in `remote_config`. See §5 (S-IAP-2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S-8  | **`expo-doctor` clean** — passes after the last native dep change; `app.json` permissions, bundle IDs, version/build numbers correct; no dev-only plugin in the release profile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `🔁 verify`       | Run `pnpm exec expo-doctor` on the release build. Resolve any warnings before submission.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| S-9  | **Deep links** — `athanor://` scheme + universal/app links resolve through the auth gate for: Momento, event, post, `@handle`, invite. Associated-domains (iOS) + intent-filter / assetlinks (Android) configured.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `🔁 verify`       | Verify cold-start deep-link routing on a release build. Configure Apple App Site Association + Android assetlinks.json on the web domain.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| S-10 | **Push entitlements** — `expo-notifications` config plugin; APNs (iOS) + FCM (Android); permission prompt follows Athanor voice; entitlement present in the release build.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `⬜ ops`          | Upload APNs key + FCM config to EAS secrets / build profile. Confirm `expo-notifications` plugin is active in `app.json` plugins. Android (#746): FCM V1 key on EAS for both package ids; `google-services.json` reaches a build via `GOOGLE_SERVICES_JSON`; push verified on the dev client vs staging. Owed: a production build + a production token row.                                                                                                                                                                                                                                                                                                                                                                      |
+| S-11 | **Export compliance & misc metadata** — encryption export-compliance (standard HTTPS → usually exempt, declare it), support URL, marketing URL (web landing), privacy-policy URL, copyright.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `⬜ ops`          | Set in App Store Connect + Play Console. Privacy-policy URL must be live before submission.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| S-12 | **App Review Information — demo account + reviewer notes** (#84, 2026-09-03 comment; rows written 2026-09-10). A social app behind a sign-in wall with no credentials is a same-day 2.1 rejection. Needs a **production** member the reviewer can sign in as, seeded through the app so the world is not empty, and the notes below pasted verbatim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `⬜ ops`          | Procedure and notes text under "App Review Information" below. Credentials live **only** in App Store Connect → App Review Information and Play Console → App content → App access — never in this file (public repo, push protection), never in mail. Prerequisite: the `apple_signin_enabled` flag ON and the Apple provider configured before submission (#79), because Google ships `const true` and 4.8 requires Apple beside it.                                                                                                                                                                                                                                                                                           |
+| S-13 | **Guideline 5.1.1(v) — in-app deletion** (#84). The path exists: Settings → «Elimina account» → type the confirm word → confirm (`(modal)/delete-account.tsx`). Since 2026-09-09 production runs `erasure-nightly` at 03:47 UTC, so the account is erased within a day and the copy says so. **#733 (`20260910130552` + `20260910132434` + `20260910134453` + `20260910140902` + `20260910142855`) bans the auth user in the same transaction as the request and closes the Data API's write half** — proven on staging 2026-09-10 by a real password sign-in and a refresh of the pre-request session, both answering `user_banned`, the sticky half by GoTrue's own admin API (a `ban_duration` of 60 s and then `none` against a member with an open request both left the column a century out; `none` cleared it only once the row was `done`), and the re-queue and Data API halves by pgTAP `0151` run against staging's applied migrations. The reviewer notes above assume it; they are true once the release carrying all five migrations is on production. | `🟡 partial`      | The confirm word is localised: `ELIMINA` on an Italian device, `DELETE` on an English one (`account.delete.confirmWord`). Flip to `✅` when all five #733 migrations are on production (rider on #80); the third carries the backfill that bans the legacy `partial` rows' members, §7.5.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| S-14 | **Child safety standards declaration (Google Play)** — Play Console → App content → Child safety standards. Standards URL `https://www.athanor.world/child-safety?lang=en`, live on production since release PR #801 (#779). In-app reporting: profile, post, chat, received message, behaviour. Point of contact: Marco Accardi, `info@anecoica.net` — the contact the page itself names. The page promises review within 24 hours, removal of the content, a ban, and a report to the police and the national hotlines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `⬜ ops`          | Answer the form from the page, not from memory: the page is what Play holds the answers to. Its removal and ban promises are kept through the #788 RPCs, called from the SQL editor until the admin panel has buttons for them (#311) — §7.8 is the procedure, and it has to be runnable before the declaration goes in; production needs migrations `20260923062248` and `20260923063705` first; its police channel is still Marco's to choose. **Before every release**, re-check the six hotline links on the page (`HOTLINES`, `apps/web/lib/legal-content.ts`) for their final URL and `<title>`: a 200 is not proof, and three of the six URLs ruled on #779 had moved by the time it shipped. All six checked 2026-09-19. |
 
 ### Data safety and privacy labels — the data map (S-4)
 
@@ -1732,19 +1732,22 @@ Smoked on staging 2026-09-19 inside a DO block that always raises: the address l
 case-insensitively, the insert returned `requested` and set `banned_until` a century out, a second
 insert was a no-op leaving one open row, and nothing persisted.
 
-### 7.8 A child-safety report — keeping `/child-safety`'s promises by hand (#788)
+### 7.8 A child-safety report — keeping `/child-safety`'s promises (#788)
 
 `/child-safety` — the URL in Play's Child safety standards declaration (S-14) — promises four
 things: a report of child sexual abuse material is **reviewed within 24 hours**; if it is upheld
 we **remove the content** and **ban** whoever posted or sent it, so they cannot sign in and their
 profile, posts and stories are hidden; and what appears to be such material is **reported to the
-police and to the national hotlines** the page lists. The admin panel keeps none of the middle
-two: its verdict form offers dismiss, or uphold as an Aura penalty, and nothing in it removes
-content (#788; the panel's missing actions are #311). This section keeps all four by hand until it
-does.
+police and to the national hotlines** the page lists. The database keeps the middle two since
+#788 — `resolve_report` v6 bans on a post, message, person or named-behaviour report, and
+`admin_takedown` removes a post, comment or message from view — and `packages/api/src/admin.ts`
+exposes both (`resolveReport`, `takedownContent`, `purgePostMedia`). The admin panel has no buttons
+for them yet (#311): its verdict form still offers dismiss, or uphold as an Aura penalty. Until it
+does, this section calls the RPCs from the SQL editor with your admin identity (step 3 shows how).
 
 Run the SQL in the **production** project's SQL editor. It runs as `postgres`, so RLS does not
-apply to it — which is why every write below names one row by id.
+apply to it — which is why every write below names one row by id, and why the RPCs are called
+inside a block that sets an admin JWT: they check `athanor.is_admin()` themselves.
 
 **Never, at any step:** download, save, screenshot or forward the material, or attach it to an
 issue (the repository is public — no case is ever filed on GitHub), a mail, a chat or a hotline
@@ -1757,11 +1760,13 @@ page asks the same of the people who report («Non salvare, non inoltrare e non 
 - **In the app.** `report-queue-alert-sweep` (every 15 minutes, active on production) sends every
   admin an in-app notification and a push: «Una segnalazione aspetta il tuo sguardo» /
   «{count} segnalazioni…». It carries the queue depth and nothing else — never the reason, never
-  the note. There is no child-safety reason either (`REPORT_CATEGORIES`, seven, none about
-  children), so the page tells people to choose «Altro» and say so in the note. **The alert cannot
-  tell a child-safety report from any other.** The 24 hours hold only if `/admin` is opened within
-  a day of every alert and every `other` report's note is read. The push leg needs the admin's
-  phone to hold a production push token (S-10); the in-app inbox works without it.
+  the note. **The alert cannot tell a child-safety report from any other** — the queue can: the
+  page tells people to choose «Abuso o sfruttamento di minori» (`child_safety`, #788), and
+  `getReportQueue` puts every open `child_safety` report ahead of the date order. The 24 hours
+  hold only if `/admin` is opened within a day of every alert. Reports filed before #788 — or by
+  someone who chose «Altro» anyway — still arrive as `other` with a note; read those notes too.
+  The push leg needs the admin's phone to hold a production push token (S-10); the in-app inbox
+  works without it.
 - **By email** to `info@anecoica.net`, the page's point of contact. No row, no alert: the mailbox
   is read daily or the promise does not hold.
 - The clock starts when the report is filed (`reports.created_at`) or the mail arrives — not when
@@ -1776,8 +1781,8 @@ Open the report in `/admin`. What it shows depends on the target:
 - **A message report** shows the reported message, and a chat photo renders inline on the page.
   That one view is the review; there is no need for another.
 - **A person or behaviour report** shows the reporter's note, and a person report the handle.
-- **A post report** shows only that it is a post and the reporter's note — the panel renders no
-  post content. Judging it means opening the post in the app from your own account, and the app
+- **A post report** shows only that it is a post, the reporter's note and (since #788) the
+  author's handle — the panel renders no post content. Judging it means opening the post in the app from your own account, and the app
   keeps images it has shown in the phone's image cache. Clear it afterwards: on Android, Settings →
   Apps → Athanor → Storage → Clear cache; on an iPhone, delete the app and install it again.
 
@@ -1785,10 +1790,12 @@ If the report is not upheld, dismiss it in the panel with a resolution that says
 
 **Resolve first (step 3), take down second (step 4).** The reads the panel uses for reported
 messages (`messages_select_reported`, `chat-media_select_reported`, `20260831153525`) require
-`deleted_at is null`, so taking the content down first removes the moderator's own view of it. And
-until the author is banned they can undo a takedown: members may update their own posts, comments,
-stories and Moments, `deleted_at` included, and only the ban's restrictive `active_write_update`
-policy stops them (`20260813045347`).
+`deleted_at is null`, so taking the content down first removes the moderator's own view of it —
+`admin_takedown` refuses a report that is not yet `upheld` for exactly this reason. A takedown
+through the RPC is final for the author: `20260923063705` refuses a member clearing `deleted_at`
+on a post or comment `audit_log` records as taken down. A story or Moment taken down by hand
+(step 4) has no such guard, and until the author is banned they can undo it: only the ban's
+restrictive `active_write_update` policy stops them (`20260813045347`).
 
 **Check for a pending erasure.** An open request erases the author's content and uploads tonight
 at 03:47 UTC (`erasure-nightly`), which is also everything the police might ask for:
@@ -1824,14 +1831,15 @@ select id from auth.users
    and raw_app_meta_data->>'role' = 'admin';
 ```
 
-`resolve_report` v5 bans only on a **person** or a **message** report (a post or behaviour report
-raises `22023`), and only on a report still `open` or `reviewing` — on one already resolved it
-returns without doing anything. **Never resolve a child-safety report in the panel first**: a
-penalty there closes the report, and the ban below then silently does nothing.
+`resolve_report` v6 (#788) bans on the report's **subject**: a person report's target, a message's
+sender, a post's author, and a behaviour report's target when it names a member. It acts only on a
+report still `open` or `reviewing` — on one already resolved it returns without doing anything.
+**Never resolve a child-safety report in the panel first**: a penalty there closes the report, and
+the ban below then silently does nothing.
 
-**A person or a message report** — ban on it directly. For a message the RPC resolves the sender;
-a sender who has since deleted their account resolves to nobody and the RPC refuses with `22023`:
-they are already gone, and steps 4–6 still apply to what they left.
+**A person, message or post report, or a behaviour report that names someone** — ban on it
+directly. A subject who has since deleted their account resolves to nobody and the RPC refuses with
+`22023`: they are already gone, and steps 4–6 still apply to what they left.
 
 ```sql
 do $$
@@ -1843,24 +1851,25 @@ begin
 end $$;
 ```
 
-**A post report, a behaviour report, or an email** — file a person report on the author as
-yourself and ban on that; the original report stays open until step 7. For a post the author is
-`select author_id from public.posts where id = '<post id>'`; for a behaviour report or an email it
-is the member named (`select id from public.profiles where handle = '<handle>'`). For an email,
-write `null` as the original report.
+**The fallback — a behaviour report that names nobody, or an email.** Behaviour reports filed from
+the app's Settings and Trust rows carry no target, so v6 has no subject for them; an email has no
+row at all. File a person report on the author as yourself and ban on that; a behaviour report
+stays open until step 7. The author is the member named
+(`select id from public.profiles where handle = '<handle>'`). For an email, write `null` as the
+original report, and file it with category `child_safety` so the trail says what it was.
 
 ```sql
 do $$
 declare
   v_admin    uuid := '<your admin id>';
   v_author   uuid := '<author id>';
-  v_original uuid := '<the post or behaviour report id>';  -- null for an email
+  v_original uuid := '<the behaviour report id>';  -- null for an email
   v_filed    uuid;
 begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_admin,
     'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
   insert into public.reports (reporter_id, target_type, target_id, category, note)
-  values (v_admin, 'person', v_author, 'other',
+  values (v_admin, 'person', v_author, 'child_safety',
           'Child safety — filed by the operator for ' || coalesce(v_original::text, 'an email'))
   returning id into v_filed;
   perform public.resolve_report(v_filed, 'upheld',
@@ -1873,11 +1882,11 @@ The person report is resolved in the same transaction it is filed in, so the 15-
 never announces it. `set_config(…, true)` ends with the block's transaction, so no admin identity
 lingers on the editor's connection.
 
-Smoked on staging 2026-09-19, this block plus a closing `raise`, so nothing persisted: with the
-claims set, `is_admin()` answered true and a `'ban'` on a post report raised `22023`; the block's
-person report took the ban — `banned_at` set, one `audit_log` row with the admin as actor, status
-`upheld` — a second `'ban'` on the resolved report changed nothing, and step 7's `'warn'` closed
-the post report `upheld`.
+Smoked on staging 2026-09-19 (v5), this block plus a closing `raise`, so nothing persisted: with
+the claims set, `is_admin()` answered true; the block's person report took the ban — `banned_at`
+set, one `audit_log` row with the admin as actor, status `upheld` — a second `'ban'` on the
+resolved report changed nothing, and step 7's `'warn'` closed the original report `upheld`. Since
+v6 a `'ban'` on a post report lands on its author instead of raising `22023` (pgTAP 0155 B5).
 
 **Then check the sign-in half**, a minute later:
 
@@ -1914,36 +1923,42 @@ curl -sS -X POST "https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/moderati
 Once the author is banned, members stop reading their photos and videos: the `post-media`,
 `moments`, `story-segments` and `avatars` read policies and the participant arm of `chat-media` all
 require the owner not to be banned (`20260818114947`, `20260827054252`, `20260903083235`). A ban
-does **not** hide their messages, their comments, `conversations.last_message_preview` or a
-candidacy video, and a signed URL minted before the ban keeps working until it expires — up to an
-hour, five minutes for a story. So the takedown is a soft delete of the reported row, by id, plus
-the lines below it needs:
+does **not** hide their messages, their comments or a candidacy video, and a signed URL minted
+before the ban keeps working until it expires — up to an hour, five minutes for a story. So the
+reported content is taken down by id.
+
+**A post, a comment or a message — `admin_takedown`** (#788). One call soft-deletes the row, writes
+one `audit_log` row (`takedown`, with the target and, when there is one, the report), and from that
+moment the member read policies on `post-media` and `chat-media` stop serving its image
+(`athanor.media_taken_down`) whether or not the author is banned. For a message it also recomputes
+the conversation's preview from the newest message that survives. It refuses a report that is not
+yet `upheld` (resolve first), and a `null` report is legal — a comment cannot be reported, an email
+has no row.
 
 ```sql
--- a post (its post_media rows go with it: their read policy needs a live post)
-update public.posts set deleted_at = now() where id = '<post id>' and deleted_at is null returning id;
+do $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', '<your admin id>',
+    'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  perform public.admin_takedown('<post | comment | message>', '<its id>',
+    '<ids and why — never a description of the material>', '<upheld report id, or null>');
+end $$;
+```
 
--- a comment
-update public.post_comments set deleted_at = now() where id = '<comment id>' and deleted_at is null returning id;
+The files stay: a post's `post_media` rows and a message's `media_url` are what step 6 frees, after
+step 5. The ban leaves the author's other messages in place: if they sent material elsewhere, take
+each message down the same way.
 
--- a message, and the conversation line that still quotes its first 140 characters
-update public.messages set deleted_at = now() where id = '<message id>' and deleted_at is null
-returning conversation_id, media_url;
-update public.conversations set last_message_preview = null where id = '<conversation id>';
+**A story segment, a Moment or a profile photo** — not covered by the RPC; by hand, as before:
 
--- a story segment, or a Moment
+```sql
 update public.story_segments set deleted_at = now() where id = '<segment id>' and deleted_at is null returning storage_path;
 update public.moments set deleted_at = now() where id = '<moment id>' and deleted_at is null returning media_path, thumb_path;
-
--- a profile photo
 update public.profiles set avatar_path = null where id = '<author id>' returning id;
 ```
 
-One row back from each is the takedown. Every statement above ran on staging 2026-09-19 inside a
-DO block that always raises: one row each, no trigger or constraint in the way, nothing kept. A
-conversation whose preview is cleared shows the app's "new conversation" line until the next
-message. The ban leaves the author's other messages in place: if they sent material elsewhere, take
-each message down the same way. Candidacy videos
+One row back from each is the takedown. These ran on staging 2026-09-19 inside a DO block that
+always raises: one row each, no trigger or constraint in the way, nothing kept. Candidacy videos
 (`dream_candidacies.video_url`) are readable to anyone while a fund edition is open, whatever the
 ban — the fund is off on production (#249); this section needs a candidacy line before it opens.
 
@@ -1976,8 +1991,7 @@ the data.
   fields; never its upload field.
 
 Record, on the report the ban landed on, what was sent where, and the reference each answered
-with. `audit_log` is append-only and its moderation rows are written only by `resolve_report`, so the
-note goes on the report:
+with. `audit_log` is append-only and written only by the RPCs, so the note goes on the report:
 
 ```sql
 update public.reports
@@ -1990,9 +2004,32 @@ returning status;
 
 After step 5, unless the police asked for the material to be kept. The repository never deletes
 storage bytes in SQL: a `storage.objects` row deleted by hand removes the metadata and leaves the
-file in the object store (`20260828103400`, `supabase/functions/_shared/reap.ts`). Every delete goes
-through the Storage API — the call the reapers make through supabase-js `remove()`, with the
-production `sb_secret_…` key on `apikey`:
+file in the object store (`20260828103400`, `supabase/functions/_shared/reap.ts`).
+
+**A post — `admin_purge_post_media`** (#788). It deletes the taken-down post's `post_media` rows and
+writes a `purge_media` audit row; `post-media-reaper` then frees every object no row references at
+its next run (nightly, 04:29 UTC). It refuses a post that is not taken down. Irreversible.
+
+```sql
+do $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', '<your admin id>',
+    'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  raise notice 'released % media rows', public.admin_purge_post_media('<post id>',
+    '<date>: reported to <police / hotline>, bytes released');
+end $$;
+```
+
+Not to wait for the night, invoke the reaper at once — the §5 rider's Vault pair, the key on
+`apikey`:
+
+```bash
+curl -sS -X POST "https://kwzeiqvrnnaagccyoose.supabase.co/functions/v1/post-media-reaper" \
+  -H "apikey: <production sb_secret_… key>"
+```
+
+**Everything else** goes through the Storage API by hand — the call the reapers make through
+supabase-js `remove()`, with the production `sb_secret_…` key on `apikey`:
 
 ```bash
 curl -sS -X DELETE "https://kwzeiqvrnnaagccyoose.supabase.co/storage/v1/object/<bucket>" \
@@ -2000,43 +2037,40 @@ curl -sS -X DELETE "https://kwzeiqvrnnaagccyoose.supabase.co/storage/v1/object/<
   -d '{"prefixes":["<path>", "<path>"]}'
 ```
 
-The answer lists every object it deleted; `[]` means no path matched. The paths come from step 4's
-`returning` and inventory, and from the rows:
+The answer lists every object it deleted; `[]` means no path matched. The paths:
 
-| Surface       | Bucket           | Paths                                                                                 |
-| ------------- | ---------------- | ------------------------------------------------------------------------------------- |
-| Post          | `post-media`     | `select storage_path, thumb_path from public.post_media where post_id = '<post id>';` |
-| Message       | `chat-media`     | `media_url` from step 4                                                               |
-| Story segment | `story-segments` | `storage_path` from step 4                                                            |
-| Moment        | `moments`        | `media_path`, `thumb_path` from step 4                                                |
-| Profile photo | `avatars`        | `<author id>/<author id>.<ext>` — the inventory shows the extension                   |
+| Surface       | Bucket           | Paths                                                               |
+| ------------- | ---------------- | ------------------------------------------------------------------- |
+| Message       | `chat-media`     | `select media_url from public.messages where id = '<message id>';`  |
+| Story segment | `story-segments` | `storage_path` from step 4                                          |
+| Moment        | `moments`        | `media_path`, `thumb_path` from step 4                              |
+| Profile photo | `avatars`        | `<author id>/<author id>.<ext>` — the inventory shows the extension |
 
-Then confirm nothing is left:
+Then confirm nothing is left — for a post, after the reaper has run:
 
 ```sql
 select bucket_id, name from storage.objects where name = any (array['<path>', '<path>']);
 ```
 
-No rows is done. The call was probed against staging on 2026-09-19 with nothing deleted: the
-revealed `sb_secret_…` key on `apikey` alone answered `200 []` for a path that did not exist. Take
-the key from the dashboard (Project Settings → API Keys, revealed): `supabase projects api-keys`
-prints a masked one, and that answers 401.
+No rows is done. The DELETE call was probed against staging on 2026-09-19 with nothing deleted:
+the revealed `sb_secret_…` key on `apikey` alone answered `200 []` for a path that did not exist.
+Take the key from the dashboard (Project Settings → API Keys, revealed): `supabase projects
+api-keys` prints a masked one, and that answers 401.
 
 #### Step 7 — Close
 
-**A post or behaviour report** that step 3 banned through a person report is still open. Close it
-upheld now, after step 5 and not before: `warn` is the only upheld verdict v5 accepts on it, and on
-a post it sends the author a notification carrying the report's category. `notification-fan-out`
-filters banned members out of broadcasts only, not out of a single recipient's push
-(`supabase/functions/notification-fan-out/logic.ts`), so it can still reach their phone, and it
-must not arrive before the police have the report. On a behaviour report with no target it is audit-only.
+A report step 3 banned on directly is already closed. Only the fallback leaves one open: **a
+behaviour report that named nobody**, banned through a person report. Close it upheld now, after
+step 5 and not before. `warn` closes it without enforcing again; on a behaviour report with no
+target it is audit-only, and since #788 a `child_safety` warn is audit-only on every target —
+v6 never sends the reason to the member it is about.
 
 ```sql
 do $$
 begin
   perform set_config('request.jwt.claims', json_build_object('sub', '<your admin id>',
     'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
-  perform public.resolve_report('<the original post or behaviour report id>', 'upheld',
+  perform public.resolve_report('<the original behaviour report id>', 'upheld',
     'Author banned through report <person report id>', 'warn');
 end $$;
 ```
