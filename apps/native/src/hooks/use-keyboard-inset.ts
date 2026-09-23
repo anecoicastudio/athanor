@@ -98,13 +98,6 @@ const TRACE = __DEV__;
  * show handler — warn. Note this hook runs per mounted consumer, so a sheet over a tab
  * screen prints two of every line.
  */
-/**
- * Whether this hook's height already covers the bottom safe-area inset — iOS yes, Android no
- * (#765; the "BOTTOM SAFE-AREA INSET" section above). While the keyboard is up, a view lifted
- * by the height drops its bottom safe-area edge exactly when this is true.
- */
-export const keyboardCoversBottomInset = Platform.OS === 'ios';
-
 export function useKeyboardInset(): number {
   const alive = useRef(true);
   const applied = useRef(0);
@@ -173,3 +166,10 @@ export function useKeyboardInset(): number {
 
   return inset;
 }
+
+/**
+ * Whether this hook's height already covers the bottom safe-area inset — iOS yes, Android no
+ * (#765; the "BOTTOM SAFE-AREA INSET" section on `useKeyboardInset`). While the keyboard is
+ * up, a view lifted by the height drops its bottom safe-area edge exactly when this is true.
+ */
+export const keyboardCoversBottomInset = Platform.OS === 'ios';

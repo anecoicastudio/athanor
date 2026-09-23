@@ -524,8 +524,8 @@ describe('author-only reaction counts (rule 3)', () => {
  * exactly the screen that needed it most (a sheet pushed from a sheet).
  *
  * The mechanism is now `hooks/use-keyboard-inset.ts`: it reads the keyboard's height from
- * the event and pads by it — no measurement. `KeyboardAvoidingView` is therefore gone from the app — the first assertion pins
- * its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
+ * the event and pads by it — no measurement. `KeyboardAvoidingView` is therefore gone from
+ * the app — the first assertion pins its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
  * this section exists to catch. The second keeps the old copied branch out even so, since a
  * reintroduction would most likely arrive in that shape. The third pins the new single point
  * of truth: nothing else subscribes to keyboard show/hide, so nobody hand-rolls avoidance at
