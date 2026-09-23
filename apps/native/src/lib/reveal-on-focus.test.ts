@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
+  CARET_LINE,
   createRevealOnFocus,
   followFoot,
   REVEAL_PAD,
@@ -735,5 +736,169 @@ describe('createRevealOnFocus — blur disarms the reveal', () => {
     const reveal = createRevealOnFocus();
     expect(reveal.fieldProps('password')).toBe(reveal.fieldProps('password'));
     expect(reveal.fieldProps('email')).not.toBe(reveal.fieldProps('password'));
+  });
+});
+
+describe('revealRow — the refused submit (#769)', () => {
+  /** A controller whose settle pass is fired by hand. */
+  function manual() {
+    const pending: (() => void)[] = [];
+    const reveal = createRevealOnFocus({ schedule: (run) => pending.push(run) });
+    const scroll = list();
+    reveal.scrollProps.ref(scroll);
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 400 } } });
+    reveal.scrollProps.onContentSizeChange(320, 2000);
+    const settle = () => pending.splice(0).forEach((run) => run());
+    return { reveal, scroll, settle };
+  }
+
+  it('scrolls a row above the viewport back into view, animated, without a focus', () => {
+    // «Pubblica» pressed from the foot of a long description: the empty title is far above.
+    const { reveal, scroll } = manual();
+    reveal.rowRef('title')(row(40, 90));
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 800 } } });
+    reveal.revealRow('title');
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 40 - REVEAL_PAD, animated: true });
+  });
+
+  it('re-measures on the settle pass, once the error line under the row has mounted', () => {
+    const { reveal, scroll, settle } = manual();
+    reveal.rowRef('title')(row(600, 60));
+    reveal.revealRow('title');
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 600 + 60 + REVEAL_PAD - 400,
+      animated: true,
+    });
+    reveal.rowRef('title')(row(600, 84));
+    settle();
+    expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+      y: 600 + 84 + REVEAL_PAD - 400,
+      animated: true,
+    });
+  });
+
+  it('disarms the focused field, so the error line mounting does not snap back to it', () => {
+    // The description is focused, tall, its foot on screen — the case `grow` follows. The
+    // refusal mounts an error line above it; an armed description would `followFoot` back down.
+    const { reveal, scroll } = manual();
+    reveal.rowRef('title')(row(40, 90));
+    reveal.rowRef('description')(row(300, 600));
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 512 } } });
+    reveal.fieldProps('description').onFocus();
+    scroll.scrollTo.mockClear();
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 512 } } });
+    reveal.revealRow('title');
+    reveal.rowRef('description')(row(324, 600));
+    reveal.scrollProps.onContentSizeChange(320, 2024);
+    expect(scroll.scrollTo.mock.calls).toEqual([[{ y: 40 - REVEAL_PAD, animated: true }]]);
+  });
+
+  it('stands down on the settle pass if the member has focused a field since', () => {
+    const { reveal, scroll, settle } = manual();
+    reveal.rowRef('title')(row(40, 90));
+    reveal.rowRef('city')(row(200, 60));
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 800 } } });
+    reveal.revealRow('title');
+    reveal.fieldProps('city').onFocus();
+    scroll.scrollTo.mockClear();
+    settle();
+    // Only the city's own settle pass may move the list now — never the title's.
+    expect(scroll.scrollTo.mock.calls.every(([o]) => o.y !== 40 - REVEAL_PAD)).toBe(true);
+  });
+
+  it('reveals the row alone, never riding the submit along', () => {
+    const { reveal, scroll } = manual();
+    reveal.rowRef('title')(row(40, 90));
+    reveal.submitRef()(row(1500, 52));
+    reveal.scrollProps.onScroll({ nativeEvent: { contentOffset: { y: 800 } } });
+    reveal.revealRow('title');
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 40 - REVEAL_PAD, animated: true });
+  });
+});
+
+describe('a pressed tall field keeps the caret, not an end, in view (#769)', () => {
+  /** A press into the input at `inputTop`, `y` points down from its top edge. */
+  const press = (inputTop: number, y: number) => ({
+    currentTarget: row(inputTop, 860),
+    nativeEvent: { locationY: y },
+  });
+
+  it('holds still on the tap itself — the caret is under the finger', () => {
+    // Line 2 of 30, walked on the iPhone SE: the foot rule scrolled 28 lines away from it, and
+    // the top rule would drag a row the member is already looking at.
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 600,
+      node: row(600, 900),
+    });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 100));
+    field.onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('lifts the caret band when the keyboard arrives over it', () => {
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 600,
+      node: row(600, 900),
+    });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 300));
+    field.onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 200 } } });
+    // The band is 640 + 300 ± CARET_LINE; its padded bottom must clear the shrunk viewport.
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 640 + 300 + CARET_LINE + REVEAL_PAD - 200,
+      animated: true,
+    });
+  });
+
+  it('brings a pressed caret back after the list scrolled away from it', () => {
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 1300,
+      node: row(600, 900),
+    });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 100));
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 640 + 100 - CARET_LINE - REVEAL_PAD,
+      animated: true,
+    });
+  });
+
+  it('forgets the press on blur — a focus that arrives without one shows the top again', () => {
+    // The return key of the field above can move focus here without a touch.
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 700));
+    field.onBlur();
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 600 - REVEAL_PAD, animated: true });
+  });
+
+  it('falls back to the top when the press target cannot be measured', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
+    const field = reveal.fieldProps('password');
+    field.onPressIn({ currentTarget: 7, nativeEvent: { locationY: 700 } });
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 600 - REVEAL_PAD, animated: true });
+  });
+
+  it('ignores the press on a row that fits — the whole row is the reveal', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 120) });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(630, 10));
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 600 + 120 + REVEAL_PAD - 400,
+      animated: true,
+    });
   });
 });

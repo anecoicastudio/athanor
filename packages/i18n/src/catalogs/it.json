@@ -834,6 +834,7 @@
   "event.create.title": "Crea un evento",
   "event.create.name": "Titolo",
   "event.create.namePlaceholder": "Dai un nome all'evento",
+  "event.create.nameRequired": "Dai un titolo all'evento",
   "event.create.desc": "Descrizione",
   "event.create.descPlaceholder": "Racconta la serata con parole tue (facoltativo)",
   "event.create.category": "Categoria",

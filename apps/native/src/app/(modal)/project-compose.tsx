@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Keyboard } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +41,10 @@ export default function ProjectComposeScreen() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('startup');
   const [description, setDescription] = useState('');
+  // The server's refusal only. The empty title is its own state, rendered inside the title's
+  // row, because a refusal has to be SEEN and the row is what the reveal scrolls to (#769).
   const [error, setError] = useState<string | null>(null);
+  const [titleMissing, setTitleMissing] = useState(false);
 
   const authorId = session?.user.id;
 
@@ -107,7 +111,13 @@ export default function ProjectComposeScreen() {
 
   const onPublish = () => {
     if (title.trim().length === 0) {
-      setError(t('project.compose.error', locale));
+      // «Pubblica» is pinned below the list, so the member can press it from the foot of a long
+      // description with the title far above the fold: the refusal brings the row to them
+      // (#769). The keyboard goes with it — it belongs to a field they now have to leave.
+      setError(null);
+      setTitleMissing(true);
+      Keyboard.dismiss();
+      reveal.revealRow('title');
       return;
     }
     setError(null);
@@ -137,9 +147,17 @@ export default function ProjectComposeScreen() {
               {...reveal.fieldProps('title')}
               placeholder={t('project.compose.titlePlaceholder', locale)}
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(v) => {
+                setTitle(v);
+                if (titleMissing) setTitleMissing(false);
+              }}
               maxLength={140}
             />
+            {/* Inside the row, so revealing the row reveals the reason (#769). `Field`'s caption
+                recipe; `Input` has no `error` prop of its own. */}
+            {titleMissing ? (
+              <Text className="text-sm text-error">{t('project.compose.error', locale)}</Text>
+            ) : null}
           </View>
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
