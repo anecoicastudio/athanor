@@ -20,6 +20,9 @@ const REASON_LABELS: Record<Locale, Record<string, string>> = {
     harassment: 'Molestie o comportamento offensivo',
     spam: 'Spam o contenuto ingannevole',
     impersonation: 'Identità falsa',
+    // #788: never sent — resolve_report v6 withholds a child-safety warn, because the label
+    // would name the report to the member it is about. Kept so this map stays the catalog's.
+    child_safety: 'Abuso o sfruttamento di minori',
     other: 'Altro',
   },
   en: {
@@ -29,6 +32,7 @@ const REASON_LABELS: Record<Locale, Record<string, string>> = {
     harassment: 'Harassment or abusive behavior',
     spam: 'Spam or misleading content',
     impersonation: 'Fake identity',
+    child_safety: 'Child abuse or exploitation',
     other: 'Something else',
   },
 };

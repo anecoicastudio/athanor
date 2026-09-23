@@ -9,7 +9,11 @@ export const REPORT_TARGET_TYPES = ['person', 'post', 'behavior', 'message'] as 
 export const reportTargetType = z.enum(REPORT_TARGET_TYPES);
 export type ReportTargetType = z.infer<typeof reportTargetType>;
 
-// Reason categories — aligned to PRD §4.13 ethical guidelines (frontend 09 §3.3).
+// Reason categories — aligned to PRD §4.13 ethical guidelines (frontend 09 §3.3). Mirrors
+// `reports_category_check`, last re-declared by 20260923062248 (#788), which added
+// 'child_safety' — the reason /child-safety tells a member to choose. It sits before 'other'
+// because the report sheet renders this array in order, and «Altro» stays the last resort.
+// `report-categories.mirror.test.ts` fails when this list and the CHECK drift apart.
 export const REPORT_CATEGORIES = [
   'selling',
   'income',
@@ -17,6 +21,7 @@ export const REPORT_CATEGORIES = [
   'harassment',
   'spam',
   'impersonation',
+  'child_safety',
   'other',
 ] as const;
 export const reportCategory = z.enum(REPORT_CATEGORIES);

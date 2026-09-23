@@ -10,7 +10,10 @@ import {
   getReportQueue,
   getWaitlistCount,
   getWaitlistPage,
+  purgePostMedia,
   resolveReport,
+  takedownContent,
+  CHILD_SAFETY_TRIAGE_CEILING,
   WAITLIST_PAGE_CEILING,
 } from './admin';
 import { asClient, DB_DOWN, makeFakeClient } from './test-support/fake-client';
@@ -400,6 +403,8 @@ describe('getReportDetail success path', () => {
     created_at: '2026-08-02T09:00:00Z',
     edition_id: null,
     candidacy_id: null,
+    target_type: null,
+    target_id: null,
   };
 
   it('assembles the report with its append-only audit trail', async () => {
@@ -740,6 +745,8 @@ describe('getReportQueue — the resolved bucket and the page probe', () => {
       rows: [],
       nextCursor: null,
       handlesExcluded: 0,
+      childSafety: 0,
+      childSafetyMore: false,
     });
   });
 
@@ -851,6 +858,8 @@ const fundAuditRow = (over: Record<string, unknown> = {}) => ({
   created_at: '2026-08-05T09:00:00Z',
   edition_id: E1,
   candidacy_id: null,
+  target_type: null,
+  target_id: null,
   ...over,
 });
 
@@ -1356,5 +1365,228 @@ describe('getAbandonedDispatchPage (#534)', () => {
       'rpc.admin_list_abandoned_dispatches': [{ error: { message: 'not authorized' } }],
     });
     await expect(getAbandonedDispatchPage(asClient(fake))).rejects.toThrow('not authorized');
+  });
+});
+
+// #788 — child-safety reports are read by their own query and put ahead of the page.
+describe('getReportQueue — child-safety triage', () => {
+  const CS = '00000000-0000-0000-0000-0000000000c9';
+  const urgentRow = reportRow({
+    id: CS,
+    category: 'child_safety',
+    created_at: '2026-07-01T10:00:00Z',
+  });
+
+  it('puts an older child-safety report ahead of newer ordinary ones on the first page', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [
+        { data: [reportRow({ id: R1 }), reportRow({ id: R2 })] },
+        { data: [urgentRow] },
+      ],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.rows.map((r) => r.id)).toEqual([CS, R1, R2]);
+    expect(page.childSafety).toBe(1);
+    expect(page.childSafetyMore).toBe(false);
+  });
+
+  it('leaves the date-ordered keyset walking EVERY report, and reads the head by status', async () => {
+    // The review of #788's first cut: a keyset that excluded child_safety left every report
+    // beyond the triage ceiling on no page at all. The dated walk must stay unfiltered.
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }, { data: [] }] });
+    await getReportQueue(asClient(fake), { status: 'reviewing' });
+    const [dated, urgent] = fake.calls.filter((c) => c.table === 'reports');
+    expect(dated!.filters).toEqual([['eq', 'status', 'reviewing']]);
+    expect(urgent!.filters).toEqual(
+      expect.arrayContaining([
+        ['eq', 'status', 'reviewing'],
+        ['eq', 'category', 'child_safety'],
+      ]),
+    );
+    expect(urgent!.modifiers).toContainEqual(['limit', CHILD_SAFETY_TRIAGE_CEILING + 1]);
+    expect(urgent!.modifiers.some((m) => m[0] === 'range')).toBe(false);
+  });
+
+  it('lists a triaged report once on the first page, not again in its date position', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ id: R1 }), urgentRow] }, { data: [urgentRow] }],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.rows.map((r) => r.id)).toEqual([CS, R1]);
+  });
+
+  it('reads the triaged head on the first page only', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: [reportRow()] }] });
+    const page = await getReportQueue(asClient(fake), {
+      status: 'open',
+      cursor: `2026-08-02T10:00:00Z|${R2}`,
+    });
+    expect(fake.calls.filter((c) => c.table === 'reports')).toHaveLength(1);
+    expect(page.childSafety).toBe(0);
+  });
+
+  it('derives the cursor from the dated page only, never from a triaged row', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [
+        { data: [reportRow({ id: R1 }), reportRow({ id: R2 })] },
+        { data: [urgentRow] },
+      ],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open', limit: 1 });
+    expect(page.rows.map((r) => r.id)).toEqual([CS, R1]);
+    expect(page.nextCursor).toBe(`2026-08-01T10:00:00Z|${R1}`);
+  });
+
+  it('names every shown report in one channel call, the triaged head included', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow()] }, { data: [urgentRow] }],
+      'rpc.admin_report_handles': [handlesFor()],
+    });
+    await getReportQueue(asClient(fake), { status: 'open' });
+    const rpc = fake.calls.find((c) => c.op === 'rpc');
+    expect(rpc).toMatchObject({ values: { p_report_ids: [CS, R1] } });
+  });
+
+  it('says so when the ceiling cut the head, and does not render the probe row', async () => {
+    const many = Array.from({ length: CHILD_SAFETY_TRIAGE_CEILING + 1 }, (_, i) =>
+      reportRow({
+        id: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
+        category: 'child_safety',
+      }),
+    );
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }, { data: many }] });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.childSafety).toBe(CHILD_SAFETY_TRIAGE_CEILING);
+    expect(page.rows).toHaveLength(CHILD_SAFETY_TRIAGE_CEILING);
+    expect(page.childSafetyMore).toBe(true);
+  });
+
+  it('throws when the triage read fails — a queue silently missing its urgent head is the failure', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: [] }, { error: DB_DOWN }] });
+    await expect(getReportQueue(asClient(fake), { status: 'open' })).rejects.toBe(DB_DOWN);
+  });
+
+  it('leaves the resolved tab in plain date order — history is not triaged', async () => {
+    const fake = makeFakeClient({ 'reports.select': [{ data: [urgentRow, reportRow()] }] });
+    const page = await getReportQueue(asClient(fake), { status: 'resolved' });
+    expect(fake.calls.filter((c) => c.table === 'reports')).toHaveLength(1);
+    expect(fake.calls[0]!.filters.some((f) => f[0] === 'neq')).toBe(false);
+    expect(page.rows.map((r) => r.id)).toEqual([CS, R1]);
+    expect(page.childSafety).toBe(0);
+  });
+});
+
+describe('takedownContent / purgePostMedia (#788)', () => {
+  const POST = '00000000-0000-0000-0000-0000000000d1';
+
+  it('calls admin_takedown with the report when there is one', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_takedown': [{ data: null }] });
+    await takedownContent(asClient(fake), {
+      targetType: 'post',
+      targetId: POST,
+      reason: '  tutela minori  ',
+      reportId: R1,
+    });
+    expect(fake.calls).toEqual([
+      expect.objectContaining({
+        op: 'rpc',
+        columns: 'admin_takedown',
+        values: {
+          p_target_type: 'post',
+          p_target_id: POST,
+          p_reason: 'tutela minori',
+          p_report_id: R1,
+        },
+      }),
+    ]);
+  });
+
+  it('omits p_report_id for a takedown with no report (a comment, an email report)', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_takedown': [{ data: null }] });
+    await takedownContent(asClient(fake), {
+      targetType: 'comment',
+      targetId: POST,
+      reason: 'email',
+    });
+    expect(fake.calls[0]!.values).toEqual({
+      p_target_type: 'comment',
+      p_target_id: POST,
+      p_reason: 'email',
+    });
+  });
+
+  it('refuses a blank reason before any call', async () => {
+    const fake = makeFakeClient();
+    await expect(
+      takedownContent(asClient(fake), { targetType: 'message', targetId: POST, reason: '   ' }),
+    ).rejects.toThrow();
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('throws the database refusal (an open report, a missing row) rather than swallowing it', async () => {
+    const refusal = {
+      code: '22023',
+      message: 'resolve the report (upheld) before taking its content down',
+    };
+    const fake = makeFakeClient({ 'rpc.admin_takedown': [{ error: refusal }] });
+    await expect(
+      takedownContent(asClient(fake), {
+        targetType: 'post',
+        targetId: POST,
+        reason: 'x',
+        reportId: R1,
+      }),
+    ).rejects.toBe(refusal);
+  });
+
+  it("treats a form's empty report field as no report", async () => {
+    const fake = makeFakeClient({ 'rpc.admin_takedown': [{ data: null }] });
+    await takedownContent(asClient(fake), {
+      targetType: 'comment',
+      targetId: POST,
+      reason: 'email',
+      reportId: '',
+    });
+    expect(fake.calls[0]!.values).not.toHaveProperty('p_report_id');
+  });
+
+  it('names the author on a post report, the member v6 bans (#788)', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'rpc.admin_report_handles': [handlesFor({ subject_handle: 'autrice' })],
+      'audit_log.select': [{ data: [] }],
+    });
+    const d = await getReportDetail(asClient(fake), R1);
+    expect(d.target_handle).toBe('autrice');
+  });
+
+  it('purgePostMedia sends the post and reason and returns the rows released', async () => {
+    const fake = makeFakeClient({ 'rpc.admin_purge_post_media': [{ data: 2 }] });
+    await expect(
+      purgePostMedia(asClient(fake), { postId: POST, reason: 'denuncia fatta' }),
+    ).resolves.toBe(2);
+    expect(fake.calls[0]).toMatchObject({
+      columns: 'admin_purge_post_media',
+      values: { p_post_id: POST, p_reason: 'denuncia fatta' },
+    });
+  });
+
+  it('purgePostMedia throws the refusal for a post that is not taken down', async () => {
+    const refusal = { code: 'P0001', message: 'post is not taken down' };
+    const fake = makeFakeClient({ 'rpc.admin_purge_post_media': [{ error: refusal }] });
+    await expect(purgePostMedia(asClient(fake), { postId: POST, reason: 'x' })).rejects.toBe(
+      refusal,
+    );
+  });
+
+  it('reads the audit trail with the takedown target columns', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'audit_log.select': [{ data: [] }],
+    });
+    await getReportDetail(asClient(fake), R1);
+    const audit = fake.calls.find((c) => c.table === 'audit_log');
+    expect(audit!.columns).toContain('target_type');
+    expect(audit!.columns).toContain('target_id');
   });
 });

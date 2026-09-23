@@ -826,13 +826,13 @@ const HOTLINES: Record<Locale, LegalLink[]> = {
  * - The report paths are the app's own, labels read from the catalog: ⋯ → «Segnala» on a profile
  *   (`user/[id].tsx`), «Segnala» in a post's header (`post/[id].tsx`), ⋯ → «Segnala» in a chat
  *   and a long press on a RECEIVED message (`chat.tsx` — own messages carry no report), and
- *   «Segnala un comportamento» in Settings. `REPORT_CATEGORIES` has no child-safety reason, so the
- *   page names «Altro» and the note rather than a reason that does not exist.
- * - A ban exists only on a person or message report (`resolve_report` v5), and it hides the
- *   profile, posts and stories without deleting anything (#314); messages and comments stay. On a
- *   post, behaviour or email report the operator bans through a person report on the author.
- *   Nothing in the panel deletes content, so «we remove it» is an operator action Marco ruled on
- *   #779 to take by hand until the panel has one (#788).
+ *   «Segnala un comportamento» in Settings. The reason is `child_safety` (#788), read from the
+ *   catalog, and the admin queue triages it first (`getReportQueue`).
+ * - A ban lands on a person, message or post report's subject, and on a behaviour report that
+ *   names someone (`resolve_report` v6, #788); it hides the profile, posts and stories (#314).
+ *   «We remove it» is `admin_takedown` (#788): a soft delete of the post, comment or message that
+ *   also stops its image being served. A behaviour report naming nobody and an email report still
+ *   reach the author through a person report (RELEASE-RUNBOOK §7.8).
  * - The 24-hour review and the police-then-hotlines order are Marco's rulings on #779.
  * - It claims no scanning, no hash matching, no age verification (the birth date is
  *   self-declared) and no copy kept as evidence: none of them exists.
@@ -870,7 +870,7 @@ export const childSafety: Record<Locale, LegalDoc> = {
         body: [
           `Su un profilo tocca ⋯ e poi «${tIt('report.title')}». In un post tocca «${tIt('report.title')}» in alto. In una chat tocca ⋯ e poi «${tIt('chat.report')}»; per un messaggio che hai ricevuto, tienilo premuto e scegli «${tIt('chat.message.report')}».`,
           `Per tutto il resto apri la scheda «${tIt('tabs.profile')}», tocca la ruota delle impostazioni e, nella sezione «${tIt('settings.section.privacy')}», tocca «${tIt('report.behavior.row')}».`,
-          `Tra i motivi non ce n'è uno dedicato: scegli «${tIt('report.reason.other')}», scrivi nella nota che riguarda un minore e tocca «${tIt('report.cta')}». Chi viene segnalato non sa chi l'ha segnalato.`,
+          `Come motivo scegli «${tIt('report.reason.child_safety')}» e tocca «${tIt('report.cta')}»: queste segnalazioni le esaminiamo per prime. Chi viene segnalato non sa chi l'ha segnalato.`,
           'Non salvare, non inoltrare e non fotografare il materiale, nemmeno per mostrarcelo.',
         ],
       },
@@ -936,7 +936,7 @@ export const childSafety: Record<Locale, LegalDoc> = {
         body: [
           `On a profile, tap ⋯ and then “${tEn('report.title')}”. On a post, tap “${tEn('report.title')}” at the top. In a chat, tap ⋯ and then “${tEn('chat.report')}”; for a message you received, press and hold it and choose “${tEn('chat.message.report')}”.`,
           `For anything else, open the “${tEn('tabs.profile')}” tab, tap the settings wheel and, in the “${tEn('settings.section.privacy')}” section, tap “${tEn('report.behavior.row')}”.`,
-          `None of the reasons is specific to this: choose “${tEn('report.reason.other')}”, say in the note that it concerns a child, and tap “${tEn('report.cta')}”. The person reported is not told who reported them.`,
+          `As the reason, choose “${tEn('report.reason.child_safety')}” and tap “${tEn('report.cta')}”: we review these reports first. The person reported is not told who reported them.`,
           'Do not save, forward or screenshot the material, not even to show it to us.',
         ],
       },

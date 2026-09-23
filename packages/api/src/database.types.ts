@@ -86,6 +86,8 @@ export type Database = {
           penalty_points: number | null
           reason: string | null
           report_id: string | null
+          target_id: string | null
+          target_type: string | null
         }
         Insert: {
           action: string
@@ -97,6 +99,8 @@ export type Database = {
           penalty_points?: number | null
           reason?: string | null
           report_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
         }
         Update: {
           action?: string
@@ -108,6 +112,8 @@ export type Database = {
           penalty_points?: number | null
           reason?: string | null
           report_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
         }
         Relationships: [
           {
@@ -3304,6 +3310,10 @@ export type Database = {
           source: string
         }[]
       }
+      admin_purge_post_media: {
+        Args: { p_post_id: string; p_reason: string }
+        Returns: number
+      }
       admin_report_handles: {
         Args: { p_report_ids: string[] }
         Returns: {
@@ -3311,6 +3321,15 @@ export type Database = {
           reporter_handle: string
           subject_handle: string
         }[]
+      }
+      admin_takedown: {
+        Args: {
+          p_reason: string
+          p_report_id?: string
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: undefined
       }
       admin_waitlist_count: { Args: never; Returns: number }
       broadcast_aura_celebration: {
@@ -3759,6 +3778,7 @@ export type Database = {
           peer_id: string
         }[]
       }
+      staging_refresh_demo: { Args: never; Returns: Json }
       staging_refresh_world: { Args: never; Returns: Json }
       story_reaction_count: { Args: { p_segment_id: string }; Returns: number }
       story_segment_reap_candidates: {
