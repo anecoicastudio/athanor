@@ -302,6 +302,12 @@ describe('takedownInput / purgePostMediaInput (#788)', () => {
         .success,
     ).toBe(false);
   });
+  it("reads a form's empty report id as no report, not as a malformed one", () => {
+    expect(
+      takedownInput.parse({ targetType: 'comment', targetId: id, reason: 'r', reportId: '' })
+        .reportId,
+    ).toBeUndefined();
+  });
   it('purge takes a post id and a reason, nothing blank', () => {
     expect(purgePostMediaInput.parse({ postId: id, reason: 'fatto' }).postId).toBe(id);
     expect(purgePostMediaInput.safeParse({ postId: id, reason: '' }).success).toBe(false);

@@ -1932,8 +1932,10 @@ one `audit_log` row (`takedown`, with the target and, when there is one, the rep
 moment the member read policies on `post-media` and `chat-media` stop serving its image
 (`athanor.media_taken_down`) whether or not the author is banned. For a message it also recomputes
 the conversation's preview from the newest message that survives. It refuses a report that is not
-yet `upheld` (resolve first), and a `null` report is legal — a comment cannot be reported, an email
-has no row.
+yet `upheld` (resolve first), and a post or message report that names a different row; a `null`
+report is legal — a comment cannot be reported, an email has no row. A person or behaviour report
+may back the takedown of any of that member's content. The takedown row survives even if the
+report is later erased (`20260923064927`).
 
 ```sql
 do $$

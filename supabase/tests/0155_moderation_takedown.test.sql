@@ -12,7 +12,8 @@
 --   (F) admin_purge_post_media — refuses a live post, releases a taken-down one, and the
 --       path-keyed hide survives the purge;
 --   (G) audit_log's content shape holds in the table, not only in the functions;
---   (H) the takedown sticks — 20260923063705 stops the author clearing deleted_at on it.
+--   (H) the takedown sticks — 20260923063705 stops the author clearing deleted_at on it;
+--   (I) the takedown row outlives its report — 20260923064927 detaches it before the cascade.
 --
 -- Fixture topology. ADMIN holds app_metadata.role = 'admin'. AUTHOR writes post P1 (one image
 -- + a comment K1) and sends RECIPIENT a text message M0-reply and an image message M1.
@@ -22,7 +23,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(68);
+select plan(73);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
 values
@@ -247,6 +248,10 @@ select throws_ok(
 select throws_ok(
   $$ select public.admin_takedown('comment','c1550000-0000-4000-8000-0000000000ff','x') $$,
   'P0002', null, 'D9 a target that names no row is refused');
+select throws_ok(
+  $$ select public.admin_takedown('post','b1550000-0000-4000-8000-000000000002','x',
+                                  'f1550000-0000-4000-8000-000000000001') $$,
+  '22023', null, 'D9b an upheld post report cannot justify taking down a DIFFERENT post (20260923064927)');
 reset role;
 select is(
   (select count(*)::int from public.audit_log where action = 'takedown'),
@@ -303,6 +308,10 @@ select results_eq(
       where id = current_setting('test.conv')::uuid $$,
   $$ values ('ciao'::text, 'a1550000-0000-4000-8000-000000000003'::uuid) $$,
   'D20 the chat list no longer previews the removed message — it falls back to the newest survivor');
+select is(
+  (select last_message_at from public.conversations where id = current_setting('test.conv')::uuid),
+  (select created_at from public.messages where id = 'd1550000-0000-4000-8000-000000000000'),
+  'D20b …and its time comes from the SAME survivor, so unread (time vs sender) stays coherent (20260923064927)');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a1550000-0000-4000-8000-000000000004","role":"authenticated"}';
@@ -429,6 +438,24 @@ select is(
   false, 'H6 the trigger function is not callable by a client role (#409)');
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────
+-- (I) a takedown outlives its report (20260923064927)
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- REPORTER erases their account: profiles → reports cascade. Before the fix the cascade took
+-- the takedown row with it, and with it the guard and the purge's precondition.
+delete from auth.users where id = 'a1550000-0000-4000-8000-000000000004';
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'takedown' and target_id = 'b1550000-0000-4000-8000-000000000001'),
+  1, 'I1 the post''s takedown row survives the reporter''s erasure');
+select is(
+  (select report_id from public.audit_log
+    where action = 'takedown' and target_id = 'b1550000-0000-4000-8000-000000000001'),
+  null, 'I2 …unlinked from the report that no longer exists (detached before the cascade)');
+select is(
+  (select count(*)::int from public.audit_log where report_id = 'f1550000-0000-4000-8000-000000000001'),
+  0, 'I3 the report''s VERDICT row still cascades with it — audit_log_moderation_shape needs its report');
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────
 -- (G) the content shape, in the table
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 select throws_ok(
@@ -437,7 +464,7 @@ select throws_ok(
   '23514', null, 'G1 a takedown row without a target is refused by the table itself');
 select throws_ok(
   $$ insert into public.audit_log (report_id, actor_id, action, reason, target_type, target_id)
-     values ('f1550000-0000-4000-8000-000000000003','a1550000-0000-4000-8000-000000000001','dismiss','x',
+     values (null,'a1550000-0000-4000-8000-000000000001','dismiss','x',
              'post','b1550000-0000-4000-8000-000000000002') $$,
   '23514', null, 'G2 a verdict row cannot carry a content target');
 

@@ -110,15 +110,16 @@ async function readReportHandles(
  * panel already reads; a caller that ignores it sees exactly what it saw before.
  *
  * CHILD-SAFETY FIRST (#788). /child-safety promises review within 24 hours, and a date-ordered
- * queue keeps that promise only while every report is read within a day. So on the `open` and
- * `reviewing` tabs the child-safety reports are read by a SEPARATE query and put ahead of the
- * page, and the date-ordered keyset excludes them. Two queries rather than one ordered by
- * «category first»: a priority term in the sort would have to enter the cursor too, and the
- * `created_at|id` cursor every caller holds would stop meaning a position. This way the keyset
- * is exactly what it was over a smaller set, and the triaged rows ride only on the FIRST page
- * (no cursor), so a later page never repeats them. `childSafety` says how many of `rows` are
- * the triaged head; `childSafetyMore` that the ceiling cut it. The `resolved` tab is history
- * and keeps the plain date order.
+ * queue keeps that promise only while every report is read within a day. So on the FIRST page of
+ * the `open` and `reviewing` tabs a SEPARATE query reads the child-safety reports and puts them
+ * ahead of the page. The date-ordered keyset is untouched — it still walks EVERY report, child
+ * safety included — so a report beyond the triage ceiling is never lost: it keeps its place in
+ * date order on whichever page it falls, and `childSafetyMore` says the head was cut. A triaged
+ * row is dropped from the first page's dated rows so it is not listed twice on one screen; on a
+ * later page it appears again in its date position, which is the price of never hiding one.
+ * Two queries rather than one ordered «category first», because a priority term in the sort
+ * would have to enter the cursor, and the `created_at|id` cursor every caller holds would stop
+ * meaning a position. They run concurrently. The `resolved` tab is history: date order only.
  */
 export async function getReportQueue(
   client: AthanorClient,
@@ -131,7 +132,6 @@ export async function getReportQueue(
   childSafetyMore: boolean;
 }> {
   const limit = opts.limit ?? PAGE;
-  const triaged = opts.status !== 'resolved';
   let q = client
     .from('reports')
     .select(QUEUE_COLUMNS)
@@ -139,35 +139,34 @@ export async function getReportQueue(
     .order('id', { ascending: false })
     .limit(limit + 1);
   if (opts.status === 'resolved') q = q.in('status', ['upheld', 'dismissed']);
-  else q = q.eq('status', opts.status).neq('category', CHILD_SAFETY);
+  else q = q.eq('status', opts.status);
   if (opts.cursor) {
     // keyset: rows strictly "after" the cursor in (created_at desc, id desc). A half cursor is
     // refused, never dropped — decodeCursor carries the queue-restarting failure that taught us.
     const { ts, id } = decodeCursor(opts.cursor, 'report');
     q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
-  const { data, error } = await q;
-  if (error) throw error;
-  const { page, hasMore } = probePage(data ?? [], limit);
+  const triage =
+    opts.status !== 'resolved' && !opts.cursor
+      ? client
+          .from('reports')
+          .select(QUEUE_COLUMNS)
+          .eq('status', opts.status)
+          .eq('category', CHILD_SAFETY)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(CHILD_SAFETY_TRIAGE_CEILING + 1)
+      : null;
+  const [dated, urgent] = await Promise.all([q, triage]);
+  if (dated.error) throw dated.error;
+  if (urgent?.error) throw urgent.error;
+  const { page, hasMore } = probePage(dated.data ?? [], limit);
+  const probed = probePage(urgent?.data ?? [], CHILD_SAFETY_TRIAGE_CEILING);
+  const head = probed.page;
+  const childSafetyMore = probed.hasMore;
+  const inHead = new Set(head.map((r) => r.id));
 
-  let head: typeof page = [];
-  let childSafetyMore = false;
-  if (triaged && !opts.cursor) {
-    const { data: urgent, error: urgentError } = await client
-      .from('reports')
-      .select(QUEUE_COLUMNS)
-      .eq('status', opts.status)
-      .eq('category', CHILD_SAFETY)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(CHILD_SAFETY_TRIAGE_CEILING + 1);
-    if (urgentError) throw urgentError;
-    const probed = probePage(urgent ?? [], CHILD_SAFETY_TRIAGE_CEILING);
-    head = probed.page;
-    childSafetyMore = probed.hasMore;
-  }
-
-  const shown = [...head, ...page];
+  const shown = [...head, ...page.filter((r) => !inHead.has(r.id))];
   // The shown ids only — the probe rows are never rendered, so they are never named.
   const { handles, excluded: handlesExcluded } = await readReportHandles(
     client,
@@ -217,10 +216,10 @@ export async function getReportDetail(
     .eq('id', id)
     .single();
   if (error) throw error;
-  // Both parties by handle, through the channel (#664). `subject_handle` is what the migration
-  // resolves for a person target or a message sender — the same person `resolve_report` v5
-  // lands the verdict on — and null for a post or behaviour report, so the header names the
-  // person the verdict will hit and nobody else.
+  // Both parties by handle, through the channel (#664). `subject_handle` is the member
+  // `resolve_report` v6 lands a verdict on — a person target, a behaviour report's named
+  // profile, a message's sender, a post's author (#788) — and null when that does not resolve,
+  // so the header names the person the verdict will hit and nobody else.
   const { handles: handleRows, excluded: handlesExcluded } = await readReportHandles(client, [
     data.id,
   ]);
@@ -229,9 +228,7 @@ export async function getReportDetail(
   let target_handle: string | null = null;
   let reportedMessage: AdminReportedMessage | null = null;
   let reportedMessageState: ReportedMessageState = 'notApplicable';
-  if (data.target_type === 'person' && data.target_id) {
-    target_handle = handles?.subject_handle ?? null;
-  } else if (data.target_type === 'message' && data.target_id) {
+  if (data.target_type === 'message' && data.target_id) {
     const evidence = await readReportedMessage(
       client,
       data.target_id,
@@ -240,6 +237,10 @@ export async function getReportDetail(
     reportedMessage = evidence.message;
     reportedMessageState = evidence.state;
     target_handle = reportedMessage?.sender_handle ?? null;
+  } else if (data.target_id) {
+    // person, post, behaviour: the channel already resolved the subject. A target-less
+    // behaviour report names nobody, and v6 has nobody to enforce against either.
+    target_handle = handles?.subject_handle ?? null;
   }
   const { data: audit } = await client
     .from('audit_log')

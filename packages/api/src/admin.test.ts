@@ -1390,16 +1390,13 @@ describe('getReportQueue — child-safety triage', () => {
     expect(page.childSafetyMore).toBe(false);
   });
 
-  it('keeps the child-safety reports OUT of the date-ordered keyset, and reads them by status', async () => {
+  it('leaves the date-ordered keyset walking EVERY report, and reads the head by status', async () => {
+    // The review of #788's first cut: a keyset that excluded child_safety left every report
+    // beyond the triage ceiling on no page at all. The dated walk must stay unfiltered.
     const fake = makeFakeClient({ 'reports.select': [{ data: [] }, { data: [] }] });
     await getReportQueue(asClient(fake), { status: 'reviewing' });
     const [dated, urgent] = fake.calls.filter((c) => c.table === 'reports');
-    expect(dated!.filters).toEqual(
-      expect.arrayContaining([
-        ['eq', 'status', 'reviewing'],
-        ['neq', 'category', 'child_safety'],
-      ]),
-    );
+    expect(dated!.filters).toEqual([['eq', 'status', 'reviewing']]);
     expect(urgent!.filters).toEqual(
       expect.arrayContaining([
         ['eq', 'status', 'reviewing'],
@@ -1410,7 +1407,15 @@ describe('getReportQueue — child-safety triage', () => {
     expect(urgent!.modifiers.some((m) => m[0] === 'range')).toBe(false);
   });
 
-  it('never repeats the triaged head on a later page', async () => {
+  it('lists a triaged report once on the first page, not again in its date position', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ id: R1 }), urgentRow] }, { data: [urgentRow] }],
+    });
+    const page = await getReportQueue(asClient(fake), { status: 'open' });
+    expect(page.rows.map((r) => r.id)).toEqual([CS, R1]);
+  });
+
+  it('reads the triaged head on the first page only', async () => {
     const fake = makeFakeClient({ 'reports.select': [{ data: [reportRow()] }] });
     const page = await getReportQueue(asClient(fake), {
       status: 'open',
@@ -1532,6 +1537,27 @@ describe('takedownContent / purgePostMedia (#788)', () => {
         reportId: R1,
       }),
     ).rejects.toBe(refusal);
+  });
+
+  it("treats a form's empty report field as no report", async () => {
+    const fake = makeFakeClient({ 'rpc.admin_takedown': [{ data: null }] });
+    await takedownContent(asClient(fake), {
+      targetType: 'comment',
+      targetId: POST,
+      reason: 'email',
+      reportId: '',
+    });
+    expect(fake.calls[0]!.values).not.toHaveProperty('p_report_id');
+  });
+
+  it('names the author on a post report, the member v6 bans (#788)', async () => {
+    const fake = makeFakeClient({
+      'reports.select': [{ data: [reportRow({ note: null, resolution: null })] }],
+      'rpc.admin_report_handles': [handlesFor({ subject_handle: 'autrice' })],
+      'audit_log.select': [{ data: [] }],
+    });
+    const d = await getReportDetail(asClient(fake), R1);
+    expect(d.target_handle).toBe('autrice');
   });
 
   it('purgePostMedia sends the post and reason and returns the rows released', async () => {

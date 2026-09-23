@@ -2364,3 +2364,22 @@ read "seven" as "eight" in each of:
 
 Asserted by: `supabase/tests/0121_grant_catalog_sweep.test.sql` (the count of tables carrying
 column-level ACLs, pinned at 8).
+
+## `20260923062248_moderation_takedown.sql` — `admin_takedown` v1 is superseded twice, and its header's `last_message_at` sentence was wrong
+
+- **«`last_message_at` is left alone — it orders the list and drives unread»** (section 5's
+  header). Leaving it was the defect, not the safeguard: unread is `last_message_at >
+last_read_at AND last_message_sender_id <> me` (`20260902153057`), and v1 moved the sender and
+  the preview to the newest surviving message while keeping the removed message's timestamp,
+  so a thread could light up as unread for the member who sent the removed message.
+  `20260923064927` recomputes all three from the one surviving message (or the conversation's
+  `created_at` when none survives). pgTAP `0155` D20b asserts it.
+- **A report named on a takedown was not checked against its target.** v1 accepted any upheld
+  report. Since `20260923064927` a post or message report must name the row being taken down
+  (22023 otherwise). A person or behaviour report can still back any takedown. pgTAP `0155` D9b
+  asserts it.
+- **The takedown row did not outlive its report.** Nothing in this file says it did. But the
+  sticky guard (`20260923063705`) and `admin_purge_post_media` both depend on the row, and
+  `audit_log.report_id`'s `ON DELETE CASCADE` deleted it when a reporter's erasure deleted the
+  report. `20260923064927` detaches content rows before the cascade (`reports_detach_content_audit`).
+  pgTAP `0155` I1–I3 assert it.

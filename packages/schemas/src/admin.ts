@@ -69,7 +69,8 @@ export const takedownInput = z.object({
   targetType: takedownTargetType,
   targetId: z.string().uuid(),
   reason: trimmedNonBlank(2000),
-  reportId: z.string().uuid().optional(),
+  // A form's empty «report id» field arrives as '' — the no-report case, not a malformed id.
+  reportId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
 });
 export type TakedownInput = z.infer<typeof takedownInput>;
 
