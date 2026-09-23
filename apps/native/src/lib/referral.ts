@@ -7,8 +7,8 @@ const CODE_RE = /^[A-Z0-9]{6,12}$/;
 
 // Nothing here ever rejects (#179). The stash is a nicety layered on the deep-link → signup
 // flow: invite/[code].tsx awaits `setPendingReferral` before it can `router.replace`,
-// welcome.tsx awaits `getPendingReferral()` mid-submit and clears up front on the two paths
-// that ANNOUNCE an existing account (email sign-in, OAuth from the sign-in screen), and
+// welcome.tsx awaits `getPendingReferral()` mid-submit and clears up front on the one path
+// that can only reach an existing account (email sign-in — OAuth keeps it, #795), and
 // auth-context consumes it on the first authenticated boot. A
 // storage failure in any of them must read as "no referral", dev-visible — never as a
 // stranded spinner or a deep link that never hands off. Callers may `void` these the way they
