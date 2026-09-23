@@ -2692,6 +2692,40 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     }
   });
 
+  it('a live text-size change remounts every Text, and nothing that holds state (#754)', () => {
+    const tw = stripComments(read(TW)).replace(/\s+/g, ' ');
+    expect(
+      /export const Text = \(props: TextProps\) => <TextImpl key=\{useFontScale\(\)\} \{\.\.\.props\} \/>/.test(
+        tw,
+      ),
+      'src/tw Text is no longer keyed on useFontScale(). A Dynamic Type change made while the ' +
+        'app runs then re-renders every Text at the new size inside the OLD layout — rows sized ' +
+        'for the previous scale, lines clipped or gapped — until the screen is left (#754).',
+    ).toBe(true);
+    expect(
+      tw.match(/useFontScale\(\)/g)?.length,
+      'useFontScale() keys exactly one wrapper — Text. Keying TextInput would drop focus and ' +
+        'reset an uncontrolled draft on every text-size change; keying a container would ' +
+        'remount its whole subtree, state included.',
+    ).toBe(1);
+    const outside = codeLines()
+      .filter(([where]) => !where.startsWith('apps/native/src/tw/'))
+      .filter(([, text]) => /\buseFontScale\b/.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      outside,
+      'useFontScale outside src/tw: it exists to key the Text leaf and nothing else. A screen ' +
+        'that keys a container on it remounts that subtree — drafts, focus, scroll — on every ' +
+        'text-size change; read `useWindowDimensions().fontScale` for a size instead (#754).',
+    ).toEqual([]);
+    const root = stripComments(read(`${SRC}app/_layout.tsx`));
+    expect(
+      /<FontScaleProvider>/.test(root),
+      'the root layout no longer mounts FontScaleProvider, so useFontScale() reads its default ' +
+        'of 1 forever and the Text key never changes (#754)',
+    ).toBe(true);
+  });
+
   it('no call site invents its own cap', () => {
     const hits = codeLines()
       .filter(([where]) => !where.startsWith('apps/native/src/tw/'))

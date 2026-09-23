@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import { useFontScale } from './font-scale';
 
 /** Join conditional NativeWind classes — falsy parts drop out, so call sites avoid
  *  empty-string ternaries (`cond ? 'x' : ''`) inside template literals. */
@@ -56,8 +57,12 @@ const withTextDefaults = <P extends { className?: string; maxFontSizeMultiplier?
 });
 
 export type TextProps = React.ComponentProps<typeof RNText> & { className?: string };
-export const Text = (props: TextProps) =>
+const TextImpl = (props: TextProps) =>
   useCssElement(RNText, withTextDefaults(props), { className: 'style' });
+// Keyed on the live text size (#754, `font-scale.tsx` says why): a Dynamic Type change
+// remounts every Text, so each is measured again and the boxes above it re-lay out.
+// TextInput below is NOT keyed — a remount would drop focus and reset an uncontrolled draft.
+export const Text = (props: TextProps) => <TextImpl key={useFontScale()} {...props} />;
 Text.displayName = 'CSS(Text)';
 
 export type PressableProps = React.ComponentProps<typeof RNPressable> & { className?: string };
