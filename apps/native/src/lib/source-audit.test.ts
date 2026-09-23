@@ -3619,13 +3619,9 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
 
   const SEAM = 'lib/reveal-on-focus.ts';
 
-  /**
-   * Keys quoted at a `.rowRef('…')` / `.fieldProps('…'[, state])` call, receiver-agnostic. The
-   * key may be followed by `fieldProps`'s `FieldState` (#769) — requiring the close paren would
-   * make a field that passes one invisible here, and the equality below would fail it as unwired.
-   */
+  /** Keys quoted at a `.rowRef('…')` / `.fieldProps('…')` call, receiver-agnostic. */
   const keysOf = (src: string, method: 'rowRef' | 'fieldProps') =>
-    [...src.matchAll(new RegExp(`\\.${method}\\('([^']+)'[,)]`, 'g'))]
+    [...src.matchAll(new RegExp(`\\.${method}\\('([^']+)'\\)`, 'g'))]
       .map((m) => m[1] as string)
       .sort();
 

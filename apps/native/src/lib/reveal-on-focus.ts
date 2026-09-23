@@ -121,8 +121,18 @@ export type RevealOnFocus = {
    * arms the reveal, and the BLUR disarms it — without that, the row stays the reveal's target
    * after the member has left it, and the next thing to grow the content (an error line
    * mounting under a failed submit) scrolls the form back to a field nobody is typing in.
+   *
+   * `onPressIn` records WHERE the finger landed (#769). iOS puts the caret of a multiline field
+   * at the tap point, so on a row taller than the viewport neither "show its top" nor "show its
+   * foot" is where the member is about to type — walked on the iPhone SE, a tap on line 2 of 30
+   * with the foot rule scrolled 28 lines away from the caret. The press is the only place the
+   * controller can learn it.
    */
-  fieldProps: (key: string, state?: FieldState) => { onFocus: () => void; onBlur: () => void };
+  fieldProps: (key: string) => {
+    onFocus: () => void;
+    onBlur: () => void;
+    onPressIn: (event: PressInEvent) => void;
+  };
   /**
    * Bring a row into view WITHOUT focusing it — the refused submit (#769). A form that refuses
    * «Pubblica» because a field is empty has to show that field and the line saying so, and the
@@ -161,19 +171,19 @@ export type RevealOnFocus = {
 };
 
 /**
- * What the screen knows about a field and the controller cannot see — passed on every render,
- * so it is always the current answer (#769).
+ * The half of a TextInput's press event this file reads. `currentTarget` is the input's host
+ * instance on Fabric — measured against the list's content view like a row — and is checked,
+ * not trusted: a target that cannot `measureLayout` costs the caret band, never the reveal.
+ * `locationY` is the touch relative to that input.
  */
-export type FieldState = {
-  /**
-   * The field already holds text. On a row taller than the viewport, focusing it lands the FOOT
-   * rather than the top: re-entering a long description, the caret is at the end of the text,
-   * and "show the top" put it under the keyboard until the first keystroke's `grow` pass came
-   * for it (walked on iOS, #769). An empty field has its caret at the top, which the top-first
-   * rule already shows.
-   */
-  hasText?: boolean;
-};
+export type PressInEvent = { currentTarget?: unknown; nativeEvent: { locationY: number } };
+
+/**
+ * Half the height of the band a caret reveal keeps on screen, in points: about one line of the
+ * block field's `text-lg` either side of the touch, so the line being edited and its neighbour
+ * are visible, not just the caret's own pixel row.
+ */
+export const CARET_LINE = 24;
 
 export type RevealOptions = {
   /**
@@ -189,8 +199,8 @@ export type RevealOptions = {
  * Minimal by design: a row already on screen is never moved, because tapping a field that the
  * member can already see should not scroll the form under their finger. A row taller than the
  * viewport shows its TOP — the field is up there and the checklist below it is the part that
- * can be scrolled to. (Unless the field already holds text: then the controller lands the foot,
- * where the caret is — see `FieldState.hasText`.)
+ * can be scrolled to. (Unless the member PRESSED into it: then the controller aims at the band
+ * around the press, where iOS put the caret — see `fieldProps`.)
  */
 export function revealOffset(
   row: { top: number; height: number },
@@ -224,19 +234,6 @@ export function followFoot(
   const end = view.content > 0 ? Math.max(0, view.content - view.height) : Number.POSITIVE_INFINITY;
   const y = Math.min(Math.max(row.top + row.height + REVEAL_PAD - view.height, 0), end);
   return Math.abs(y - view.offset) < 1 ? null : y;
-}
-
-/**
- * `followFoot`, but minimal the way `revealOffset` is: a foot already on screen is left where it
- * is, so focusing a long field whose end the member can see does not move the form (#769).
- */
-function footInView(
-  row: { top: number; height: number },
-  view: { height: number; offset: number; content: number },
-): number | null {
-  const foot = row.top + row.height;
-  if (foot >= view.offset && foot + REVEAL_PAD <= view.offset + view.height) return null;
-  return followFoot(row, view);
 }
 
 /**
@@ -279,9 +276,9 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
   /** Where each row sat when a pass last measured it — what the `grow` rule reads. */
   const seen = new Map<string, { top: number; foot: number }>();
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
-  const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
-  /** `FieldState.hasText` per key, as of the screen's last render. */
-  const filled = new Map<string, boolean>();
+  const fieldHandlers = new Map<string, ReturnType<RevealOnFocus['fieldProps']>>();
+  /** The input a field was last pressed into, and where — cleared when it blurs (#769). */
+  const pressed = new Map<string, { input: RowHandle; y: number }>();
 
   /**
    * Which event asked for the reveal, because two of them must be more careful than the rest:
@@ -295,7 +292,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *   row that already does not fit is a multiline field being typed into — an event or project
    *   description — and "show its top" would bury the caret, which sits at the BOTTOM, once per
    *   new line; on Android it would fight the native caret-follow on every keystroke. Only the
-   *   first reveal of a tall row shows its top, and only when the field is empty (#769). Latent until #752: before it, no pass ever
+   *   first reveal of a tall row shows its top — or, pressed into, the band around the press (#769). Latent until #752: before it, no pass ever
    *   measured anything on a native build.
    *
    *   What it does instead is follow the row's FOOT, and only when that foot was on screen the
@@ -324,14 +321,6 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
     const scroll = list;
     // Where the row sat BEFORE this pass — read now, because the measurement below replaces it.
     const last = seen.get(key);
-    /**
-     * A tall row whose field holds text lands its foot, where the caret is (#769). Not on a
-     * refusal: that reveal is about the row's label and its error line, which sit at the top.
-     */
-    const caretAtFoot = (target: { height: number }, view: { height: number }) =>
-      pass !== 'refuse' &&
-      filled.get(key) === true &&
-      target.height + 2 * REVEAL_PAD >= view.height;
     const land = (target: { top: number; height: number }, height: number) => {
       if (pass === 'grow') {
         if (last && (last.foot < offset || last.top > offset + height)) return;
@@ -344,8 +333,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         offset = y;
         return;
       }
-      const view = { height, offset, content };
-      const y = caretAtFoot(target, view) ? footInView(target, view) : revealOffset(target, view);
+      const y = revealOffset(target, { height, offset, content });
       if (y === null) return;
       scroll.scrollTo({ y, animated: true });
     };
@@ -356,6 +344,19 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
           seen.set(key, { top, foot: top + rowHeight });
+          // A row too tall to show whole, pressed into: aim at the caret, not at an end (#769).
+          // Minimal like every other reveal, so the tap itself — the band under the finger is
+          // on screen — moves nothing, and a keyboard arriving over it lifts it. Not `grow`,
+          // which has its own foot rule, and not a refusal, which is about the row's label.
+          const press = pass === 'grow' || pass === 'refuse' ? undefined : pressed.get(key);
+          if (press && rowHeight + 2 * REVEAL_PAD >= height) {
+            return press.input.measureLayout(
+              inner,
+              (_ix, inputTop) =>
+                land({ top: inputTop + press.y - CARET_LINE, height: 2 * CARET_LINE }, height),
+              () => land(field, height),
+            );
+          }
           // Read at callback time: the submit can mount or unmount between the tap and here. A
           // refusal reveals the row alone — the member is looking for the field, not the button.
           const cta = pass === 'tap' || pass === 'refuse' ? null : submit;
@@ -417,8 +418,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
       }
       return ref;
     },
-    fieldProps: (key, state) => {
-      filled.set(key, state?.hasText === true);
+    fieldProps: (key) => {
       let props = fieldHandlers.get(key);
       if (!props) {
         props = {
@@ -435,7 +435,15 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
           // new focus before the old blur, and clearing then would disarm the field the member
           // has just moved TO.
           onBlur: () => {
+            pressed.delete(key);
             if (focused === key) focused = null;
+          },
+          // Before the focus on both platforms: the press begins the touch, the focus ends it.
+          onPressIn: (event) => {
+            const input = event.currentTarget as Partial<RowHandle> | null | undefined;
+            if (typeof input?.measureLayout === 'function') {
+              pressed.set(key, { input: input as RowHandle, y: event.nativeEvent.locationY });
+            } else pressed.delete(key);
           },
         };
         fieldHandlers.set(key, props);

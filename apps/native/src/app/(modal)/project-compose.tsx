@@ -184,7 +184,7 @@ export default function ProjectComposeScreen() {
           <View className="gap-2" ref={reveal.rowRef('description')}>
             <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
             <Field
-              {...reveal.fieldProps('description', { hasText: description.length > 0 })}
+              {...reveal.fieldProps('description')}
               size="lg"
               multiline
               placeholder={t('project.compose.descPlaceholder', locale)}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
+  CARET_LINE,
   createRevealOnFocus,
   followFoot,
   REVEAL_PAD,
@@ -815,43 +816,86 @@ describe('revealRow — the refused submit (#769)', () => {
   });
 });
 
-describe('FieldState.hasText — a tall field re-entered lands its caret (#769)', () => {
-  it('lands the FOOT of a tall row whose field already holds text', () => {
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
-    reveal.fieldProps('password', { hasText: true }).onFocus();
+describe('a pressed tall field keeps the caret, not an end, in view (#769)', () => {
+  /** A press into the input at `inputTop`, `y` points down from its top edge. */
+  const press = (inputTop: number, y: number) => ({
+    currentTarget: row(inputTop, 860),
+    nativeEvent: { locationY: y },
+  });
+
+  it('holds still on the tap itself — the caret is under the finger', () => {
+    // Line 2 of 30, walked on the iPhone SE: the foot rule scrolled 28 lines away from it, and
+    // the top rule would drag a row the member is already looking at.
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 600,
+      node: row(600, 900),
+    });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 100));
+    field.onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('lifts the caret band when the keyboard arrives over it', () => {
+    const { reveal, scroll } = mounted({
+      viewport: 400,
+      content: 2000,
+      offset: 600,
+      node: row(600, 900),
+    });
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 300));
+    field.onFocus();
+    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    reveal.scrollProps.onLayout({ nativeEvent: { layout: { height: 200 } } });
+    // The band is 640 + 300 ± CARET_LINE; its padded bottom must clear the shrunk viewport.
     expect(scroll.scrollTo).toHaveBeenCalledWith({
-      y: 600 + 900 + REVEAL_PAD - 400,
+      y: 640 + 300 + CARET_LINE + REVEAL_PAD - 200,
       animated: true,
     });
   });
 
-  it('still shows the TOP of a tall row whose field is empty — the caret is up there', () => {
-    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
-    reveal.fieldProps('password', { hasText: false }).onFocus();
-    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 600 - REVEAL_PAD, animated: true });
-  });
-
-  it('leaves the list alone when the foot of the filled row is already on screen', () => {
+  it('brings a pressed caret back after the list scrolled away from it', () => {
     const { reveal, scroll } = mounted({
       viewport: 400,
       content: 2000,
-      offset: 1200,
+      offset: 1300,
       node: row(600, 900),
     });
-    reveal.fieldProps('password', { hasText: true }).onFocus();
-    expect(scroll.scrollTo).not.toHaveBeenCalled();
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 100));
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      y: 640 + 100 - CARET_LINE - REVEAL_PAD,
+      animated: true,
+    });
   });
 
-  it('reads the latest render — text cleared since the last focus shows the top again', () => {
+  it('forgets the press on blur — a focus that arrives without one shows the top again', () => {
+    // The return key of the field above can move focus here without a touch.
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
-    reveal.fieldProps('password', { hasText: true });
-    reveal.fieldProps('password', { hasText: false }).onFocus();
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(640, 700));
+    field.onBlur();
+    field.onFocus();
     expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 600 - REVEAL_PAD, animated: true });
   });
 
-  it('changes nothing for a row that fits — text or no text', () => {
+  it('falls back to the top when the press target cannot be measured', () => {
+    const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 900) });
+    const field = reveal.fieldProps('password');
+    field.onPressIn({ currentTarget: 7, nativeEvent: { locationY: 700 } });
+    field.onFocus();
+    expect(scroll.scrollTo).toHaveBeenCalledWith({ y: 600 - REVEAL_PAD, animated: true });
+  });
+
+  it('ignores the press on a row that fits — the whole row is the reveal', () => {
     const { reveal, scroll } = mounted({ viewport: 400, content: 2000, node: row(600, 120) });
-    reveal.fieldProps('password', { hasText: true }).onFocus();
+    const field = reveal.fieldProps('password');
+    field.onPressIn(press(630, 10));
+    field.onFocus();
     expect(scroll.scrollTo).toHaveBeenCalledWith({
       y: 600 + 120 + REVEAL_PAD - 400,
       animated: true,

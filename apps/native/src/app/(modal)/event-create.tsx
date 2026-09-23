@@ -569,7 +569,7 @@ export default function EventCreateScreen() {
           <View className="gap-2" ref={reveal.rowRef('desc')}>
             {label('event.create.desc')}
             <Input
-              {...reveal.fieldProps('desc', { hasText: description.length > 0 })}
+              {...reveal.fieldProps('desc')}
               placeholder={t('event.create.descPlaceholder', locale)}
               value={description}
               onChangeText={setDescription}
