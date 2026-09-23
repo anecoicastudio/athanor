@@ -414,7 +414,7 @@ export default function WelcomeScreen() {
                   <View className="mt-7 gap-3">
                     {appleEnabled ? (
                       <Button
-                        variant="outline"
+                        variant="apple"
                         label={t('auth.apple.cta', locale)}
                         icon={providerMark('apple')}
                         disabled={busy}

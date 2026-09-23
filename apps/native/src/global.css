@@ -32,6 +32,8 @@
     --color-aura-line: rgba(43, 208, 210, 0.4);
     --color-on-aura: #04222a;
     --color-on-error: #1a050d;
+    --color-apple-button-bg: #ffffff;
+    --color-apple-button-ink: #000000;
     --radius-ctl: 14px;
     --radius-card: 20px;
     --radius-hero: 26px;

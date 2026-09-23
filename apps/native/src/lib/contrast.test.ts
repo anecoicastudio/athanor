@@ -210,6 +210,16 @@ describe('forbidden pairs — no call site may use these', () => {
     expect(ratio(semantic.onError, semantic.error)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
+  it('the Apple Sign-In button — black ink on its HIG-mandated white fill', () => {
+    // Button.tsx `VARIANT_CLASSES.apple` = { bg: 'apple-button-bg', text: 'apple-button-ink' },
+    // welcome.tsx's Apple CTA only. Pure white/black, not Athanor's near-white/near-black roles
+    // (ruled 2026-09-19 on #79) — trivially AA, asserted for the same reason every other filled
+    // variant is: a retune here should fail a test, not just look wrong on a phone.
+    expect(ratio(semantic.appleButtonInk, semantic.appleButtonBg)).toBeGreaterThanOrEqual(
+      21 - 0.01,
+    );
+  });
+
   it('success clears AA where it marks a satisfied rule', () => {
     // The signup password checklist ((auth)/welcome.tsx) is the newest call site:
     // `success` for a met requirement, deliberately not `aura` — a form rule going
