@@ -204,8 +204,8 @@ function RootLayout() {
     // navigator, so this one exists for the trees OUTSIDE it (BrandSplash, ProfileErrorScreen)
     // and to kill the first-frame inset flash via initialWindowMetrics.
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      {/* The live text size every src/tw Text keys on (#754) — outermost, so BrandSplash and
-        every modal reflow too. */}
+      {/* The live text size every src/tw Text keys on (#754) — above every navigator tree,
+        so BrandSplash and every modal reflow too. */}
       <FontScaleProvider>
         <AuthProvider>
           <PersistQueryClientProvider

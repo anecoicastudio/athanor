@@ -175,8 +175,9 @@ export default function MomentiScreen() {
   return (
     <Screen>
       {/* No `fontScale` key here any more (#833 → #754): a live text-size change remounts
-          every src/tw Text instead, which re-lays out the boxes above it and so re-fires each
-          `onLayout` input of `deckWellHeight`. Keeping a key would only reset the scroll. */}
+          every src/tw Text instead, which re-lays out the boxes above it and so re-fires the
+          `onLayout` inputs of `deckWellHeight` whose layout moved (`fontScale` itself is read
+          above). A key here would also reset the scroll and remount the whole deck. */}
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-5 pt-4 pb-12"

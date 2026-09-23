@@ -2708,6 +2708,16 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
         'reset an uncontrolled draft on every text-size change; keying a container would ' +
         'remount its whole subtree, state included.',
     ).toBe(1);
+    const outside = codeLines()
+      .filter(([where]) => !where.startsWith('apps/native/src/tw/'))
+      .filter(([, text]) => /\buseFontScale\b/.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      outside,
+      'useFontScale outside src/tw: it exists to key the Text leaf and nothing else. A screen ' +
+        'that keys a container on it remounts that subtree — drafts, focus, scroll — on every ' +
+        'text-size change; read `useWindowDimensions().fontScale` for a size instead (#754).',
+    ).toEqual([]);
     const root = stripComments(read(`${SRC}app/_layout.tsx`));
     expect(
       /<FontScaleProvider>/.test(root),
