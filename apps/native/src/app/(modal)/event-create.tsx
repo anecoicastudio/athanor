@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Keyboard, Linking, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -131,6 +131,9 @@ export default function EventCreateScreen() {
   // the 14-day promise attaches to an event rather than to the organiser.
   const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The empty title, apart from `error`: it renders in the title's own row, which is what the
+  // refusal scrolls to — the one line by the submit would say it far from the field (#769).
+  const [nameMissing, setNameMissing] = useState(false);
   /**
    * #701 — the paid-ticket floor, as one sentence used twice: a hint under the price field, and
    * the refusal when the field is ignored. Derived at render rather than stored, so it survives a
@@ -430,6 +433,15 @@ export default function EventCreateScreen() {
 
   const onSubmit = async () => {
     setError(null);
+    // #769 — the first field, so the first refusal. It used to run last and answer with
+    // `event.create.error`, the server-failure «Riprova», which a member cannot act on. The
+    // submit is at the foot of the longest form in the app, so the refusal brings the row up.
+    if (title.trim().length === 0) {
+      setNameMissing(true);
+      Keyboard.dismiss();
+      reveal.revealRow('name');
+      return;
+    }
     // The four paid-event refusals, in the order BOTH server gates raise them: price floor
     // (22003), acknowledgement (22023), then identity (42501), then payout (55000). The order is
     // the point, not a detail — checking payout first would send a verified organiser who simply
@@ -475,7 +487,6 @@ export default function EventCreateScreen() {
       setError(t('event.create.payout.gate', locale));
       return;
     }
-    if (title.trim().length === 0) return setError(t('event.create.error', locale));
     if (isOnline) return mutation.mutate(null);
     // A venue typed and sent without leaving the field has not been looked up yet: do it now, and
     // save with the answer. No answer means no point — the line under the city already says why.
@@ -541,9 +552,15 @@ export default function EventCreateScreen() {
               {...reveal.fieldProps('name')}
               placeholder={t('event.create.namePlaceholder', locale)}
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(v) => {
+                setTitle(v);
+                if (nameMissing) setNameMissing(false);
+              }}
               maxLength={140}
             />
+            {nameMissing ? (
+              <Text className="text-sm text-error">{t('event.create.nameRequired', locale)}</Text>
+            ) : null}
           </View>
 
           {/* #634: the detail used to render one fabricated sentence for every event under the
@@ -552,7 +569,7 @@ export default function EventCreateScreen() {
           <View className="gap-2" ref={reveal.rowRef('desc')}>
             {label('event.create.desc')}
             <Input
-              {...reveal.fieldProps('desc')}
+              {...reveal.fieldProps('desc', { hasText: description.length > 0 })}
               placeholder={t('event.create.descPlaceholder', locale)}
               value={description}
               onChangeText={setDescription}

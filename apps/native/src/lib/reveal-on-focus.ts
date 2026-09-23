@@ -122,7 +122,22 @@ export type RevealOnFocus = {
    * after the member has left it, and the next thing to grow the content (an error line
    * mounting under a failed submit) scrolls the form back to a field nobody is typing in.
    */
-  fieldProps: (key: string) => { onFocus: () => void; onBlur: () => void };
+  fieldProps: (key: string, state?: FieldState) => { onFocus: () => void; onBlur: () => void };
+  /**
+   * Bring a row into view WITHOUT focusing it — the refused submit (#769). A form that refuses
+   * «Pubblica» because a field is empty has to show that field and the line saying so, and the
+   * member's finger is on a button at the foot of the form, nowhere near either.
+   *
+   * It DISARMS whatever field is focused first. The refusal mounts an error line, the content
+   * grows, and a still-armed multiline field would read that as a line typed at its end and
+   * `followFoot` straight back down to it — instantly, after the animated reveal had started
+   * up. The field's own blur would disarm it too, but it lands after the growth, not before.
+   *
+   * Re-run on the settle timer, like a focus: the first pass measures the row before the error
+   * line under it has mounted, and before a dismissed keyboard has given the viewport back.
+   * Skipped if the member has focused a field by then.
+   */
+  revealRow: (key: string) => void;
   /**
    * `ref` for the form's submit — the CTA's own block, not a row (#752). Optional: a screen that
    * wires it gets the submit scrolled into view WITH whichever row is focused, whenever the two
@@ -145,6 +160,21 @@ export type RevealOnFocus = {
   submitRef: () => (node: RowHandle | null) => void;
 };
 
+/**
+ * What the screen knows about a field and the controller cannot see — passed on every render,
+ * so it is always the current answer (#769).
+ */
+export type FieldState = {
+  /**
+   * The field already holds text. On a row taller than the viewport, focusing it lands the FOOT
+   * rather than the top: re-entering a long description, the caret is at the end of the text,
+   * and "show the top" put it under the keyboard until the first keystroke's `grow` pass came
+   * for it (walked on iOS, #769). An empty field has its caret at the top, which the top-first
+   * rule already shows.
+   */
+  hasText?: boolean;
+};
+
 export type RevealOptions = {
   /**
    * Runs the settle pass. Defaults to a `KEYBOARD_SETTLE_MS` timer; injected so a test can fire
@@ -159,7 +189,8 @@ export type RevealOptions = {
  * Minimal by design: a row already on screen is never moved, because tapping a field that the
  * member can already see should not scroll the form under their finger. A row taller than the
  * viewport shows its TOP — the field is up there and the checklist below it is the part that
- * can be scrolled to.
+ * can be scrolled to. (Unless the field already holds text: then the controller lands the foot,
+ * where the caret is — see `FieldState.hasText`.)
  */
 export function revealOffset(
   row: { top: number; height: number },
@@ -193,6 +224,19 @@ export function followFoot(
   const end = view.content > 0 ? Math.max(0, view.content - view.height) : Number.POSITIVE_INFINITY;
   const y = Math.min(Math.max(row.top + row.height + REVEAL_PAD - view.height, 0), end);
   return Math.abs(y - view.offset) < 1 ? null : y;
+}
+
+/**
+ * `followFoot`, but minimal the way `revealOffset` is: a foot already on screen is left where it
+ * is, so focusing a long field whose end the member can see does not move the form (#769).
+ */
+function footInView(
+  row: { top: number; height: number },
+  view: { height: number; offset: number; content: number },
+): number | null {
+  const foot = row.top + row.height;
+  if (foot >= view.offset && foot + REVEAL_PAD <= view.offset + view.height) return null;
+  return followFoot(row, view);
 }
 
 /**
@@ -236,6 +280,8 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
   const seen = new Map<string, { top: number; foot: number }>();
   const rowRefs = new Map<string, (node: RowHandle | null) => void>();
   const fieldHandlers = new Map<string, { onFocus: () => void; onBlur: () => void }>();
+  /** `FieldState.hasText` per key, as of the screen's last render. */
+  const filled = new Map<string, boolean>();
 
   /**
    * Which event asked for the reveal, because two of them must be more careful than the rest:
@@ -249,7 +295,7 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *   row that already does not fit is a multiline field being typed into — an event or project
    *   description — and "show its top" would bury the caret, which sits at the BOTTOM, once per
    *   new line; on Android it would fight the native caret-follow on every keystroke. Only the
-   *   first reveal of a tall row shows its top. Latent until #752: before it, no pass ever
+   *   first reveal of a tall row shows its top, and only when the field is empty (#769). Latent until #752: before it, no pass ever
    *   measured anything on a native build.
    *
    *   What it does instead is follow the row's FOOT, and only when that foot was on screen the
@@ -271,13 +317,21 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
    *   — read against the old offset, a row the list was on its way to would look like one the
    *   member scrolled away from, and the follow would stop for the rest of the focus.
    */
-  const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow') => {
+  const reveal = (key: string, pass: 'tap' | 'settle' | 'shrink' | 'grow' | 'refuse') => {
     const row = rows.get(key);
     const inner = list?.getInnerViewRef?.();
     if (!row || !list || inner == null) return;
     const scroll = list;
     // Where the row sat BEFORE this pass — read now, because the measurement below replaces it.
     const last = seen.get(key);
+    /**
+     * A tall row whose field holds text lands its foot, where the caret is (#769). Not on a
+     * refusal: that reveal is about the row's label and its error line, which sit at the top.
+     */
+    const caretAtFoot = (target: { height: number }, view: { height: number }) =>
+      pass !== 'refuse' &&
+      filled.get(key) === true &&
+      target.height + 2 * REVEAL_PAD >= view.height;
     const land = (target: { top: number; height: number }, height: number) => {
       if (pass === 'grow') {
         if (last && (last.foot < offset || last.top > offset + height)) return;
@@ -290,7 +344,8 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         offset = y;
         return;
       }
-      const y = revealOffset(target, { height, offset, content });
+      const view = { height, offset, content };
+      const y = caretAtFoot(target, view) ? footInView(target, view) : revealOffset(target, view);
       if (y === null) return;
       scroll.scrollTo({ y, animated: true });
     };
@@ -301,8 +356,9 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         (_x, top, _width, rowHeight) => {
           const field = { top, height: rowHeight };
           seen.set(key, { top, foot: top + rowHeight });
-          // Read at callback time: the submit can mount or unmount between the tap and here.
-          const cta = pass === 'tap' ? null : submit;
+          // Read at callback time: the submit can mount or unmount between the tap and here. A
+          // refusal reveals the row alone — the member is looking for the field, not the button.
+          const cta = pass === 'tap' || pass === 'refuse' ? null : submit;
           if (!cta) return land(field, height);
           cta.measureLayout(
             inner,
@@ -361,7 +417,8 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
       }
       return ref;
     },
-    fieldProps: (key) => {
+    fieldProps: (key, state) => {
+      filled.set(key, state?.hasText === true);
       let props = fieldHandlers.get(key);
       if (!props) {
         props = {
@@ -384,6 +441,13 @@ export function createRevealOnFocus(options: RevealOptions = {}): RevealOnFocus 
         fieldHandlers.set(key, props);
       }
       return props;
+    },
+    revealRow: (key) => {
+      focused = null;
+      reveal(key, 'refuse');
+      schedule(() => {
+        if (focused === null) reveal(key, 'refuse');
+      });
     },
     submitRef: () => submitRef,
   };
