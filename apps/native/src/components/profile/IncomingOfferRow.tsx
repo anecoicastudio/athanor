@@ -5,6 +5,7 @@ import type { Help, Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { Tag } from '@/components/Tag';
 import type { HelperIdentity } from '@/hooks/use-own-dream';
 
@@ -71,7 +72,7 @@ export function IncomingOfferRow({
 
       {/* actions by status */}
       {help.status === 'offered' ? (
-        <View className="flex-row items-center gap-3">
+        <ButtonRow>
           <Button
             label={t('help.owner.accept', locale)}
             variant="light"
@@ -84,7 +85,7 @@ export function IncomingOfferRow({
             disabled={mutating}
             onPress={onDecline}
           />
-        </View>
+        </ButtonRow>
       ) : help.status === 'accepted' ? (
         <View className="gap-3">
           <Text className="text-[12px] text-faint">{t('help.state.accepted', locale)}</Text>

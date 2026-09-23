@@ -4428,3 +4428,41 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
     ).toEqual(GLOW_SURFACES);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 43 — a Button label never wraps inside a pill that sits beside another (#833)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Marco's ruling, 2026-09-23: no button label breaks across lines. DESIGN §10 forbids capping
+ * text, so the ROW wraps and the label does not — side-by-side pills go in `ButtonRow`, where
+ * each pill sizes to its one-line label and a pill that does not fit drops to the next line.
+ *
+ * The shape this pins is the one that broke it: `<View className="flex-1"><Button …/></View>`
+ * hands the pill a fixed share of the row, whatever its label needs, so «Accetta» beside
+ * «Rifiuta» beside «Scrivi» broke mid-word on an iPhone SE (#833). The only in-pill wrap left
+ * is a LONE full-width pill whose label is wider than the screen at 2× — and a lone pill has
+ * no `flex-1` sibling split to be caught here.
+ */
+describe('a Button is never handed a fixed share of a row (#833)', () => {
+  it('no <Button> sits directly inside a `flex-1` wrapper View', () => {
+    const hits = FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) => {
+      const src = stripComments(read(p));
+      // `flex-1` or `flex-[N]` leading the class string, in either quoting, with or without
+      // more classes after it, and a JSX comment allowed between the cell and the Button
+      // (`stripComments` leaves its braces behind, so an empty `{ }` counts as one).
+      const cell =
+        /<View\s+className=(?:"|\{['"`])flex-(?:1|\[\d+\])(?:\s[^"'`]*)?(?:"|['"`]\})\s*>\s*(?:\{\s*(?:\/\*[\s\S]*?\*\/)?\s*\}\s*)?<Button\b/g;
+      return [...src.matchAll(cell)].map(
+        (m) =>
+          `${rel(p).replace('apps/native/src/', '')}:${src.slice(0, m.index).split('\n').length}`,
+      );
+    });
+    expect(
+      hits,
+      'a Button in a `flex-1` cell: the pill gets a fixed share of the row and its label ' +
+        'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
+        '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
+    ).toEqual([]);
+  });
+});

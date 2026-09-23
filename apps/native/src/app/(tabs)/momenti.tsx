@@ -151,7 +151,8 @@ export default function MomentiScreen() {
   });
   const topHandle = cards[0]?.handle ?? '';
   // The deck well is the one height in the app its own children cannot grow: `SwipeDeck`
-  // stacks `absolute inset-0` cards, which contribute no intrinsic height, so a hard
+  // lays an `absolute inset-0` peek card under a `flex: 1` top card, and neither sizes the
+  // well to its content, so a hard
   // `h-[438px]` clipped the card's dream quote at AX sizes with nothing to scroll (#639).
   // The well scales with the member's text size instead, bounded by the same 2x the text
   // cap uses — this screen is inside a ScrollView, so a taller well simply scrolls.
@@ -173,7 +174,13 @@ export default function MomentiScreen() {
 
   return (
     <Screen>
+      {/* Keyed on `fontScale` (#833): a text-size change made while the app is running
+          re-renders every Text at the new size but keeps the OLD layout — rows sized for the
+          previous scale, lines clipped or gapped, and the well re-measured around them, so
+          the dream quote spilled out of the card and over «Passa» / «Connetti». A remount
+          re-measures the text and every `onLayout` input of `deckWellHeight` from scratch. */}
       <ScrollView
+        key={fontScale}
         className="flex-1"
         contentContainerClassName="px-5 pt-4 pb-12"
         onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
