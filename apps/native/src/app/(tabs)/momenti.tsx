@@ -174,13 +174,10 @@ export default function MomentiScreen() {
 
   return (
     <Screen>
-      {/* Keyed on `fontScale` (#833): a text-size change made while the app is running
-          re-renders every Text at the new size but keeps the OLD layout — rows sized for the
-          previous scale, lines clipped or gapped, and the well re-measured around them, so
-          the dream quote spilled out of the card and over «Passa» / «Connetti». A remount
-          re-measures the text and every `onLayout` input of `deckWellHeight` from scratch. */}
+      {/* No `fontScale` key here any more (#833 → #754): a live text-size change remounts
+          every src/tw Text instead, which re-lays out the boxes above it and so re-fires each
+          `onLayout` input of `deckWellHeight`. Keeping a key would only reset the scroll. */}
       <ScrollView
-        key={fontScale}
         className="flex-1"
         contentContainerClassName="px-5 pt-4 pb-12"
         onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
