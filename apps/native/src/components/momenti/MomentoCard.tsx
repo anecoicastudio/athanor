@@ -31,7 +31,9 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
     // Opaque base (bg-background) UNDER the bg-raise tint: the deck stacks the next card behind
     // this one (SwipeDeck), and bg-raise alone (rgba ~4%) is see-through — the peek card bled
     // through and garbled the text. The base occludes it while preserving the raised-card look.
-    <View className="flex-1 rounded-card bg-background">
+    // `overflow-hidden`: whatever the card holds stays inside its own border, never over the
+    // «Passa» / «Connetti» row below the well (#833).
+    <View className="flex-1 overflow-hidden rounded-card bg-background">
       <View className="flex-1 rounded-card border border-aura-line bg-raise p-5">
         <View className="flex-row items-center gap-3">
           <Avatar

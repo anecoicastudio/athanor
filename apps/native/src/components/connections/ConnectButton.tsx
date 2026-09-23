@@ -93,7 +93,9 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
   const requestId = statusQuery.data?.requestId ?? null;
 
   return (
-    <View className="flex-1 gap-2">
+    // `flex-[2]` while answering a request: the footer then holds three equal-ish pills —
+    // «Scrivi» beside it, «Accetta» and «Rifiuta» in here — instead of a half split in two.
+    <View className={state === 'pending-in' ? 'flex-[2] gap-2' : 'flex-1 gap-2'}>
       {state === 'none' ? (
         <Button
           label={t('connection.cta', locale)}
@@ -125,9 +127,10 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       ) : null}
 
       {state === 'pending-in' ? (
-        <View className="flex-row items-center gap-3">
+        <View className="flex-row items-center gap-4">
           <View className="flex-1">
             <Button
+              compact
               label={t('connection.accept', locale)}
               variant="light"
               disabled={pending || !requestId}
@@ -136,6 +139,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
           </View>
           <View className="flex-1">
             <Button
+              compact
               label={t('connection.decline', locale)}
               variant="ghost"
               disabled={pending || !requestId}

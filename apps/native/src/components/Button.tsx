@@ -70,6 +70,10 @@ import { auraGlow } from '@/lib/glow';
  * its own white-fill/black-ink Sign in with Apple button (ruled 2026-09-19 on #79), not
  * Athanor's `light`/`outline` recipe. It exists to serve exactly one call site, the Apple CTA on
  * `welcome.tsx` — never reach for it elsewhere.
+ *
+ * `compact` halves the side padding (`px-3`) for pills that share a row three across — the
+ * profile footer's «Scrivi» · «Accetta» · «Rifiuta», where `px-6` left a third-width pill ~34pt
+ * for its label and broke «Accetta» mid-word. Height, label size and tracking are unchanged.
  */
 type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline' | 'apple';
 
@@ -98,6 +102,7 @@ export function Button({
   loading = false,
   glow = false,
   icon = null,
+  compact = false,
   accessibilityLabel,
 }: {
   label: string;
@@ -113,6 +118,8 @@ export function Button({
    * assistive tech. Pass `null`, never an element that renders null (see the docblock).
    */
   icon?: ReactNode;
+  /** Side padding `px-3` instead of `px-6`, for three pills in one row (see the docblock). */
+  compact?: boolean;
   accessibilityLabel?: string;
 }) {
   const { container, text, ink } = VARIANT_CLASSES[variant];
@@ -131,7 +138,7 @@ export function Button({
         'min-h-[52px] items-center justify-center rounded-full py-3',
         // The gutter is keyed on `icon`, not on what is currently drawn, so the padding does
         // not change when `loading` swaps the mark out from under a fixed-width pill.
-        icon ? 'px-14' : 'px-6',
+        icon ? 'px-14' : compact ? 'px-3' : 'px-6',
         container,
         inert && 'opacity-40',
       )}

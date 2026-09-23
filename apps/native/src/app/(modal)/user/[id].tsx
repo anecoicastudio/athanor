@@ -322,6 +322,7 @@ export default function PersonDetailScreen() {
         <View className="flex-row items-center gap-4 border-t border-hair px-5 pb-3 pt-3">
           <View className="flex-1">
             <Button
+              compact
               label={t('profile.write.cta', locale)}
               variant="ghost"
               onPress={async () => {
@@ -341,6 +342,7 @@ export default function PersonDetailScreen() {
           {dreamText != null && hasHelpableTappa ? (
             <View className="flex-1">
               <Button
+                compact
                 label={t('dream.makeHappenCta', locale)}
                 onPress={() => router.push({ pathname: '/(modal)/help', params: { userId: id } })}
               />
