@@ -1151,6 +1151,8 @@ The `remote_config` table (backend `00` §7a) is the team's remote kill-switch s
 > 2. Paste it into Authentication → Sign In / Providers → Apple → **Secret Key** on **both** projects. **Client IDs**: the Services ID first — Supabase uses the first entry for the web flow.
 > 3. Update the row below and copy something else over the clipboard.
 >
+> **Production precondition for the flag, not the provider:** do not set `apple_signin_enabled` ON in production until `athanor.world` and the auth From address are registered under Sign in with Apple for Email Communication (#825's SMTP). `/delete-account` promises Hide My Email members a one-time code at their relay address (§7.7), and Apple drops relay mail from an unregistered domain. Configuring the provider first is harmless: with the flag off no one can reach it.
+>
 > Seen on the 2026-09-24 walk: an Apple sign-in that **shares** an email already verified on another account (Google, email) is **linked** to that account, not created beside it, so the member lands on their existing profile. **Hide My Email** makes a new account on the relay address. The name is not reliable: the linked run's Apple identity carried none, and the new-account run (after revoking Athanor in the Apple Account) carried it and set `display_name`. A new Apple account with no name is unwalked.
 >
 > A staging `config push` keeps the provider on through `[remotes.staging.auth.external.apple]`; export `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` first or confirm the diff reports the secret as not pushed.
