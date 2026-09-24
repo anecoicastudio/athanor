@@ -12,7 +12,11 @@ import {
   adminReportHandlesRow,
   waitlistAdminRowSchema,
   abandonedDispatchRowSchema,
+  purgePostMediaInput,
+  takedownInput,
+  type PurgePostMediaInput,
   type ResolveReportInput,
+  type TakedownInput,
   type AuditLogRow,
   type AdminReportRow,
   type AdminReportHandlesRow,
@@ -39,12 +43,26 @@ export type {
 
 /** The columns every `audit_log` reader here selects — one list, so two readers cannot drift. */
 const AUDIT_COLUMNS =
-  'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id';
+  'id, report_id, actor_id, action, penalty_points, reason, created_at, edition_id, candidacy_id, target_type, target_id';
 
 /** The columns every `fund_editions` reader here selects — `adminFundEditionRow`'s exact shape. */
 const EDITION_COLUMNS = 'id, phase, target_at, created_at, closure_reason, winner_candidacy_id';
 
 const PAGE = 25;
+
+/** The one category the queue triages ahead of the date order (#788). */
+const CHILD_SAFETY = 'child_safety';
+
+/**
+ * How many child-safety reports the first page carries ahead of the date-ordered queue. A
+ * ceiling, not a page size: the promise on /child-safety is review within 24 hours, and a
+ * queue with more open child-safety reports than this is an incident, not a backlog. The
+ * probe row beyond it sets `childSafetyMore`, so the panel can say so instead of quietly
+ * showing the first hundred.
+ */
+export const CHILD_SAFETY_TRIAGE_CEILING = 100;
+
+const QUEUE_COLUMNS = 'id, target_type, target_id, category, status, created_at';
 
 /**
  * The two handles the panel renders for each report — reporter and subject — through the
@@ -90,15 +108,33 @@ async function readReportHandles(
  * `handlesExcluded` counts the channel rows withheld at the boundary (#664): non-zero means a
  * «—» on this page is a schema disagreement, not an unnamed report. Additive to the shape the
  * panel already reads; a caller that ignores it sees exactly what it saw before.
+ *
+ * CHILD-SAFETY FIRST (#788). /child-safety promises review within 24 hours, and a date-ordered
+ * queue keeps that promise only while every report is read within a day. So on the FIRST page of
+ * the `open` and `reviewing` tabs a SEPARATE query reads the child-safety reports and puts them
+ * ahead of the page. The date-ordered keyset is untouched — it still walks EVERY report, child
+ * safety included — so a report beyond the triage ceiling is never lost: it keeps its place in
+ * date order on whichever page it falls, and `childSafetyMore` says the head was cut. A triaged
+ * row is dropped from the first page's dated rows so it is not listed twice on one screen; on a
+ * later page it appears again in its date position, which is the price of never hiding one.
+ * Two queries rather than one ordered «category first», because a priority term in the sort
+ * would have to enter the cursor, and the `created_at|id` cursor every caller holds would stop
+ * meaning a position. They run concurrently. The `resolved` tab is history: date order only.
  */
 export async function getReportQueue(
   client: AthanorClient,
   opts: { status: 'open' | 'reviewing' | 'resolved'; cursor?: string | null; limit?: number },
-): Promise<{ rows: AdminReportRow[]; nextCursor: string | null; handlesExcluded: number }> {
+): Promise<{
+  rows: AdminReportRow[];
+  nextCursor: string | null;
+  handlesExcluded: number;
+  childSafety: number;
+  childSafetyMore: boolean;
+}> {
   const limit = opts.limit ?? PAGE;
   let q = client
     .from('reports')
-    .select('id, target_type, target_id, category, status, created_at')
+    .select(QUEUE_COLUMNS)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(limit + 1);
@@ -110,15 +146,33 @@ export async function getReportQueue(
     const { ts, id } = decodeCursor(opts.cursor, 'report');
     q = q.or(keysetFilter('created_at', 'id', ts, id, 'lt'));
   }
-  const { data, error } = await q;
-  if (error) throw error;
-  const { page, hasMore } = probePage(data ?? [], limit);
-  // The page's ids only — the probe row is never rendered, so it is never named.
+  const triage =
+    opts.status !== 'resolved' && !opts.cursor
+      ? client
+          .from('reports')
+          .select(QUEUE_COLUMNS)
+          .eq('status', opts.status)
+          .eq('category', CHILD_SAFETY)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(CHILD_SAFETY_TRIAGE_CEILING + 1)
+      : null;
+  const [dated, urgent] = await Promise.all([q, triage]);
+  if (dated.error) throw dated.error;
+  if (urgent?.error) throw urgent.error;
+  const { page, hasMore } = probePage(dated.data ?? [], limit);
+  const probed = probePage(urgent?.data ?? [], CHILD_SAFETY_TRIAGE_CEILING);
+  const head = probed.page;
+  const childSafetyMore = probed.hasMore;
+  const inHead = new Set(head.map((r) => r.id));
+
+  const shown = [...head, ...page.filter((r) => !inHead.has(r.id))];
+  // The shown ids only — the probe rows are never rendered, so they are never named.
   const { handles, excluded: handlesExcluded } = await readReportHandles(
     client,
-    page.map((r) => r.id),
+    shown.map((r) => r.id),
   );
-  const rows: AdminReportRow[] = page.map((r) => ({
+  const rows: AdminReportRow[] = shown.map((r) => ({
     id: r.id,
     // `reports.target_type` is a text column; the union lives in the schema. Same narrowing
     // `getReportDetail` below already applies — kept identical rather than diverging.
@@ -129,7 +183,13 @@ export async function getReportQueue(
     created_at: r.created_at,
     reporter_handle: handles.get(r.id)?.reporter_handle ?? null,
   }));
-  return { rows, nextCursor: tailCursor(page, hasMore), handlesExcluded };
+  return {
+    rows,
+    nextCursor: tailCursor(page, hasMore),
+    handlesExcluded,
+    childSafety: head.length,
+    childSafetyMore,
+  };
 }
 
 /**
@@ -156,10 +216,10 @@ export async function getReportDetail(
     .eq('id', id)
     .single();
   if (error) throw error;
-  // Both parties by handle, through the channel (#664). `subject_handle` is what the migration
-  // resolves for a person target or a message sender — the same person `resolve_report` v5
-  // lands the verdict on — and null for a post or behaviour report, so the header names the
-  // person the verdict will hit and nobody else.
+  // Both parties by handle, through the channel (#664). `subject_handle` is the member
+  // `resolve_report` v6 lands a verdict on — a person target, a behaviour report's named
+  // profile, a message's sender, a post's author (#788) — and null when that does not resolve,
+  // so the header names the person the verdict will hit and nobody else.
   const { handles: handleRows, excluded: handlesExcluded } = await readReportHandles(client, [
     data.id,
   ]);
@@ -168,9 +228,7 @@ export async function getReportDetail(
   let target_handle: string | null = null;
   let reportedMessage: AdminReportedMessage | null = null;
   let reportedMessageState: ReportedMessageState = 'notApplicable';
-  if (data.target_type === 'person' && data.target_id) {
-    target_handle = handles?.subject_handle ?? null;
-  } else if (data.target_type === 'message' && data.target_id) {
+  if (data.target_type === 'message' && data.target_id) {
     const evidence = await readReportedMessage(
       client,
       data.target_id,
@@ -179,6 +237,10 @@ export async function getReportDetail(
     reportedMessage = evidence.message;
     reportedMessageState = evidence.state;
     target_handle = reportedMessage?.sender_handle ?? null;
+  } else if (data.target_id) {
+    // person, post, behaviour: the channel already resolved the subject. A target-less
+    // behaviour report names nobody, and v6 has nobody to enforce against either.
+    target_handle = handles?.subject_handle ?? null;
   }
   const { data: audit } = await client
     .from('audit_log')
@@ -336,6 +398,55 @@ export async function resolveReport(
 
   const { error } = await client.rpc('resolve_report', rpcArgs);
   if (error) throw error;
+}
+
+/**
+ * Take a post, comment or message down (#788) — `admin_takedown`, an audited soft delete.
+ *
+ * Resolve first, take down second: when `reportId` is given the report must already be upheld,
+ * because the admin's evidence reads (`messages_select_reported`, `chat-media_select_reported`)
+ * require `deleted_at is null` and a takedown ends them. The database refuses an open report
+ * (22023) rather than trusting this order. `reportId` is omitted for a comment (no report can
+ * name one) and for an email report (no row exists).
+ *
+ * The bytes stay: the takedown hides the row and stops the media being servable, and nothing
+ * more — a post's files are released by {@link purgePostMedia} once RELEASE-RUNBOOK §7.8 step 5
+ * is done; a message's image is deleted by the operator through the Storage API.
+ *
+ * Parsed here, not only typed: the panel sends form input, and a blank reason or a malformed id
+ * is a Zod issue before it is a 22023.
+ */
+export async function takedownContent(client: AthanorClient, input: TakedownInput): Promise<void> {
+  const v = takedownInput.parse(input);
+  const args: {
+    p_target_type: string;
+    p_target_id: string;
+    p_reason: string;
+    p_report_id?: string;
+  } = { p_target_type: v.targetType, p_target_id: v.targetId, p_reason: v.reason };
+  // Omitted, not null, when absent — `default null` in the SQL, and the one signature there is.
+  if (v.reportId) args.p_report_id = v.reportId;
+  const { error } = await client.rpc('admin_takedown', args);
+  if (error) throw error;
+}
+
+/**
+ * Release a taken-down post's media to post-media-reaper (#788) — `admin_purge_post_media`.
+ * IRREVERSIBLE: the reaper frees the objects at its next run. Run it only after
+ * RELEASE-RUNBOOK §7.8 step 5; the database refuses a post that is not taken down (P0001).
+ * Returns how many `post_media` rows it released (0 for a text post, or a second call).
+ */
+export async function purgePostMedia(
+  client: AthanorClient,
+  input: PurgePostMediaInput,
+): Promise<number> {
+  const v = purgePostMediaInput.parse(input);
+  const { data, error } = await client.rpc('admin_purge_post_media', {
+    p_post_id: v.postId,
+    p_reason: v.reason,
+  });
+  if (error) throw error;
+  return data ?? 0;
 }
 
 // ---------------------------------------------------------------------------

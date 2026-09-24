@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -54,6 +55,7 @@ export default function SearchFiltersScreen() {
 
   // ── Member guard (defence-in-depth) ──────────────────────────────────────────
   const { data: entitlement, isLoading: entitlementLoading } = useEntitlement();
+  const surface = useCircleSurface(entitlement?.features.advancedFilters ?? false);
 
   // ── Pre-fill from route params (written by the search screen) ─────────────────
   const params = useLocalSearchParams<{ auraMin?: string; city?: string; star?: string }>();
@@ -68,11 +70,14 @@ export default function SearchFiltersScreen() {
     return <Screen />;
   }
 
-  // ── Guard: if entitlement lapsed mid-session, redirect to Circle upsell ───────
-  if (!entitlement?.features.advancedFilters) {
-    // Use replace so back-press doesn't loop back here
-    router.replace('/(modal)/circle' as Parameters<typeof router.replace>[0]);
-    return null;
+  // ── Guard: if entitlement lapsed mid-session, redirect ────────────────────────
+  // To the Circle upsell — except on iOS, where a non-member has no route to the Circle screen
+  // (#761, ruling 2026-09-22): back to search, whose filter pill is then the neutral lock.
+  // `<Redirect>` replaces (so back-press doesn't loop back here) from a focus effect; the
+  // `router.replace` this used to call during render tripped React's «Cannot update a component
+  // while rendering a different component».
+  if (surface !== 'unlocked') {
+    return <Redirect href={surface === 'reserved' ? '/(modal)/search' : '/(modal)/circle'} />;
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────────

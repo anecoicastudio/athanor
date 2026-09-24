@@ -46,6 +46,14 @@ export const semantic = {
   // canvas to 3.66 and breaks the ~26 sites that use it as text. One token, two roles — the
   // fill stays put and the ink changes. Asserted in apps/native/src/lib/contrast.test.ts.
   onError: '#1A050D',
+  // Apple's HIG "white" Sign in with Apple button — mandated fill + ink, ruled 2026-09-19 on
+  // #79 (replaces the generic `outline` pill for the Apple CTA only). Pure white/black rather
+  // than the app's near-white/near-black roles: this is a platform requirement independent of
+  // Athanor's own dark-world palette, the same reasoning that keeps `provider-marks.tsx`'s
+  // vendor hexes out of the token set — except a plain fill (unlike a brand mark) is ordinary
+  // enough to model as a token pair rather than a carve-out.
+  appleButtonBg: '#FFFFFF',
+  appleButtonInk: '#000000',
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */

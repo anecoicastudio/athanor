@@ -58,7 +58,17 @@ const ROLE_MAP: Partial<Record<keyof typeof semantic, string>> = {
  * requires the union to cover the TS keys. A token in this list means "web draws nothing with
  * it"; grep the utility (`border-<token>`, `bg-<token>`, `text-<token>`) before adding one.
  */
-const NOT_ON_WEB: (keyof typeof semantic)[] = ['ink2', 'faint', 'raise', 'raise2', 'onError'];
+const NOT_ON_WEB: (keyof typeof semantic)[] = [
+  'ink2',
+  'faint',
+  'raise',
+  'raise2',
+  'onError',
+  // The Apple Sign-In button is a native-only auth screen (`(auth)/welcome.tsx`) — this site
+  // carries no OAuth CTA, so nothing here draws Apple's mandated white/black pair.
+  'appleButtonBg',
+  'appleButtonInk',
+];
 
 /** First declaration of exactly `name` — the lookbehind keeps `--background` off `--color-background`. */
 function cssVar(name: string): string | undefined {

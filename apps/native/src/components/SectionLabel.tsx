@@ -42,17 +42,21 @@ export function SectionLabel({
   tone = 'faint',
   className,
   numberOfLines,
+  accessibilityLabel,
   heading = false,
 }: {
   children: ReactNode;
   tone?: keyof typeof TONE;
   className?: string;
   numberOfLines?: number;
+  /** The full text, where `numberOfLines` may ellipsize it (#754). */
+  accessibilityLabel?: string;
   heading?: boolean;
 }) {
   return (
     <Text
       accessibilityRole={heading ? 'header' : undefined}
+      accessibilityLabel={accessibilityLabel}
       className={cn('text-[11px] font-semibold uppercase tracking-[0.18em]', TONE[tone], className)}
       numberOfLines={numberOfLines}
     >

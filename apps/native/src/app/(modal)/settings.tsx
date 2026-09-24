@@ -19,6 +19,7 @@ import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
 import { legalUrl, supportMailto } from '@/lib/links';
+import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { supabase } from '@/lib/supabase';
@@ -41,6 +42,9 @@ export default function SettingsScreen() {
   const { session, profile, refreshProfile, signOut: endSession } = useAuth();
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
+  // #761: members see their status everywhere; an iOS non-member sees no Circle row at all;
+  // elsewhere a non-member's row says «not open yet» while checkout is closed.
+  const circleRow = useCircleSurface(entitlement?.isMember ?? false);
 
   const { showToast } = useToast();
   const [langBusy, setLangBusy] = useState(false);
@@ -137,18 +141,24 @@ export default function SettingsScreen() {
             value={aura}
             onPress={() => router.push('/(modal)/aura')}
           />
-          <SettingsRow
-            title={t('settings.circle.title', locale)}
-            description={t('settings.circle.desc', locale)}
-            value={
-              entitlement?.plan === 'monthly'
-                ? t('settings.circle.monthly', locale)
-                : entitlement?.plan === 'annual'
-                  ? t('settings.circle.annual', locale)
-                  : t('settings.circle.none', locale)
-            }
-            onPress={() => router.push('/(modal)/circle')}
-          />
+          {circleRow !== 'reserved' ? (
+            <SettingsRow
+              title={t('settings.circle.title', locale)}
+              description={
+                circleRow === 'closed'
+                  ? t('circle.checkoutClosed', locale)
+                  : t('settings.circle.desc', locale)
+              }
+              value={
+                entitlement?.plan === 'monthly'
+                  ? t('settings.circle.monthly', locale)
+                  : entitlement?.plan === 'annual'
+                    ? t('settings.circle.annual', locale)
+                    : t('settings.circle.none', locale)
+              }
+              onPress={() => router.push('/(modal)/circle')}
+            />
+          ) : null}
           <SettingsRow
             title={t('settings.payments.title', locale)}
             description={t('settings.payments.desc', locale)}

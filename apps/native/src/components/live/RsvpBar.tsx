@@ -1,5 +1,6 @@
 import { View, Text } from '@/tw';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { t } from '@athanor/i18n';
 
 /**
@@ -48,22 +49,20 @@ export function RsvpBar({
       {soldOut && !going ? (
         <Button label={t('event.soldOut', locale)} variant="ghost" disabled onPress={() => {}} />
       ) : going ? (
-        <View className="flex-row gap-2">
-          <View className="flex-1">
-            <Button
-              label={t('event.rsvp.confirmed', locale)}
-              variant="ghost"
-              disabled={pending}
-              onPress={onToggle}
-            />
-          </View>
+        <ButtonRow>
+          <Button
+            label={t('event.rsvp.confirmed', locale)}
+            variant="ghost"
+            disabled={pending}
+            onPress={onToggle}
+          />
           <Button
             label={t('event.rsvp.calendar', locale)}
             variant="ghost"
             loading={calendarPending}
             onPress={onAddToCalendar}
           />
-        </View>
+        </ButtonRow>
       ) : (
         <Button
           label={t('event.rsvp.going', locale)}

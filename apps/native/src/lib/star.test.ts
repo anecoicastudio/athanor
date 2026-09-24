@@ -68,10 +68,24 @@ describe('starCellState', () => {
 });
 
 describe('starsBlockMode — the rule #3 asymmetry', () => {
-  it('renders the grid whenever the read landed, for either viewer', () => {
+  it('renders the grid for the owner whenever the read landed, lit or not', () => {
     expect(starsBlockMode([], true)).toBe('grid');
-    expect(starsBlockMode([], false)).toBe('grid');
+    expect(starsBlockMode([row('mentor', null)], true)).toBe('grid');
+    expect(starsBlockMode([row('mentor', '2026-08-01T00:00:00Z')], true)).toBe('grid');
+  });
+
+  it('renders the grid for another member once one star is lit', () => {
     expect(starsBlockMode([row('mentor', '2026-08-01T00:00:00Z')], false)).toBe('grid');
+    expect(
+      starsBlockMode([row('mentor', null), row('creatore', '2026-08-01T00:00:00Z')], false),
+    ).toBe('grid');
+  });
+
+  // #754: «LE SEI STELLE» over nothing. Another member's grid draws only lit cells (rule #3),
+  // so with none lit the label headed an empty block — the whole block goes instead.
+  it('hides the block for another member with no star lit', () => {
+    expect(starsBlockMode([], false)).toBe('hidden');
+    expect(starsBlockMode([row('mentor', null)], false)).toBe('hidden');
   });
 
   it('keeps the grid for the OWNER on a failed read — six unknown cells, no reflow', () => {
@@ -134,5 +148,17 @@ describe('spoken() — the ornament never reaches an imperative announcement (#6
     expect(spoken('  Invito   inviato  ')).toBe('Invito inviato');
     // A single space between words survives — collapsing those would rewrite the sentence.
     expect(spoken('a b c')).toBe('a b c');
+  });
+});
+
+describe('starsBlockMode — hidden is never the owner, never a failed read (#754)', () => {
+  it('keeps a failed read distinguishable from a starless member', () => {
+    expect(starsBlockMode(null, false)).toBe('unavailable');
+    expect(starsBlockMode([], false)).toBe('hidden');
+  });
+
+  it("never hides the owner's block — they see the six unlit stars and the progress row", () => {
+    const inputs: Parameters<typeof starsBlockMode>[0][] = [null, [], [row('mentor', null)]];
+    expect(inputs.map((s) => starsBlockMode(s, true))).toEqual(['grid', 'grid', 'grid']);
   });
 });

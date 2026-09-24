@@ -13,6 +13,7 @@ import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { spoken } from '@/lib/star';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { useToast } from '@/components/ToastHost';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -93,7 +94,11 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
   const requestId = statusQuery.data?.requestId ?? null;
 
   return (
-    <View className="flex-1 gap-2">
+    // No `flex-1`: this renders as one cell of the caller's `ButtonRow`, sized to its content
+    // (#833). While answering a request its two pills are a `ButtonRow` of their own, so the
+    // footer reads «Scrivi» · «Accetta» · «Rifiuta» and the pair drops a line only when it
+    // does not fit — no label ever breaks.
+    <View className="gap-2">
       {state === 'none' ? (
         <Button
           label={t('connection.cta', locale)}
@@ -125,24 +130,20 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       ) : null}
 
       {state === 'pending-in' ? (
-        <View className="flex-row items-center gap-3">
-          <View className="flex-1">
-            <Button
-              label={t('connection.accept', locale)}
-              variant="light"
-              disabled={pending || !requestId}
-              onPress={() => requestId && respondMutation.mutate({ requestId, accept: true })}
-            />
-          </View>
-          <View className="flex-1">
-            <Button
-              label={t('connection.decline', locale)}
-              variant="ghost"
-              disabled={pending || !requestId}
-              onPress={() => requestId && respondMutation.mutate({ requestId, accept: false })}
-            />
-          </View>
-        </View>
+        <ButtonRow>
+          <Button
+            label={t('connection.accept', locale)}
+            variant="light"
+            disabled={pending || !requestId}
+            onPress={() => requestId && respondMutation.mutate({ requestId, accept: true })}
+          />
+          <Button
+            label={t('connection.decline', locale)}
+            variant="ghost"
+            disabled={pending || !requestId}
+            onPress={() => requestId && respondMutation.mutate({ requestId, accept: false })}
+          />
+        </ButtonRow>
       ) : null}
 
       {state === 'connected' ? (

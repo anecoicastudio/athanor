@@ -59,3 +59,59 @@ export function scaledWellHeight(
   if (!Number.isFinite(fontScale)) return base;
   return Math.round(base * Math.min(Math.max(fontScale, 1), cap));
 }
+
+/**
+ * The Momenti deck well at the default text size is at most 438pt (DESIGN §8.4, #751). On a
+ * phone whose screen leaves less room than that under the header, 438 pushed «Passa» /
+ * «Connetti» under the tab bar (iPhone SE, 375×667), so 438 is a ceiling, not a size.
+ */
+export const DECK_WELL_MAX = 438;
+
+/**
+ * The floor the well never shrinks under. At the default text size it rarely binds — an
+ * iPhone SE leaves ~426 — so it is chosen for the LARGEST text size, where the header and the
+ * action row grow and eat the room while the card's text wraps faster than it scales. Measured
+ * on an iPhone SE at AX5 (fontScale capped at 2×): a card with three reasons and a two-line
+ * dream needs ~646pt, i.e. a base of ~323; 300 clipped its quote. 380 → 760 at 2× leaves
+ * ~114pt, about three more lines of AX quote. It stays under the SE's default-size room, so
+ * the fit #751 exists for is not traded away.
+ */
+export const DECK_WELL_MIN = 380;
+
+/**
+ * Height of the Momenti deck well, from what the screen actually has (#751). Every input is
+ * MEASURED by the screen, never a guessed inset:
+ *
+ *  - `viewport`: the ScrollView's own height. The tab bar is a flow sibling below `Screen`
+ *    and `Screen` owns the safe-area insets, so both are already outside it — subtracting
+ *    them again would reserve them twice. `Screen`'s suspension banner is a sibling of the
+ *    ScrollView, so when it shows it shrinks this number too.
+ *  - `wellTop`: the well's `y` in the scroll content — everything above it (padding, the
+ *    eyebrow, the h1 and its sub line) in one number.
+ *  - `actionGap` + `actionRow`: the margin above the Passa / Connetti row and its height.
+ *
+ * The room left is clamped to `[DECK_WELL_MIN, DECK_WELL_MAX]` and only THEN multiplied by
+ * `fontScale` through `scaledWellHeight`, so at a large text size the well still grows past
+ * the viewport and the screen scrolls (#639). Before the first measurement `viewport` is
+ * undefined and the answer is the maximum — the size every phone got before #751.
+ */
+export function deckWellHeight({
+  viewport,
+  wellTop,
+  actionGap,
+  actionRow,
+  fontScale,
+}: {
+  viewport: number | undefined;
+  wellTop: number;
+  actionGap: number;
+  actionRow: number;
+  fontScale: number;
+}): number {
+  if (viewport === undefined || !Number.isFinite(viewport)) {
+    return scaledWellHeight(DECK_WELL_MAX, fontScale);
+  }
+  const room = viewport - wellTop - actionGap - actionRow;
+  const base = Math.min(Math.max(room, DECK_WELL_MIN), DECK_WELL_MAX);
+  return scaledWellHeight(Math.floor(base), fontScale);
+}

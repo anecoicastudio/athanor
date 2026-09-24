@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Keyboard, Linking, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -39,6 +39,7 @@ import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
+import { useLocationConsent } from '@/hooks/use-location-consent';
 import { useLocale } from '@/hooks/use-locale';
 import { usePaidEventsGate } from '@/hooks/use-remote-config';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
@@ -104,6 +105,13 @@ export default function EventCreateScreen() {
    */
   const paidGate = usePaidEventsGate();
   /**
+   * «Localizzazione approssimativa» (#783): «Usa la mia posizione» exists only while it is `on`.
+   * Off, the event's point comes from the typed venue alone — the OS geocoder reads no position,
+   * though on Android it still needs the OS grant (see geocodeVenue).
+   */
+  // A failed consent read stays `unknown`: the pill stays hidden and the typed venue still works.
+  const locationConsent = useLocationConsent().state;
+  /**
    * What the organiser PICKED, and what the form actually IS — two different things since #806,
    * because the rail can close while this sheet is open (a 60s refetch, or a flag flipped
    * mid-session). `paid` is DERIVED rather than reset by an effect: an effect that called
@@ -123,6 +131,9 @@ export default function EventCreateScreen() {
   // the 14-day promise attaches to an event rather than to the organiser.
   const [settlementAck, setSettlementAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The empty title, apart from `error`: it renders in the title's own row, which is what the
+  // refusal scrolls to — the one line by the submit would say it far from the field (#769).
+  const [nameMissing, setNameMissing] = useState(false);
   /**
    * #701 — the paid-ticket floor, as one sentence used twice: a hint under the price field, and
    * the refusal when the field is ignored. Derived at render rather than stored, so it survives a
@@ -247,9 +258,15 @@ export default function EventCreateScreen() {
   // A point arriving answers the «Scrivi luogo e città…» refusal, and only that one: any other
   // error is about a different field and stays until the next submit re-checks it.
   const clearLocationError = () =>
-    setError((current) => (current === t('event.create.locationNeeded', locale) ? null : current));
+    setError((current) =>
+      current === t('event.create.locationNeeded', locale) ||
+      current === t('event.create.locationNeededVenueOnly', locale)
+        ? null
+        : current,
+    );
 
   const requestMyLocation = async () => {
+    if (locationConsent !== 'on') return;
     setLocationRefusal(null);
     let pos: Location.LocationObject;
     try {
@@ -296,7 +313,8 @@ export default function EventCreateScreen() {
   const { point, status: pointStatus } = eventPointState({
     query,
     venue: venuePoint,
-    device: devicePoint,
+    // A fix taken before the switch went off is never saved after it (#783).
+    device: locationConsent === 'on' ? devicePoint : null,
     source: pointSource,
     lookup,
   });
@@ -415,6 +433,15 @@ export default function EventCreateScreen() {
 
   const onSubmit = async () => {
     setError(null);
+    // #769 — the first field, so the first refusal. It used to run last and answer with
+    // `event.create.error`, the server-failure «Riprova», which a member cannot act on. The
+    // submit is at the foot of the longest form in the app, so the refusal brings the row up.
+    if (title.trim().length === 0) {
+      setNameMissing(true);
+      Keyboard.dismiss();
+      reveal.revealRow('name');
+      return;
+    }
     // The four paid-event refusals, in the order BOTH server gates raise them: price floor
     // (22003), acknowledgement (22023), then identity (42501), then payout (55000). The order is
     // the point, not a detail — checking payout first would send a verified organiser who simply
@@ -460,7 +487,6 @@ export default function EventCreateScreen() {
       setError(t('event.create.payout.gate', locale));
       return;
     }
-    if (title.trim().length === 0) return setError(t('event.create.error', locale));
     if (isOnline) return mutation.mutate(null);
     // A venue typed and sent without leaving the field has not been looked up yet: do it now, and
     // save with the answer. No answer means no point — the line under the city already says why.
@@ -474,7 +500,13 @@ export default function EventCreateScreen() {
           : shouldLookUpVenue(query, venuePoint, lookup)
             ? await lookUpVenue(query)
             : null);
-    if (!at) return setError(t('event.create.locationNeeded', locale));
+    // #783: with the switch off there is no «Usa la mia posizione» to point at.
+    if (!at)
+      return setError(
+        locationConsent === 'on'
+          ? t('event.create.locationNeeded', locale)
+          : t('event.create.locationNeededVenueOnly', locale),
+      );
     mutation.mutate(at);
   };
 
@@ -520,9 +552,15 @@ export default function EventCreateScreen() {
               {...reveal.fieldProps('name')}
               placeholder={t('event.create.namePlaceholder', locale)}
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(v) => {
+                setTitle(v);
+                if (nameMissing) setNameMissing(false);
+              }}
               maxLength={140}
             />
+            {nameMissing ? (
+              <Text className="text-sm text-error">{t('event.create.nameRequired', locale)}</Text>
+            ) : null}
           </View>
 
           {/* #634: the detail used to render one fabricated sentence for every event under the
@@ -621,23 +659,35 @@ export default function EventCreateScreen() {
                       : pointStatus === 'looking'
                         ? t('event.create.point.looking', locale)
                         : pointStatus === 'notFound'
-                          ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                          ? locationConsent === 'on'
+                            ? t('event.create.point.notFound', locale, { place: query ?? '' })
+                            : t('event.create.point.notFoundVenueOnly', locale, {
+                                place: query ?? '',
+                              })
                           : pointStatus === 'failed'
-                            ? t('event.create.point.failed', locale)
+                            ? locationConsent === 'on'
+                              ? t('event.create.point.failed', locale)
+                              : t('event.create.point.failedVenueOnly', locale)
                             : t('event.create.point.hint', locale)}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => void requestMyLocation()}
-                className="self-start rounded-full border border-aura-line px-4 py-2"
-                accessibilityRole="button"
-              >
-                <Text className="text-[13px] text-aura">
-                  {pointStatus === 'device'
-                    ? t('event.create.locationSet', locale)
-                    : t('event.create.useLocation', locale)}
+              {locationConsent === 'on' ? (
+                <Pressable
+                  onPress={() => void requestMyLocation()}
+                  className="self-start rounded-full border border-aura-line px-4 py-2"
+                  accessibilityRole="button"
+                >
+                  <Text className="text-[13px] text-aura">
+                    {pointStatus === 'device'
+                      ? t('event.create.locationSet', locale)
+                      : t('event.create.useLocation', locale)}
+                  </Text>
+                </Pressable>
+              ) : locationConsent === 'off' ? (
+                <Text className="text-[13px] text-faint">
+                  {t('event.create.locationOff', locale)}
                 </Text>
-              </Pressable>
+              ) : null}
               {locationRefusal ? (
                 <View className="gap-2">
                   {/* Literal keys on both arms (i18n checker + orphan-grep property). Blocked

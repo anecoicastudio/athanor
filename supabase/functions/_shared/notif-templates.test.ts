@@ -378,3 +378,35 @@ Deno.test('every fund broadcast body addresses the member in the second person',
     }
   }
 });
+
+// #788: REASON_LABELS is a hand-kept copy of the catalogs' `report.reason.*` labels («keep in
+// sync», line 11) and nothing held it to them — a new report reason rendered its raw token in
+// a warn push. Every catalog reason must come back as its catalog label, in both locales.
+Deno.test(
+  'the warn renders every report.reason.* label exactly as the catalogs spell it',
+  async () => {
+    for (const locale of ['it', 'en'] as const) {
+      const catalog: Record<string, string> = JSON.parse(
+        await Deno.readTextFile(
+          new URL(`../../../packages/i18n/src/catalogs/${locale}.json`, import.meta.url),
+        ),
+      );
+      const reasons = Object.entries(catalog).filter(([key]) => key.startsWith('report.reason.'));
+      assertEquals(reasons.length > 0, true, `${locale}: the catalog names no report reason`);
+      for (const [key, label] of reasons) {
+        const [msg] = buildPushMessages(
+          ['ExponentPushToken[a]'],
+          {
+            type: 'moderation',
+            templateKey: 'notif.tpl.warn',
+            params: { reason: key.slice('report.reason.'.length) },
+            entityRef: 'r1',
+            locale,
+          },
+          allValid,
+        );
+        assertEquals(msg.body.includes(label), true, `${locale}: ${key} → «${msg.body}»`);
+      }
+    }
+  },
+);

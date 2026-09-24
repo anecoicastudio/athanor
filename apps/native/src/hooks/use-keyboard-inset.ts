@@ -49,35 +49,31 @@ const TRACE = __DEV__;
  * they settle it for free.
  *
  * What is not inference is the blast radius, and it is what turns deleting the measurement
- * from a judgement into a consequence: of the twelve `KeyboardAvoiding` consumers, NINE are
- * `(modal)/*`, and `StoriesViewer` renders on `(modal)/stories` too. Only `welcome`,
- * `(onboarding)` and `(tabs)/profile` were ever outside a sheet — and `welcome` is exactly
- * the screen that lifts correctly on device. The measurement was structurally wrong on ten
- * of the thirteen surfaces that use it.
+ * from a judgement into a consequence: most `KeyboardAvoiding` consumers are `(modal)/*`, and
+ * `StoriesViewer` renders on `(modal)/stories` too. Only the `(auth)` pair outside a sheet,
+ * `(onboarding)` and `(tabs)/profile` are not — and `welcome` is exactly the screen that
+ * lifted correctly on device while the measurement was still in. It was structurally wrong on
+ * every sheet.
  *
  * So: **never reach for `measureInWindow` on a modal screen.** Every `(modal)/*` route is
  * inside a sheet — the group itself carries `presentation: 'modal'` (`app/_layout.tsx`) —
  * and that call has now cost this branch two device rounds. It will lie the same way a
  * third time.
  *
- * ── WHAT THAT STILL DOES NOT EXPLAIN ──────────────────────────────────────────────
- * `(auth)/welcome` lifts correctly on device, which proves the whole chain end to end:
- * listener registers, event fires, a non-zero inset commits, `paddingBottom` propagates
- * through `Screen`, content shrinks, the focused field clears the keyboard. `(modal)/chat`
- * on the same build does not. Since nothing measures any more, whatever is left is specific
- * to that screen and is NOT the arithmetic above. The trace is what will say which.
+ * ── SETTLED ON DEVICE ──────────────────────────────────────────────────────────────
+ * With nothing measuring, every composer lifts on device, `(modal)/chat` included (#658,
+ * closed 2026-09-19). The layout half was never in doubt: forcing a fixed inset through
+ * `KeyboardAvoiding` in the web build moves chat's composer by exactly the inset injected
+ * (PR #620's body carries the recipe).
  *
- * One half IS established, and it removes a whole branch of the search: **the layout works.**
- * Forcing a fixed inset through this hook's consumer in the web build moved chat's composer
- * bottom from 731 to 431 — exactly the 300 injected. `paddingBottom` on the wrapper shrinks
- * `Screen` and lifts the composer as designed, on a real render of the real screen. So the
- * failure is entirely in getting a non-zero number OUT of this hook, never in what the
- * consumers do with it. What remains is whether the listener fires at all and whether
- * `__DEV__` was even true in the build under test — which is what the registration trace
- * below exists to settle. The experiment is re-runnable: PR #620's body carries the recipe
- * (web build, force a fixed inset through `KeyboardAvoiding`, read the composer's
- * `getBoundingClientRect().bottom` before and after), so this account and that one can be
- * checked against each other rather than drifting apart.
+ * ── THE BOTTOM SAFE-AREA INSET (#765) ───────────────────────────────────────────────
+ * On iOS the keyboard rises from the window bottom, so its height already spans the home
+ * indicator — and `Screen`'s native `SafeAreaView` pads its bottom by the provider's inset
+ * whatever the view's position, so a lifted screen used to reserve those 34pt on top of the
+ * keyboard. On Android `endCoordinates.height` is the IME inset MINUS the system bars
+ * (`ReactRootView.checkForKeyboardEvents`), so there the bottom inset is exactly what closes
+ * the gap and must stay. `keyboardCoversBottomInset` is that platform split, named once;
+ * `KeyboardAvoiding` and `StoriesViewer` drop the bottom edge by it while the keyboard is up.
  *
  * What the MEASUREMENT bought, and what deleting it costs: a trimmed lift on
  * `(modal)/plan`, `(modal)/progress` (content above a pinned `Screen footer`) and
@@ -170,3 +166,10 @@ export function useKeyboardInset(): number {
 
   return inset;
 }
+
+/**
+ * Whether this hook's height already covers the bottom safe-area inset — iOS yes, Android no
+ * (#765; the "BOTTOM SAFE-AREA INSET" section on `useKeyboardInset`). While the keyboard is
+ * up, a view lifted by the height drops its bottom safe-area edge exactly when this is true.
+ */
+export const keyboardCoversBottomInset = Platform.OS === 'ios';

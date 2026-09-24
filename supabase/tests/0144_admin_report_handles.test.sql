@@ -196,7 +196,7 @@ select is(
   (select subject_handle from public.admin_report_handles(
      array['11440000-0000-4000-8000-00000000001b']::uuid[])),
   null,
-  'U3 a post report has no subject handle — the panel never named one, and this is a fix, not a feature');
+  'U3 a post report whose post does not resolve has no subject handle (since #788 a live post names its author — 0155 C1)');
 select is(
   (select subject_handle from public.admin_report_handles(
      array['11440000-0000-4000-8000-00000000001c']::uuid[])),

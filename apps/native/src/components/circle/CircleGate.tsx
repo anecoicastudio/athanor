@@ -5,15 +5,22 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { LockGlyph } from '@/components/glyphs';
+import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 
 /**
  * The one reusable Circle gate (M8 §3.4).
  *
- * Maps `feature` → `entitlement.features.*` and renders one of three states:
- *   • Unlocked (member + feature enabled) → renders `children` as-is.
- *   • Locked                               → renders the lock affordance for `variant`.
- *   • Loading                              → renders nothing (avoids false "locked" flash).
+ * Maps `feature` → `entitlement.features.*`, then lets `useCircleSurface` (#761) decide what a
+ * non-member sees — the one decision every Circle-gated surface reads:
+ *   • Loading (entitlement)  → renders nothing (avoids false "locked" flash).
+ *   • unlocked               → renders `children` as-is. Every platform.
+ *   • reserved / pending     → a neutral, NON-tappable lock: no «Sblocca», no route. iOS
+ *                              non-members always (ruling 2026-09-22); Android/web while the
+ *                              checkout flag's first read is in flight.
+ *   • closed                 → the lock plus «La membership non è ancora aperta.», still routed
+ *                              to the Circle screen, which says the same (ruling 2026-09-19).
+ *   • open                   → the unlock affordance, routed to `upsellRoute`.
  *
  * Feature → entitlement flag mapping:
  *   advancedFilters  → features.advancedFilters
@@ -31,7 +38,8 @@ import { useEntitlement } from '@/hooks/use-entitlement';
  * `aura` cyan is never used on the gate chrome.
  *
  * Accessibility: every variant carries `accessibilityLabel={t('circle.gate.a11y', locale)}`
- * plus a state hint ("bloccato" / "sbloccato").
+ * plus the state ("bloccato" / "sbloccato"). Only a tappable lock is a button, and its hint
+ * says where the tap leads — «Sblocca» while checkout is open, the closed line while it is not.
  */
 
 type GateFeature = 'advancedFilters' | 'premiumEvents' | 'analytics' | 'marketCommissions';
@@ -53,17 +61,20 @@ export function CircleGate({
   const router = useRouter();
   const { data: entitlement, isLoading } = useEntitlement();
 
+  // Map feature prop → the correct flag in EntitlementView.features
+  const featureEnabled =
+    entitlement == null
+      ? false
+      : feature === 'marketCommissions'
+        ? entitlement.features.marketReducedFee
+        : entitlement.features[feature];
+  const surface = useCircleSurface(featureEnabled);
+
   // While loading, render nothing to avoid a false "locked" flash
   if (isLoading || !entitlement) return null;
 
-  // Map feature prop → the correct flag in EntitlementView.features
-  const featureEnabled =
-    feature === 'marketCommissions'
-      ? entitlement.features.marketReducedFee
-      : entitlement.features[feature];
-
   // Unlocked → render children directly
-  if (featureEnabled) {
+  if (surface === 'unlocked') {
     return (
       <View
         accessibilityLabel={t('circle.gate.a11y', locale)}
@@ -75,67 +86,91 @@ export function CircleGate({
     );
   }
 
-  // Locked → render the appropriate variant
+  const a11yLabel = `${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`;
+  const closedLine = t('circle.checkoutClosed', locale);
+
+  // The lock's own words. The banner's used to be «Sblocca nel Circle», which is a promise —
+  // it keeps that only while checkout is open; otherwise it takes the neutral label.
+  const unlock = surface === 'open' ? t('circle.gate.unlock', locale) : null;
+  const lockCopy =
+    variant === 'pill'
+      ? t('search.filters.locked', locale)
+      : variant === 'label'
+        ? t('circle.gate.premiumEvents', locale)
+        : (unlock ?? t('circle.gate.reserved', locale));
+
+  const face =
+    variant === 'pill' ? (
+      <>
+        {/* Lock mark — drawn, not the 🔒 emoji (#753); the label says «bloccato» */}
+        <LockGlyph size={16} color={semantic.foregroundMuted} />
+        <Text className="text-[14px] text-muted-foreground">{lockCopy}</Text>
+      </>
+    ) : variant === 'label' ? (
+      <Text className="text-[12px] text-muted-foreground">{lockCopy}</Text>
+    ) : (
+      <>
+        <Text className="text-[14px] text-muted-foreground">{lockCopy}</Text>
+        <Text className="mt-1 text-[12px] text-faint">{t('circle.assurance.quote', locale)}</Text>
+      </>
+    );
+
+  const shape =
+    variant === 'pill'
+      ? 'flex-row items-center gap-2 self-start rounded-full border border-hair bg-raise px-4 py-2.5'
+      : variant === 'label'
+        ? 'self-start rounded-full border border-hair bg-raise-2 px-3 py-1'
+        : 'rounded-card border border-hair bg-raise px-4 py-4';
+  const minHeight = variant === 'pill' ? 44 : variant === 'label' ? 28 : 56;
+
+  // reserved (iOS non-member) / pending (flag unread) → a label, not a button: nothing to tap,
+  // nowhere to go. The same face, so the lock reads the same on every platform.
+  if (surface === 'reserved' || surface === 'pending') {
+    return (
+      // `accessible` makes the View one element: without it iOS skips the label and VoiceOver
+      // reads only the child text, losing «bloccato».
+      <View className={shape} accessible accessibilityLabel={a11yLabel} style={{ minHeight }}>
+        {face}
+      </View>
+    );
+  }
+
   const handleUpsell = () => {
     router.push(upsellRoute as Parameters<typeof router.push>[0]);
   };
 
-  const a11yLabel = `${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`;
-
-  if (variant === 'pill') {
-    return (
-      <Pressable
-        className="flex-row items-center gap-2 rounded-full border border-hair bg-raise px-4 py-2.5"
-        onPress={handleUpsell}
-        accessibilityRole="button"
-        accessibilityLabel={a11yLabel}
-        accessibilityHint={t('circle.gate.unlock', locale)}
-        style={{ minHeight: 44 }}
-      >
-        {/* Lock mark — drawn, not the 🔒 emoji (#753); the Pressable's label says «bloccato» */}
-        <LockGlyph size={16} color={semantic.foregroundMuted} />
-        <Text className="text-[14px] text-muted-foreground">
-          {t('search.filters.locked', locale)}
-        </Text>
-      </Pressable>
-    );
-  }
-
-  if (variant === 'label') {
-    // Compact Tag-style lock label (M4 event cards)
-    return (
-      <Pressable
-        className="rounded-full border border-hair bg-raise-2 px-3 py-1"
-        onPress={handleUpsell}
-        accessibilityRole="button"
-        accessibilityLabel={a11yLabel}
-        accessibilityHint={t('circle.gate.unlock', locale)}
-        // The 28pt box is deliberate — this is a Tag-sized lock inside an event card's tag
-        // row, and growing it to 44 would break that row. §10's floor is not optional
-        // though, so it comes from slop instead: 28 + 2×8 = 44.
-        hitSlop={8}
-        style={{ minHeight: 28 }}
-      >
-        <Text className="text-[12px] text-muted-foreground">
-          {t('circle.gate.premiumEvents', locale)}
-        </Text>
-      </Pressable>
-    );
-  }
-
-  // variant === 'banner'
-  // A bg-raise strip — for in-context non-member teasers (Fase 2)
-  return (
+  const button = (
     <Pressable
-      className="rounded-card border border-hair bg-raise px-4 py-4"
+      className={shape}
       onPress={handleUpsell}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
-      accessibilityHint={t('circle.gate.unlock', locale)}
-      style={{ minHeight: 56 }}
+      accessibilityHint={unlock ?? closedLine}
+      // The label's 28pt box is deliberate — a Tag-sized lock inside an event card's tag row,
+      // and growing it to 44 would break that row. §10's floor is not optional though, so it
+      // comes from slop instead: 28 + 2×8 = 44.
+      hitSlop={variant === 'label' ? 8 : undefined}
+      style={{ minHeight }}
     >
-      <Text className="text-[14px] text-muted-foreground">{t('circle.gate.unlock', locale)}</Text>
-      <Text className="mt-1 text-[12px] text-faint">{t('circle.assurance.quote', locale)}</Text>
+      {face}
     </Pressable>
+  );
+
+  if (surface === 'open') return button;
+
+  // closed → still locked, still routed to the Circle screen (which says the same), plus the
+  // line that stops the lock from promising a join that cannot happen yet.
+  return (
+    <View className="gap-1.5">
+      {button}
+      {/* The button's hint already says it; hidden from screen readers so it is not read twice. */}
+      <Text
+        className="text-[12px] text-faint"
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      >
+        {closedLine}
+      </Text>
+    </View>
   );
 }

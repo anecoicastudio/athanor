@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -21,7 +23,7 @@ const cal = vi.hoisted(() => ({
 
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
-vi.mock('expo-calendar', () => ({
+vi.mock('expo-calendar/legacy', () => ({
   EntityTypes: { EVENT: 'event' },
   requestCalendarPermissionsAsync: async () => {
     if (cal.throwOnPermission) throw new Error('UnavailabilityError: expo-calendar on web');
@@ -66,7 +68,7 @@ describe('addEventToCalendar maps every permission outcome', () => {
     expect(cal.created, 'nothing is written without a grant').toHaveLength(0);
   });
 
-  // One case, not two. iOS write-only is not a distinct INPUT here: expo-calendar@15.0.8 maps
+  // One case, not two. iOS write-only is not a distinct INPUT here: expo-calendar@57.0.4 maps
   // `.writeOnly` to EXPermissionStatusDenied (CalendarPermissionsRequester.swift:35) and the OS
   // will not prompt again, so it arrives as exactly this pair. That is the reproduction in
   // #531 — a grant that exists, cannot be widened from inside the app, and was
@@ -103,6 +105,28 @@ describe('addEventToCalendar maps every permission outcome', () => {
     await addEventToCalendar(EVENT);
     const { details } = cal.created[0] as { details: { startDate: Date; endDate: Date } };
     expect(details.endDate.getTime() - details.startDate.getTime()).toBe(60 * 60 * 1000);
+  });
+});
+
+/**
+ * The specifier pin (#826). Since expo-calendar@57 the ROOT entry is the object-oriented API,
+ * and every legacy function it still exports is a stub that logs a deprecation and throws
+ * (`src/legacyWarnings.ts`); the working implementations live at `expo-calendar/legacy`. The
+ * behaviour tests above cannot catch a regression here — they mock whichever specifier they
+ * name, and mocking the root one kept this suite green while every device write threw. So the
+ * import itself is asserted, from source.
+ */
+describe('calendar.ts imports the legacy entry', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('./calendar.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it("imports from 'expo-calendar/legacy', never the root entry", () => {
+    expect(source).toMatch(/from 'expo-calendar\/legacy';/);
+    expect(source, 'the root entry throws on every legacy call').not.toMatch(
+      /from 'expo-calendar';/,
+    );
   });
 });
 

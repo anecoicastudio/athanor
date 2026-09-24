@@ -523,13 +523,14 @@ describe('author-only reaction counts (rule 3)', () => {
  * wrapper; #616 found the measurement itself was taken once, at mount, and so was wrong on
  * exactly the screen that needed it most (a sheet pushed from a sheet).
  *
- * The mechanism is now `hooks/use-keyboard-inset.ts`: it measures inside the keyboard event
- * and pads. `KeyboardAvoidingView` is therefore gone from the app — the first assertion pins
- * its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
+ * The mechanism is now `hooks/use-keyboard-inset.ts`: it reads the keyboard's height from
+ * the event and pads by it — no measurement. `KeyboardAvoidingView` is therefore gone from
+ * the app — the first assertion pins its ABSENCE, not an allowlist, because a call site reaching for it again is the regression
  * this section exists to catch. The second keeps the old copied branch out even so, since a
  * reintroduction would most likely arrive in that shape. The third pins the new single point
  * of truth: nothing else subscribes to keyboard show/hide, so nobody hand-rolls avoidance at
- * a call site again.
+ * a call site again. The last pins #765: both lifted surfaces drop their bottom safe-area
+ * edge by the ONE platform rule, `keyboardCoversBottomInset`, rather than each deciding.
  */
 describe('keyboard avoidance goes through the one hook (#163, #616)', () => {
   const INSET_CONSUMERS = [
@@ -571,6 +572,20 @@ describe('keyboard avoidance goes through the one hook (#163, #616)', () => {
       .map((p) => rel(p).replace('apps/native/src/', ''))
       .sort();
     expect(users).toEqual([...INSET_CONSUMERS].sort());
+  });
+
+  it('a lifted view drops its bottom safe-area edge by the one platform rule (#765)', () => {
+    // The native SafeAreaView pads by the provider's inset whatever the view's position, so
+    // without these the home indicator is reserved on top of an iOS keyboard (34pt dead band).
+    const screen = stripComments(read(`${SRC}components/Screen.tsx`));
+    expect(screen).toMatch(/const lifted = useLiftedOverBottomInset\(\);/);
+    expect(screen).toMatch(/edges: lifted \? \['top'\] : \['top', 'bottom'\]/);
+    const wrapper = stripComments(read(`${SRC}components/KeyboardAvoiding.tsx`));
+    expect(wrapper).toMatch(/value=\{inset > 0 && keyboardCoversBottomInset\}/);
+    const stories = stripComments(read(`${SRC}components/stories/StoriesViewer.tsx`));
+    expect(stories).toMatch(
+      /edges=\{keyboardInset > 0 && keyboardCoversBottomInset \? \[\] : \['bottom'\]\}/,
+    );
   });
 });
 
@@ -2637,15 +2652,15 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:440':
+    'app/(onboarding)/index.tsx:469':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
-    'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
-    'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
+    'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
+    'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:370': 'the reply send disc — same reason as chat.tsx:523',
-    'components/stories/StoryRing.tsx:111':
+    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoryRing.tsx:121':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
   };
@@ -2677,6 +2692,40 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     }
   });
 
+  it('a live text-size change remounts every Text, and nothing that holds state (#754)', () => {
+    const tw = stripComments(read(TW)).replace(/\s+/g, ' ');
+    expect(
+      /export const Text = \(props: TextProps\) => <TextImpl key=\{useFontScale\(\)\} \{\.\.\.props\} \/>/.test(
+        tw,
+      ),
+      'src/tw Text is no longer keyed on useFontScale(). A Dynamic Type change made while the ' +
+        'app runs then re-renders every Text at the new size inside the OLD layout — rows sized ' +
+        'for the previous scale, lines clipped or gapped — until the screen is left (#754).',
+    ).toBe(true);
+    expect(
+      tw.match(/useFontScale\(\)/g)?.length,
+      'useFontScale() keys exactly one wrapper — Text. Keying TextInput would drop focus and ' +
+        'reset an uncontrolled draft on every text-size change; keying a container would ' +
+        'remount its whole subtree, state included.',
+    ).toBe(1);
+    const outside = codeLines()
+      .filter(([where]) => !where.startsWith('apps/native/src/tw/'))
+      .filter(([, text]) => /\buseFontScale\b/.test(text))
+      .map(([where, text]) => `${where}  ${text.trim().slice(0, 100)}`);
+    expect(
+      outside,
+      'useFontScale outside src/tw: it exists to key the Text leaf and nothing else. A screen ' +
+        'that keys a container on it remounts that subtree — drafts, focus, scroll — on every ' +
+        'text-size change; read `useWindowDimensions().fontScale` for a size instead (#754).',
+    ).toEqual([]);
+    const root = stripComments(read(`${SRC}app/_layout.tsx`));
+    expect(
+      /<FontScaleProvider>/.test(root),
+      'the root layout no longer mounts FontScaleProvider, so useFontScale() reads its default ' +
+        'of 1 forever and the Text key never changes (#754)',
+    ).toBe(true);
+  });
+
   it('no call site invents its own cap', () => {
     const hits = codeLines()
       .filter(([where]) => !where.startsWith('apps/native/src/tw/'))
@@ -2701,7 +2750,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
           ({ base, raw }) =>
             base === 'Text' &&
             /accessibilityRole=["']header["']/.test(raw) &&
-            /numberOfLines=\{1\}/.test(raw),
+            // Anything but a literal ≥2 or `wordLines(…)` (#754), which gives one line only
+            // to a one-word title — the one case where a second line splits the word.
+            /numberOfLines=\{(?![2-9]\}|wordLines\()/.test(raw),
         )
         .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
     );
@@ -2710,7 +2761,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'a screen title pinned to one line:\n' +
         "A header IS the screen's name, and one line at AX sizes leaves «Impostazion…» " +
         'where the orientation should be. Headers sit in bands with no fixed height, so a ' +
-        'second line costs nothing at the default size (#639).',
+        'second line costs nothing at the default size (#639). Use a literal 2, or ' +
+        '`wordLines(title)` from lib/word-lines, which drops to one line only for a one-word ' +
+        'title — the second line there could only split the word (#754).',
     ).toEqual([]);
   });
 
@@ -3548,8 +3601,10 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
  *
  * Not the composers, deliberately. The registry is the FORM screens — several fields stacked
  * down a scroll, where focusing one says nothing about where the others sit — not `chat`,
- * `post-compose`, `story-compose`, `candidacy`, `(onboarding)` or `ProfileEditForm`, whose one
- * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
+ * `post-compose`, `story-compose`, `candidacy` or `ProfileEditForm`, whose one
+ * field IS the screen and which the wrapper's lift already clears. `(onboarding)` left that list
+ * in #754: its steps are top-anchored now, and the lift had only cleared the dream field while
+ * the step was centred in the shrinking viewport. `project-compose` is named
  * like a composer and shaped like a form — a title field, a chip row, then a tall description at
  * the foot — so it is in.
  *
@@ -3575,6 +3630,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
       keys: ['name', 'desc', 'streamUrl', 'venue', 'city', 'capacity', 'price'],
     },
     { file: `${SRC}app/(modal)/project-compose.tsx`, keys: ['title', 'description'] },
+    { file: `${SRC}app/(onboarding)/index.tsx`, keys: ['birth', 'dream'] },
   ];
 
   /** The app's two field primitives. Either one on a registered screen owes a reveal. */
@@ -3590,6 +3646,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     `${SRC}app/(auth)/forgot-password.tsx`,
     `${SRC}app/(modal)/new-password.tsx`,
     `${SRC}app/(modal)/event-create.tsx`,
+    `${SRC}app/(onboarding)/index.tsx`,
   ];
 
   /**
@@ -4245,20 +4302,27 @@ describe('logical inline spacing never reaches a node that drops it (#749)', () 
  * «Accedi» joined without seeing the terms they were said to accept. Play's UGC policy asks for
  * exactly that acceptance before anyone can post.
  *
- * A source pin, because no render harness reaches this screen: each mode has its own notice, the
- * sign-in one inside the provider block it is about. It cannot see layout — whether the notice is
- * on screen next to the buttons is the device walk's to prove.
+ * #795 widened it: on a 667pt screen the signup notice by «Crea account» sits below the fold, so
+ * «Continua con Google» created an account before the notice was ever on screen. Both modes now
+ * render one under the provider buttons — each mode's own string — and signup keeps its second
+ * one by the CTA, which the email path reaches.
+ *
+ * A source pin, because no render harness reaches this screen. It cannot see layout — whether the
+ * notice is on screen next to the buttons is the device walk's to prove.
  */
 describe('the consent notice is shown wherever an account can be created (#777)', () => {
   const screen = () => stripComments(read(`${SRC}app/(auth)/welcome.tsx`));
 
-  it('the sign-in mode shows its own notice, inside the provider block', () => {
+  it('both modes show a notice inside the provider block, each its own string', () => {
     const src = screen();
     const block = src.slice(src.indexOf('{anyOauth ? ('), src.indexOf("t('auth.orEmail'"));
     expect(
-      /\{login \? \(\s*<LegalNotice text=\{oauthNotice\}/.test(block),
-      'the sign-in mode no longer renders `auth.legal.oauthNotice` under the provider buttons — a ' +
-        'first Google sign-in there creates an account with no notice shown (#777).',
+      /<LegalNotice\s+text=\{login \? oauthNotice : t\('auth\.legal\.notice', locale\)\}/.test(
+        block,
+      ),
+      'the provider block no longer renders an unconditional notice — sign-in mode must show ' +
+        '`auth.legal.oauthNotice` (#777) and signup mode `auth.legal.notice` (#795), or a first ' +
+        'Google sign-in creates an account with no notice on screen.',
     ).toBe(true);
     expect(src).toMatch(/t\('auth\.legal\.oauthNotice', locale/);
   });
@@ -4426,5 +4490,43 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
         'appears, that is DESIGN.md §8.12 being broken again — the clock takes the framed pair ' +
         '`border-aura-line bg-aura-soft`, never the shadow.',
     ).toEqual(GLOW_SURFACES);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 43 — a Button label never wraps inside a pill that sits beside another (#833)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Marco's ruling, 2026-09-23: no button label breaks across lines. DESIGN §10 forbids capping
+ * text, so the ROW wraps and the label does not — side-by-side pills go in `ButtonRow`, where
+ * each pill sizes to its one-line label and a pill that does not fit drops to the next line.
+ *
+ * The shape this pins is the one that broke it: `<View className="flex-1"><Button …/></View>`
+ * hands the pill a fixed share of the row, whatever its label needs, so «Accetta» beside
+ * «Rifiuta» beside «Scrivi» broke mid-word on an iPhone SE (#833). The only in-pill wrap left
+ * is a LONE full-width pill whose label is wider than the screen at 2× — and a lone pill has
+ * no `flex-1` sibling split to be caught here.
+ */
+describe('a Button is never handed a fixed share of a row (#833)', () => {
+  it('no <Button> sits directly inside a `flex-1` wrapper View', () => {
+    const hits = FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) => {
+      const src = stripComments(read(p));
+      // `flex-1` or `flex-[N]` leading the class string, in either quoting, with or without
+      // more classes after it, and a JSX comment allowed between the cell and the Button
+      // (`stripComments` leaves its braces behind, so an empty `{ }` counts as one).
+      const cell =
+        /<View\s+className=(?:"|\{['"`])flex-(?:1|\[\d+\])(?:\s[^"'`]*)?(?:"|['"`]\})\s*>\s*(?:\{\s*(?:\/\*[\s\S]*?\*\/)?\s*\}\s*)?<Button\b/g;
+      return [...src.matchAll(cell)].map(
+        (m) =>
+          `${rel(p).replace('apps/native/src/', '')}:${src.slice(0, m.index).split('\n').length}`,
+      );
+    });
+    expect(
+      hits,
+      'a Button in a `flex-1` cell: the pill gets a fixed share of the row and its label ' +
+        'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
+        '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
+    ).toEqual([]);
   });
 });

@@ -77,9 +77,14 @@ export const TRAIL_STEPS = [
 export type TrailStep = (typeof TRAIL_STEPS)[number];
 /** `s` = step, `t` = ms since the session started. Short keys: the 1024-byte budget is real. */
 export type TrailEntry = { s: TrailStep; t: number };
-export type Trail = { startedAt: number; steps: TrailEntry[] };
+/**
+ * `consented`: diagnostics consent was ON the last time this run heard about it (#783). A trail
+ * from a run without it is discarded, never sent — a later grant cannot release it.
+ */
+export type Trail = { startedAt: number; steps: TrailEntry[]; consented: boolean };
 
-type Stored = { v: typeof VERSION; startedAt: number; steps: TrailEntry[] };
+/** `c` = the run's diagnostics consent, as {@link setTrailConsent} last wrote it. */
+type Stored = { v: typeof VERSION; startedAt: number; steps: TrailEntry[]; c: boolean };
 
 const ALLOWED: ReadonlySet<string> = new Set(TRAIL_STEPS);
 
@@ -102,7 +107,9 @@ function parseTrail(raw: string | null): Trail | null {
       (e): e is TrailEntry =>
         !!e && typeof e === 'object' && ALLOWED.has((e as TrailEntry).s) && Number.isFinite(e.t),
     );
-    return { startedAt: parsed.startedAt, steps };
+    // Only an explicit `true` counts: a trail written before the flag existed, or a store that
+    // lost it, is a run nobody can show consented — so it is treated as one that did not (#783).
+    return { startedAt: parsed.startedAt, steps, consented: parsed.c === true };
   } catch (e) {
     devWarn('[crash-trail] parse', e);
     return null;
@@ -136,7 +143,7 @@ async function start(): Promise<Session> {
   } catch (e) {
     devWarn('[crash-trail] read', e);
   }
-  const current: Stored = { v: VERSION, startedAt: Date.now(), steps: [] };
+  const current: Stored = { v: VERSION, startedAt: Date.now(), steps: [], c: false };
   await write(current);
   return { previous, current };
 }
@@ -166,6 +173,29 @@ export async function markStep(step: TrailStep): Promise<void> {
     -MAX_STEPS,
   );
   await write(current);
+}
+
+/**
+ * Record this run's diagnostics consent in its own trail (#783). SentryConsentGate calls it on
+ * every change, so the flag follows a grant AND a revoke; it defaults to false, so a run that dies
+ * before the consent query answers is treated as unconsented. Durable like a marker — awaited, it
+ * has landed — because the process may die right after.
+ */
+export async function setTrailConsent(granted: boolean): Promise<void> {
+  const { current } = await ensureStarted();
+  // No early return on an unchanged value: a write that failed earlier would otherwise leave the
+  // store holding the old flag while memory says the new one. One write per consent change.
+  current.c = granted;
+  await write(current);
+}
+
+/**
+ * Is this trail one Sentry may receive? Only a run that ended uncleanly AND had diagnostics
+ * consent when it did. Everything else is dropped on the floor — the slot was already claimed by
+ * this launch in {@link start}, so a discarded trail is gone from the device too.
+ */
+export function shouldReportTrail(trail: Trail): boolean {
+  return trail.consented && !endedCleanly(trail);
 }
 
 /**
