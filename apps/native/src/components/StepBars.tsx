@@ -7,8 +7,11 @@ import { View } from '@/tw';
  */
 export function StepBars({ count, current }: { count: number; current: number }) {
   return (
+    // No `flex-1` (#754): in the onboarding column it meant a height basis of 0, and the row
+    // collapsed by its own 3.5pt whenever a step overflowed (the date wheel open), moving the
+    // eyebrow and the step under it. The column already stretches it to full width.
     <View
-      className="flex-1 flex-row gap-1.5"
+      className="flex-row gap-1.5"
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 1, max: count, now: current + 1 }}
     >

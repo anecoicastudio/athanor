@@ -34,6 +34,7 @@ import { useAuth } from '@/lib/auth-context';
 import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { Screen } from '@/components/Screen';
 
 /** identity → birth → seeking → dream → face. The last one is skippable and writes nothing required. */
@@ -102,6 +103,10 @@ export default function OnboardingScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Top-anchored steps (#754) no longer lift a focused field by being centred in a shrinking
+  // viewport, so the dream field is revealed the way every form's is (#689).
+  const reveal = useRevealOnFocus();
 
   // Announce the current step to screen readers whenever it changes (A-5).
   useEffect(() => {
@@ -198,7 +203,12 @@ export default function OnboardingScreen() {
     // so it had the same defect and takes the same primitive, outside `Screen`.
     <KeyboardAvoiding>
       <Screen>
+        {/* `key={step}`: every step starts at the top (#754). One list serves all five, so the
+        next step inherited the last one's offset and, at AX sizes, opened with the header and
+        its own heading scrolled away. The answers live in this screen's state, not the list. */}
         <ScrollView
+          key={step}
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
@@ -213,8 +223,8 @@ export default function OnboardingScreen() {
             `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px on device, so
             `h-11` is 38.5pt there while measuring a passing 44px on web — the same trap
             `Input.tsx` documents. -ml-3 keeps the glyph optically near the gutter. Step 0
-            renders the empty slot, not a disabled button, so screen readers gain no phantom
-            control. */}
+            renders a hidden placeholder, not a disabled button, so screen readers gain no
+            phantom control. */}
             <View className="-ml-3 min-h-[44px] min-w-[44px]">
               {step > 0 ? (
                 <Pressable
@@ -225,7 +235,19 @@ export default function OnboardingScreen() {
                 >
                   <Text className="text-2xl text-foreground">‹</Text>
                 </Pressable>
-              ) : null}
+              ) : (
+                // Step 0 reserves the glyph's HEIGHT too, not only the 44pt box: at AX sizes
+                // the scaled ‹ makes the button taller than 44, and an empty slot let the whole
+                // screen below it jump between step 0 and 1 (#754). Invisible and silent — no
+                // phantom control.
+                <View
+                  className="min-h-[44px] min-w-[44px] items-center justify-center opacity-0"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  <Text className="text-2xl text-foreground">‹</Text>
+                </View>
+              )}
             </View>
             {/* `shrink`: at AX sizes the link may need two lines rather than push the row
             past the gutter; the back slot is the fixed side now. */}
@@ -304,16 +326,19 @@ export default function OnboardingScreen() {
                     // web»), and Expo web is the only surface a walk can reach here. Validated
                     // with the same schema the flush and the column use, so an impossible day
                     // never reaches state (it would read as «too young», the wrong line).
-                    <Input
-                      placeholder={t('onboarding.birth.isoHint', locale)}
-                      inputMode="numeric"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      defaultValue={birthDate ?? ''}
-                      onChangeText={(v) =>
-                        setBirthDate(birthDateSchema.safeParse(v).success ? v : null)
-                      }
-                    />
+                    <View ref={reveal.rowRef('birth')}>
+                      <Input
+                        {...reveal.fieldProps('birth')}
+                        placeholder={t('onboarding.birth.isoHint', locale)}
+                        inputMode="numeric"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        defaultValue={birthDate ?? ''}
+                        onChangeText={(v) =>
+                          setBirthDate(birthDateSchema.safeParse(v).success ? v : null)
+                        }
+                      />
+                    </View>
                   ) : (
                     <Pressable
                       onPress={() => setShowPicker(true)}
@@ -413,15 +438,18 @@ export default function OnboardingScreen() {
                     {t('onboarding.dream.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
-                  <Field
-                    size="lg"
-                    register="dream"
-                    multiline
-                    maxLength={500}
-                    placeholder={t('onboarding.dream.placeholder', locale)}
-                    value={dream}
-                    onChangeText={setDream}
-                  />
+                  <View ref={reveal.rowRef('dream')}>
+                    <Field
+                      {...reveal.fieldProps('dream')}
+                      size="lg"
+                      register="dream"
+                      multiline
+                      maxLength={500}
+                      placeholder={t('onboarding.dream.placeholder', locale)}
+                      value={dream}
+                      onChangeText={setDream}
+                    />
+                  </View>
                 </View>
               ) : null}
 
@@ -494,7 +522,8 @@ export default function OnboardingScreen() {
           </View>
 
           {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
-          <View className="mt-6">
+          {/* Rides along with the revealed field, so «Continua» is never left under the keyboard. */}
+          <View className="mt-6" ref={reveal.submitRef()}>
             {step < STEPS - 1 ? (
               <Button
                 variant="light"
