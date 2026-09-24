@@ -1157,10 +1157,10 @@ The `remote_config` table (backend `00` §7a) is the team's remote kill-switch s
 >
 > A staging `config push` keeps the provider on through `[remotes.staging.auth.external.apple]`; export `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` first or confirm the diff reports the secret as not pushed.
 
-| Project    | Services ID            | Secret expires | `apple_signin_enabled`                                              |
-| ---------- | ---------------------- | -------------- | ------------------------------------------------------------------- |
-| staging    | `world.athanor.signin` | 2027-03-23     | ON since 2026-09-24 — walked on the iOS simulator and the g17 (#79) |
-| production | `world.athanor.signin` | pending        | pending                                                             |
+| Project    | Services ID            | Secret expires | `apple_signin_enabled`                                                         |
+| ---------- | ---------------------- | -------------- | ------------------------------------------------------------------------------ |
+| staging    | `world.athanor.signin` | 2027-03-23     | ON since 2026-09-24 — walked on the iOS simulator and the g17 (#79)            |
+| production | `world.athanor.signin` | 2027-03-23     | ON since 2026-09-24 — config read back; member round trip not yet walked (#79) |
 
 > **Value-shape constraint:** the `remote_config_value_shape` CHECK constraint in the DB rejects malformed writes (missing `ios`/`android` keys for `min_app_version`; non-boolean `enabled` for all other keys). A bad service_role write raises `23514` (check_violation) — the constraint protects against fat-fingered kill-switch edits.
 
