@@ -1151,12 +1151,14 @@ The `remote_config` table (backend `00` §7a) is the team's remote kill-switch s
 > 2. Paste it into Authentication → Sign In / Providers → Apple → **Secret Key** on **both** projects. **Client IDs**: the Services ID first — Supabase uses the first entry for the web flow.
 > 3. Update the row below and copy something else over the clipboard.
 >
+> Seen on the 2026-09-24 walk: an Apple sign-in that **shares** an email already verified on another account (Google, email) is **linked** to that account, not created beside it, so the member lands on their existing profile. **Hide My Email** makes a new account on the relay address. The name is not reliable: the linked run's Apple identity carried none, and the new-account run (after revoking Athanor in the Apple Account) carried it and set `display_name`. A new Apple account with no name is unwalked.
+>
 > A staging `config push` keeps the provider on through `[remotes.staging.auth.external.apple]`; export `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` first or confirm the diff reports the secret as not pushed.
 
-| Project    | Services ID            | Secret expires | `apple_signin_enabled` |
-| ---------- | ---------------------- | -------------- | ---------------------- |
-| staging    | `world.athanor.signin` | pending        | pending                |
-| production | `world.athanor.signin` | pending        | pending                |
+| Project    | Services ID            | Secret expires | `apple_signin_enabled`                                              |
+| ---------- | ---------------------- | -------------- | ------------------------------------------------------------------- |
+| staging    | `world.athanor.signin` | 2027-03-23     | ON since 2026-09-24 — walked on the iOS simulator and the g17 (#79) |
+| production | `world.athanor.signin` | pending        | pending                                                             |
 
 > **Value-shape constraint:** the `remote_config_value_shape` CHECK constraint in the DB rejects malformed writes (missing `ios`/`android` keys for `min_app_version`; non-boolean `enabled` for all other keys). A bad service_role write raises `23514` (check_violation) — the constraint protects against fat-fingered kill-switch edits.
 
