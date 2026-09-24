@@ -92,7 +92,12 @@ export default function CostellazioniScreen() {
               </Pressable>
             </View>
             <View className="flex-row items-center justify-between gap-3 px-5">
-              <SectionLabel numberOfLines={1} className="shrink">
+              {/* Ellipsizes beside «+ Pubblica» at AX sizes; the label keeps it whole (#754). */}
+              <SectionLabel
+                numberOfLines={1}
+                accessibilityLabel={t('costellazioni.board.label', locale)}
+                className="shrink"
+              >
                 {t('costellazioni.board.label', locale)}
               </SectionLabel>
               <Pressable

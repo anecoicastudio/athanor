@@ -2652,7 +2652,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:440':
+    'app/(onboarding)/index.tsx:441':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
@@ -2660,7 +2660,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
-    'components/stories/StoryRing.tsx:111':
+    'components/stories/StoryRing.tsx:121':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
   };
@@ -2750,7 +2750,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
           ({ base, raw }) =>
             base === 'Text' &&
             /accessibilityRole=["']header["']/.test(raw) &&
-            /numberOfLines=\{1\}/.test(raw),
+            // Anything but a literal ≥2 or `wordLines(…)` (#754), which gives one line only
+            // to a one-word title — the one case where a second line splits the word.
+            /numberOfLines=\{(?![2-9]\}|wordLines\()/.test(raw),
         )
         .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
     );
@@ -2759,7 +2761,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'a screen title pinned to one line:\n' +
         "A header IS the screen's name, and one line at AX sizes leaves «Impostazion…» " +
         'where the orientation should be. Headers sit in bands with no fixed height, so a ' +
-        'second line costs nothing at the default size (#639).',
+        'second line costs nothing at the default size (#639). Use a literal 2, or ' +
+        '`wordLines(title)` from lib/word-lines, which drops to one line only for a one-word ' +
+        'title — the second line there could only split the word (#754).',
     ).toEqual([]);
   });
 
