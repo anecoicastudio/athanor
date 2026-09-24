@@ -8,6 +8,7 @@ import { ProfileHero } from '@/components/profile/ProfileHero';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/profile/SixStarsGrid';
 import { StarProgress } from '@/components/aura/StarProgress';
+import { starsBlockMode } from '@/lib/star';
 
 /**
  * Shared Profilo VIEW stack — hero → IL SOGNO → stat dot-line → Sei Stelle → Momenti
@@ -70,30 +71,33 @@ export function ProfileBody({
       </Text>
       {afterStats}
 
-      {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress row is owner-only */}
-      <View className="gap-3">
-        <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-        <SixStarsGrid
-          stars={stars}
-          viewerIsOwner={viewerIsOwner}
-          locale={locale}
-          onStarPress={onStarPress}
-        />
-        {/* Progress needs the rows to compute a ratio; with none read there is nothing truthful
+      {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress row is owner-only.
+          Another member with no star lit gets no block at all, label included (#754). */}
+      {starsBlockMode(stars, viewerIsOwner) === 'hidden' ? null : (
+        <View className="gap-3">
+          <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
+          <SixStarsGrid
+            stars={stars}
+            viewerIsOwner={viewerIsOwner}
+            locale={locale}
+            onStarPress={onStarPress}
+          />
+          {/* Progress needs the rows to compute a ratio; with none read there is nothing truthful
             to say, so the strip hides rather than showing 0 / N. The owner gets a sentence in
             its place — six em dashes and a block that silently shrinks is honest but mute, and
             unlike the third-person case there is no «—» hero beside it co-signalling why
             (issue #16). */}
-        {viewerIsOwner ? (
-          stars != null ? (
-            <StarProgress next={pickNextStar(stars)} locale={locale} />
-          ) : (
-            <Text className="text-[12px] text-faint">
-              {t('profile.stars.yourUnavailable', locale)}
-            </Text>
-          )
-        ) : null}
-      </View>
+          {viewerIsOwner ? (
+            stars != null ? (
+              <StarProgress next={pickNextStar(stars)} locale={locale} />
+            ) : (
+              <Text className="text-[12px] text-faint">
+                {t('profile.stars.yourUnavailable', locale)}
+              </Text>
+            )
+          ) : null}
+        </View>
+      )}
 
       {/* Momenti gallery — own view passes onAdd; third-person passes label/emptyLabel overrides */}
       <MomentiGallery {...gallery} />
