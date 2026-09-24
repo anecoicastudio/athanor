@@ -731,7 +731,8 @@ template resolves, is Italian, carries the GoTrue variable its flow needs, and h
 pinned in the guard's own table). It cannot see the hosted projects, so it will stay green while both dashboards
 hold the stock English defaults. Verify by sending yourself one of each after installing. For the
 reset mail, the dashboard's **Send password recovery** proves delivery and the template only: it
-sends no `redirectTo`, so the link falls back to Site URL with a `#access_token` fragment. The
+sends no `redirectTo`, so the link falls back to Site URL with a `#access_token` fragment
+(observed on both projects 2026-09-24: `redirect_to=https://www.athanor.world`). The
 member's path — `?code=` into `athanor:///auth-callback`, then `(modal)/new-password` — needs
 Forgot password from the app, opened on the same phone. The dashboard link carries a live session
 in its URL; never paste it anywhere.
