@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import en from '../../packages/i18n/src/catalogs/en.json';
+import it from '../../packages/i18n/src/catalogs/it.json';
 
 /**
  * Dynamic layer over `app.json` (#486).
@@ -140,6 +142,45 @@ function googleServicesFile(projectRoot: string | undefined): string | undefined
   return undefined;
 }
 
+/**
+ * The iOS permission prompts, per language (#83). The plugins in app.json write one English
+ * usage description into Info.plist; Expo's `locales` writes `<lang>.lproj/InfoPlist.strings`
+ * at prebuild, and iOS shows the one matching the phone's language. Without it an Italian phone
+ * asks for the camera in English — the prompt is the OS's, so nothing in the app can translate it.
+ *
+ * The copy lives in the @athanor/i18n catalogs like every other string, so IT stays canonical
+ * and the parity and voice tests cover it. `en` is listed as well as `it`: the development
+ * region is English, and a phone in any third language falls back to en.lproj, which then says
+ * what app.json says (native-config.test.ts pins the two equal).
+ *
+ * Only the prompts the app can actually raise are here. The plugins also write generic
+ * defaults — Face ID, reminders, always-on location, motion — for APIs nothing in src/ calls.
+ *
+ * Expo writes each value between double quotes without escaping it (@expo/config-plugins 57,
+ * ios/Locales.js), so a `"` or a backslash in the catalog would corrupt the .strings file and
+ * fail the build far from the edit that caused it. Refused here instead.
+ */
+const IOS_PERMISSION_KEYS = {
+  NSCameraUsageDescription: 'permission.ios.camera',
+  NSPhotoLibraryUsageDescription: 'permission.ios.photos',
+  NSMicrophoneUsageDescription: 'permission.ios.microphone',
+  NSLocationWhenInUseUsageDescription: 'permission.ios.location',
+  NSCalendarsUsageDescription: 'permission.ios.calendar',
+  NSCalendarsFullAccessUsageDescription: 'permission.ios.calendar',
+} as const satisfies Record<string, keyof typeof it & keyof typeof en>;
+
+function iosPermissionStrings(catalog: typeof it | typeof en): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(IOS_PERMISSION_KEYS).map(([plistKey, messageKey]) => {
+      const value = catalog[messageKey];
+      if (/["\\\n]/.test(value)) {
+        throw new Error(`${messageKey} cannot go into InfoPlist.strings as is: ${value}`);
+      }
+      return [plistKey, value];
+    }),
+  );
+}
+
 export default ({ config, projectRoot }: StaticConfig): ExpoConfig => {
   const configured = process.env.EXPO_PUBLIC_SITE_ORIGIN;
   const host = configured ? configuredHost(configured) : defaultHost(config);
@@ -155,6 +196,10 @@ export default ({ config, projectRoot }: StaticConfig): ExpoConfig => {
   const resolved: ExpoConfig = {
     ...config,
     ios: config.ios && { ...config.ios, associatedDomains: [`applinks:${host}`] },
+    locales: {
+      it: { ios: iosPermissionStrings(it) },
+      en: { ios: iosPermissionStrings(en) },
+    },
     android: config.android && {
       ...config.android,
       intentFilters: config.android.intentFilters?.map((filter) =>

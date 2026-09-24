@@ -8,6 +8,7 @@
     "android": "EXPO_PUBLIC_APP_VARIANT=development expo start --dev-client --android",
     "ios": "expo start --go --ios",
     "web": "expo start --web",
+    "eas": "EXPO_NO_CAPABILITY_SYNC=1 pnpm dlx eas-cli",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage"

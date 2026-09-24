@@ -19,7 +19,8 @@
       "bundleIdentifier": "world.athanor.app",
       "associatedDomains": ["applinks:www.athanor.world"],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true
       }
     },
     "android": {
