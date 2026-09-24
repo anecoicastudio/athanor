@@ -309,17 +309,17 @@ describe('@stripe/stripe-react-native stays absent', () => {
  *
  * ## The one exempt file (#539)
  *
- * `components/provider-marks.tsx` carries four literal hex values and is allowed to. They are
- * Google's brand colours, not ours: DESIGN §6's third-party carve-out requires a vendor's mark
+ * `components/provider-marks.tsx` carries literal hex values and is allowed to. They are
+ * Google's and Apple's brand colours, not ours: DESIGN §6's third-party carve-out requires a vendor's mark
  * to ship in its mandated form — full colour, unmodified — and explicitly forbids recolouring
- * it to `currentColor` or to anything else. Routing those four through `@athanor/config` would
+ * it to `currentColor` or to anything else. Routing them through `@athanor/config` would
  * not satisfy rule #4 either; it would only hide a vendor's colour inside our token table,
  * which `tokens-mirror.test.ts` would then have to mirror into `global.css` as if it were a
  * brand colour of ours.
  *
- * The exemption is by PATH and it is bounded on the other side: one file against four literals,
- * and `provider-marks-mirror.test.ts` asserts that the file's hex set equals the vendor asset's
- * hex set exactly — so the carve-out cannot become a place to park a colour. A second exempt
+ * The exemption is by PATH and it is bounded on the other side: one file against the vendors'
+ * literals, and `provider-marks-mirror.test.ts` asserts that every hex in the file is in a vendor
+ * asset — so the carve-out cannot become a place to park a colour. A second exempt
  * path is not a thing to add; a second vendor mark is transcribed into this same file.
  */
 const VENDOR_MARKS = `${SRC}components/provider-marks.tsx`;
@@ -338,7 +338,7 @@ describe('no literal hex colours in app code', () => {
 
   it('the one exempt path still names a file', () => {
     // A rename would turn the exemption into a filter that matches nothing. That direction is
-    // loud (the renamed file's four vendor hexes fail the assertion above), but the message
+    // loud (the renamed file's vendor hexes fail the assertion above), but the message
     // would send the next reader hunting for a rule violation instead of a stale path.
     expect(
       FILES.includes(VENDOR_MARKS),
