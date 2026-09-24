@@ -189,7 +189,13 @@ describe('EXPO_PUBLIC_APP_VARIANT (#755)', () => {
   });
 
   it.each([undefined, ''])('%j resolves to app.json exactly — production is untouched', (v) => {
-    expect(resolveVariant(v)).toEqual(STATIC);
+    // Plus `locales` and nothing else: the iOS permission prompts per language (#83), built
+    // from the i18n catalogs and pinned in native-config.test.ts. It is the one key this layer
+    // adds on purpose, so it is named here and everything else still has to match.
+    const { locales, ...rest } = resolveVariant(v);
+    expect(STATIC).not.toHaveProperty('locales');
+    expect(Object.keys(locales ?? {}).sort()).toEqual(['en', 'it']);
+    expect(rest).toEqual(STATIC);
   });
 
   it('development takes its own package id, bundle id, name and scheme', () => {
@@ -216,7 +222,8 @@ describe('EXPO_PUBLIC_APP_VARIANT (#755)', () => {
     const { name: _n, scheme: _s, ios, android, ...rest } = resolveVariant('development');
     const { name: _sn, scheme: _ss, ios: sIos, android: sAndroid, ...sRest } = STATIC;
 
-    expect(rest).toEqual(sRest);
+    // `locales` is not in app.json (see above); the dev client carries production's own.
+    expect(rest).toEqual({ ...sRest, locales: resolveVariant(undefined).locales });
     const { bundleIdentifier: _b, associatedDomains: _a, ...iosRest } = ios ?? {};
     const { bundleIdentifier: _sb, associatedDomains: _sa, ...sIosRest } = sIos ?? {};
     expect(iosRest).toEqual(sIosRest);
