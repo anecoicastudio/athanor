@@ -2652,15 +2652,15 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:440':
+    'app/(onboarding)/index.tsx:469':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
-    'components/StepBars.tsx:20': 'a 3px progress rule — no text inside',
-    'components/StepBars.tsx:21': 'a 3px progress rule — no text inside',
+    'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
+    'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
-    'components/stories/StoryRing.tsx:111':
+    'components/stories/StoryRing.tsx:121':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
   };
@@ -2750,7 +2750,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
           ({ base, raw }) =>
             base === 'Text' &&
             /accessibilityRole=["']header["']/.test(raw) &&
-            /numberOfLines=\{1\}/.test(raw),
+            // Anything but a literal ≥2 or `wordLines(…)` (#754), which gives one line only
+            // to a one-word title — the one case where a second line splits the word.
+            /numberOfLines=\{(?![2-9]\}|wordLines\()/.test(raw),
         )
         .map(({ line }) => `${rel(p).replace('apps/native/src/', '')}:${line}`),
     );
@@ -2759,7 +2761,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'a screen title pinned to one line:\n' +
         "A header IS the screen's name, and one line at AX sizes leaves «Impostazion…» " +
         'where the orientation should be. Headers sit in bands with no fixed height, so a ' +
-        'second line costs nothing at the default size (#639).',
+        'second line costs nothing at the default size (#639). Use a literal 2, or ' +
+        '`wordLines(title)` from lib/word-lines, which drops to one line only for a one-word ' +
+        'title — the second line there could only split the word (#754).',
     ).toEqual([]);
   });
 
@@ -3597,8 +3601,10 @@ describe('every AutoFill-capable field decides its iOS posture in place (#615, #
  *
  * Not the composers, deliberately. The registry is the FORM screens — several fields stacked
  * down a scroll, where focusing one says nothing about where the others sit — not `chat`,
- * `post-compose`, `story-compose`, `candidacy`, `(onboarding)` or `ProfileEditForm`, whose one
- * field IS the screen and which the wrapper's lift already clears. `project-compose` is named
+ * `post-compose`, `story-compose`, `candidacy` or `ProfileEditForm`, whose one
+ * field IS the screen and which the wrapper's lift already clears. `(onboarding)` left that list
+ * in #754: its steps are top-anchored now, and the lift had only cleared the dream field while
+ * the step was centred in the shrinking viewport. `project-compose` is named
  * like a composer and shaped like a form — a title field, a chip row, then a tall description at
  * the foot — so it is in.
  *
@@ -3624,6 +3630,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
       keys: ['name', 'desc', 'streamUrl', 'venue', 'city', 'capacity', 'price'],
     },
     { file: `${SRC}app/(modal)/project-compose.tsx`, keys: ['title', 'description'] },
+    { file: `${SRC}app/(onboarding)/index.tsx`, keys: ['birth', 'dream'] },
   ];
 
   /** The app's two field primitives. Either one on a registered screen owes a reveal. */
@@ -3639,6 +3646,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     `${SRC}app/(auth)/forgot-password.tsx`,
     `${SRC}app/(modal)/new-password.tsx`,
     `${SRC}app/(modal)/event-create.tsx`,
+    `${SRC}app/(onboarding)/index.tsx`,
   ];
 
   /**

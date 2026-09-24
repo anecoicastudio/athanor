@@ -34,6 +34,7 @@ import { useAuth } from '@/lib/auth-context';
 import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { Screen } from '@/components/Screen';
 
 /** identity → birth → seeking → dream → face. The last one is skippable and writes nothing required. */
@@ -102,6 +103,10 @@ export default function OnboardingScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Top-anchored steps (#754) no longer lift a focused field by being centred in a shrinking
+  // viewport, so the dream field is revealed the way every form's is (#689).
+  const reveal = useRevealOnFocus();
 
   // Announce the current step to screen readers whenever it changes (A-5).
   useEffect(() => {
@@ -198,50 +203,62 @@ export default function OnboardingScreen() {
     // so it had the same defect and takes the same primitive, outside `Screen`.
     <KeyboardAvoiding>
       <Screen>
+        {/* `key={step}`: every step starts at the top (#754). One list serves all five, so the
+        next step inherited the last one's offset and, at AX sizes, opened with the header and
+        its own heading scrolled away. The answers live in this screen's state, not the list. */}
         <ScrollView
+          key={step}
+          {...reveal.scrollProps}
           className="flex-1"
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
         >
-          {/* Top bar: «Completa il profilo» (+ back) left, «Hai un account? Accedi» right. */}
+          {/* Top bar: back slot left, «Hai un account? Accedi» right. The eyebrow used to
+          share this row and lost it — «COMPLETA IL PROFI…» at 375pt, «COMPLETE YOUR PROF…»
+          even at 402pt — so it moved under the step bars, on a line of its own (#754). */}
           <View className="flex-row items-center justify-between gap-4">
-            {/* Yoga's default flexShrink is 0, so without flex-1 here + shrink-0 on the login
-            link the row overflows the gutter instead of compressing (EN strings are ~40pt
-            wider than IT on a 390pt device). The eyebrow is the yielding side. */}
-            <View className="flex-1 flex-row items-center gap-3">
-              {/* The back slot is reserved unconditionally (#164): a conditionally rendered
-              arrow moved the eyebrow's x-origin ~25pt between step 0 and 1. The slot is a
-              real 44pt tap target (DESIGN §10 — the old bare glyph + hitSlop measured
-              ~38pt wide). Literal `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px
-              on device, so `h-11` is 38.5pt there while measuring a passing 44px on web —
-              the same trap `Input.tsx` documents. -ml-3 keeps the glyph optically near the
-              gutter. Step 0 renders
-              the empty slot, not a disabled button, so screen readers gain no phantom
-              control. */}
-              <View className="-ml-3 min-h-[44px] min-w-[44px]">
-                {step > 0 ? (
-                  <Pressable
-                    onPress={() => setStep((s) => s - 1)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('onboarding.back', locale)}
-                    className="min-h-[44px] min-w-[44px] items-center justify-center"
-                  >
-                    <Text className="text-2xl text-foreground">‹</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              <SectionLabel numberOfLines={1} className="shrink">
-                {t('onboarding.eyebrow', locale)}
-              </SectionLabel>
+            {/* The back slot is reserved unconditionally (#164): a conditionally rendered
+            arrow moved the row's content between step 0 and 1. The slot is a real 44pt tap
+            target (DESIGN §10 — the old bare glyph + hitSlop measured ~38pt wide). Literal
+            `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px on device, so
+            `h-11` is 38.5pt there while measuring a passing 44px on web — the same trap
+            `Input.tsx` documents. -ml-3 keeps the glyph optically near the gutter. Step 0
+            renders a hidden placeholder, not a disabled button, so screen readers gain no
+            phantom control. */}
+            <View className="-ml-3 min-h-[44px] min-w-[44px]">
+              {step > 0 ? (
+                <Pressable
+                  onPress={() => setStep((s) => s - 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('onboarding.back', locale)}
+                  className="min-h-[44px] min-w-[44px] items-center justify-center"
+                >
+                  <Text className="text-2xl text-foreground">‹</Text>
+                </Pressable>
+              ) : (
+                // Step 0 reserves the glyph's HEIGHT too, not only the 44pt box: at AX sizes
+                // the scaled ‹ makes the button taller than 44, and an empty slot let the whole
+                // screen below it jump between step 0 and 1 (#754). Invisible and silent — no
+                // phantom control.
+                <View
+                  className="min-h-[44px] min-w-[44px] items-center justify-center opacity-0"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  <Text className="text-2xl text-foreground">‹</Text>
+                </View>
+              )}
             </View>
+            {/* `shrink`: at AX sizes the link may need two lines rather than push the row
+            past the gutter; the back slot is the fixed side now. */}
             <Pressable
               onPress={goLogin}
               accessibilityRole="button"
               // A 13px label + `hitSlop={8}` reached 33pt tall — under §10. The row is
               // already 44 tall (the reserved back slot), so a real box costs no layout.
-              className="min-h-[44px] shrink-0 justify-center"
+              className="min-h-[44px] shrink justify-center"
             >
-              <Text className="text-[13px] font-semibold text-aura">
+              <Text className="text-right text-[13px] font-semibold text-aura">
                 {t('auth.haveAccount', locale)}
               </Text>
             </Pressable>
@@ -249,9 +266,15 @@ export default function OnboardingScreen() {
           <View className="mt-3">
             <StepBars count={STEPS} current={step} />
           </View>
+          {/* No numberOfLines: on its own line it wraps rather than truncates (#754). */}
+          <SectionLabel className="mt-4">{t('onboarding.eyebrow', locale)}</SectionLabel>
 
-          {/* Centre: the active step's question, vertically centred. */}
-          <View className="grow justify-center">
+          {/* The active step, TOP-anchored (#754). It was centred on its own height, so the
+          heading sat at a different y on every step and jumped again when the keyboard or the
+          date picker changed the space around it. `pt-8` is the fixed gap under the header —
+          with the keyboard up the step's own eyebrow no longer rides up into the step bars.
+          `grow` keeps the CTA below at the bottom of a short step. */}
+          <View className="grow pt-8">
             <View>
               {step === 0 ? (
                 <View className="gap-4">
@@ -303,16 +326,19 @@ export default function OnboardingScreen() {
                     // web»), and Expo web is the only surface a walk can reach here. Validated
                     // with the same schema the flush and the column use, so an impossible day
                     // never reaches state (it would read as «too young», the wrong line).
-                    <Input
-                      placeholder={t('onboarding.birth.isoHint', locale)}
-                      inputMode="numeric"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      defaultValue={birthDate ?? ''}
-                      onChangeText={(v) =>
-                        setBirthDate(birthDateSchema.safeParse(v).success ? v : null)
-                      }
-                    />
+                    <View ref={reveal.rowRef('birth')}>
+                      <Input
+                        {...reveal.fieldProps('birth')}
+                        placeholder={t('onboarding.birth.isoHint', locale)}
+                        inputMode="numeric"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        defaultValue={birthDate ?? ''}
+                        onChangeText={(v) =>
+                          setBirthDate(birthDateSchema.safeParse(v).success ? v : null)
+                        }
+                      />
+                    </View>
                   ) : (
                     <Pressable
                       onPress={() => setShowPicker(true)}
@@ -412,15 +438,18 @@ export default function OnboardingScreen() {
                     {t('onboarding.dream.title', locale)}
                   </Text>
                   <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
-                  <Field
-                    size="lg"
-                    register="dream"
-                    multiline
-                    maxLength={500}
-                    placeholder={t('onboarding.dream.placeholder', locale)}
-                    value={dream}
-                    onChangeText={setDream}
-                  />
+                  <View ref={reveal.rowRef('dream')}>
+                    <Field
+                      {...reveal.fieldProps('dream')}
+                      size="lg"
+                      register="dream"
+                      multiline
+                      maxLength={500}
+                      placeholder={t('onboarding.dream.placeholder', locale)}
+                      value={dream}
+                      onChangeText={setDream}
+                    />
+                  </View>
                 </View>
               ) : null}
 
@@ -493,7 +522,8 @@ export default function OnboardingScreen() {
           </View>
 
           {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
-          <View className="mt-6">
+          {/* Rides along with the revealed field, so «Continua» is never left under the keyboard. */}
+          <View className="mt-6" ref={reveal.submitRef()}>
             {step < STEPS - 1 ? (
               <Button
                 variant="light"

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from '@/tw';
 import { useGuardedBack, type ExitHref } from '@/lib/modal-exit';
+import { wordLines } from '@/lib/word-lines';
 
 /**
  * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, h1 = 24/600.
@@ -87,8 +88,16 @@ export function ModalHeader({
         <View className="flex-1">
           {/* Two lines (#639): a header IS the screen's name — truncating it at AX sizes
               leaves «Impostazion…» where the whole point of the band is orientation. The
-              band has no fixed height, so the second line costs nothing at default size. */}
-          <Text accessibilityRole="header" numberOfLines={2} className={titleClass}>
+              band has no fixed height, so the second line costs nothing at default size.
+              A ONE-word title takes one line (#754): its second line could only be filled by
+              breaking the word — «Notifi / che» beside the header actions at AX5 on the SE —
+              so it ellipsizes instead, and the label keeps the whole title. */}
+          <Text
+            accessibilityRole="header"
+            accessibilityLabel={title}
+            numberOfLines={wordLines(title)}
+            className={titleClass}
+          >
             {title}
           </Text>
           {subtitle == null ? null : typeof subtitle === 'string' ? (
@@ -103,7 +112,12 @@ export function ModalHeader({
           )}
         </View>
       ) : (
-        <Text accessibilityRole="header" numberOfLines={2} className={`flex-1 ${titleClass}`}>
+        <Text
+          accessibilityRole="header"
+          accessibilityLabel={title}
+          numberOfLines={wordLines(title)}
+          className={`flex-1 ${titleClass}`}
+        >
           {title}
         </Text>
       )}

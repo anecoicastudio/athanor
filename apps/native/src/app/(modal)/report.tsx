@@ -9,7 +9,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
-import { ModalHeader } from '@/components/ModalHeader';
+import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { invalidateBlockDependents } from '@/lib/block-cache';
@@ -86,20 +86,12 @@ export default function ReportScreen() {
 
   return (
     <Screen {...MODAL_A11Y}>
-      {/* head — back + title + close x */}
+      {/* head — title + close ✕ only (#754): a sheet, so `HeaderClose` on the right and no
+          back chevron beside it — both did the same thing (DESIGN §6). */}
       <ModalHeader
         title={t('report.title', locale)}
-        backLabel={t('common.back', locale)}
-        right={
-          <Pressable
-            onPress={leave}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.cancel', locale)}
-            hitSlop={8}
-          >
-            <Text className="text-xl text-faint">✕</Text>
-          </Pressable>
-        }
+        leading="none"
+        right={<HeaderClose label={t('common.cancel', locale)} onPress={leave} />}
       />
       <ScrollView
         className="flex-1"

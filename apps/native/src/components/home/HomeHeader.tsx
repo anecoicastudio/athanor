@@ -76,10 +76,10 @@ export function HomeHeader({
         flexShrink of 0 would push the icon cluster off-screen instead of
         truncating. gap-6 keeps the icons' HIT_SLOP rects (11px per side) from
         overlapping each other.
-        Two lines, not one (#639): flex-1 is what protects the icon cluster, and the line
-        count only decides whether an over-long handle truncates or wraps. 28px is the
-        largest type on this screen, so Dynamic Type reaches it first — at AX sizes one
-        line left «@mar…» where the member's own name should be. */}
+        The greeting takes two lines (#639): it is prose, and flex-1 is what protects the
+        icon cluster. The HANDLE takes one (#754): it is a single word, so a second line
+        could only split it — «@marco_acc / ardi» at AX5. It ellipsizes instead, and the
+        label keeps the whole handle; no font cap (DESIGN §10). */}
       <View className="flex-1 gap-0.5">
         <Text className="text-[13px] text-faint" numberOfLines={2}>
           {greeting}
@@ -87,7 +87,8 @@ export function HomeHeader({
         {handle ? (
           <Text
             className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-            numberOfLines={2}
+            accessibilityLabel={`@${handle}`}
+            numberOfLines={1}
           >
             @{handle}
           </Text>

@@ -594,7 +594,9 @@ export default function WelcomeScreen() {
                     the next screen starts filled. */}
                   {login ? (
                     <Pressable
-                      className="min-h-[44px] justify-center px-5"
+                      // On the 17.5pt gutter like every other left edge here (#754); the old
+                      // `px-5` put its text at 35pt. `pr-5` keeps the target's width.
+                      className="min-h-[44px] justify-center self-start pr-5"
                       accessibilityRole="button"
                       onPress={() =>
                         router.push({

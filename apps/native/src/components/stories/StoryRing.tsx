@@ -4,6 +4,7 @@ import type { Locale } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
 import { Pressable, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { nameLines } from '@/lib/word-lines';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 /** Avatar diameter. The ring box around it is this plus `border-2` and `p-0.5` — 68. */
@@ -73,15 +74,24 @@ export function StoryRing({
         <View className={`rounded-full border-2 p-0.5 ${ring}`}>
           <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={AVATAR} />
         </View>
-        {/* Two lines, not one (#639): 11px in a 76pt rail entry truncates most names at the
-            default size already, and every step of Dynamic Type takes another character. The
-            rail is a row of top-aligned entries, so a second line costs height, not layout. */}
-        <Text
-          numberOfLines={2}
-          className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}
-        >
-          {name}
-        </Text>
+        {/* Two lines (#639), and since #754 two TEXTS: the first word, then the rest, each on
+            one line with a tail ellipsis. A single `numberOfLines={2}` broke a long word
+            mid-word on iOS («Giovan / ni Rus…») and let a name that fit on one line keep the
+            entry a line shorter than its neighbours. Two stacked lines keep every entry the
+            same height — and both grow with Dynamic Type (DESIGN §10). A one-word label holds
+            the second line with a no-break space, so the box stays even. The Pressable's
+            label carries the whole name; the lines are never read on their own. */}
+        <View className="w-[76px] items-center">
+          {nameLines(name).map((line, i) => (
+            <Text
+              key={i}
+              numberOfLines={1}
+              className={`text-[11px] ${seen ? 'text-faint' : 'text-foreground'}`}
+            >
+              {line || '\u00a0'}
+            </Text>
+          ))}
+        </View>
       </Pressable>
       {onAddPress ? (
         // MEASURED, not derived. `bottom-0 right-0` against the ring put the badge 2px inside

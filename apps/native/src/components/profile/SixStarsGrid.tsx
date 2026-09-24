@@ -25,7 +25,10 @@ export function SixStarsGrid({
   locale: Locale;
   onStarPress?: (starId: StarKey) => void;
 }) {
-  if (starsBlockMode(stars, viewerIsOwner) === 'unavailable') {
+  const mode = starsBlockMode(stars, viewerIsOwner);
+  // `ProfileBody` drops the whole block, label included; this keeps any other caller honest.
+  if (mode === 'hidden') return null;
+  if (mode === 'unavailable') {
     // `Text` rather than a wrapped View: it is an accessibility element by default, so the
     // sentence is what a screen reader announces instead of the bare em dash.
     return (
