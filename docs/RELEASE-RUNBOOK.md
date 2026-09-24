@@ -144,7 +144,7 @@ Keep the notes to what the reviewer will see. Do not mention the fund cycle, Pri
 
 Seeded **through the app**, never by SQL: production carries no seed, `seed-staging.sql` is a twelve-person world guarded twice against running anywhere but staging, and a hand-written `aura_scores` row would be the exact claim the product denies (rule 1). Two accounts are needed — a match, a conversation and a Momento all have two sides — and Marco's own production account is the second.
 
-1. **Mailbox.** A Google Workspace alias on `anecoica.net` that Marco receives — **never an address on `athanor.world`**, which has no MX records, so nothing sent there arrives (`dig MX athanor.world` answers empty, checked 2026-09-19, #793). The alias is not written in this file — the repository is public — and lives in the password manager beside the credentials. Production's Auth settings, queried 2026-09-19: `mailer_autoconfirm = true`, no custom SMTP, `rate_limit_email_sent = 2`, so sign-up needs no confirmation mail today. Re-query before relying on it: the setting can change, and if confirmations are ever on, the built-in mailer's 2 mails an hour is the budget.
+1. **Mailbox.** A Google Workspace alias on `anecoica.net` that Marco receives — **never an address on `athanor.world`**, which has no MX records, so nothing sent there arrives (`dig MX athanor.world` answers empty, checked 2026-09-19, #793). The alias is not written in this file — the repository is public — and lives in the password manager beside the credentials. Production's Auth settings, queried 2026-09-19: `mailer_autoconfirm = true`, so sign-up needs no confirmation mail today. Re-query before relying on it: the setting can change. Since 2026-09-24 production sends through custom SMTP (Resend) at 100 mails an hour, not the built-in 2 (§4.5, #825).
 2. **Sign up** in the production build with email + password. Onboarding: handle, display name, city, an adult birth date, bio, `identity_tags` / `seeking` from the in-app lists (an off-list key renders as the raw key string), avatar **uploaded from the device** (a browser upload writes a corrupt object at HTTP 200).
 3. **A dream** with two or three milestones (`(modal)/dream-editor.tsx`), and one post. **Marco's account needs an active dream too**, and the two profiles' `identity_tags` / `seeking` must overlap: the matcher pairs only profiles that are not banned, both carry an active, non-deleted dream, and score an affinity above zero (`20260823145024_momento_suggestions_reasons_recomputed.sql`). Two "complete" profiles with disjoint tags or no dream on one side yield an empty deck.
 4. **From Marco's account**: open a conversation with the demo member (`(modal)/new-message.tsx`) and exchange a few messages; send a collaboration request on the dream.
@@ -686,17 +686,18 @@ gated (§4.3).
 
 ### 4.5 Auth mail templates — installed by hand, per project (#625)
 
-`supabase/templates/` is the source of truth for the two auth mails this product can send, but
+`supabase/templates/` is the source of truth for the three auth mails this product can send, but
 nothing in the repo installs them. GoTrue holds one template per type **per project**, so each of
-staging and production needs both pasted in by hand, and a template edited in a PR changes nothing
-a member receives until someone does.
+staging and production needs all three pasted in by hand, and a template edited in a PR changes
+nothing a member receives until someone does.
 
 | Template slot (Dashboard → Authentication → Emails) | Subject                                       | Body                                   |
 | --------------------------------------------------- | --------------------------------------------- | -------------------------------------- |
 | Confirm signup                                      | `Conferma la tua email e accendi la tua Aura` | `supabase/templates/confirmation.html` |
 | Magic Link                                          | `Il tuo varco per Athanor`                    | `supabase/templates/magic_link.html`   |
+| Reset Password                                      | `Il varco per la tua nuova password`          | `supabase/templates/recovery.html`     |
 
-Both are also declared in `supabase/config.toml` under `[auth.email.template.*]`. That block is
+All three are also declared in `supabase/config.toml` under `[auth.email.template.*]`. That block is
 read only by a local stack, which only CI runs (the `db` job spins one up per push) — **do not
 install them with `supabase config push`.** `config push` sends the whole `[auth.email]` block to whatever
 `supabase/.temp/linked-project.json` points at, templates included. The base block carries
@@ -705,15 +706,36 @@ confirmations **on**, but a push to production would still send the base value (
 `mailer_autoconfirm = true` and sends no confirmation mail at all — §P1.6 of
 `PRODUCTION-READINESS.md`, #70).
 
-Two consequences for the confirmation mail specifically: its live audience today is **staging
-only**, and it stays that way until #70's reversal sequence runs, which needs a domain with
-DKIM/SPF first (#471). Neither project has an SMTP provider, so both are on Supabase's built-in
-mailer at 2 mails/hour — enough for a manual check, not for a cohort.
+The confirmation mail's live audience today is **staging only**, and it stays that way until
+#70's reversal sequence runs. The **reset mail is live on both projects** — production included,
+where it is the one auth mail a member can actually trigger — so a stock English Reset Password
+slot on production is a member-facing defect, not a cosmetic one. Its link opens only on the phone
+that asked for it: the PKCE verifier is stored in that app at request time, and anywhere else
+`auth-callback.tsx` shows `auth.error.invalidLink`. The copy says so.
+
+**Sending path (#825, 2026-09-24).** Both projects send auth mail through Resend, configured in
+Dashboard → Authentication → Emails → SMTP Settings: host `smtp.resend.com`, port `465`, username
+`resend`, sender `noreply@athanor.world` / `Athanor`, password = a Resend API key with sending
+access (password manager only, never git). Emails-sent rate limit **100/hour** on both. The form
+has no Reply-To field, and `athanor.world` still has no MX, so a reply to `noreply@` goes nowhere.
+Resend's side: domain `athanor.world`, region Ireland (eu-west-1), click and open tracking
+**off** — click tracking rewrites links and would break the PKCE link. DNS on Cloudflare: TXT
+`resend._domainkey` (DKIM), CNAMEs `send` and `rsend` (DNS only, grey cloud), TXT `_dmarc`
+`v=DMARC1; p=none;`. To rotate the key: create a new one in Resend, paste it into **both**
+projects' SMTP password field, send a test, then revoke the old key. `supabase/config.toml` keeps
+`[auth.email.smtp]` commented on purpose — with no block, `config push` leaves hosted SMTP alone;
+declaring one pushes it, and `enabled = true` also pushes the local `email_sent = 2`.
 
 `supabase/functions/_shared/mail-templates.test.ts` gates the repo side of this (every declared
 template resolves, is Italian, carries the GoTrue variable its flow needs, and has the subject
 pinned in the guard's own table). It cannot see the hosted projects, so it will stay green while both dashboards
-hold the stock English defaults. Verify by sending yourself one of each after installing.
+hold the stock English defaults. Verify by sending yourself one of each after installing. For the
+reset mail, the dashboard's **Send password recovery** proves delivery and the template only: it
+sends no `redirectTo`, so the link falls back to Site URL with a `#access_token` fragment
+(observed on both projects 2026-09-24: `redirect_to=https://www.athanor.world`). The
+member's path — `?code=` into `athanor:///auth-callback`, then `(modal)/new-password` — needs
+Forgot password from the app, opened on the same phone. The dashboard link carries a live session
+in its URL; never paste it anywhere.
 
 ---
 

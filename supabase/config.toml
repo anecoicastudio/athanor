@@ -219,6 +219,9 @@ password_requirements = "lower_upper_letters_digits"
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
+# LOCAL value only. `config push` sends email_sent only while an [auth.email.smtp] block is
+# enabled in this file (supabase CLI pkg/config/auth.go), and none is: both hosted projects
+# run custom SMTP set in the dashboard, at 100/hour (#825). See the smtp note below.
 email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
@@ -264,6 +267,11 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
+# Both hosted projects send auth mail through Resend (smtp.resend.com:465, user `resend`,
+# sender noreply@athanor.world / "Athanor"), set in the dashboard under Auth → Emails → SMTP
+# Settings; the password is a Resend API key and never enters git (#825). Keep this block
+# commented. With no block, `config push` leaves hosted SMTP untouched. Declaring one pushes
+# it: `enabled = false` switches SMTP off, and `enabled = true` also pushes email_sent above.
 # [auth.email.smtp]
 # enabled = true
 # host = "smtp.sendgrid.net"
@@ -292,6 +300,14 @@ content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.magic_link]
 subject = "Il tuo varco per Athanor"
 content_path = "./supabase/templates/magic_link.html"
+
+# Password reset. Minted by supabase.auth.resetPasswordForEmail() in apps/native
+# (auth)/forgot-password.tsx; the link lands on src/app/auth-callback.tsx, whose PKCE exchange
+# fires PASSWORD_RECOVERY and parks the member on (modal)/new-password. Production sends this
+# one too: it runs autoconfirm, so this is its main auth mail.
+[auth.email.template.recovery]
+subject = "Il varco per la tua nuova password"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

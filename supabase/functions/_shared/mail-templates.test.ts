@@ -19,10 +19,9 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
  * without. Adding a `[auth.email.template.<name>]` block to config.toml means adding it
  * here; the parity test fails until you do.
  *
- * Only reachable flows belong here. `recovery` (resetPasswordForEmail), `email_change`
- * (updateUser({email})), `invite` (inviteUserByEmail) and `reauthentication`
- * (secure_password_change = false) have zero call sites in this repo — a template for a
- * mail nothing can send is a file that rots unread.
+ * Only reachable flows belong here. `email_change` (updateUser({email})), `invite`
+ * (inviteUserByEmail) and `reauthentication` (secure_password_change = false) have zero call
+ * sites in this repo — a template for a mail nothing can send is a file that rots unread.
  */
 const DECLARED: Record<string, { subject: string; requires: readonly string[] }> = {
   // signUp() in apps/native/src/app/(auth)/welcome.tsx; the link lands on
@@ -34,6 +33,9 @@ const DECLARED: Record<string, { subject: string; requires: readonly string[] }>
   // signInWithOtp() in apps/web/app/admin/login/page.tsx; the link lands on
   // apps/web/app/admin/auth/callback/route.ts, which exchanges the PKCE code.
   magic_link: { subject: 'Il tuo varco per Athanor', requires: ['ConfirmationURL'] },
+  // resetPasswordForEmail() in apps/native/src/app/(auth)/forgot-password.tsx; the link lands
+  // on src/app/auth-callback.tsx, whose PKCE exchange fires PASSWORD_RECOVERY (#825).
+  recovery: { subject: 'Il varco per la tua nuova password', requires: ['ConfirmationURL'] },
 };
 
 /**
