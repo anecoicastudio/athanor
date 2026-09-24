@@ -606,3 +606,19 @@ additional_redirect_urls = [
 
 [remotes.staging.auth.email]
 enable_confirmations = true
+
+# External providers ON for staging. The [auth.external.*] blocks above say `enabled = false`
+# for the local stack, and a staging `config push` sends those unless this block overrides them —
+# which would switch Google and Apple OFF on staging with no error. Client IDs
+# are public (they ride in every authorize URL), so they are literal here; the secrets are not,
+# and resolve from the operator's env through the base blocks' `env(...)`. The Apple secret is a
+# six-month JWT from `pnpm apple:secret` (docs/RELEASE-RUNBOOK.md §6.1). Before a staging push,
+# either export SUPABASE_AUTH_EXTERNAL_{GOOGLE,APPLE}_SECRET or confirm in the diff that both
+# secrets are reported as not pushed — never answer yes to a push that would blank one.
+[remotes.staging.auth.external.google]
+enabled = true
+client_id = "610679379918-t0t24q9iuphoru2otdjqh8v6kk4mgn09.apps.googleusercontent.com"
+
+[remotes.staging.auth.external.apple]
+enabled = true
+client_id = "world.athanor.signin"
