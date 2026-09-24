@@ -407,9 +407,9 @@ export default function WelcomeScreen() {
                 <>
                   {/* The two provider marks are the app's ONLY third-party marks (#539) — a
                     vendor attribution, carved out of the 20-glyph icon rule by DESIGN §6, and
-                    decorative: each Button already speaks «Continua con …». `providerMark`
-                    returns null for a vendor whose file the repo does not carry yet, which is
-                    Apple's case today, so that CTA keeps exactly today's geometry. */}
+                    decorative: each Button already speaks «Continua con …». Both are
+                    the vendors' own files (`packages/config/assets/`), transcribed in
+                    `components/provider-marks.tsx`. */}
                   <View className="mt-7 gap-3">
                     {appleEnabled ? (
                       <Button

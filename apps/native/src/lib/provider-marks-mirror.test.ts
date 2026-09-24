@@ -41,15 +41,20 @@ const read = (p: string) => readFileSync(p, 'utf8');
  * Every `fill`/`d` pair, in source order, from either spelling — `<path …>` in the asset,
  * `<Path …>` in the component, where prettier wraps the attributes across lines.
  *
- * Anchored on the element, not on a bare attribute scan: `d="…"` alone also matches the `id="…"`
- * that exported SVGs routinely carry (`id="Layer_1"`), which would demand a phantom path of the
- * transcription and fail a correct one. The Apple branch below is the one that will consume a
- * fresh vendor export, so this has to be right before that file lands, not after.
+ * Anchored on the element, then each attribute read inside it on its own, because vendors do
+ * not agree on attribute ORDER or on closing: Google's file writes `fill` before `d` and
+ * self-closes, Apple's (a Sketch export) writes `d`, then `id`, then `fill`, and closes with
+ * `></path>`. The `\b` keeps `d="…"` from matching inside the `id="…"` exports routinely carry
+ * (`id="Layer_1"`, and Apple's `id=""`), which would demand a phantom path of the transcription
+ * and fail a correct one.
  */
 const marks = (src: string): string[] =>
-  [...src.matchAll(/<[Pp]ath\s[^>]*?\bfill="([^"]+)"[^>]*?\bd="([^"]+)"[^>]*?\/>/g)].map(
-    (m) => `${(m[1] ?? '').toUpperCase()} ${m[2] ?? ''}`,
-  );
+  [...src.matchAll(/<[Pp]ath\s([^>]*?)\/?>/g)].flatMap((m) => {
+    const attrs = m[1] ?? '';
+    const fill = /\bfill="([^"]+)"/.exec(attrs)?.[1];
+    const d = /(?<![\w-])d="([^"]+)"/.exec(attrs)?.[1];
+    return fill && d ? [`${fill.toUpperCase()} ${d}`] : [];
+  });
 
 /**
  * The hex-literal pattern, character for character the one `source-audit.test.ts` §5 bans with —
@@ -103,8 +108,9 @@ describe('the Google mark is the vendor file, unmodified (#539)', () => {
   });
 
   it('every path ships with the colour the vendor file gives it', () => {
+    const googleAt = source.indexOf('export function GoogleMark');
     expect(
-      marks(source),
+      marks(source.slice(googleAt, source.indexOf('export function', googleAt + 1))),
       'components/provider-marks.tsx no longer transcribes google-g.svg exactly. The mark must ' +
         "ship unmodified (DESIGN §6, third-party carve-out) — copy each <path>'s fill AND its " +
         '"d" across together. A fill swapped between two paths is the slip this compares pairs ' +
@@ -112,15 +118,26 @@ describe('the Google mark is the vendor file, unmodified (#539)', () => {
     ).toEqual(assetMarks);
   });
 
-  it('the component introduces no colour the vendor file does not have', () => {
+  it('the component introduces no colour the vendor files do not have', () => {
     // The other direction, and the one that matters for rule #4: source-audit §5 exempts this
-    // ONE file from the literal-hex ban, so the exemption has to be bounded by something.
+    // ONE file from the literal-hex ban, so the exemption has to be bounded by something. Bounded
+    // by the UNION of the vendor files, since Apple's mark lives here too — and a subset, not an
+    // equality, because Apple's file also paints its white clear-space square, which the
+    // component deliberately leaves to the pill (AppleMark's docblock).
+    const vendor = [
+      asset,
+      ...(existsSync(`${ASSETS}apple-mark.svg`) ? [read(`${ASSETS}apple-mark.svg`)] : []),
+    ];
+    const allowed = new Set(vendor.flatMap(hexes));
     expect(
-      hexes(source),
+      hexes(source).filter((h) => !allowed.has(h)),
       'components/provider-marks.tsx carries a hex colour that is not in a vendor asset. §5 ' +
         'exempts this file from the literal-hex rule only because every literal in it belongs ' +
         'to a vendor; a colour of our own belongs in @athanor/config.',
-    ).toEqual(hexes(asset));
+    ).toEqual([]);
+    expect(hexes(source), 'every Google colour is still in the component').toEqual(
+      expect.arrayContaining(hexes(asset)),
+    );
   });
 
   it('still bans the same hex shapes source-audit §5 does', () => {
@@ -137,21 +154,20 @@ describe('the Google mark is the vendor file, unmodified (#539)', () => {
 });
 
 /**
- * Apple's mark is not in the repo (#79 / #95: Apple has not approved the developer account, and
- * the marks archive was not reachable). The clause forbids an approximation, so the CTA ships
- * its slot empty and `providerMark('apple')` returns `null`.
+ * Apple's mark landed on 2026-09-24 (#79): `apple-mark.svg` is Apple's own "Sign in with Apple –
+ * Logo only – Black" file, byte for byte. Until then the clause forbade an approximation, so the
+ * CTA shipped its slot empty and `providerMark('apple')` returned `null`.
  *
- * Both halves are asserted, so the two states can never disagree silently: while the asset is
- * absent nothing may pretend to be Apple's mark, and the moment it lands the transcription is
- * held to the same standard as Google's. The second branch is dormant today by design — it is
- * the instruction for the day the file arrives, written as a test rather than as a comment.
+ * Both halves stay asserted, so the two states can never disagree silently: were the asset ever
+ * removed, nothing may pretend to be Apple's mark; while it exists, the transcription is held to
+ * the same standard as Google's. The first branch is dormant now by design.
  *
  * The absent-asset half asserts where the path data IS, not that one formatting of the ternary
  * is present: an `AppleMark` carrying hand-traced geometry could be added under a substring
  * check and stay green as long as `providerMark` still returned null, and a monochrome
  * `fill="black"` carries no hex for the colour assertions above to catch.
  */
-describe('the Apple mark is absent rather than approximated (#539)', () => {
+describe('the Apple mark is the vendor file, or absent — never approximated (#539)', () => {
   const APPLE = `${ASSETS}apple-mark.svg`;
   const source = read(MARKS);
 

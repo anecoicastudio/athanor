@@ -107,7 +107,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: il tuo account",
         body: [
-          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google: in quel caso Google ci passa indirizzo email, nome e foto del tuo account; il nome diventa quello che mostri, e puoi cambiarlo nel profilo, mentre la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
+          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google o con Apple. Google ci passa indirizzo email, nome e foto del tuo account. Apple ci passa il tuo indirizzo email, oppure, se scegli di nasconderlo, un indirizzo di inoltro creato da Apple che gira i messaggi alla tua casella, e il nome solo al primo accesso. Il nome diventa quello che mostri, e puoi cambiarlo nel profilo; la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
           `Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. La tua @handle, il nome con cui compari, la scegli tu dopo l'iscrizione: non la ricaviamo dal tuo indirizzo email. Puoi cambiarla dal profilo una volta ogni ${HANDLE_RENAME_COOLDOWN_DAYS} giorni; il nome di prima torna subito libero, e i link al tuo profilo che lo contengono non portano più a te: se qualcun altro lo sceglie, porteranno alla sua pagina. La pagina già pronta può restare per un breve periodo nella cache della rete, e l'immagine di anteprima che accompagnava quei link resta raggiungibile finché non pubblichiamo una nuova versione del sito.`,
           "La data di nascita serve a verificare che tu abbia l'età minima e a calcolare il tuo segno zodiacale. La data la vedi solo tu; il segno compare sul tuo profilo.",
           'Conserviamo anche la lingua che usi e, se ti ha invitato qualcuno, il collegamento con quella persona.',
@@ -218,7 +218,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           "Supabase ospita il database, l'accesso, i file e le funzioni server dell'app, e invia le email di accesso, come quella per reimpostare la password. I dati sono nell'Unione Europea, a Francoforte.",
           'Cloudflare serve questo sito dalla sua rete globale: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo della lista d’attesa, e le pagine pubbliche di profili, sogni ed eventi, la cui versione già composta resta per un breve periodo nella cache della rete.',
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
-          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google, se lo scegli, gestisce anche l’accesso con il tuo account Google.',
+          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google e Apple, se li scegli, gestiscono anche l’accesso con il tuo account Google o Apple.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
           `Alla polizia e alle linee di segnalazione nazionali, il materiale che appare come abuso sessuale su minori, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           `Alcuni di questi fornitori hanno sede negli Stati Uniti o possono trattare dati fuori dall’Unione Europea. In quei casi il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nei loro accordi sul trattamento dei dati (per Cloudflare: cloudflare.com/cloudflare-customer-dpa), o sull’adesione al Data Privacy Framework UE-USA, come per Cloudflare. Puoi chiederne copia scrivendo a ${EMAIL}.`,
@@ -278,7 +278,7 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: your account',
         body: [
-          "To join, we ask for an email address and a password, or you can sign in with Google: in that case Google passes us your Google account's email address, name and photo; the name becomes the one you show, and you can change it in your profile, while the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
+          "To join, we ask for an email address and a password, or you can sign in with Google or with Apple. Google passes us your Google account's email address, name and photo. Apple passes us your email address, or, if you choose to hide it, a relay address Apple creates that forwards messages to your inbox, and your name on the first sign-in only. The name becomes the one you show, and you can change it in your profile; the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
           `If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. You choose your @handle, the name you appear under, after signing up: we do not derive it from your email address. You can change it from your profile once every ${HANDLE_RENAME_COOLDOWN_DAYS} days; the old name becomes free at once, and links to your profile that use it no longer lead to you: if someone else takes it, they will lead to their page. The page already rendered may stay in the network's cache for a short time, and the preview image that went with those links stays reachable until we release a new version of the site.`,
           'Your date of birth is used to check that you meet the minimum age and to work out your zodiac sign. Only you see the date; the sign appears on your profile.',
           'We also keep the language you use and, if someone invited you, the link to that person.',
@@ -389,7 +389,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           'Supabase hosts the app’s database, sign-in, files and server functions, and sends sign-in emails such as the one to reset your password. The data is in the European Union, in Frankfurt.',
           'Cloudflare serves this site from its global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), waitlist form submissions, and the public pages of profiles, dreams and events, whose rendered version stays briefly in the network’s cache.',
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
-          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google, if you choose it, also handles sign-in with your Google account.',
+          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google and Apple, if you choose them, also handle sign-in with your Google or Apple account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
           `The police and national hotlines receive what appears to be child sexual abuse material, as this site's “${tEn('legal.childSafety')}” page explains.`,
           `Some of these providers are based in the United States or may process data outside the European Union. In those cases the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in their data processing agreements (for Cloudflare: cloudflare.com/cloudflare-customer-dpa), or on their certification under the EU–US Data Privacy Framework, as for Cloudflare. You can request a copy by writing to ${EMAIL}.`,
@@ -710,6 +710,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: "Senza l'app",
         body: [
           `Non serve reinstallare l'app. Scrivi a ${EMAIL} dall'indirizzo email con cui accedi ad ${tIt('store.name')} e chiedi di eliminare il tuo account.`,
+          `Se accedi con Apple e hai scelto di nascondere la tua email, scrivici da qualsiasi indirizzo e dicci la tua @handle: mandiamo un codice all'indirizzo di inoltro, che Apple gira alla tua casella, e registriamo la richiesta quando ci rispondi con quel codice.`,
           "Verifichiamo che la richiesta venga da te e la registriamo al posto tuo: da quel momento l'accesso è bloccato e vale tutto ciò che trovi qui sotto. Ti rispondiamo entro un mese, come prevede il GDPR.",
         ],
       },
@@ -749,6 +750,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: 'Without the app',
         body: [
           `You don't need to reinstall the app. Write to ${EMAIL} from the email address you use to sign in to ${tEn('store.name')} and ask us to delete your account.`,
+          `If you sign in with Apple and chose to hide your email, write to us from any address and tell us your @handle: we send a code to your relay address, which Apple forwards to your inbox, and we record the request when you reply with that code.`,
           'We check that the request comes from you and record it on your behalf: from then on sign-in is blocked and everything below applies. We reply within one month, as the GDPR requires.',
         ],
       },
