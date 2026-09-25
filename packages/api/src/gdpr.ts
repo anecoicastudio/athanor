@@ -24,7 +24,7 @@ export async function getLatestExportJob(client: AthanorClient): Promise<GdprExp
  * profile_id = auth.uid(), status='requested', null url/expiry, and since #721 a null claimed_at:
  * the lease stamp is not a client's to write). The gdpr-export-job (service_role) assembles the
  * archive and sets ready + the signed URL — never the client. This is also the retry after a
- * 'failed' job: a new row, because a terminal one is never re-claimed.
+ * 'failed' or expired job: a new row, because a terminal one is never re-claimed.
  */
 export async function requestExport(client: AthanorClient): Promise<void> {
   const { data: auth } = await client.auth.getUser();
@@ -32,7 +32,10 @@ export async function requestExport(client: AthanorClient): Promise<void> {
   if (!profile_id) throw new Error('not authenticated');
   const payload = gdprRequestInsertSchema.parse({ profile_id });
   const { error } = await client.from('gdpr_export_jobs').insert(payload);
-  if (error) throw error;
+  // 23505 is the one open export job per member (#784, gdpr_export_jobs_one_open_per_profile) and
+  // it is a SUCCESS here, as it is for erasure below: the member asked, and a job is already on
+  // file for tonight's pass. Every other error still throws.
+  if (error && error.code !== '23505') throw error;
 }
 
 /**

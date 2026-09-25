@@ -242,7 +242,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.it,
           ...ERASURE_KEEPS.it,
           'Le segnalazioni che riguardano te o i tuoi contenuti, con le decisioni prese, restano anche dopo; le cancelliamo quando chi le ha fatte elimina il proprio account. Quelle che hai fatto tu le cancelliamo con il tuo account.',
-          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo finché hai l'account; il collegamento per scaricarlo vale 72 ore.`,
+          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo 7 giorni, per tutto il tempo in cui vale il collegamento per scaricarlo; poi lo cancelliamo, e puoi chiederne uno nuovo quando vuoi.`,
         ],
       },
       {
@@ -255,7 +255,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'I tuoi diritti',
         body: [
           `In base al GDPR puoi chiedere in qualsiasi momento l’accesso, la rettifica, la cancellazione, la limitazione e la portabilità dei dati che ti riguardano, opporti al trattamento e revocare un consenso che ci hai dato. La revoca non pregiudica i trattamenti svolti prima. Per esercitare questi diritti scrivi a ${EMAIL}.`,
-          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account e ciò che hai scritto e pubblicato, ma non i file di foto, video e note vocali: se ti servono, scrivici. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
+          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account, compresa l'email, ciò che hai scritto e pubblicato, e i file di foto, video e note vocali che hai caricato tu. Contiene anche le tue conversazioni per intero, con i messaggi che hai ricevuto: l'altra persona compare solo con la sua @handle, e delle foto che ti ha inviato trovi il nome del file, non la foto, perché sono dati suoi. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
           'Hai inoltre il diritto di presentare un reclamo a un’autorità di controllo. Per il nostro titolare l’autorità competente è il Garante di Berlino (Berliner Beauftragte für Datenschutz und Informationsfreiheit), ma puoi rivolgerti anche all’autorità del tuo Paese di residenza — in Italia, il Garante per la protezione dei dati personali.',
         ],
       },
@@ -414,7 +414,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.en,
           ...ERASURE_KEEPS.en,
           'Reports concerning you or your content, with the decisions taken on them, remain afterwards; we delete them when the person who made them deletes their own account. Reports you made are deleted with your account.',
-          `The archive we prepare with “${tEn('settings.export.title')}” is kept as long as you have the account; the link to download it is valid for 72 hours.`,
+          `The archive we prepare with “${tEn('settings.export.title')}” is kept for 7 days, as long as the link to download it works; then we delete it, and you can ask for a new one whenever you like.`,
         ],
       },
       {
@@ -427,7 +427,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Your rights',
         body: [
           `Under the GDPR you can at any time request access to, rectification, erasure, restriction and portability of your data, object to its processing, and withdraw any consent you gave us. Withdrawal does not affect processing carried out beforehand. To exercise these rights, write to ${EMAIL}.`,
-          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data and what you wrote and published, but not the photo, video and voice-note files themselves: if you need them, write to us. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
+          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data, including your email, what you wrote and published, and the photo, video and voice-note files you uploaded yourself. It also contains your conversations in full, including the messages you received: the other person appears only by their @handle, and for photos they sent you, you get the file name rather than the photo, because those are their data. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
           'You also have the right to lodge a complaint with a supervisory authority. For our controller the competent one is the Berlin authority (Berliner Beauftragte für Datenschutz und Informationsfreiheit), but you may also contact the authority in your country of residence.',
         ],
       },

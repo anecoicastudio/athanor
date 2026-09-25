@@ -89,6 +89,18 @@ describe('requestExport', () => {
     const { client } = insertStub({ id: ME }, new Error('rls denied'));
     await expect(requestExport(client)).rejects.toThrow('rls denied');
   });
+
+  // #784 — one OPEN export job per member (gdpr_export_jobs_one_open_per_profile), so a second
+  // request while one is queued raises 23505. The member asked and a job is on file: success.
+  it('treats the duplicate-request 23505 as success, because a job is already on file', async () => {
+    const { client } = insertStub({ id: ME }, { code: '23505', message: 'duplicate key' });
+    await expect(requestExport(client)).resolves.toBeUndefined();
+  });
+
+  it('still throws on any OTHER insert error', async () => {
+    const { client } = insertStub({ id: ME }, { code: '42501', message: 'rls denied' });
+    await expect(requestExport(client)).rejects.toThrow('rls denied');
+  });
 });
 
 describe('requestErasure', () => {

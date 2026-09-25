@@ -171,11 +171,12 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.gdprExport': {
     it: {
       title: 'I tuoi dati',
-      body: () => 'Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati.',
+      body: () =>
+        'Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati entro 7 giorni.',
     },
     en: {
       title: 'Your data',
-      body: () => 'Your archive is ready. Download it from Settings → Your data.',
+      body: () => 'Your archive is ready. Download it from Settings → Your data within 7 days.',
     },
   },
   // #721: the other terminal outcome. No cause in the copy — a member cannot act on «section read

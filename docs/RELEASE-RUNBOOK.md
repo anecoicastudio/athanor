@@ -1621,7 +1621,7 @@ Two facts shape everything below. **`failed` is terminal and the member's to und
 predicate does not reach it; the member is notified (`notif.tpl.gdprExportFailed`, routed to the
 export screen) and that screen shows «Non siamo riusciti a preparare il tuo archivio. Richiedilo di
 nuovo.» with the ordinary request button, which files a NEW row. And **a
-job older than 30 days minus the 72h signed-link TTL cannot be served at all**: `expires_at <=
+job older than 30 days minus the 7-day signed-link TTL cannot be served at all** (72h until #784): `expires_at <=
 created_at + interval '30 days'` leaves no room for the link, so the loop files those `failed`
 before building anything. That is the fence which stops the lease turning a stranded job into one
 rebuilt and rejected every night.
