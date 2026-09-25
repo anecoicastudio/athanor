@@ -22,6 +22,7 @@ import {
   type PickedMedia,
 } from '@/lib/media/pick';
 import { REJECTION_MESSAGE } from '@/lib/media/asset';
+import { createNestedModalGate } from '@/lib/media/nested-modal-gate';
 import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Which source a row launches once its permission is granted. */
@@ -53,6 +54,16 @@ type Source = 'photo' | 'video' | 'library' | 'audio';
  * Android/web present independently → launch right after `onClose()`. Callers
  * must keep this component mounted (visible={false}, not conditional render) or
  * the queued launch dies with the unmount.
+ *
+ * iOS CRITICAL, second half (#859): the primer and the recorder are Modals nested in this one,
+ * i.e. controllers presented BY this sheet's. Hiding the sheet in the same batch that closes
+ * one of them sends the sheet's dismissal to the child instead: the sheet stays presented, RN
+ * still reports its `onDismiss`, its content unmounts, and an empty full-screen controller is
+ * left taking every touch — the app looks alive and answers nothing until it is killed. So a
+ * child closes first (kept mounted with `visible={false}`), and whatever comes next — hiding
+ * this sheet, opening the recorder — runs from the child's own `onDismiss`, through
+ * `nested-modal-gate.ts`. While a child is on its way out the rows ignore taps: presenting from
+ * a controller mid-dismissal fails silently too.
  *
  * No glow anywhere (rule #4): attaching media isn't itself a moment.
  */
@@ -94,10 +105,17 @@ export function MediaSheet({
 }) {
   // The source the user tapped + the primer's permission status. `null` source
   // means the primer is closed and the sheet rows are interactive.
+  // It outlives the primer being SHOWN: on iOS the primer stays mounted (`primerOpen` false)
+  // until its dismissal completes, so its copy does not blank out during the fade (#859).
   const [pending, setPending] = useState<{ source: Source; status: PermStatus } | null>(null);
+  const [primerOpen, setPrimerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  // The recorder is a nested sheet rather than a launch, so it needs its own visibility.
-  const [recording, setRecording] = useState(false);
+  // The recorder is a nested sheet rather than a launch, so it needs its own visibility —
+  // mounted and shown separately, for the same reason as the primer.
+  const [recorderMounted, setRecorderMounted] = useState(false);
+  const [recorderOpen, setRecorderOpen] = useState(false);
+  // Sequences the nested primer / recorder against this sheet (#859).
+  const gate = useRef(createNestedModalGate(Platform.OS === 'ios'));
   // Source queued to launch after the Modal finishes dismissing (iOS path).
   const queuedLaunch = useRef<Source | null>(null);
   // Synchronous re-entry lock: `busy` state is async and lets a double-tap
@@ -113,15 +131,25 @@ export function MediaSheet({
    * effect is guarded by its end condition and the work behind it is idempotent), and cheap
    * enough to make correct that it is not worth relying on either property.
    */
-  const closeRecorder = useCallback(() => setRecording(false), []);
+  const closeRecorder = useCallback((then?: () => void) => {
+    setRecorderOpen(false);
+    if (gate.current.closeChild(then) === 'now') setRecorderMounted(false);
+  }, []);
 
+  const cancelRecorder = useCallback(() => closeRecorder(), [closeRecorder]);
+
+  const onRecorderGone = useCallback(() => {
+    setRecorderMounted(false);
+    gate.current.childDismissed();
+  }, []);
+
+  // The pick is handed up at once; only hiding this sheet waits for the recorder to be gone.
   const onRecorded = useCallback(
     (m: PickedMedia) => {
-      setRecording(false);
-      onClose();
+      closeRecorder(onClose);
       onPick(m);
     },
-    [onClose, onPick],
+    [closeRecorder, onClose, onPick],
   );
 
   /**
@@ -132,12 +160,22 @@ export function MediaSheet({
    */
   const onRecorderFailed = useCallback(
     (key: MessageKey) => {
-      setRecording(false);
-      onClose();
+      closeRecorder(onClose);
       onError?.(key);
     },
-    [onClose, onError],
+    [closeRecorder, onClose, onError],
   );
+
+  /** Close the primer; `then` runs once it is off screen (at once off iOS). */
+  function closePrimer(then?: () => void) {
+    setPrimerOpen(false);
+    if (gate.current.closeChild(then) === 'now') setPending(null);
+  }
+
+  function onPrimerGone() {
+    setPending(null);
+    gate.current.childDismissed();
+  }
 
   /**
    * Re-read the primer's permission when the app comes back to the foreground (#749).
@@ -204,31 +242,41 @@ export function MediaSheet({
     // the iOS deferral below applies. It opens as a nested Modal over this one, exactly as
     // `PermissionPrimer` does, and this sheet stays mounted underneath it.
     if (source === 'audio') {
-      setPending(null);
-      setRecording(true);
+      const openRecorder = () => {
+        setRecorderMounted(true);
+        setRecorderOpen(true);
+      };
+      if (primerOpen) closePrimer(openRecorder);
+      else openRecorder();
       return;
     }
     launchLock.current = true;
-    setPending(null);
-    if (Platform.OS === 'ios') {
-      queuedLaunch.current = source;
+    const closeSheet = () => {
+      if (Platform.OS === 'ios') {
+        queuedLaunch.current = source;
+        onClose();
+        return;
+      }
       onClose();
-      return;
-    }
-    onClose();
-    void doLaunch(source);
+      void doLaunch(source);
+    };
+    // With the primer up (a grant just happened) the sheet may hide only once the primer is
+    // gone — hiding both in one batch is #859. Already granted → no primer → close at once.
+    if (primerOpen) closePrimer(closeSheet);
+    else closeSheet();
   }
 
   // Tap a row → peek (no OS prompt). Already granted → straight to the picker;
   // otherwise open the primer («Consenti» fires the real request via run()).
   async function openPrimer(source: Source) {
-    if (busy || launchLock.current) return;
+    if (busy || launchLock.current || gate.current.isClosing()) return;
     const status = await peekPermission(source);
     if (status === 'granted') {
       closeThenLaunch(source);
       return;
     }
     setPending({ source, status });
+    setPrimerOpen(true);
   }
 
   // Primer «Consenti»: request the permission (this may show the OS dialog), and
@@ -258,6 +306,7 @@ export function MediaSheet({
         // missed (iOS double-dismiss edge with the nested primer), reset here.
         queuedLaunch.current = null;
         launchLock.current = false;
+        gate.current.reset();
       }}
       onDismiss={() => {
         // iOS-only: fires once the modal is fully gone — safe to present the picker.
@@ -354,13 +403,14 @@ export function MediaSheet({
         </Pressable>
       </Pressable>
 
-      {recording ? (
+      {recorderMounted ? (
         <AudioRecorderSheet
-          visible
+          visible={recorderOpen}
           locale={locale}
           onRecorded={onRecorded}
-          onCancel={closeRecorder}
+          onCancel={cancelRecorder}
           onFailed={onRecorderFailed}
+          onDismissed={onRecorderGone}
         />
       ) : null}
 
@@ -369,10 +419,11 @@ export function MediaSheet({
           kind={primerKind}
           stillsOnly={!allowVideo}
           status={pending.status}
-          visible
+          visible={primerOpen}
           locale={locale}
           onAllow={() => void run()}
-          onDismiss={() => setPending(null)}
+          onDismiss={() => closePrimer()}
+          onDismissed={onPrimerGone}
         />
       ) : null}
     </Modal>
