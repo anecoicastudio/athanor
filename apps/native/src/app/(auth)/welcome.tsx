@@ -442,7 +442,11 @@ export default function WelcomeScreen() {
                       />
                     ) : null}
 
-                    {oauthError ? <Text className="text-sm text-error">{oauthError}</Text> : null}
+                    {oauthError ? (
+                      <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                        {oauthError}
+                      </Text>
+                    ) : null}
 
                     {/* #777: a first sign-in with a provider CREATES the account, and OAuth
                       cannot tell which it is — so the sign-in mode shows the notice here, under
