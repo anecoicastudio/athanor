@@ -3104,6 +3104,7 @@ export type Database = {
         Row: {
           claimed_at: string | null
           event_id: string
+          livemode: boolean | null
           payload: Json
           processed_at: string | null
           received_at: string
@@ -3112,6 +3113,7 @@ export type Database = {
         Insert: {
           claimed_at?: string | null
           event_id: string
+          livemode?: boolean | null
           payload: Json
           processed_at?: string | null
           received_at?: string
@@ -3120,6 +3122,7 @@ export type Database = {
         Update: {
           claimed_at?: string | null
           event_id?: string
+          livemode?: boolean | null
           payload?: Json
           processed_at?: string | null
           received_at?: string

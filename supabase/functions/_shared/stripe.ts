@@ -171,6 +171,28 @@ export function webhookSigningSecrets(env: EnvPort = denoEnv): WebhookSigningSec
 }
 
 /**
+ * Should `stripe-webhook` refuse test-mode deliveries? (#802)
+ *
+ * The signing secret is what separates test mode from live mode, and that holds only while a
+ * project carries one mode's secrets. Production runs a test-mode rehearsal before the live swap,
+ * so it must ACCEPT `livemode: false` until the swap — and refuse it afterwards, when a stray
+ * test-mode endpoint or a secret left over from the rehearsal would otherwise write rows that
+ * reference objects the live account has never heard of. RELEASE-RUNBOOK §4.2 sets this at the
+ * swap.
+ *
+ * Fail-open while unset or blank, so the rehearsal and staging need nothing. Off otherwise ONLY
+ * for an explicit `false` / `0`: every other value — `true`, `1`, and a typo alike — turns the
+ * guard on, because an operator who set the variable meant to, and reading a typo as «off» would
+ * fail open on production without a word.
+ */
+export function webhookRequiresLivemode(env: EnvPort = denoEnv): boolean {
+  const v = nonBlank(env, 'STRIPE_WEBHOOK_REQUIRE_LIVEMODE');
+  if (v === undefined) return false;
+  const lower = v.toLowerCase();
+  return lower !== 'false' && lower !== '0';
+}
+
+/**
  * Verify one delivery against every signing secret this deployment holds, in order.
  *
  * The secret CANNOT be chosen by looking at the payload: a top-level `account` field is what marks

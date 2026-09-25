@@ -512,6 +512,7 @@ Deno.test('handleChargeRefunded acks charges without payment_intent or matching 
   const db2 = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
   await handleChargeRefunded(asDb(db2), {
     payment_intent: 'pi_x',
+    refunded: true,
   } as unknown as Stripe.Charge);
   // Fund rows are never updated on a miss — only the select ran, plus the guarded ticket
   // revocation (a no-op update when nothing matches). The ticket SELECT in front of it is the
@@ -547,6 +548,7 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
   const db = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
   await handleChargeRefunded(asDb(db), {
     payment_intent: { id: 'pi_1' },
+    refunded: true,
   } as unknown as Stripe.Charge);
   const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
   assert(revoke, 'expected an event_tickets update');
@@ -558,6 +560,58 @@ Deno.test('handleChargeRefunded revokes the matching ticket at the door', async 
   ]);
 });
 
+Deno.test('a partial refund leaves the ticket and its RSVP alone (#802)', async () => {
+  // Stripe sends charge.refunded «whenever a charge is refunded, including partial refunds», and
+  // `charge.refunded` stays false until the charge is refunded in full. A partial refund is a
+  // goodwill gesture on a ticket the buyer still paid for, so the door pass must survive it:
+  // no ticket lookup, no status flip, no RSVP cancel.
+  const db = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: 'pi_1',
+    amount: 2000,
+    amount_refunded: 500,
+    refunded: false,
+  } as unknown as Stripe.Charge);
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['fund_contributions.select'],
+  );
+});
+
+Deno.test('a charge refunded in full revokes the ticket, even after earlier partials', async () => {
+  // The event is cumulative: a second partial that reaches the full amount arrives with
+  // refunded: true, and that is the delivery that revokes.
+  const db = makeFakeDb({ 'fund_contributions.select': [{ data: [] }] });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: 'pi_1',
+    amount: 2000,
+    amount_refunded: 2000,
+    refunded: true,
+  } as unknown as Stripe.Charge);
+  const revoke = db.calls.find((c) => c.table === 'event_tickets' && c.op === 'update');
+  assert(revoke, 'expected an event_tickets update');
+  assertEquals(revoke.values, { status: 'refunded', qr_token: null });
+});
+
+Deno.test('a partial refund still pulls the contribution out of the ticker (#802)', async () => {
+  // Contribution refunds are partial BY INSTRUCTION (RELEASE-RUNBOOK §4.7: refund exactly the
+  // gift, never the coverage), so the full-refund gate must not reach reverseContribution —
+  // otherwise a correctly refunded gift would stay on the public total forever.
+  const db = makeFakeDb({
+    'fund_contributions.select': [{ data: [{ id: 'c1', edition_id: 'ed-9' }] }],
+  });
+  await handleChargeRefunded(asDb(db), {
+    payment_intent: 'pi_c1',
+    amount: 2650,
+    amount_refunded: 2500,
+    refunded: false,
+  } as unknown as Stripe.Charge);
+  assertEquals(
+    db.calls.map((c) => `${c.table}.${c.op}`),
+    ['fund_contributions.select', 'fund_contributions.update', 'rpc.rpc'],
+  );
+});
+
 Deno.test('a reversal cancels the mirrored RSVP as well as the ticket', async () => {
   // The seat is gone, so the reminder and the head-count go with it. Both reversal paths share
   // revokeTicket, so both are asserted — a chargeback leaves exactly as little behind as a refund.
@@ -565,7 +619,10 @@ Deno.test('a reversal cancels the mirrored RSVP as well as the ticket', async ()
     [
       'refund',
       (db: FakeDb) =>
-        handleChargeRefunded(asDb(db), { payment_intent: 'pi_1' } as unknown as Stripe.Charge),
+        handleChargeRefunded(asDb(db), {
+          payment_intent: 'pi_1',
+          refunded: true,
+        } as unknown as Stripe.Charge),
     ],
     [
       'dispute',
@@ -1405,6 +1462,83 @@ const webhookCtx = (db: FakeDb, event?: Stripe.Event): WebhookCtx => ({
   qrSecret: SECRET,
   verifyEvent: () => (event ? Promise.resolve(event) : Promise.reject(new Error('bad signature'))),
   retrieveSubscription: () => Promise.resolve(subscription()),
+});
+
+// ── livemode: recorded on every ledger row, refused on production once flagged (#802) ──
+
+const withLivemode = (event: Stripe.Event, livemode: boolean) =>
+  ({ ...event, livemode }) as unknown as Stripe.Event;
+
+Deno.test('the ledger row records the event livemode', async () => {
+  for (const livemode of [true, false]) {
+    const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
+    await handleWebhook(
+      webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), livemode)),
+      webhookReq(),
+    );
+    const ledger = db.calls[0];
+    assertEquals(`${ledger.table}.${ledger.op}`, 'stripe_webhook_events.upsert');
+    assertEquals((ledger.values as Record<string, unknown>).livemode, livemode);
+  }
+});
+
+Deno.test('an event without a boolean livemode records NULL, never a guess', async () => {
+  const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
+  await handleWebhook(webhookCtx(db, stripeEvent('payment_intent.created', {})), webhookReq());
+  assertEquals((db.calls[0].values as Record<string, unknown>).livemode, null);
+});
+
+Deno.test('with the flag unset a test-mode event is processed (fail-open)', async () => {
+  // The production rehearsal before the live swap depends on exactly this.
+  const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
+  const res = await handleWebhook(
+    webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), false)),
+    webhookReq(),
+  );
+  assert(res.status !== 403);
+  assertEquals(db.calls[0]?.table, 'stripe_webhook_events');
+});
+
+Deno.test(
+  'with the flag on a test-mode event is refused before the ledger, so Stripe retries',
+  async () => {
+    // After signature, before dedupe: a refused delivery writes NOTHING — no ledger row to
+    // mark it done — and answers non-2xx, so Stripe keeps retrying and the Dashboard shows it.
+    for (const livemode of [false, undefined]) {
+      const db = makeFakeDb();
+      const base = stripeEvent('checkout.session.completed', ticketSession());
+      const event = livemode === undefined ? base : withLivemode(base, livemode);
+      const res = await handleWebhook(
+        { ...webhookCtx(db, event), requireLivemode: true },
+        webhookReq(),
+      );
+      assertEquals(res.status, 403, `livemode ${livemode}`);
+      assertEquals(db.calls.length, 0, `livemode ${livemode}: nothing written`);
+    }
+  },
+);
+
+Deno.test('with the flag on a live-mode event passes the guard', async () => {
+  const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
+  const res = await handleWebhook(
+    {
+      ...webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), true)),
+      requireLivemode: true,
+    },
+    webhookReq(),
+  );
+  assert(res.status !== 403);
+  assertEquals((db.calls[0].values as Record<string, unknown>).livemode, true);
+});
+
+Deno.test('the livemode guard never runs ahead of the signature check', async () => {
+  const db = makeFakeDb();
+  const res = await handleWebhook(
+    { ...webhookCtx(db /* verifyEvent rejects */), requireLivemode: true },
+    webhookReq(),
+  );
+  assertEquals(res.status, 400);
+  assertEquals(await res.text(), 'bad signature');
 });
 
 Deno.test('handleWebhook 400s on missing or invalid signature, before any db touch', async () => {
