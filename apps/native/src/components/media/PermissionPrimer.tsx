@@ -24,6 +24,7 @@ export function PermissionPrimer({
   locale,
   onAllow,
   onDismiss,
+  onDismissed,
   stillsOnly = false,
 }: {
   kind: 'camera' | 'photos' | 'microphone' | 'push';
@@ -31,7 +32,14 @@ export function PermissionPrimer({
   visible: boolean;
   locale: Locale;
   onAllow: () => void;
+  /** The member asked to close it («Non ora», the scrim, Android back). Not RN's `onDismiss`. */
   onDismiss: () => void;
+  /**
+   * iOS only: the primer is fully off screen — RN Modal's `onDismiss`, renamed because the prop
+   * above already took the name. A primer nested in another Modal (`MediaSheet`) must be gone
+   * before its parent hides or presents anything else (#859, `nested-modal-gate.ts`).
+   */
+  onDismissed?: () => void;
   /**
    * The camera is opening for a still and nothing else — a chat attachment or an avatar (#749).
    * The default camera copy sells a photo OR VIDEO for «your moment», which is the wrong promise
@@ -67,7 +75,13 @@ export function PermissionPrimer({
   const dismissKey = kind === 'push' ? 'permission.push.skip' : 'permission.notNow';
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      {...(onDismissed ? { onDismiss: onDismissed } : {})}
+    >
       {/*
        * scrim — tap outside to dismiss (surface-muted is the token's documented scrim).
        *
