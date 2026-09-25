@@ -424,3 +424,31 @@ describe.each(EAS_PLATFORMS)('Sentry symbol upload per EAS profile — %s (#466)
     }
   });
 });
+
+/*
+ * `production-simulator` is the production app built as a simulator .app, for a production
+ * smoke on a Mac whose Xcode cannot compile the app locally (#83). It must stay production in
+ * everything but the target: the same env (so the same Supabase project, Sentry posture and
+ * app identity), the same EAS environment and channel, and no build-number bump — a smoke build
+ * must never advance the store's train.
+ */
+describe('production-simulator EAS profile (#83)', () => {
+  const build = JSON.parse(readFileSync(join(NATIVE, 'eas.json'), 'utf8')).build as Record<
+    string,
+    EasProfile & { autoIncrement?: boolean; ios?: { simulator?: boolean } }
+  >;
+  const sim = build['production-simulator'];
+
+  it('extends production, overriding only the target and the build number', () => {
+    expect(sim?.extends).toBe('production');
+    expect(Object.keys(sim ?? {}).sort()).toEqual(['autoIncrement', 'extends', 'ios']);
+    expect(sim?.ios).toEqual({ simulator: true });
+    expect(sim?.autoIncrement).toBe(false);
+  });
+
+  it.each(EAS_PLATFORMS)('resolves the same %s env as production', (platform) => {
+    expect(resolveEnv(build, 'production-simulator', platform)).toEqual(
+      resolveEnv(build, 'production', platform),
+    );
+  });
+});
