@@ -126,6 +126,10 @@ export default function WelcomeScreen() {
   const [revealed, setRevealed] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<null | 'apple' | 'google'>(null);
   const [error, setError] = useState<string | null>(null);
+  // Its own slot, under the provider buttons: on a 667pt screen the shared `error` line sits
+  // below the fold, under the email form, and the member back from the auth sheet never scrolls
+  // there (#855).
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const router = useRouter();
   const submitting = phase === 'submitting';
   // Draft-aware (#158): the funnel routes here right after a language choice.
@@ -165,6 +169,7 @@ export default function WelcomeScreen() {
   const submit = async () => {
     setPhase('submitting');
     setError(null);
+    setOauthError(null);
     if (login) {
       // A code stashed on this device (e.g. from a link opened before the user chose to
       // sign into an existing, unrelated account) must never attach to that account.
@@ -261,6 +266,7 @@ export default function WelcomeScreen() {
   // as an expired sign-in (oauth.ts, #855) and lands in the error branch below.
   const handleOAuth = async (provider: 'apple' | 'google') => {
     setError(null);
+    setOauthError(null);
     // Busy first: everything below this line awaits, and `disabled` is what stops a second tap
     // opening a second round trip.
     setOauthBusy(provider);
@@ -276,7 +282,9 @@ export default function WelcomeScreen() {
     setOauthBusy(null);
     if (outcome.status === 'error') {
       if (__DEV__) console.warn('[auth] oauth', provider, outcome.message);
-      setError(t(oauthErrorKey(outcome.message), locale, { provider: PROVIDER_LABEL[provider] }));
+      setOauthError(
+        t(oauthErrorKey(outcome.message), locale, { provider: PROVIDER_LABEL[provider] }),
+      );
     }
   };
 
@@ -433,6 +441,8 @@ export default function WelcomeScreen() {
                         onPress={() => handleOAuth('google')}
                       />
                     ) : null}
+
+                    {oauthError ? <Text className="text-sm text-error">{oauthError}</Text> : null}
 
                     {/* #777: a first sign-in with a provider CREATES the account, and OAuth
                       cannot tell which it is — so the sign-in mode shows the notice here, under
