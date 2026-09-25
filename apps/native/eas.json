@@ -42,6 +42,13 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production-simulator": {
+      "extends": "production",
+      "autoIncrement": false,
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {
