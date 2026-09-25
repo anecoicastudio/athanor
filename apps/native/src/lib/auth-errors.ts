@@ -16,7 +16,12 @@ export function authErrorKey(err: { code?: string; status?: number }): MessageKe
     return 'auth.error.emailTaken';
   if (err.code === 'weak_password') return 'auth.error.weakPassword';
   if (err.code === 'email_address_invalid') return 'auth.error.invalidEmail';
-  if (err.code === 'over_request_rate_limit' || err.status === 429) return 'auth.error.rateLimit';
+  if (
+    err.code === 'over_request_rate_limit' ||
+    err.code === 'over_email_send_rate_limit' ||
+    err.status === 429
+  )
+    return 'auth.error.rateLimit';
   // auth-js wraps a transport failure (fetch threw, nothing reached GoTrue) in an
   // AuthRetryableFetchError with status 0 and no code — the one case where "try
   // again" should say the network is the reason.
@@ -48,4 +53,17 @@ export function oauthErrorKey(message: string): MessageKey {
   )
     return 'auth.error.oauthExpired';
   return 'auth.error.oauthFailed';
+}
+
+/**
+ * Why an email link failed on auth-callback (#863). Either way the link is spent — auth-js
+ * deletes the PKCE code-verifier on every exchange attempt, failed or not — so the way forward
+ * is always a new mail; this only decides which sentence is true. `status: 0` is auth-js's
+ * transport failure (AuthRetryableFetchError) and the screen's own timeout, which fakes one.
+ * Everything else is GoTrue refusing the link: the 300 s flow state gone (`flow_state_expired`
+ * / `flow_state_not_found`), the mail token past mailer_otp_exp or already used (`otp_expired`
+ * on the redirect), or no verifier on this device.
+ */
+export function callbackFailureKind(err: { code?: string; status?: number }): 'network' | 'dead' {
+  return err.status === 0 ? 'network' : 'dead';
 }

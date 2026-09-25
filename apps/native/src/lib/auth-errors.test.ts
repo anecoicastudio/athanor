@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
-import { authErrorKey, oauthErrorKey } from './auth-errors';
+import { authErrorKey, callbackFailureKind, oauthErrorKey } from './auth-errors';
 
 describe('authErrorKey', () => {
   it('invalid_credentials → one message for both wrong password and unknown email', () => {
@@ -25,6 +25,12 @@ describe('authErrorKey', () => {
   it('rate limiting is caught by code OR by bare HTTP 429', () => {
     expect(authErrorKey({ code: 'over_request_rate_limit' })).toBe('auth.error.rateLimit');
     expect(authErrorKey({ status: 429 })).toBe('auth.error.rateLimit');
+  });
+
+  it("the mailer's own throttle is a rate limit too (#863)", () => {
+    // A one-tap resend is the path most likely to meet it: GoTrue refuses a second recovery
+    // mail inside max_frequency with this code, and the generic copy would invite a retry loop.
+    expect(authErrorKey({ code: 'over_email_send_rate_limit' })).toBe('auth.error.rateLimit');
   });
 
   it('an unmapped code falls through to the generic message', () => {
@@ -104,6 +110,26 @@ describe('oauthErrorKey', () => {
       const key = oauthErrorKey(message);
       expect(t(key, 'it')).not.toBe(key);
       expect(t(key, 'en')).not.toBe(key);
+    }
+  });
+});
+
+describe('callbackFailureKind (#863)', () => {
+  it("a transport failure or the screen's own timeout names the network", () => {
+    expect(callbackFailureKind({ status: 0 })).toBe('network');
+  });
+
+  it('everything GoTrue itself refused is a dead link', () => {
+    // /token after the 300 s flow state, a link opened twice, a link from another device.
+    for (const err of [
+      { code: 'flow_state_expired', status: 422 },
+      { code: 'flow_state_not_found', status: 404 },
+      { code: 'bad_code_verifier', status: 400 },
+      { code: 'pkce_code_verifier_not_found', status: 400 },
+      { code: 'otp_expired' },
+      {},
+    ]) {
+      expect(callbackFailureKind(err)).toBe('dead');
     }
   });
 });
