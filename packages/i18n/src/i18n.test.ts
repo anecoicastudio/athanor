@@ -617,6 +617,16 @@ describe('delete-account copy says what the job defers (#515, #107)', () => {
     expect(en['account.delete.body']).toMatch(/block sign-in/i);
   });
 
+  test('the body bounds the other devices by the token lifetime, not «right away» (#861)', () => {
+    // Signing out ends only this device's session. Elsewhere an access token already issued
+    // keeps reading until it expires — jwt_exp is 3600 s on both hosted projects, and PostgREST
+    // never looks up auth.sessions — so «subito su ogni dispositivo» was a promise nothing kept.
+    expect(it['account.delete.body']).toMatch(/entro un'ora/i);
+    expect(en['account.delete.body']).toMatch(/within an hour/i);
+    expect(it['account.delete.body']).not.toMatch(/ogni dispositivo/i);
+    expect(en['account.delete.body']).not.toMatch(/every device/i);
+  });
+
   test('the deferred line names the wait, in both locales', () => {
     // The one thing this line exists to say: the erasure does not happen at the tap. If a
     // rewrite drops that, the screen is back to promising a completion the job cannot deliver.
