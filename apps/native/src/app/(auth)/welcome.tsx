@@ -257,7 +257,8 @@ export default function WelcomeScreen() {
     if (!data.session) setPhase('sent');
   };
 
-  // OAuth: success routes via onAuthStateChange; cancellation is silent.
+  // OAuth: success routes via onAuthStateChange; a quick cancel is silent, a late one comes back
+  // as an expired sign-in (oauth.ts, #855) and lands in the error branch below.
   const handleOAuth = async (provider: 'apple' | 'google') => {
     setError(null);
     // Busy first: everything below this line awaits, and `disabled` is what stops a second tap

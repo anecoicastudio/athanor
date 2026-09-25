@@ -42,7 +42,21 @@ export type OAuthOutcome =
 // would surface a spurious error. Dormant for Apple, live for Google.
 export const AUTH_REDIRECT_URL = createURL('/auth-callback');
 
-export async function signInWithProvider(provider: 'apple' | 'google'): Promise<OAuthOutcome> {
+// GoTrue keeps an OAuth flow state for 300 s: `defaultFlowStateExpiryDuration` in supabase/auth
+// internal/conf/configuration.go, which is also a floor — a shorter configured value is raised to
+// it — and the hosted Management API `config/auth` does not expose the setting at all. A provider
+// callback that lands later cannot recover `redirect_to`, so GoTrue sends the sheet to `site_url`
+// (the marketing homepage) with `error_code=bad_oauth_state`, and the member's only way back is
+// the sheet's ✕ — which reads as `cancel`/`dismiss`, exactly like changing their mind (#855).
+// The clock tells them apart: the sheet opens before `/authorize` runs, so a stranded sheet has
+// always been open at least this long. A deliberate ✕ that late is told the same thing, and it is
+// just as true for them — that flow state is dead and the next attempt starts a new one.
+export const FLOW_STATE_LIFETIME_MS = 300_000;
+
+export async function signInWithProvider(
+  provider: 'apple' | 'google',
+  now: () => number = Date.now,
+): Promise<OAuthOutcome> {
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as Provider,
@@ -52,8 +66,14 @@ export async function signInWithProvider(provider: 'apple' | 'google'): Promise<
       return { status: 'error', message: error?.message ?? 'no_oauth_url' };
     }
 
+    const openedAt = now();
     const res = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URL);
-    if (res.type === 'cancel' || res.type === 'dismiss') return { status: 'cancelled' };
+    if (res.type === 'cancel' || res.type === 'dismiss') {
+      if (now() - openedAt >= FLOW_STATE_LIFETIME_MS) {
+        return { status: 'error', message: 'oauth_state_expired' };
+      }
+      return { status: 'cancelled' };
+    }
     if (res.type !== 'success') return { status: 'error', message: res.type };
 
     const { params, errorCode } = QueryParams.getQueryParams(res.url);
