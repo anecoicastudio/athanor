@@ -818,5 +818,9 @@ describe('erasure after the tap (#735)', () => {
     // Not the permanent-suspension copy: the member was not sanctioned, they left.
     expect(it['moderation.erasing.title']).not.toMatch(/sospeso/i);
     expect(en['moderation.erasing.title']).not.toMatch(/suspended/i);
+    // No completion time: the notice shows for every open status, and a 'failed' or 'retained'
+    // row may wait on an operator or on Stripe for many nights.
+    expect(it['moderation.erasing.body']).not.toMatch(/notte|oggi|entro/i);
+    expect(en['moderation.erasing.body']).not.toMatch(/night|today|within/i);
   });
 });

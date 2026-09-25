@@ -242,7 +242,7 @@
   "moderation.banned.title": "Il tuo account è sospeso in modo permanente.",
   "moderation.banned.body": "Non puoi più scrivere o partecipare.",
   "moderation.erasing.title": "Il tuo account è in cancellazione.",
-  "moderation.erasing.body": "Hai chiesto di eliminarlo: da qui non puoi più scrivere né partecipare. La cancellazione la completiamo di notte.",
+  "moderation.erasing.body": "Hai chiesto di eliminarlo: da qui non puoi più scrivere né partecipare.",
   "auth.codePlaceholder": "123456",
   "auth.signOut": "Esci",
   "auth.haveAccount": "Hai un account? Accedi",

@@ -242,7 +242,7 @@
   "moderation.banned.title": "Your account is suspended permanently.",
   "moderation.banned.body": "You can no longer write or take part.",
   "moderation.erasing.title": "Your account is being deleted.",
-  "moderation.erasing.body": "You asked us to delete it: from here you can no longer write or take part. We complete the deletion overnight.",
+  "moderation.erasing.body": "You asked us to delete it: from here you can no longer write or take part.",
   "auth.codePlaceholder": "123456",
   "auth.signOut": "Sign out",
   "auth.haveAccount": "Have an account? Sign in",

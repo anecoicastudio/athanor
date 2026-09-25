@@ -2420,3 +2420,10 @@ replace` keeps the existing ACL, so restating them changes nothing — but the r
   be stopped at Stripe, and the claim re-takes `retained` rows exactly as it takes `requested`
   ones. Both comments are replaced in the catalog by that migration. `failed` and `partial` are
   still never re-claimed. pgTAP `0058` asserts both halves.
+- `20260925175902`'s own header says the claim re-takes `retained` rows «exactly as it takes
+  'requested' ones». Since `20260925181256` (same PR) it does not: `retained` rows sort after
+  every first attempt, least recently retried first, so a backlog of them cannot starve a new
+  request. Its header also says any Stripe failure is retried; since the same review a
+  `resource_missing` or `livemode_mismatch` ends `failed` (erasure-job `logic.ts`,
+  `PERMANENT_STRIPE_CODES`), and so does an unreadable `circle_memberships` row. pgTAP `0058`
+  and the Deno suite assert both.

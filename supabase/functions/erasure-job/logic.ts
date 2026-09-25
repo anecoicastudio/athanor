@@ -87,6 +87,23 @@ export type ErasureStripe = {
 const SETTLED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired']);
 
 /**
+ * Stripe error codes that no retry can clear (#735). Per https://docs.stripe.com/error-codes:
+ * `resource_missing` — «the ID provided is not valid: either the resource doesn't exist, or an ID
+ * for a different resource has been provided»; `livemode_mismatch` — test and live keys, requests
+ * and objects are only available within their own mode. Either one means the stored
+ * `stripe_subscription_id` names nothing this key can cancel, so a nightly retry would repeat the
+ * same error for ever and the hand cancel in RELEASE-RUNBOOK §7.5 has nothing to act on. Such a
+ * request ends 'failed' — an operator's — never 'retained'. Every other error (network, rate
+ * limit, an expired or revoked key) is one an outage or a rotation can clear, and is retried.
+ */
+const PERMANENT_STRIPE_CODES = new Set(['resource_missing', 'livemode_mismatch']);
+
+function isPermanentStripeError(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && PERMANENT_STRIPE_CODES.has(code);
+}
+
+/**
  * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
  * the sweep below reaches every declared bucket, so index.ts can no longer pre-bind one
  * (`db.storage.from('candidacy-videos')` was the whole erasure's storage reach).
@@ -196,6 +213,12 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
    * nobody, and R-8's flip condition is «a 200» — this is the number that makes it checkable.
    */
   let retained = 0;
+  /**
+   * #735 — the subset of `retained` that ended in the STATUS 'retained': kept because Stripe
+   * could not stop the billing, and re-claimed next night. `retained` above keeps its meaning
+   * (every account kept, 'failed' included) because RELEASE-RUNBOOK R-8's smoke reads it.
+   */
+  let billingRetained = 0;
 
   // ATOMIC LEASE CLAIM (#717) — one statement, in the database, flips the rows to 'processing'
   // and stamps `claimed_at`. What it replaced was a SELECT on `status = 'requested'` followed by
@@ -258,6 +281,9 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // Stripe is outside the database and outside our control: its outage is a reason to wait,
     // not a verdict on the request.
     let billingLive = false;
+    // ^ Only for a failure Stripe itself might clear. The membership READ failing is a database
+    //   error with nobody outside to wait on, and a permanent Stripe code (above) names an id no
+    //   retry can reach: both stay 'failed'.
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
@@ -473,7 +499,6 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         // only pointer to the thing still taking the member's money.
         degraded = true;
         cascadeSafe = false;
-        billingLive = true;
         console.error('erasure-job: membership unreadable, billing not stopped', erasureReq.id);
       } else if (subscriptionId) {
         if (!stripe) {
@@ -507,7 +532,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
           if (status.error) {
             degraded = true;
             cascadeSafe = false;
-            billingLive = true;
+            billingLive = !isPermanentStripeError(status.error);
             console.error(
               'erasure-job: subscription status unreadable, billing not stopped',
               erasureReq.id,
@@ -528,7 +553,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
             if (cancelled) {
               degraded = true;
               cascadeSafe = false;
-              billingLive = true;
+              billingLive = !isPermanentStripeError(cancelled);
               console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
             }
           }
@@ -642,6 +667,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
+    if (billingLive) billingRetained++;
     await writeTerminalStatus(
       db,
       erasureReq.id,
@@ -679,6 +705,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       // #107 — non-zero means at least one member is still here on purpose. On a healthy
       // project this is 0 and `seen` is the number erased.
       retained,
+      // #735 — of those, the ones waiting on Stripe and re-claimed next night.
+      billingRetained,
       // #573 — bytes, across every declared bucket. A run that erased members and reports
       // `removed: 0` is the shape of the bug this replaced: the sweep found nothing where the
       // member's photos should have been.

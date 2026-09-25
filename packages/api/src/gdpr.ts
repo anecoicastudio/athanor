@@ -1,5 +1,4 @@
 import {
-  type GdprErasureRequest,
   type GdprExportJob,
   gdprErasureRequestSchema,
   gdprExportJobSchema,
@@ -63,16 +62,18 @@ export async function requestErasure(client: AthanorClient): Promise<void> {
 }
 
 /**
- * The caller's own OPEN erasure request — any status but 'done' (RLS scopes to own) — or null.
+ * Does the caller have an OPEN erasure request — any status but 'done'? (RLS scopes to own.)
  * #735: the erasure ban lives on auth.users, which the app cannot read, while athanor.is_active()
  * already denies every social write for as long as such a row exists. A second device signed in
- * before the tap reads this at bootstrap so it can say «in cancellazione» instead of failing each
- * write with a bare 42501. Newest first: the partial unique index allows one 'requested' row, but
- * a historical 'failed' or 'partial' can sit beside it.
+ * before the tap reads this so it can say «in cancellazione» instead of failing each write with a
+ * bare 42501.
+ *
+ * The row is still parsed (api.md: Zod at a query boundary), but a row that fails is reported
+ * and COUNTED AS OPEN rather than withheld: the query's own predicate already proves openness,
+ * and a status this build does not know yet — which is how 'retained' reached older builds — must
+ * not make the banner disappear. The warning carries the row id, never member content.
  */
-export async function getOpenErasureRequest(
-  client: AthanorClient,
-): Promise<GdprErasureRequest | null> {
+export async function hasOpenErasureRequest(client: AthanorClient): Promise<boolean> {
   const { data, error } = await client
     .from('gdpr_erasure_requests')
     .select('id, status')
@@ -82,5 +83,9 @@ export async function getOpenErasureRequest(
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data ? gdprErasureRequestSchema.parse(data) : null;
+  if (!data) return false;
+  if (!gdprErasureRequestSchema.safeParse(data).success) {
+    console.warn('[gdpr] erasure request row failed its schema', (data as { id?: unknown }).id);
+  }
+  return true;
 }

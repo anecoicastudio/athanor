@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
-import { getOpenErasureRequest, getOwnProfile } from '@athanor/api';
+import { getOwnProfile, hasOpenErasureRequest } from '@athanor/api';
 import { nextOnboardingStep } from '@athanor/core';
 import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
@@ -98,13 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // #735 — a failed read keeps the last known answer rather than flipping to «no request»: the
   // banner is the only explanation the member gets for writes that fail, so losing it on one
-  // dropped request would put the bare 42501 back. The identity check is refreshProfile's.
+  // dropped request would put the bare 42501 back. The answer is for ONE identity: it is dropped
+  // the moment the user id changes (onAuthStateChange below), so it never carries across a
+  // SIGNED_IN that swaps accounts without a SIGNED_OUT. Reads overlap — bootstrap, foreground,
+  // refreshProfile — so only the newest one may write.
+  const erasureReadSeq = useRef(0);
   const readErasure = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
     if (!userId) return;
+    const seq = ++erasureReadSeq.current;
     try {
-      const open = (await getOpenErasureRequest(supabase)) !== null;
-      if (sessionRef.current?.user.id === userId) setErasureOpen(open);
+      const open = await hasOpenErasureRequest(supabase);
+      if (seq === erasureReadSeq.current && sessionRef.current?.user.id === userId) {
+        setErasureOpen(open);
+      }
     } catch (e) {
       devWarn('[auth] erasure read', e);
     }
@@ -145,12 +152,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => setLoading(false));
     const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (sessionRef.current?.user.id !== next?.user.id) {
+        // #735 — another identity: the previous one's erasure state is not this one's, and an
+        // in-flight read for it must not land.
+        erasureReadSeq.current++;
+        setErasureOpen(false);
+      }
       sessionRef.current = next;
       setSession(next);
       if (!next) {
         setProfile(null); // sign-out clears profile here (event handler, not effect)
         setProfileError(false);
-        setErasureOpen(false);
         // No unregisterPush here: with the session gone the DELETE runs as anon
         // and 42501s (e.g. a revoked session at boot after an account deletion).
         // The signOut() helper unregisters while authenticated; a token this

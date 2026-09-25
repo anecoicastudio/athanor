@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(39);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -254,6 +254,22 @@ select ok(
    where conrelid = 'public.gdpr_erasure_requests'::regclass
      and conname = 'gdpr_erasure_requests_status_check'),
   'retained is in the closed status set');
+
+-- 20260925181256: a retained row sorts after every first attempt. With p_limit 1, an ANCIENT
+-- retained row and a request filed today, the request wins — otherwise twenty stuck Stripe
+-- rows would take every batch for ever.
+update public.gdpr_erasure_requests set status = 'done' where status <> 'done';
+insert into public.gdpr_erasure_requests (id, profile_id, status, created_at)
+values ('a7350000-0000-0000-0000-0000000000b1', null, 'retained', now() - interval '30 days'),
+       ('a7350000-0000-0000-0000-0000000000b2', null, 'requested', now());
+select is(
+  (select id::text from public.claim_erasure_requests(1, interval '15 minutes')),
+  'a7350000-0000-0000-0000-0000000000b2',
+  'a fresh request is claimed before an older retained row — retries never starve first attempts');
+select is(
+  (select id::text from public.claim_erasure_requests(1, interval '15 minutes')),
+  'a7350000-0000-0000-0000-0000000000b1',
+  'and the retained row is still claimed once the first attempts are served');
 reset role;
 
 set local role authenticated;

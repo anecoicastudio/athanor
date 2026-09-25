@@ -153,10 +153,12 @@ const body = (
   kvPurge: Record<string, unknown>,
   storageRemoved = 0,
   retained = 0,
+  billingRetained = 0,
 ) => ({
   seen,
   kvPurge,
   retained,
+  billingRetained,
   storageRemoved,
 });
 
@@ -1342,7 +1344,7 @@ Deno.test(
     assertEquals(c.deleted, []);
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['retained'],
+      ['failed'],
     );
   },
 );
@@ -1563,3 +1565,60 @@ Deno.test("#735: a failure with no subscription in play stays 'failed'", async (
     ['failed'],
   );
 });
+
+Deno.test(
+  "#735: a Stripe id no key can reach is 'failed' — retrying resource_missing loops for ever",
+  async () => {
+    for (const code of ['resource_missing', 'livemode_mismatch']) {
+      const c = ctx(
+        {
+          'rpc.claim_erasure_requests': [
+            { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+          ],
+          'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_ghost' } }],
+        },
+        {
+          getSubscriptionStatus: () =>
+            Promise.reject(Object.assign(new Error('No such subscription'), { code })),
+        },
+      );
+      await processErasureRequests(c);
+      assertEquals(c.deleted, [], code);
+      assertEquals(
+        statusUpdates(c.db).map((u) => u.values.status),
+        ['failed'],
+        code,
+      );
+    }
+  },
+);
+
+Deno.test(
+  '#735: a permanent code on the CANCEL is failed too; a transient one is retained',
+  async () => {
+    const run = async (err: unknown) => {
+      const c = ctx(
+        {
+          'rpc.claim_erasure_requests': [
+            { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+          ],
+          'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+        },
+        { cancelSubscription: () => Promise.reject(err) },
+      );
+      const res = await processErasureRequests(c);
+      return {
+        status: statusUpdates(c.db).map((u) => u.values.status),
+        body: await res.json(),
+      };
+    };
+    const permanent = await run(Object.assign(new Error('gone'), { code: 'resource_missing' }));
+    assertEquals(permanent.status, ['failed']);
+    assertEquals(permanent.body.billingRetained, 0);
+    const transient = await run(Object.assign(new Error('slow down'), { code: 'rate_limit' }));
+    assertEquals(transient.status, ['retained']);
+    // `retained` keeps counting every kept account; `billingRetained` names the ones re-claimed.
+    assertEquals(transient.body.retained, 1);
+    assertEquals(transient.body.billingRetained, 1);
+  },
+);

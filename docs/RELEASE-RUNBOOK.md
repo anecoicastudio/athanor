@@ -1453,16 +1453,24 @@ Consequences for this section:
   date as what moderation wrote.
 - **A Circle subscriber on a stuck row cannot reach the Billing Portal** (`create-circle-portal`
   is user-callable and a banned user fails `getUser()`). `erasure-job` cancels the subscription
-  immediately at Stripe and the cascade blocks on it: nothing is pseudonymised and no account is
-  deleted until Stripe reports the subscription `canceled`. **Since #735 (`20260925175902`) a pass
-  the cancel blocked ends `retained`, and the next nightly claim re-takes it** — a Stripe outage
-  or a missing key heals by itself once fixed, with no re-queue. The hand cancel is the
-  FALLBACK: a row still `retained` after two nights means the cancel keeps failing — read the
-  function logs (`subscription cancel failed` / `Stripe unconfigured`), cancel the subscription in
-  the Stripe Dashboard, and the next pass finds it settled and finishes. `failed` rows predating
-  #735 carry no such retry: check the subscription and cancel it by hand before re-queueing, or the
-  person keeps paying with no route to stop it. The pending-export half (§7.6) is a gate on the
-  delete CTA while the member's own export is `requested`/`processing`; a ready archive not yet
+  immediately at Stripe, and a cancel that fails stops the cascade before the money steps: the
+  retained payment rows are not pseudonymised, the blocking references are not released and the
+  account is not deleted. It is NOT a clean stop — (1) session revoke, (3) the fund reach
+  (contributions tombstoned, candidacies and votes deleted), (3a) the storage sweep and (3b) the
+  KV purge have already run, on every pass. A cancel that resolves counts as stopped; the row
+  state follows through the webhook. **Since #735 (`20260925175902` + `20260925181256`) a pass
+  the cancel blocked ends `retained`, and the next nightly claim re-takes it after every first
+  attempt** — a Stripe outage, a rate limit or a rotated-away key heals by itself once fixed,
+  with no re-queue; the response's `billingRetained` counts them. Two Stripe codes are
+  permanent and end `failed` instead: `resource_missing` (Stripe does not know the stored id)
+  and `livemode_mismatch` (a test-mode id under a live key) — no dashboard cancel can reach
+  those, so reconcile the `circle_memberships` row with Stripe first. The hand cancel is the
+  FALLBACK for a row still `retained` after two nights: read the function logs
+  (`subscription cancel failed` / `Stripe unconfigured`), cancel the subscription in the Stripe
+  Dashboard, and the next pass finds it settled and finishes. `failed` rows carry no retry: check
+  the subscription and cancel it by hand before re-queueing, or the person keeps paying with no
+  route to stop it. The pending-export half (§7.6) is a gate on the delete CTA while the member's
+  own export is `requested`/`processing` and under two days old; a ready archive not yet
   downloaded dies with the account, and the delete screen says so.
 - **Withdrawing a request by hand is two statements in this order**: delete the request row, then
   re-derive the ban from moderation state — `banned_until = null` only if `profiles.banned_at`

@@ -33,6 +33,9 @@ import { Screen } from '@/components/Screen';
  * so an archive still being built when they tap is one they can never reach. A READY archive is
  * not held: it is downloadable right now, and `exportFirst` says it goes with the account.
  */
+/** How long a pending export holds the delete CTA: one nightly pass, plus a night's slack. */
+const EXPORT_GATE_MS = 48 * 60 * 60 * 1000;
+
 export default function DeleteAccountScreen() {
   const router = useRouter();
   const { signOut: endSession } = useAuth();
@@ -44,16 +47,26 @@ export default function DeleteAccountScreen() {
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
 
   // Same key as the export screen, so a request filed there reads here without a second fetch.
-  // 'always' because the cache is persisted (24 h): a stale «ready» must not unlock the CTA over
-  // a job filed since. A failed read does not hold the CTA — the gate is a courtesy, never a
-  // way to keep somebody from leaving.
+  // The gate is a courtesy, never a way to keep somebody from leaving, so it holds only on an
+  // answer read NOW: `isFetchedAfterMount` because the cache is persisted for 24 h and a stale
+  // row must not decide; `!isError` because TanStack keeps the last good data through a failed
+  // refetch. A fetch still in flight does not hold the CTA either — a hung request would.
+  const [openedAt] = useState(() => Date.now());
   const exportJob = useQuery({
     queryKey: gdprKeys.exportStatus(),
     queryFn: () => getLatestExportJob(supabase),
     refetchOnMount: 'always',
   });
   const exportStatus = exportJob.data?.status ?? null;
-  const exportPending = exportStatus === 'requested' || exportStatus === 'processing';
+  const exportCreated = exportJob.data ? Date.parse(exportJob.data.created_at) : Number.NaN;
+  // A job the nightly pass has not served within two nights is retrying a failure
+  // (gdpr-export-job sends transient errors back to 'requested' for up to ~23 days); holding
+  // an erasure request hostage to it is exactly what the gate must not do.
+  const exportPending =
+    exportJob.isFetchedAfterMount &&
+    !exportJob.isError &&
+    (exportStatus === 'requested' || exportStatus === 'processing') &&
+    openedAt - exportCreated < EXPORT_GATE_MS;
 
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
@@ -122,9 +135,7 @@ export default function DeleteAccountScreen() {
         <Button
           variant="danger"
           label={t('account.delete.cta', locale)}
-          disabled={
-            !matched || exportPending || exportJob.isFetching || erase.isPending || erase.isSuccess
-          }
+          disabled={!matched || exportPending || erase.isPending || erase.isSuccess}
           onPress={() => erase.mutate()}
         />
       </ScrollView>
