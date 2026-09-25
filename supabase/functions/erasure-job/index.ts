@@ -14,8 +14,8 @@
 //       member's photos, chat images, avatar and their own exported archives all survived,
 //   (3b) purge the subject's cached public web pages from Cloudflare KV — apps/web's OpenNext
 //       incremental cache outlives the rows it renders and a deploy strands rather than
-//       replaces its entries, so erasure sweeps every build prefix (#515, ./kv.ts). Runs after
-//       (3) and before (4) because it needs the handle, which (4) cascades away,
+//       replaces its entries, so erasure sweeps every build prefix (#515, _shared/kv-purge.ts).
+//       Runs after (3) and before (4) because it needs the handle, which (4) cascades away,
 //   (3b-bis) CANCEL the Circle subscription at Stripe (#107) — before (3c) hides who was being
 //       billed. Pseudonymising the row stops us knowing; it does not stop Stripe charging,
 //   (3c) PSEUDONYMIZE event_tickets + circle_memberships (#107, the controller's 2026-09-07
@@ -35,7 +35,7 @@
 import { requireServiceRole } from '../_shared/auth.ts';
 import { stripeClient, stripeConfigured } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { cloudflareKvFromEnv } from './kv.ts';
+import { cloudflareKvFromEnv } from '../_shared/kv-purge.ts';
 import { processErasureRequests } from './logic.ts';
 import { sessionRevoker } from './revoke.ts';
 

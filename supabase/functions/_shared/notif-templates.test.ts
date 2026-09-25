@@ -295,6 +295,49 @@ Deno.test('an unknown reason token degrades to itself, never to undefined', () =
   assertEquals(msgs[0].data.route, 'trust');
 });
 
+// #800 / #782: a producer writes `coalesce(handle, '')`, so a member who has not chosen a handle
+// yet arrives as an EMPTY name, not a missing one. `??` let '' through and the lock screen read
+// « vuole connettersi con te.»; the fallback has to cover both. The in-app half is
+// apps/native notif-params.ts, which renders the same word from notif.someone.
+Deno.test('an empty name reads Qualcuno / Someone, exactly like a missing one', () => {
+  for (const [locale, word] of [
+    ['it', 'Qualcuno'],
+    ['en', 'Someone'],
+  ] as const) {
+    for (const params of [{ name: '' }, {}]) {
+      const [msg] = buildPushMessages(
+        ['ExponentPushToken[a]'],
+        {
+          type: 'connection',
+          templateKey: 'notif.tpl.connection',
+          params,
+          entityRef: 'x',
+          locale,
+        },
+        allValid,
+      );
+      assertEquals(msg.body.startsWith(`${word} `), true, `${locale} ${JSON.stringify(params)}`);
+    }
+  }
+});
+
+// #800: the actor id rides params for the app's render, never the push payload itself.
+Deno.test('the actor id never reaches the push payload', () => {
+  const [msg] = buildPushMessages(
+    ['ExponentPushToken[a]'],
+    {
+      type: 'connection',
+      templateKey: 'notif.tpl.connection',
+      params: { name: 'luna', actor_id: '44444444-4444-4444-8444-444444444444' },
+      entityRef: 'x',
+      locale: 'it',
+    },
+    allValid,
+  );
+  assertEquals(msg.body, 'luna vuole connettersi con te.');
+  assertEquals(JSON.stringify(msg).includes('44444444'), false);
+});
+
 Deno.test('falls back to IT for an unknown locale and empty for an unknown template', () => {
   assertEquals(
     buildPushMessages(

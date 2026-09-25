@@ -65,3 +65,27 @@ describe('displayParams — fund broadcasts always interpolate a number (#127)',
     ).toEqual({});
   });
 });
+
+// #800 — an empty name is a member the reader cannot name: an actor who is blocked, banned or
+// erased (listNotifications empties the name rather than show the handle the block hides), or
+// one who has not chosen a handle yet (#782). t() would render « vuole connettersi con te.»
+describe('displayParams — a nameless actor reads as «Qualcuno» (#800)', () => {
+  it('an empty name renders the neutral word, in the member locale', () => {
+    const n = { template_key: 'notif.tpl.connection' as const, params: { name: '' } };
+    expect(displayParams(n, 'it').name).toBe('Qualcuno');
+    expect(displayParams(n, 'en').name).toBe('Someone');
+  });
+
+  it('keeps the other params, including the actor id', () => {
+    const params = { name: '', actor_id: '44444444-4444-4444-8444-444444444444' };
+    expect(displayParams({ template_key: 'notif.tpl.helpAccepted', params }, 'it')).toEqual({
+      name: 'Qualcuno',
+      actor_id: '44444444-4444-4444-8444-444444444444',
+    });
+  });
+
+  it('a template with no name param is left alone', () => {
+    const params = {};
+    expect(displayParams({ template_key: 'notif.tpl.gdprExport', params }, 'it')).toBe(params);
+  });
+});

@@ -1128,6 +1128,7 @@
   "notif.tpl.connectionAccepted": "{name} ha accettato la tua richiesta ✦",
   "notif.tpl.helpAccepted": "{name} ha accettato il tuo aiuto.",
   "notif.tpl.helpConfirmed": "{name} ha confermato il tuo aiuto. La tua Aura cresce ✦",
+  "notif.someone": "Qualcuno",
   "notif.tpl.warn": "Abbiamo confermato una segnalazione: {reason}. Fermati e ripensaci.",
   "notif.tpl.gdprExport": "Il tuo archivio è pronto. Scaricalo da Impostazioni → I tuoi dati.",
   "notif.tpl.gdprExportFailed": "Non siamo riusciti a preparare il tuo archivio. Richiedilo di nuovo.",

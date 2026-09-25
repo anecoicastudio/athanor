@@ -18,7 +18,7 @@
 // loop's use of it.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import type { KvPurgeResult } from './kv.ts';
+import type { KvPurgeResult } from '../_shared/kv-purge.ts';
 import { type ErasureCtx, type ErasureStripe, processErasureRequests } from './logic.ts';
 import { MAX_ROUNDS, REMOVE_BATCH } from './sweep.ts';
 
@@ -597,7 +597,7 @@ Deno.test(
 // ── #515 item 3: the Cloudflare KV purge of the subject's cached public pages ────────────
 // apps/web caches the profile page and its OG card in KV, and a deploy strands rather than
 // replaces those entries, so they outlive every row erased above (RELEASE-RUNBOOK §7.4).
-// What is pinned here is the loop's contract with ./kv.ts — which paths it asks for, when a
+// What is pinned here is the loop's contract with _shared/kv-purge.ts — which paths it asks for, when a
 // purge outcome may flip 'done' to 'failed', and that a KV outage never masks the DB work.
 
 Deno.test("purges BOTH public paths for the erased handle, and stays on 'done'", async () => {

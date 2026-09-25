@@ -1,4 +1,9 @@
-import { type Notification, notificationSchema } from '@athanor/schemas';
+import {
+  type Notification,
+  notificationActorHandleSchema,
+  notificationActorSchema,
+  notificationSchema,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
@@ -40,12 +45,60 @@ export async function listNotifications(
   }
   const { data, error } = await q;
   if (error) throw error;
-  const items = (data ?? []).map((r) => notificationSchema.parse(r));
+  const items = await withCurrentActorHandles(
+    client,
+    (data ?? []).map((r) => notificationSchema.parse(r)),
+  );
   const nextCursor = nextCursorOf(items, PAGE, (last) => ({
     createdAt: last.created_at,
     id: last.id,
   }));
   return { items, nextCursor };
+}
+
+/**
+ * Replaces the handle a row copied at write time with the one its actor has now (#800).
+ *
+ * Rows since 20260925124457 carry `params.actor_id`; one `profiles` read per page resolves every
+ * distinct actor (params is jsonb, so PostgREST cannot embed the profile). The read runs under
+ * the caller's RLS, so an actor the reader must not see — blocked either way, banned — comes
+ * back as no row, exactly like an erased one; a failed lookup or a malformed row reads the same. Those get an EMPTY name rather than the stored
+ * one: the stored handle is the very thing the block hides. The app renders an empty name as
+ * «Qualcuno» (apps/native notif-params.ts). Rows without an actor_id — every row written before
+ * #800 — keep their stored name untouched.
+ */
+async function withCurrentActorHandles(
+  client: AthanorClient,
+  items: Notification[],
+): Promise<Notification[]> {
+  const actors = items.map((n) => {
+    const parsed = notificationActorSchema.safeParse(n.params);
+    return parsed.success ? parsed.data.actor_id : null;
+  });
+  const ids = [...new Set(actors.filter((id): id is string => id !== null))];
+  if (ids.length === 0) return items;
+
+  // A failed lookup does not take the inbox down: every row still has its type, time and route,
+  // and an unresolved actor reads «Qualcuno» — never the stored handle, for the reason above.
+  const { data, error } = await client.from('profiles').select('id, handle').in('id', ids);
+  const handles = new Map<string, string>();
+  let withheld = 0;
+  for (const row of error ? [] : (data ?? [])) {
+    const parsed = notificationActorHandleSchema.safeParse(row);
+    if (parsed.success) handles.set(parsed.data.id, parsed.data.handle ?? '');
+    else withheld++;
+  }
+  if (error || withheld > 0) {
+    // rules/api.md: a boundary-parse failure may warn. Counts only — no id, no handle.
+    console.warn(
+      `listNotifications: ${error ? 'actor lookup failed' : `${withheld} actor rows withheld`}`,
+    );
+  }
+
+  return items.map((n, i) => {
+    const actor = actors[i];
+    return actor == null ? n : { ...n, params: { ...n.params, name: handles.get(actor) ?? '' } };
+  });
 }
 
 /** Mark one notification read (on row tap). Column grant limits the write to read_at. */

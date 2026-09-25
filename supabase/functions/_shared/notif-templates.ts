@@ -46,36 +46,36 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.moment': {
     it: {
       title: 'Hai un Momento',
-      body: (p) => `${p.name ?? 'Qualcuno'} ha una forte affinità sul tuo sogno.`,
+      body: (p) => `${p.name || 'Qualcuno'} ha una forte affinità sul tuo sogno.`,
     },
     en: {
       title: 'You have a Momento',
-      body: (p) => `${p.name ?? 'Someone'} has a strong affinity with your dream.`,
+      body: (p) => `${p.name || 'Someone'} has a strong affinity with your dream.`,
     },
   },
   'notif.tpl.message': {
     it: {
       title: 'Nuovo messaggio',
-      body: (p) => `${p.name ?? 'Qualcuno'}: ${p.preview ?? ''}`.trim(),
+      body: (p) => `${p.name || 'Qualcuno'}: ${p.preview ?? ''}`.trim(),
     },
-    en: { title: 'New message', body: (p) => `${p.name ?? 'Someone'}: ${p.preview ?? ''}`.trim() },
+    en: { title: 'New message', body: (p) => `${p.name || 'Someone'}: ${p.preview ?? ''}`.trim() },
   },
   'notif.tpl.dreamMilestone': {
     it: {
       title: 'Una tappa del tuo sogno',
-      body: (p) => `${p.name ?? 'Qualcuno'} si è offerto come mentor per il tuo sogno.`,
+      body: (p) => `${p.name || 'Qualcuno'} si è offerto come mentor per il tuo sogno.`,
     },
     en: {
       title: 'A milestone of your dream',
-      body: (p) => `${p.name ?? 'Someone'} offered to mentor your dream.`,
+      body: (p) => `${p.name || 'Someone'} offered to mentor your dream.`,
     },
   },
   'notif.tpl.review': {
     it: {
       title: 'Nuova recensione',
-      body: (p) => `${p.name ?? 'Qualcuno'} ti ha lasciato una recensione.`,
+      body: (p) => `${p.name || 'Qualcuno'} ti ha lasciato una recensione.`,
     },
-    en: { title: 'New review', body: (p) => `${p.name ?? 'Someone'} left you a review.` },
+    en: { title: 'New review', body: (p) => `${p.name || 'Someone'} left you a review.` },
   },
   'notif.tpl.eventReminder': {
     it: {
@@ -120,39 +120,39 @@ const TEMPLATES: Record<string, Record<Locale, Tpl>> = {
   'notif.tpl.projectResponse': {
     it: {
       title: 'Risposta',
-      body: (p) => `${p.name ?? 'Qualcuno'} ha risposto alla tua ricerca «${p.title ?? ''}».`,
+      body: (p) => `${p.name || 'Qualcuno'} ha risposto alla tua ricerca «${p.title ?? ''}».`,
     },
     en: {
       title: 'Response',
-      body: (p) => `${p.name ?? 'Someone'} responded to your search «${p.title ?? ''}».`,
+      body: (p) => `${p.name || 'Someone'} responded to your search «${p.title ?? ''}».`,
     },
   },
   'notif.tpl.connection': {
-    it: { title: 'Connessione', body: (p) => `${p.name ?? 'Qualcuno'} vuole connettersi con te.` },
-    en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} wants to connect with you.` },
+    it: { title: 'Connessione', body: (p) => `${p.name || 'Qualcuno'} vuole connettersi con te.` },
+    en: { title: 'Connection', body: (p) => `${p.name || 'Someone'} wants to connect with you.` },
   },
   'notif.tpl.connectionAccepted': {
     it: {
       title: 'Connessione',
-      body: (p) => `${p.name ?? 'Qualcuno'} ha accettato la tua richiesta ✦`,
+      body: (p) => `${p.name || 'Qualcuno'} ha accettato la tua richiesta ✦`,
     },
-    en: { title: 'Connection', body: (p) => `${p.name ?? 'Someone'} accepted your request ✦` },
+    en: { title: 'Connection', body: (p) => `${p.name || 'Someone'} accepted your request ✦` },
   },
   'notif.tpl.helpAccepted': {
     it: {
       title: 'Il tuo aiuto',
-      body: (p) => `${p.name ?? 'Qualcuno'} ha accettato il tuo aiuto.`,
+      body: (p) => `${p.name || 'Qualcuno'} ha accettato il tuo aiuto.`,
     },
-    en: { title: 'Your help', body: (p) => `${p.name ?? 'Someone'} accepted your help.` },
+    en: { title: 'Your help', body: (p) => `${p.name || 'Someone'} accepted your help.` },
   },
   'notif.tpl.helpConfirmed': {
     it: {
       title: 'Il tuo aiuto',
-      body: (p) => `${p.name ?? 'Qualcuno'} ha confermato il tuo aiuto. La tua Aura cresce ✦`,
+      body: (p) => `${p.name || 'Qualcuno'} ha confermato il tuo aiuto. La tua Aura cresce ✦`,
     },
     en: {
       title: 'Your help',
-      body: (p) => `${p.name ?? 'Someone'} confirmed your help. Your Aura grows ✦`,
+      body: (p) => `${p.name || 'Someone'} confirmed your help. Your Aura grows ✦`,
     },
   },
   'notif.tpl.warn': {

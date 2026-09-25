@@ -1,4 +1,4 @@
-// deno test supabase/functions/erasure-job/ — runs in CI (edge job) and locally.
+// deno test supabase/functions/_shared/kv-purge.test.ts — runs in CI (edge job) and locally.
 // Needs --allow-env (cloudflareKvFromEnv reads the CF_* trio); deliberately NOT --allow-net,
 // which CI does not grant: every HTTP call here goes through an injected fetch.
 //
@@ -13,7 +13,7 @@ import {
   makeCloudflareKv,
   ogCardPaths,
   sha256Hex,
-} from './kv.ts';
+} from './kv-purge.ts';
 
 const CFG = { token: 'test-token', accountId: 'acct-1', namespaceId: 'ns-1' };
 const BASE = `https://api.cloudflare.com/client/v4/accounts/acct-1/storage/kv/namespaces/ns-1`;

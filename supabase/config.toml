@@ -537,6 +537,9 @@ verify_jwt = false
 [functions.erasure-job]
 verify_jwt = false
 
+[functions.handle-rename-purge]
+verify_jwt = false
+
 [functions.media-process]
 verify_jwt = false
 

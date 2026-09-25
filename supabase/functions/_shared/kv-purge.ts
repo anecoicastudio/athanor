@@ -1,4 +1,7 @@
-// Cloudflare Workers KV purge of an erased member's cached public web pages (#515 item 3).
+// Cloudflare Workers KV purge of a member's cached public web pages. One writer, two callers:
+// erasure-job purges the erased member's current handle and dreams (#515 item 3), and
+// handle-rename-purge purges the handle a member just renamed away from (#800). It lived in
+// erasure-job/ until #800 gave it a second caller.
 //
 // apps/web serves /@handle and its OG card through OpenNext's KV incremental cache
 // (apps/web/open-next.config.ts). Every entry is keyed
@@ -38,13 +41,14 @@ export type KvPurgeResult = {
   error?: unknown;
 };
 
-/** The KV surface the erasure job needs. `null` at the call site means "not configured". */
-export type ErasureKv = {
+/** The KV surface both callers need. `null` at the call site means "not configured". */
+export type KvPurger = {
   purgePaths: (paths: string[]) => Promise<KvPurgeResult>;
 };
 
 /**
- * The public web paths that render an erased subject.
+ * The public web paths that render a member under `handle` — an erased subject's, or the one a
+ * member renamed away from (#800).
  *
  * BOTH, not just the card: apps/web/app/[handle]/page.tsx caches the prerendered profile HTML
  * and apps/web/app/[handle]/opengraph-image.tsx caches the rendered PNG, and each carries the
@@ -96,7 +100,7 @@ type CfListResponse = {
  * tissue for unconfigured→skip). All three or none: a token without a namespace can purge
  * nothing, and a half-configured trio would purge the wrong namespace.
  */
-export function cloudflareKvFromEnv(): ErasureKv | null {
+export function cloudflareKvFromEnv(): KvPurger | null {
   const token = Deno.env.get('CF_KV_PURGE_TOKEN');
   const accountId = Deno.env.get('CF_KV_ACCOUNT_ID');
   const namespaceId = Deno.env.get('CF_KV_NAMESPACE_ID');
@@ -105,7 +109,7 @@ export function cloudflareKvFromEnv(): ErasureKv | null {
 }
 
 /** fetchImpl is injected: CI runs `deno test` without --allow-net, so the tests use a fake. */
-export function makeCloudflareKv(cfg: CfConfig, fetchImpl: typeof fetch = fetch): ErasureKv {
+export function makeCloudflareKv(cfg: CfConfig, fetchImpl: typeof fetch = fetch): KvPurger {
   const base = `${CF_API}/accounts/${cfg.accountId}/storage/kv/namespaces/${cfg.namespaceId}`;
   const headers = { authorization: `Bearer ${cfg.token}` };
 
