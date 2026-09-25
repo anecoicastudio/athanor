@@ -223,6 +223,7 @@
   "auth.email.label": "La tua email",
   "auth.email.placeholder": "nome@esempio.it",
   "auth.callback.expired": "Questo varco è scaduto: resta aperto solo cinque minuti. Te ne mandiamo uno nuovo a {email}?",
+  "auth.callback.invalid": "Questo varco non è più valido. Te ne mandiamo uno nuovo a {email}?",
   "auth.callback.resend": "Invia di nuovo",
   "auth.error.invalidLink": "Il varco è scaduto. Chiedine uno nuovo.",
   "auth.error.generic": "Qualcosa non ha funzionato. Riprova.",

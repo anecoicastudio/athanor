@@ -9,6 +9,7 @@ import { RecoverySent } from '@/components/RecoverySent';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { authErrorKey, callbackFailureKind } from '@/lib/auth-errors';
+import { devWarn } from '@/lib/log';
 import { AUTH_REDIRECT_URL } from '@/lib/oauth';
 import {
   clearRecoveryRequest,
@@ -76,7 +77,9 @@ function CallbackBody({
   // already consumed. That is knowable during render, so it is derived — only the exchange's
   // own failure needs state (#691).
   const invalidLink = Boolean(errorDescription) || !code;
-  const [exchangeFailure, setExchangeFailure] = useState<'network' | 'dead' | null>(null);
+  const [exchangeFailure, setExchangeFailure] = useState<'network' | 'expired' | 'dead' | null>(
+    null,
+  );
   const failure = invalidLink ? 'dead' : exchangeFailure;
   // undefined while the stash is being read, so the resend offer never flickers in late.
   const [recoveryEmail, setRecoveryEmail] = useState<string | null | undefined>(undefined);
@@ -100,12 +103,10 @@ function CallbackBody({
       .then(({ error }) => {
         if (cancelled) return;
         if (error) {
-          if (__DEV__)
-            console.warn(
-              '[auth] callback exchange',
-              error.status,
-              'code' in error ? error.code : undefined,
-            );
+          devWarn('[auth] callback exchange', {
+            status: error.status,
+            code: 'code' in error ? error.code : undefined,
+          });
           setExchangeFailure(callbackFailureKind(error));
         } else {
           void clearRecoveryRequest();
@@ -133,9 +134,11 @@ function CallbackBody({
   const message =
     failure === 'network'
       ? t('auth.error.network', locale)
-      : recoveryEmail
-        ? t('auth.callback.expired', locale, { email: recoveryEmail })
-        : t('auth.error.invalidLink', locale);
+      : !recoveryEmail
+        ? t('auth.error.invalidLink', locale)
+        : failure === 'expired'
+          ? t('auth.callback.expired', locale, { email: recoveryEmail })
+          : t('auth.callback.invalid', locale, { email: recoveryEmail });
 
   // The failure replaces a bare spinner, so nothing on iOS would otherwise say what happened;
   // after that, the resend's own transitions (G2, the same two forgot-password announces).
@@ -158,7 +161,7 @@ function CallbackBody({
       redirectTo: AUTH_REDIRECT_URL,
     });
     if (error) {
-      if (__DEV__) console.warn('[auth] resend recovery', error.status, error.code);
+      devWarn('[auth] resend recovery', { status: error.status, code: error.code });
       setResend('idle');
       setResendError(t(authErrorKey(error), locale));
       return;

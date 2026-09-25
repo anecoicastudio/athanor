@@ -119,11 +119,15 @@ describe('callbackFailureKind (#863)', () => {
     expect(callbackFailureKind({ status: 0 })).toBe('network');
   });
 
-  it('everything GoTrue itself refused is a dead link', () => {
-    // /token after the 300 s flow state, a link opened twice, a link from another device.
+  it('only a flow state past its lifetime is «expired» — the five-minute copy is true there alone', () => {
+    expect(callbackFailureKind({ code: 'flow_state_expired', status: 422 })).toBe('expired');
+    expect(callbackFailureKind({ code: 'flow_state_not_found', status: 404 })).toBe('expired');
+  });
+
+  it('every other refusal is a dead link, with no claim about why', () => {
+    // A mail older than mailer_otp_exp or opened twice (otp_expired on the redirect), a link
+    // from another device (no verifier), anything GoTrue has not named.
     for (const err of [
-      { code: 'flow_state_expired', status: 422 },
-      { code: 'flow_state_not_found', status: 404 },
       { code: 'bad_code_verifier', status: 400 },
       { code: 'pkce_code_verifier_not_found', status: 400 },
       { code: 'otp_expired' },

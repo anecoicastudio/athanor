@@ -7,7 +7,7 @@ import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
 import { consumePendingReferral } from './referral';
-import { clearRecoveryRequest } from './recovery-request';
+import { clearRecoveryRequest, readRecoveryRequest } from './recovery-request';
 import { asyncStoragePersister, queryClient } from './query-client';
 import { readProfileWithRetry } from './profile-read';
 import { registerForPush, unregisterPush } from './push';
@@ -110,6 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // #863: the recovery stash's one-hour window is otherwise enforced only when a failed link
+    // reads it, so an address whose link was never opened would sit on disk indefinitely. A
+    // read past the window deletes it; inside the window it is left for auth-callback.
+    void readRecoveryRequest();
     supabase.auth
       .getSession()
       .then(({ data }) => {

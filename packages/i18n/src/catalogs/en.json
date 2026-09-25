@@ -223,6 +223,7 @@
   "auth.email.label": "Your email",
   "auth.email.placeholder": "name@example.com",
   "auth.callback.expired": "This gate has closed: it only stays open for five minutes. Shall we send a new one to {email}?",
+  "auth.callback.invalid": "This gate no longer works. Shall we send a new one to {email}?",
   "auth.callback.resend": "Send it again",
   "auth.error.invalidLink": "The gate has closed. Ask for a new one.",
   "auth.error.generic": "Something didn't work. Try again.",

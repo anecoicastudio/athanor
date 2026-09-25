@@ -58,12 +58,19 @@ export function oauthErrorKey(message: string): MessageKey {
 /**
  * Why an email link failed on auth-callback (#863). Either way the link is spent — auth-js
  * deletes the PKCE code-verifier on every exchange attempt, failed or not — so the way forward
- * is always a new mail; this only decides which sentence is true. `status: 0` is auth-js's
- * transport failure (AuthRetryableFetchError) and the screen's own timeout, which fakes one.
- * Everything else is GoTrue refusing the link: the 300 s flow state gone (`flow_state_expired`
- * / `flow_state_not_found`), the mail token past mailer_otp_exp or already used (`otp_expired`
- * on the redirect), or no verifier on this device.
+ * is always a new mail; this only decides which sentence is true.
+ * - `network`: auth-js's transport failure (AuthRetryableFetchError, status 0) and the screen's
+ *   own timeout, which fakes one.
+ * - `expired`: the 300 s flow state is gone (`flow_state_expired` / `flow_state_not_found`) —
+ *   the one case where «it stays open five minutes» is the reason.
+ * - `dead`: any other refusal — the mail token past mailer_otp_exp or already used
+ *   (`otp_expired` on the redirect), no verifier on this device. The copy names no cause.
  */
-export function callbackFailureKind(err: { code?: string; status?: number }): 'network' | 'dead' {
-  return err.status === 0 ? 'network' : 'dead';
+export function callbackFailureKind(err: {
+  code?: string;
+  status?: number;
+}): 'network' | 'expired' | 'dead' {
+  if (err.status === 0) return 'network';
+  if (err.code === 'flow_state_expired' || err.code === 'flow_state_not_found') return 'expired';
+  return 'dead';
 }

@@ -12,8 +12,10 @@ import { devWarn } from '@/lib/log';
  * resend instead of sending the member back to type it all again.
  *
  * Written only when resetPasswordForEmail succeeds; dropped on a successful exchange, on
- * sign-out, and on the first read past the window. The window is the mail link's own lifetime
- * (mailer_otp_exp, an hour), not the flow state's: someone opening a 20-minute-old mail is
+ * sign-out, and on the first read past the window — which AuthProvider forces at every app
+ * start, so a link never opened does not leave the address on disk for good. The window is the
+ * mail link's own lifetime (mailer_otp_exp, an hour), not the flow state's: someone opening a
+ * 20-minute-old mail is
  * exactly who the resend is for. Nothing here rejects — like lib/referral.ts, a storage failure
  * reads as "no marker", and auth-callback then shows the marker-less copy it always had.
  */
