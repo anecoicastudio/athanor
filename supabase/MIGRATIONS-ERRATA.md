@@ -2410,3 +2410,13 @@ replace` keeps the existing ACL, so restating them changes nothing — but the r
   Since #784 the writer uses `{uid}/{job}/archive.json` with media under `{uid}/{job}/media/…`.
   The first segment is still the member's id, so the erasure prefix sweep still covers every
   object, and `0137`'s `{uid}/` fixture is still the right shape.
+
+## `20260908133119_gdpr_erasure_claim_lease_fences.sql` / `20260823073258_gdpr_erasure_partial_status.sql` — the claim now re-takes `retained`
+
+- **«every ''requested'' row, plus every ''processing'' row whose claim is older than p_lease»**
+  (the `claim_erasure_requests` comment) and **«requested → processing → done | partial |
+  failed»** (the `status` column comment). Since `20260925175902` (#735) the status set has a
+  sixth value, `retained`, written by erasure-job when the member's Circle subscription could not
+  be stopped at Stripe, and the claim re-takes `retained` rows exactly as it takes `requested`
+  ones. Both comments are replaced in the catalog by that migration. `failed` and `partial` are
+  still never re-claimed. pgTAP `0058` asserts both halves.

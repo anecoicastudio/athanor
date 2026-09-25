@@ -14,19 +14,27 @@ import { longDate } from '@/lib/time';
  * suspension clears on the next navigation without a timer.
  */
 export function SuspendedNotice() {
-  const { profile } = useAuth();
+  const { profile, erasureOpen } = useAuth();
   // Above the early return: members in good standing render nothing, and a hook called
   // after that branch would run in a different order on the render where a sanction lands.
   const locale = useLocale();
   const now = useNow();
-  const sanction = sanctionState(profile, now);
+  // #735: an open erasure request outranks both — the member left, and every write is already
+  // denied server-side; without it a second device showed nothing and failed each write.
+  const sanction = sanctionState(profile, now, erasureOpen);
   if (!sanction) return null;
   const title =
-    sanction.kind === 'banned'
-      ? t('moderation.banned.title', locale)
-      : t('moderation.suspended.title', locale, { date: longDate(sanction.until, locale) });
+    sanction.kind === 'erasing'
+      ? t('moderation.erasing.title', locale)
+      : sanction.kind === 'banned'
+        ? t('moderation.banned.title', locale)
+        : t('moderation.suspended.title', locale, { date: longDate(sanction.until, locale) });
   const body = t(
-    sanction.kind === 'banned' ? 'moderation.banned.body' : 'moderation.suspended.body',
+    sanction.kind === 'erasing'
+      ? 'moderation.erasing.body'
+      : sanction.kind === 'banned'
+        ? 'moderation.banned.body'
+        : 'moderation.suspended.body',
     locale,
   );
   return (

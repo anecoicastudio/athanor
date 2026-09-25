@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
-import { getLatestExportJob, requestErasure, requestExport } from './gdpr';
+import { getLatestExportJob, getOpenErasureRequest, requestErasure, requestExport } from './gdpr';
 
 const ME = '00000000-0000-0000-0000-000000000001';
 
@@ -19,7 +19,7 @@ const JOB_ROW = {
 function stub(row: Record<string, unknown> | null = null, error: unknown = null) {
   const calls: Array<{ method: string; arg: unknown; arg2?: unknown }> = [];
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'order', 'limit']) {
+  for (const m of ['select', 'neq', 'order', 'limit']) {
     chain[m] = (arg?: unknown, arg2?: unknown) => {
       calls.push({ method: m, arg, arg2 });
       return chain;
@@ -146,5 +146,30 @@ describe('requestErasure', () => {
     await expect(requestErasure(bad.client)).rejects.toThrow();
     await expect(requestExport(bad.client)).rejects.toThrow();
     expect(bad.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('getOpenErasureRequest (#735)', () => {
+  const OPEN = { id: '00000000-0000-0000-0000-0000000000e1', status: 'retained' as const };
+
+  it("asks only for a request that is not 'done' — every other status is open", async () => {
+    const { client, calls } = stub(OPEN);
+    await getOpenErasureRequest(client);
+    expect(calls.find((c) => c.method === 'select')?.arg).toBe('id, status');
+    expect(calls.some((c) => c.method === 'neq' && c.arg === 'status' && c.arg2 === 'done')).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'limit' && c.arg === 1)).toBe(true);
+  });
+
+  it('returns the parsed row, or null when the member has none open', async () => {
+    await expect(getOpenErasureRequest(stub(OPEN).client)).resolves.toEqual(OPEN);
+    await expect(getOpenErasureRequest(stub(null).client)).resolves.toBeNull();
+  });
+
+  it('throws on a read error rather than reporting «no request»', async () => {
+    await expect(getOpenErasureRequest(stub(null, { message: 'boom' }).client)).rejects.toEqual({
+      message: 'boom',
+    });
   });
 });

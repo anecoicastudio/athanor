@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import { requestErasure } from '@athanor/api';
+import { gdprKeys, getLatestExportJob, requestErasure } from '@athanor/api';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
@@ -26,6 +26,12 @@ import { Screen } from '@/components/Screen';
  * later. Since #107 «later» is a night rather than never, and since #733 the tap also bans
  * sign-in in the same transaction as the request; the copy says both. The split is still the
  * point: what the tap does at once (session, sign-in) versus what the job does at night.
+ *
+ * #735: while the member's own export is requested or processing the CTA is held. The erasure
+ * sweeps the `exports` bucket and cascades the job row (MIGRATIONS-ERRATA, 20260908071807 — the
+ * archive dies with the account, on purpose), and the tap signs this device out and bans sign-in,
+ * so an archive still being built when they tap is one they can never reach. A READY archive is
+ * not held: it is downloadable right now, and `exportFirst` says it goes with the account.
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -36,6 +42,18 @@ export default function DeleteAccountScreen() {
 
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
+
+  // Same key as the export screen, so a request filed there reads here without a second fetch.
+  // 'always' because the cache is persisted (24 h): a stale «ready» must not unlock the CTA over
+  // a job filed since. A failed read does not hold the CTA — the gate is a courtesy, never a
+  // way to keep somebody from leaving.
+  const exportJob = useQuery({
+    queryKey: gdprKeys.exportStatus(),
+    queryFn: () => getLatestExportJob(supabase),
+    refetchOnMount: 'always',
+  });
+  const exportStatus = exportJob.data?.status ?? null;
+  const exportPending = exportStatus === 'requested' || exportStatus === 'processing';
 
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
@@ -79,6 +97,14 @@ export default function DeleteAccountScreen() {
           <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
         </Pressable>
 
+        {exportPending ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('account.delete.exportPending', locale)}
+            </Text>
+          </View>
+        ) : null}
+
         <View className="gap-2">
           <Text className="text-[13px] text-muted-foreground">
             {t('account.delete.confirmField', locale)}
@@ -96,7 +122,9 @@ export default function DeleteAccountScreen() {
         <Button
           variant="danger"
           label={t('account.delete.cta', locale)}
-          disabled={!matched || erase.isPending || erase.isSuccess}
+          disabled={
+            !matched || exportPending || exportJob.isFetching || erase.isPending || erase.isSuccess
+          }
           onPress={() => erase.mutate()}
         />
       </ScrollView>

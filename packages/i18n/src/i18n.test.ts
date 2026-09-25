@@ -794,3 +794,29 @@ describe('no emoji-capable character in a catalog value (#753)', () => {
     }
   });
 });
+
+describe('erasure after the tap (#735)', () => {
+  test('exportFirst says an undownloaded archive goes with the account, in both locales', () => {
+    // The erasure sweeps the exports bucket and cascades the job row (MIGRATIONS-ERRATA,
+    // 20260908071807): an archive not yet downloaded at the tap is gone by morning, and the tap
+    // has already signed the member out. The line that sends them to the export screen is the
+    // one place that can say so before it is too late.
+    expect(it['account.delete.exportFirst']).toMatch(/cancellato insieme all'account/i);
+    expect(en['account.delete.exportFirst']).toMatch(/deleted along with your account/i);
+  });
+
+  test('the held CTA says why, and the second device says what is happening', () => {
+    for (const key of [
+      'account.delete.exportPending',
+      'moderation.erasing.title',
+      'moderation.erasing.body',
+    ] as const) {
+      expect(it[key].trim().length, `it.${key}`).toBeGreaterThan(0);
+      expect(en[key].trim().length, `en.${key}`).toBeGreaterThan(0);
+    }
+    expect(it['account.delete.exportPending']).toMatch(/in preparazione/i);
+    // Not the permanent-suspension copy: the member was not sanctioned, they left.
+    expect(it['moderation.erasing.title']).not.toMatch(/sospeso/i);
+    expect(en['moderation.erasing.title']).not.toMatch(/suspended/i);
+  });
+});

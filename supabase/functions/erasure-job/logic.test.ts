@@ -1305,7 +1305,7 @@ Deno.test('an unconfigured Stripe blocks the erasure of a subscribed member', as
   );
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['failed'],
+    ['retained'],
   );
 });
 
@@ -1324,7 +1324,7 @@ Deno.test('a Stripe cancel that rejects stops the cascade where it stands', asyn
   assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['failed'],
+    ['retained'],
   );
 });
 
@@ -1342,7 +1342,7 @@ Deno.test(
     assertEquals(c.deleted, []);
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['failed'],
+      ['retained'],
     );
   },
 );
@@ -1449,7 +1449,7 @@ Deno.test(
     assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['failed'],
+      ['retained'],
     );
   },
 );
@@ -1515,4 +1515,51 @@ Deno.test('the waitlist address goes to the RPC verbatim — no pattern language
     [{ p_email: 'a*b_c%d@x.test' }],
   );
   assert(!c.db.calls.some((k) => k.op === 'delete'), 'no PostgREST filter touches the waitlist');
+});
+
+// ── #735: a Stripe-blocked erasure is 'retained', never a forgotten 'failed' ──────────────
+// 'failed' is terminal and the claim never re-takes it; 'retained' is re-claimed next night
+// (20260925175902). The four Stripe-blocked tests above assert the status; these pin the
+// precedence and the boundary.
+
+Deno.test(
+  "#735: 'retained' wins over another step's failure — the whole pass re-runs next night",
+  async () => {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+      },
+      {
+        revokeSessions: () => Promise.resolve({ error: new Error('revoke down') }),
+        cancelSubscription: () => Promise.reject(new Error('stripe down')),
+      },
+    );
+    await processErasureRequests(c);
+    assertEquals(c.deleted, []);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['retained'],
+    );
+  },
+);
+
+Deno.test("#735: a failure with no subscription in play stays 'failed'", async () => {
+  // Retained is for an obligation held OUTSIDE the database. A failed reference release has no
+  // one to wait on; re-driving it nightly would repeat the error with nobody told.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [{ data: null }],
+    'rpc.gdpr_release_profile_references': [{ error: { message: 'fk' } }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
 });

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(37);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -235,6 +235,33 @@ select ok(
 select ok(
   has_function_privilege('service_role', 'public.claim_erasure_requests(int, interval)', 'execute'),
   'and the revoke did not take service_role''s EXECUTE with it');
+
+-- ── #735: 'retained' — a Stripe-blocked erasure is retried, not forgotten ──────────────────
+-- erasure-job writes 'retained' when the member's Circle subscription could not be stopped. The
+-- whole point of the status is that the claim takes it again next night; 'failed' it must not.
+-- Subject-less rows so the per-member live-claim exclusion above cannot mask the predicate.
+insert into public.gdpr_erasure_requests (id, profile_id, status, created_at)
+values ('a7350000-0000-0000-0000-0000000000a1', null, 'retained', now() - interval '2 days'),
+       ('a7350000-0000-0000-0000-0000000000a2', null, 'failed', now() - interval '2 days');
+create temp table claim_735 as
+  select * from public.claim_erasure_requests(20, interval '15 minutes');
+select is((select count(*)::int from claim_735 where id = 'a7350000-0000-0000-0000-0000000000a1'),
+  1, 'a retained row is re-claimed by the next pass');
+select is((select count(*)::int from claim_735 where id = 'a7350000-0000-0000-0000-0000000000a2'),
+  0, 'a failed row is not — it stays R-8 §7.5''s to re-drive by hand');
+select ok(
+  (select pg_get_constraintdef(oid) like '%''retained''%' from pg_constraint
+   where conrelid = 'public.gdpr_erasure_requests'::regclass
+     and conname = 'gdpr_erasure_requests_status_check'),
+  'retained is in the closed status set');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', current_setting('test.b'), true);
+select throws_ok(
+  $$ insert into public.gdpr_erasure_requests (profile_id, status)
+     values (current_setting('test.b')::uuid, 'retained') $$,
+  '42501', null, 'a client cannot declare its own erasure retained');
 reset role;
 
 select * from finish();

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GDPR_ERASURE_STATUSES,
+  gdprErasureRequestSchema,
   gdprExportJobSchema,
   gdprRequestInsertSchema,
   GDPR_EXPORT_STATUSES,
@@ -61,5 +63,25 @@ describe('gdprRequestInsertSchema', () => {
   it('rejects a non-uuid profile_id', () => {
     expect(() => gdprRequestInsertSchema.parse({ profile_id: 'me' })).toThrow();
     expect(() => gdprRequestInsertSchema.parse({})).toThrow();
+  });
+});
+
+describe('gdprErasureRequestSchema (#735)', () => {
+  const row = { id: '11111111-1111-1111-1111-111111111111', status: 'retained' as const };
+  it("parses a 'retained' row — the status the Stripe-blocked cascade writes", () => {
+    expect(gdprErasureRequestSchema.parse(row).status).toBe('retained');
+  });
+  it('rejects a status outside the CHECK', () => {
+    expect(() => gdprErasureRequestSchema.parse({ ...row, status: 'cancelled' })).toThrow();
+  });
+  it('lists exactly the six statuses the CHECK allows', () => {
+    expect(GDPR_ERASURE_STATUSES).toEqual([
+      'requested',
+      'processing',
+      'done',
+      'partial',
+      'failed',
+      'retained',
+    ]);
   });
 });

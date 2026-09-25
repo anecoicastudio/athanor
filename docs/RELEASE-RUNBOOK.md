@@ -1423,8 +1423,8 @@ and `wrangler kv bulk delete` the rest.
 
 Every request filed before #107 stopped short of the account delete and recorded that as
 `partial` (or, before #515, as `failed`). Nothing re-queues a TERMINAL row: since #717 the claim
-predicate reaches `requested` and stale `processing`, and neither `partial` nor `failed` is
-either. The rows are therefore unfinished obligations that look finished, and each project has to
+predicate reaches `requested`, `retained` (#735) and stale `processing`, and neither `partial`
+nor `failed` is any of them. The rows are therefore unfinished obligations that look finished, and each project has to
 be reconciled by hand ONCE, after that project has the migrations, the function deploy and the
 Vault pair (§5).
 
@@ -1435,7 +1435,7 @@ any later write that shortens or clears the column, a timed suspension included,
 and `athanor.is_active()` is false for the member, so their still-valid JWT cannot write either).
 Consequences for this section:
 
-- A row that is not `done` — `requested`, `processing`, `partial`, `failed` — means the account is
+- A row that is not `done` — `requested`, `processing`, `partial`, `failed`, `retained` — means the account is
   **banned and intact**, and the ban stays sticky until the row is `done` or deleted. That is the
   right state for someone who asked to be erased; the re-queue below finishes it, and the
   `update … set status = 'requested'` leaves the ban exactly where the sticky trigger has held
@@ -1453,9 +1453,17 @@ Consequences for this section:
   date as what moderation wrote.
 - **A Circle subscriber on a stuck row cannot reach the Billing Portal** (`create-circle-portal`
   is user-callable and a banned user fails `getUser()`). `erasure-job` cancels the subscription
-  as a best-effort step; on a `failed` row check the subscription in the Stripe Dashboard and
-  cancel it by hand before re-queueing, or the person keeps paying with no route to stop it.
-  The product answer — and the pending-export half of the same problem, §7.6 — is #735.
+  immediately at Stripe and the cascade blocks on it: nothing is pseudonymised and no account is
+  deleted until Stripe reports the subscription `canceled`. **Since #735 (`20260925175902`) a pass
+  the cancel blocked ends `retained`, and the next nightly claim re-takes it** — a Stripe outage
+  or a missing key heals by itself once fixed, with no re-queue. The hand cancel is the
+  FALLBACK: a row still `retained` after two nights means the cancel keeps failing — read the
+  function logs (`subscription cancel failed` / `Stripe unconfigured`), cancel the subscription in
+  the Stripe Dashboard, and the next pass finds it settled and finishes. `failed` rows predating
+  #735 carry no such retry: check the subscription and cancel it by hand before re-queueing, or the
+  person keeps paying with no route to stop it. The pending-export half (§7.6) is a gate on the
+  delete CTA while the member's own export is `requested`/`processing`; a ready archive not yet
+  downloaded dies with the account, and the delete screen says so.
 - **Withdrawing a request by hand is two statements in this order**: delete the request row, then
   re-derive the ban from moderation state — `banned_until = null` only if `profiles.banned_at`
   is null and `suspended_until` is not in the future; a permanently banned member keeps

@@ -1,4 +1,10 @@
-import { type GdprExportJob, gdprExportJobSchema, gdprRequestInsertSchema } from '@athanor/schemas';
+import {
+  type GdprErasureRequest,
+  type GdprExportJob,
+  gdprErasureRequestSchema,
+  gdprExportJobSchema,
+  gdprRequestInsertSchema,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 /**
@@ -54,4 +60,27 @@ export async function requestErasure(client: AthanorClient): Promise<void> {
   // waiting for tonight's job. Surfacing it would tell somebody who has just typed ELIMINA that
   // their deletion failed, which is both frightening and false. Every other error still throws.
   if (error && error.code !== '23505') throw error;
+}
+
+/**
+ * The caller's own OPEN erasure request — any status but 'done' (RLS scopes to own) — or null.
+ * #735: the erasure ban lives on auth.users, which the app cannot read, while athanor.is_active()
+ * already denies every social write for as long as such a row exists. A second device signed in
+ * before the tap reads this at bootstrap so it can say «in cancellazione» instead of failing each
+ * write with a bare 42501. Newest first: the partial unique index allows one 'requested' row, but
+ * a historical 'failed' or 'partial' can sit beside it.
+ */
+export async function getOpenErasureRequest(
+  client: AthanorClient,
+): Promise<GdprErasureRequest | null> {
+  const { data, error } = await client
+    .from('gdpr_erasure_requests')
+    .select('id, status')
+    .neq('status', 'done')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? gdprErasureRequestSchema.parse(data) : null;
 }

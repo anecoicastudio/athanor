@@ -31,3 +31,26 @@ export const gdprExportJobSchema = z.object({
   updated_at: z.string(),
 });
 export type GdprExportJob = z.infer<typeof gdprExportJobSchema>;
+
+// Mirrors gdpr_erasure_requests.status — the CHECK as restated by
+// <ts>_gdpr_erasure_retained_status.sql (#735). 'retained' = the cascade stopped because the
+// member's Circle subscription is still live in Stripe; the next nightly pass retries it.
+// 'partial' is historical (#515). Everything but 'done' is an OPEN request: athanor.is_active()
+// denies the member's writes while one exists.
+export const GDPR_ERASURE_STATUSES = [
+  'requested',
+  'processing',
+  'done',
+  'partial',
+  'failed',
+  'retained',
+] as const;
+export const gdprErasureStatus = z.enum(GDPR_ERASURE_STATUSES);
+export type GdprErasureStatus = z.infer<typeof gdprErasureStatus>;
+
+/** The member's own view of an erasure request (RLS own-read) — what the app needs, no lease. */
+export const gdprErasureRequestSchema = z.object({
+  id: z.string().uuid(),
+  status: gdprErasureStatus,
+});
+export type GdprErasureRequest = z.infer<typeof gdprErasureRequestSchema>;
