@@ -430,14 +430,14 @@ silently, until the ids are swapped too. That is a feature of the fix, not a reg
 alternative was quoting a price nobody could be charged. It does mean the price ids are no
 longer the low-stakes member of this table.
 
-| Variable                        | Read at                                                                                                                                          | Live value                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:52`                                                                                                        | the live-mode secret key, or a restricted key                 |
-| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:168` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:14`)                                   | the new live **Your account** endpoint's signing secret       |
-| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:169` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
-| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:138` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:139` (same resolver)                                                                                       | the live-mode price id                                        |
-| `STRIPE_WEBHOOK_REQUIRE_LIVEMODE` | `supabase/functions/_shared/stripe.ts:189` (`webhookRequiresLivemode`, resolved at `stripe-webhook/index.ts:15`, #802)                         | `true` — `stripe-webhook` then refuses every test-mode event  |
+| Variable                          | Read at                                                                                                                                          | Live value                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`               | `supabase/functions/_shared/stripe.ts:52`                                                                                                        | the live-mode secret key, or a restricted key                 |
+| `STRIPE_WEBHOOK_SECRET`           | `supabase/functions/_shared/stripe.ts:168` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:14`)                                   | the new live **Your account** endpoint's signing secret       |
+| `STRIPE_CONNECT_WEBHOOK_SECRET`   | `supabase/functions/_shared/stripe.ts:169` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
+| `STRIPE_PRICE_CIRCLE_MONTHLY`     | `supabase/functions/_shared/stripe.ts:138` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`      | `supabase/functions/_shared/stripe.ts:139` (same resolver)                                                                                       | the live-mode price id                                        |
+| `STRIPE_WEBHOOK_REQUIRE_LIVEMODE` | `supabase/functions/_shared/stripe.ts:189` (`webhookRequiresLivemode`, resolved at `stripe-webhook/index.ts:15`, #802)                           | `true` — `stripe-webhook` then refuses every test-mode event  |
 
 Those six are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
@@ -478,20 +478,23 @@ connected one, so they arrive on the «Your account» endpoint).
 
    `STRIPE_WEBHOOK_REQUIRE_LIVEMODE=true` is the one that closes the rehearsal (#802). Unset, the
    webhook accepts test-mode events — that is what lets production run a test-mode rehearsal at
-   all. Set, it answers every event whose `livemode` is not `true` with `403 livemode refused`
-   after verifying the signature and **before** writing the ledger: the refused delivery leaves no
-   `stripe_webhook_events` row, Stripe keeps retrying it, and the endpoint shows as failing in
-   the Dashboard — which is the point, because a test-mode endpoint still aimed at production
-   after the swap is exactly what step 4 is looking for. Every value except unset, blank, `false`
-   and `0` turns it on, typos included. It needs the #802 `stripe-webhook` deployed (§4.3); an
-   older deploy ignores the variable. **Migration first:** that function writes
-   `stripe_webhook_events.livemode` on every delivery, so deployed to a production still missing
-   `20260925193313_stripe_webhook_events_livemode.sql` it 500s «ledger error» on every event —
-   the sustained-failure path that gets an endpoint disabled.
+   all. Set, it answers every event whose `livemode` is not `true` with `200 test-mode event
+ignored` after verifying the signature and **before** writing the ledger: the event leaves no
+   `stripe_webhook_events` row and touches no money table. It acks rather than fails because
+   Stripe sends connected accounts' **test-mode** events to the live «Connected accounts»
+   endpoint as well (docs.stripe.com/connect/webhooks: production URLs «receive both live and
+   test webhooks»), and failing those would retry each one for days against the live endpoint's
+   failure budget. The cost is that a stray test-mode endpoint aimed at production does not show
+   as failing — step 4's inventory is what finds it, and every ignored event logs one
+   `test-mode event ignored` line (id and type) in the function logs. **This flag is not
+   optional once Connect is live:** without it those connected-account test events are
+   processed. Every value except unset, blank, `false` and `0` turns it on, typos included. It is
+   read per request, so it binds as soon as the secret is set. It needs the #802 `stripe-webhook`
+   deployed (§4.3); an older deploy ignores the variable.
 
    **Then clear the rehearsal's rows.** Every ledger row carries its event's mode in
-   `stripe_webhook_events.livemode` (#802; rows older than the column were backfilled from
-   `payload`, and `NULL` means the payload had none). The rehearsal's money rows reference Stripe
+   `stripe_webhook_events.livemode` (#802) — a column generated from `payload`, so it covers
+   every row ever written, and `NULL` means only that the payload carried no boolean `livemode`. The rehearsal's money rows reference Stripe
    objects that exist only in test mode, and live mode will never send an event about them, so
    nothing else will ever correct them. First the inventory — read-only, run it and read it:
 
@@ -546,6 +549,7 @@ connected one, so they arrive on the «Your account» endpoint).
    test event put it. Keep the `stripe_webhook_events` rows themselves: they are
    the record of what was removed, and deleting them would also delete the only evidence of which
    rows were test-mode.
+
 4. **Re-take the inventory** above, and confirm three things: no test-mode endpoint points at
    production, the Vercel endpoint is identified or gone, and exactly one live-mode endpoint points
    at production.

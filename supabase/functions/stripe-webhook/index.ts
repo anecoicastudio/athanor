@@ -12,7 +12,6 @@ import { handleWebhook } from './handlers.ts';
 // 3-layer idempotency, per-event handlers) lives in ./handlers.ts, which takes these
 // as injected dependencies so `deno test` can exercise it without env or a server.
 const whsec = webhookSigningSecrets(); // both endpoint scopes — see below
-const requireLivemode = webhookRequiresLivemode(); // #802 — fail-open while unset
 const qrSecret = Deno.env.get('QR_SIGNING_SECRET')!;
 const db = supabaseAdmin(); // service role — the ONLY writer of money tables
 
@@ -64,7 +63,10 @@ Deno.serve((req) =>
           [whsec.platform, whsec.connect],
         ),
       retrieveSubscription: (id) => stripe.subscriptions.retrieve(id),
-      requireLivemode,
+      // #802 — read per request, not at boot: the flag is flipped once, at the live swap, and a
+      // warm isolate that had resolved it at cold start would keep accepting test-mode events
+      // until it was recycled. An env read per delivery costs nothing.
+      requireLivemode: webhookRequiresLivemode(),
     },
     req,
   ),

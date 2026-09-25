@@ -2427,3 +2427,16 @@ replace` keeps the existing ACL, so restating them changes nothing — but the r
   `resource_missing` or `livemode_mismatch` ends `failed` (erasure-job `logic.ts`,
   `PERMANENT_STRIPE_CODES`), and so does an unreadable `circle_memberships` row. pgTAP `0058`
   and the Deno suite assert both.
+
+## `20260925193313_stripe_webhook_events_livemode.sql` — the column is generated, not written, since `20260925194113`
+
+- **«stripe-webhook writes `event.livemode` here on every delivery»** and the column comment's
+  **«Written by stripe-webhook from event.livemode; rows that predate the column were backfilled
+  from payload»**. Neither holds: `20260925194113` (same PR, #802 review) drops the column and
+  re-adds it as a STORED GENERATED column over `payload`, and stripe-webhook writes only
+  `event_id`, `type` and `payload`. The backfill `update` in `20260925193313` ran, and its values
+  were discarded by the drop — they were copies of `payload` either way. The plain-column shape
+  would have left rows written between the migration and the function deploy NULL forever, and a
+  function deployed ahead of the migration would have 500'd every delivery. The column comment is
+  replaced in the catalog by `20260925194113`. pgTAP `0159` asserts the column is generated and
+  derives from `payload`.

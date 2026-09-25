@@ -1464,59 +1464,54 @@ const webhookCtx = (db: FakeDb, event?: Stripe.Event): WebhookCtx => ({
   retrieveSubscription: () => Promise.resolve(subscription()),
 });
 
-// ── livemode: recorded on every ledger row, refused on production once flagged (#802) ──
+// ── livemode: derived on every ledger row, ignored on production once flagged (#802) ──
 
 const withLivemode = (event: Stripe.Event, livemode: boolean) =>
   ({ ...event, livemode }) as unknown as Stripe.Event;
 
-Deno.test('the ledger row records the event livemode', async () => {
-  for (const livemode of [true, false]) {
+Deno.test(
+  'the ledger upsert never writes livemode — the column is generated from payload',
+  async () => {
+    // Writing a GENERATED column is an error, and writing a column a not-yet-migrated table lacks
+    // would 500 every delivery. The mode travels inside payload, where the column reads it.
     const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
     await handleWebhook(
-      webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), livemode)),
+      webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), false)),
       webhookReq(),
     );
-    const ledger = db.calls[0];
-    assertEquals(`${ledger.table}.${ledger.op}`, 'stripe_webhook_events.upsert');
-    assertEquals((ledger.values as Record<string, unknown>).livemode, livemode);
-  }
-});
-
-Deno.test('an event without a boolean livemode records NULL, never a guess', async () => {
-  const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
-  await handleWebhook(webhookCtx(db, stripeEvent('payment_intent.created', {})), webhookReq());
-  assertEquals((db.calls[0].values as Record<string, unknown>).livemode, null);
-});
+    const values = db.calls[0].values as Record<string, unknown>;
+    assertEquals(Object.keys(values).sort(), ['event_id', 'payload', 'type']);
+    assertEquals((values.payload as Record<string, unknown>).livemode, false);
+  },
+);
 
 Deno.test('with the flag unset a test-mode event is processed (fail-open)', async () => {
   // The production rehearsal before the live swap depends on exactly this.
   const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
-  const res = await handleWebhook(
+  await handleWebhook(
     webhookCtx(db, withLivemode(stripeEvent('payment_intent.created', {}), false)),
     webhookReq(),
   );
-  assert(res.status !== 403);
-  assertEquals(db.calls[0]?.table, 'stripe_webhook_events');
+  assertEquals(`${db.calls[0]?.table}.${db.calls[0]?.op}`, 'stripe_webhook_events.upsert');
 });
 
-Deno.test(
-  'with the flag on a test-mode event is refused before the ledger, so Stripe retries',
-  async () => {
-    // After signature, before dedupe: a refused delivery writes NOTHING — no ledger row to
-    // mark it done — and answers non-2xx, so Stripe keeps retrying and the Dashboard shows it.
-    for (const livemode of [false, undefined]) {
-      const db = makeFakeDb();
-      const base = stripeEvent('checkout.session.completed', ticketSession());
-      const event = livemode === undefined ? base : withLivemode(base, livemode);
-      const res = await handleWebhook(
-        { ...webhookCtx(db, event), requireLivemode: true },
-        webhookReq(),
-      );
-      assertEquals(res.status, 403, `livemode ${livemode}`);
-      assertEquals(db.calls.length, 0, `livemode ${livemode}: nothing written`);
-    }
-  },
-);
+Deno.test('with the flag on a test-mode event is acked and ignored, writing nothing', async () => {
+  // After signature, before dedupe: no ledger row, no money table. ACKED, not failed — Stripe
+  // sends connected accounts' test-mode events to the live Connect endpoint too, and a non-2xx
+  // would retry each one for days on the live endpoint's failure budget.
+  for (const livemode of [false, undefined]) {
+    const db = makeFakeDb();
+    const base = stripeEvent('checkout.session.completed', ticketSession());
+    const event = livemode === undefined ? base : withLivemode(base, livemode);
+    const res = await handleWebhook(
+      { ...webhookCtx(db, event), requireLivemode: true },
+      webhookReq(),
+    );
+    assertEquals(res.status, 200, `livemode ${livemode}`);
+    assertEquals(await res.text(), 'test-mode event ignored', `livemode ${livemode}`);
+    assertEquals(db.calls.length, 0, `livemode ${livemode}: nothing written`);
+  }
+});
 
 Deno.test('with the flag on a live-mode event passes the guard', async () => {
   const db = makeFakeDb({ 'stripe_webhook_events.update': [{ data: [] }] });
@@ -1527,8 +1522,8 @@ Deno.test('with the flag on a live-mode event passes the guard', async () => {
     },
     webhookReq(),
   );
-  assert(res.status !== 403);
-  assertEquals((db.calls[0].values as Record<string, unknown>).livemode, true);
+  assert((await res.text()) !== 'test-mode event ignored');
+  assertEquals(`${db.calls[0]?.table}.${db.calls[0]?.op}`, 'stripe_webhook_events.upsert');
 });
 
 Deno.test('the livemode guard never runs ahead of the signature check', async () => {
