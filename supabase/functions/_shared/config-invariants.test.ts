@@ -36,6 +36,7 @@ export const POSTURE: Record<string, Posture> = {
   'erasure-job': 'internal',
   'gdpr-export-job': 'internal',
   'get-circle-prices': 'user',
+  'handle-rename-purge': 'internal',
   'media-process': 'internal',
   'moderation-enforce': 'internal',
   'notification-fan-out': 'internal',
@@ -368,7 +369,8 @@ Deno.test('no internal function performs I/O before its gate', () => {
     // counts" reaches further than index.ts: index.ts imports its siblings, so a sibling's
     // module-scope env read or fetch runs at import time — before the gate, on every
     // unauthenticated probe — and the ordering check above would stay green (erasure-job/kv.ts
-    // was the first sibling to hold a Deno.env.get, #515). Inside a function body those calls
+    // was the first sibling to hold a Deno.env.get, #515; it is _shared/kv-purge.ts since #800,
+    // where the _shared test below covers it). Inside a function body those calls
     // are fine: they only run once the handler has already passed the gate.
     //
     // SCOPE: the function's OWN directory. _shared/ is a sibling by import too, and is covered

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { entityRefSchema, notificationSchema, NOTIFICATION_TYPES } from './notification.ts';
+import {
+  entityRefSchema,
+  notificationActorSchema,
+  notificationSchema,
+  NOTIFICATION_TYPES,
+} from './notification.ts';
 
 describe('notificationSchema', () => {
   it('parses a valid notification row', () => {
@@ -195,5 +200,41 @@ describe('entityRefSchema — the routing target of a tapped notification', () =
   it('rejects a ref without an id or without a kind — half a target routes nowhere', () => {
     expect(entityRefSchema.safeParse({ kind: 'momento' }).success).toBe(false);
     expect(entityRefSchema.safeParse({ id: 'abc' }).success).toBe(false);
+  });
+});
+
+// #800 — producers write the actor's profile id beside the handle they copied, so the app can
+// show the CURRENT handle. Rows written before 20260925124457 carry `name` alone and must keep
+// parsing exactly as they did; a malformed actor_id must read as "no actor", not as an error.
+describe('notificationActorSchema — who a notification is about (#800)', () => {
+  const ACTOR = '33333333-3333-4333-8333-333333333333';
+  const row = (params: Record<string, unknown>) => ({
+    id: '11111111-1111-1111-1111-111111111111',
+    recipient_id: '22222222-2222-2222-2222-222222222222',
+    type: 'connection',
+    template_key: 'notif.tpl.connection',
+    params,
+    entity_ref: { kind: 'connection_request', id: 'abc' },
+    read_at: null,
+    created_at: '2026-09-25T10:00:00Z',
+    updated_at: '2026-09-25T10:00:00Z',
+  });
+
+  it('reads the actor id off a row written since #800', () => {
+    const n = notificationSchema.parse(row({ name: 'luna', actor_id: ACTOR }));
+    expect(notificationActorSchema.parse(n.params)).toEqual({ actor_id: ACTOR });
+  });
+
+  it('an old row — name only — still parses, and names no actor', () => {
+    const n = notificationSchema.parse(row({ name: 'luna' }));
+    expect(n.params).toEqual({ name: 'luna' });
+    expect(notificationActorSchema.safeParse(n.params).success).toBe(false);
+  });
+
+  it('a malformed actor_id names no actor rather than failing the row', () => {
+    for (const actor_id of ['', 'not-a-uuid', 42, null]) {
+      const n = notificationSchema.parse(row({ name: 'luna', actor_id }));
+      expect(notificationActorSchema.safeParse(n.params).success).toBe(false);
+    }
   });
 });

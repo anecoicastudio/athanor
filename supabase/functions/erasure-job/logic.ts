@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
+import { dreamPagePaths, type KvPurger, ogCardPaths } from '../_shared/kv-purge.ts';
 import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
@@ -105,7 +105,7 @@ export type ErasureCtx = {
    * unconfigured deployment leaves the erased member's card and page readable by key, which
    * is the one thing #468/#492 say must never be a silent skip.
    */
-  kv: ErasureKv | null;
+  kv: KvPurger | null;
   /**
    * Cancels the erased member's Circle subscription, or **null when STRIPE_SECRET_KEY is absent
    * from this deployment's env**. Null is carried rather than resolved in the loop for the same
@@ -325,7 +325,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     to dreams by #159). apps/web caches the prerendered profile page, its OG card and —
     //     since #159 — every `/dream/{id}` page it has served, and a deploy strands rather than
     //     replaces them, so those bytes outlive every row erased above
-    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
+    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). _shared/kv-purge.ts
     //     does the sweep; this decides what its outcome means for the record.
     //
     //     Ordering: BOTH key inputs are read HERE, before (4b) below. The keys are hashes of

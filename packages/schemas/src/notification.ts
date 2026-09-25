@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { handleSchema } from './profile.ts';
 
 // Mirrors supabase/migrations/20260831123550_report_queue_alert.sql, the current
 // statement of both CHECKs (06 §2.11, 09 §2.6).
@@ -115,6 +116,29 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
 ] as const;
 export const notificationTemplateKey = z.enum(NOTIFICATION_TEMPLATE_KEYS);
 export type NotificationTemplateKey = z.infer<typeof notificationTemplateKey>;
+
+/**
+ * The actor a notification names, read off its `params` (#800).
+ *
+ * The six producers that name somebody — a helper, a requester, a match — write that member's
+ * profile id as `actor_id` beside the `name` they copied (20260925124457). `name` is what push
+ * rendered at send time; `actor_id` is how the app shows the handle the member has NOW, so a
+ * rename does not live on in everyone's notification centre. Rows written before that
+ * migration carry `name` alone: they fail this parse and render from `name` as they always did.
+ * Deliberately not a field of `notificationSchema.params`, which stays an open record so an
+ * unexpected param can never withhold a row.
+ */
+export const notificationActorSchema = z.object({ actor_id: z.string().uuid() });
+export type NotificationActor = z.infer<typeof notificationActorSchema>;
+
+/**
+ * One row of the per-page `profiles` read that resolves those actors to the handle they have
+ * now. `handle` is NULL until a member chooses one (#782).
+ */
+export const notificationActorHandleSchema = z.object({
+  id: z.string().uuid(),
+  handle: handleSchema.nullable(),
+});
 
 // Recipient reads OWN rows; written ONLY by the fan-out edge fn (service role). Body copy is a
 // template_key + params (server-composed, IT/EN — 09 §3.6), never a hardcoded string.
