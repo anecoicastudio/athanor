@@ -30,7 +30,12 @@ export const SIGNED_TTL_SECONDS = RETENTION_DAYS * 24 * 60 * 60; // ≤ the 30-d
  * re-uploaded and rejected every night for ever, with nothing in the logs. Such a job is filed
  * 'failed' instead, before any work is done, and the member re-requests.
  */
-export const SERVABLE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000 - SIGNED_TTL_SECONDS * 1000;
+export const SERVABLE_WINDOW_MS =
+  30 * 24 * 60 * 60 * 1000 - SIGNED_TTL_SECONDS * 1000 - 60 * 60 * 1000;
+// ↑ less an hour of margin (#784): the fence reads the job's age BEFORE the build, and the expiry
+// is fixed AFTER it — section reads and up to PASS_BUDGET_MS of media copying later. Without the
+// margin a job admitted a minute inside the window writes an expiry past the 30-day cap, the
+// ready write raises 23514, and the member's finished archive is never handed over.
 
 /**
  * How many jobs one pass CLAIMS.
@@ -672,7 +677,7 @@ async function listOwnMedia(
   }
 }
 
-/** A copy onto a key the job already filled — a resumed pass — is the file being there. */
+/** The Storage API's answer to a copy onto a key that already exists. */
 function alreadyExists(error: unknown): boolean {
   const e = error as { code?: unknown; statusCode?: unknown; status?: unknown } | null;
   return !!e && (e.code === 'ResourceAlreadyExists' || e.statusCode === '409' || e.status === 409);
@@ -683,13 +688,10 @@ function describe(error: unknown): string {
   return typeof m === 'string' && m !== '' ? m : 'copy failed';
 }
 
-type CopyOutcome =
-  | {
-      kind: 'done';
-      copied: { object: MediaObject; dest: string; file: string }[];
-      omitted: MediaOmission[];
-    }
-  | { kind: 'out_of_time' };
+type CopyOutcome = {
+  copied: { object: MediaObject; dest: string; file: string }[];
+  omitted: MediaOmission[];
+};
 
 /**
  * Copy every listed object into the job's folder in `exports`, COPY_CONCURRENCY at a time.
@@ -699,8 +701,18 @@ type CopyOutcome =
  * or is transient, while one object can fail for ever (a key whose bytes are gone, a file over the
  * ceiling) — and withholding the whole archive for it would deny the member everything else until
  * the servable window gave up. So the failure is named in `not_included` with its reason and the
- * manifest says `complete: false`. Running out of time is the one exception, because it is about
- * the pass, not the file: that returns `out_of_time` and the caller requeues.
+ * manifest says `complete: false`.
+ *
+ * Running out of time is handled the same way, and that is the review's point (#784): requeuing
+ * instead would put the job back at the head of the claim order (its `created_at` never changes),
+ * so one heavy library would take every night's budget and push every other member's request
+ * past the servable window. Every object not reached is named `not_copied_in_time`; the member
+ * gets everything else now and can ask again.
+ *
+ * A copy onto a key that already exists (409 — a requeued job resuming after a failed upload or
+ * signing) is NOT taken as done: the source may have been replaced under the same key since
+ * (avatars are upserted in place), and a manifest describing the new file beside the old bytes
+ * would be wrong. The stale copy is removed and the copy made again.
  */
 async function copyMedia(
   storage: ExportStorage,
@@ -711,24 +723,31 @@ async function copyMedia(
 ): Promise<CopyOutcome> {
   const copied: { object: MediaObject; dest: string; file: string }[] = [];
   const omitted: MediaOmission[] = [];
-  let timedOut = false;
   let next = 0;
 
+  const copyOne = async (object: MediaObject, dest: string): Promise<unknown> => {
+    const first = await storage.copyIn(object.bucket_id, object.name, dest);
+    if (!first.error || !alreadyExists(first.error)) return first.error;
+    const removed = await storage.remove([dest]);
+    if (removed.error) return removed.error;
+    return (await storage.copyIn(object.bucket_id, object.name, dest)).error;
+  };
+
   const worker = async () => {
-    while (!timedOut && next < objects.length) {
-      if (outOfTime()) {
-        timedOut = true;
-        return;
-      }
+    while (next < objects.length) {
       const object = objects[next++];
+      if (outOfTime()) {
+        omitted.push({ bucket: object.bucket_id, path: object.name, reason: 'not_copied_in_time' });
+        continue;
+      }
       if (object.size !== null && object.size > EXPORTS_OBJECT_LIMIT) {
         omitted.push({ bucket: object.bucket_id, path: object.name, reason: 'too_large' });
         continue;
       }
       const file = mediaArchivePath(object.bucket_id, object.name, profileId);
       const dest = `${profileId}/${jobId}/${file}`;
-      const { error } = await storage.copyIn(object.bucket_id, object.name, dest);
-      if (error && !alreadyExists(error)) {
+      const error = await copyOne(object, dest);
+      if (error) {
         console.warn(
           'gdpr-export-job: media copy failed',
           jobId,
@@ -742,21 +761,17 @@ async function copyMedia(
     }
   };
   await Promise.all(Array.from({ length: COPY_CONCURRENCY }, worker));
-  if (timedOut) return { kind: 'out_of_time' };
 
-  const order = (a: { bucket?: string; path?: string }, b: { bucket?: string; path?: string }) =>
+  const order = (a: { bucket: string; path: string }, b: { bucket: string; path: string }) =>
     `${a.bucket}/${a.path}`.localeCompare(`${b.bucket}/${b.path}`);
   copied.sort((a, b) =>
     order(
       { bucket: a.object.bucket_id, path: a.object.name },
-      {
-        bucket: b.object.bucket_id,
-        path: b.object.name,
-      },
+      { bucket: b.object.bucket_id, path: b.object.name },
     ),
   );
   omitted.sort(order);
-  return { kind: 'done', copied, omitted };
+  return { copied, omitted };
 }
 
 /** Sign every copied file in batches; null when any path came back without a url. */
@@ -907,7 +922,7 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
     // An unparseable created_at fails CLOSED. `NaN > SERVABLE_WINDOW_MS` is false, so an
     // unguarded comparison would wave such a job THROUGH the one fence that exists to stop it
     // being rebuilt and rejected every night — the unsafe direction, and silent.
-    const ageMs = Date.now() - Date.parse(job.created_at);
+    const ageMs = now() - Date.parse(job.created_at);
     if (!Number.isFinite(ageMs) || ageMs > SERVABLE_WINDOW_MS) {
       console.warn(
         'gdpr-export-job: past the servable window, filed failed',
@@ -919,10 +934,14 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
       continue;
     }
 
-    const results = await collectOwnData(db, job.profile_id);
+    // Independent reads in parallel — the pass now runs against a wall-clock budget. Only the
+    // handle lookup waits, because it reads the conversations the first one returns.
+    const [results, account, media] = await Promise.all([
+      collectOwnData(db, job.profile_id),
+      ctx.getEmail(job.profile_id),
+      listOwnMedia(db, job.profile_id),
+    ]);
     const handles = await counterpartHandles(db, job.profile_id, results.conversations?.data);
-    const account = await ctx.getEmail(job.profile_id);
-    const media = await listOwnMedia(db, job.profile_id);
     const readError =
       firstSectionError(results) ??
       (handles.error ? { key: 'conversations (handles)', error: handles.error } : null) ??
@@ -948,20 +967,14 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
       continue;
     }
 
+    // Out of time mid-copy ships a partial archive that says so (see copyMedia); the claims
+    // behind this one are then handed back by the check at the top of the next iteration.
     const copies = await copyMedia(storage, media.objects, job.profile_id, job.id, outOfTime);
-    if (copies.kind === 'out_of_time') {
-      // Requeued with its copies in place; the next pass resumes (PASS_BUDGET_MS). The claims
-      // behind this one are handed back by the check at the top of the next iteration.
-      console.warn('gdpr-export-job: out of time copying media, requeued', job.id);
-      await writeStatus(db, job.id, claimed, 'requested');
-      deferred++;
-      continue;
-    }
 
     // ONE expiry for everything this job hands over, fixed before anything is signed: every url
     // signed after this instant outlives it, so no file in the archive dies before the row says
     // the archive does.
-    const expiresAt = new Date(Date.now() + SIGNED_TTL_SECONDS * 1000).toISOString();
+    const expiresAt = new Date(now() + SIGNED_TTL_SECONDS * 1000).toISOString();
 
     const signedMedia = await signMedia(
       storage,
@@ -997,7 +1010,7 @@ export async function processExportJobs(ctx: ExportJobCtx): Promise<Response> {
       new Map(copies.copied.map((c) => [c.object.name, c.file])),
     );
     const archive = assembleArchive(
-      new Date().toISOString(),
+      new Date(now()).toISOString(),
       {
         ...results,
         conversations: { data: redacted.conversations },

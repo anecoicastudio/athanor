@@ -873,22 +873,40 @@ Deno.test('a copy that fails is NAMED, and the manifest says the archive is part
   );
 });
 
-Deno.test('a copy onto a key a previous pass filled counts as copied (resume)', async () => {
-  const c = ctx(memberWithMediaAndConversation(), {
-    copyIn: () =>
-      Promise.resolve({
-        error: {
-          message: 'The resource already exists',
-          statusCode: '409',
-          code: 'ResourceAlreadyExists',
-        },
-      }),
-  });
-  await processExportJobs(c);
-  const archived = JSON.parse(c.uploads[0].body);
-  assertEquals(archived.media.complete, true);
-  assertEquals(archived.media.files.length, 2);
-});
+Deno.test(
+  'a copy onto an existing key is redone, never trusted: the source may have changed',
+  async () => {
+    const seen = new Set<string>();
+    const c = ctx(memberWithMediaAndConversation(), {
+      copyIn: (_bucket, _from, to) => {
+        // first attempt per destination: a previous pass left a copy there (409)
+        const first = !seen.has(to);
+        seen.add(to);
+        return Promise.resolve({
+          error: first
+            ? {
+                message: 'The resource already exists',
+                statusCode: '409',
+                code: 'ResourceAlreadyExists',
+              }
+            : null,
+        });
+      },
+    });
+    await processExportJobs(c);
+    const archived = JSON.parse(c.uploads[0].body);
+    assertEquals(archived.media.complete, true);
+    assertEquals(archived.media.files.length, 2);
+    assertEquals(
+      c.removed.flat().sort(),
+      [
+        `${REQUESTER}/${JOB}/media/chat-media/${CONVO}/m2.jpg`,
+        `${REQUESTER}/${JOB}/media/post-media/p1/0.jpg`,
+      ],
+      'the stale copy is removed before the copy is made again',
+    );
+  },
+);
 
 Deno.test('an object over the exports ceiling is named, never attempted', async () => {
   const big = `${REQUESTER}/cand/video.mp4`;
@@ -1021,33 +1039,92 @@ Deno.test('media signing failing requeues rather than shipping a file without a 
 });
 
 Deno.test(
-  'out of time mid-copy: the job and every claim behind it go back to the queue',
+  'out of time mid-copy: the archive ships PARTIAL and says so; the claims behind it are requeued',
   async () => {
     const second = { ...claimRow(), id: 'job-2' };
-    let t = 0;
+    let clock = 0;
     const c = ctx(
       {
         'rpc.claim_export_jobs': [{ data: [claimRow(), second] }],
         'rpc.gdpr_export_media': [
           {
-            data: [mediaRow('avatars', `${REQUESTER}/a.jpg`)],
+            data: [
+              mediaRow('avatars', `${REQUESTER}/a.jpg`),
+              mediaRow('moments', `${REQUESTER}/m.jpg`),
+            ],
           },
         ],
       },
-      {},
-      // the clock jumps past the budget as soon as the pass starts copying
-      { now: () => (t++ < 2 ? 0 : PASS_BUDGET_MS + 1) },
+      {
+        // the first copy takes the rest of the pass budget
+        copyIn: () => {
+          clock = PASS_BUDGET_MS + 1;
+          return Promise.resolve({ error: null });
+        },
+      },
+      { now: () => clock },
     );
     const res = await processExportJobs(c);
-    await assertCounts(res, 2, 0, 2);
-    assertEquals(c.uploads.length, 0, 'nothing is shipped short');
+    await assertCounts(res, 2, 0, 1);
+
+    // job 1 is handed over — requeuing it would put it back at the head of the claim order
+    assertEquals(c.uploads.length, 1);
+    const archived = JSON.parse(c.uploads[0].body);
+    assertEquals(archived.media.complete, false);
+    assertEquals(
+      archived.media.files.map((f: { path: string }) => f.path),
+      [`${REQUESTER}/a.jpg`],
+    );
+    assertEquals(archived.media.not_included, [
+      { bucket: 'moments', path: `${REQUESTER}/m.jpg`, reason: 'not_copied_in_time' },
+    ]);
     const updates = c.db.calls.filter((k) => k.table === 'gdpr_export_jobs' && k.op === 'update');
     assertEquals(
       updates.map((u) => [u.filters[0][2], (u.values as { status: string }).status]),
       [
-        [JOB, 'requested'],
+        [JOB, 'ready'],
         ['job-2', 'requested'],
       ],
+    );
+  },
+);
+
+Deno.test(
+  'a job admitted at the edge of the window still writes an expiry inside the 30-day cap',
+  async () => {
+    const created = Date.parse('2026-09-01T00:00:00.000Z');
+    // admitted one minute inside the window, then the build takes most of the pass budget
+    let clock = created + SERVABLE_WINDOW_MS - 60_000;
+    const c = ctx(
+      {
+        'rpc.claim_export_jobs': [
+          {
+            data: [
+              {
+                id: JOB,
+                profile_id: REQUESTER,
+                created_at: new Date(created).toISOString(),
+                claimed_at: CLAIMED,
+              },
+            ],
+          },
+        ],
+        'rpc.gdpr_export_media': [{ data: [mediaRow('avatars', `${REQUESTER}/a.jpg`)] }],
+      },
+      {
+        copyIn: () => {
+          clock += PASS_BUDGET_MS - 1_000;
+          return Promise.resolve({ error: null });
+        },
+      },
+      { now: () => clock },
+    );
+    await processExportJobs(c);
+    const ready = statusUpdates(c.db)[0].values;
+    assertEquals(ready.status, 'ready');
+    assert(
+      Date.parse(ready.expires_at as string) <= created + 30 * 24 * 3600 * 1000,
+      `expires_at ${ready.expires_at} must satisfy expires_at <= created_at + 30 days`,
     );
   },
 );

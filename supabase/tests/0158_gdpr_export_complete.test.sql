@@ -11,14 +11,16 @@
 --   and the row shape the app reads is unchanged.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(31);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
   ('00000000-0000-0000-0000-000000000000', '26000000-0000-0000-0000-0000000000aa',
    'authenticated', 'authenticated', 'export_a@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', '26000000-0000-0000-0000-0000000000bb',
-   'authenticated', 'authenticated', 'export_b@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'export_b@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '26000000-0000-0000-0000-0000000000cc',
+   'authenticated', 'authenticated', 'export_c@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 
 -- ── §1 ─────────────────────────────────────────────────────────────────────────────────────
 select is(
@@ -121,8 +123,8 @@ insert into public.gdpr_export_jobs (id, profile_id, status, download_url, expir
   -- failed yesterday → kept, the member is still reading «we couldn't prepare it»
   ('26100000-0000-0000-0000-000000000005', '26000000-0000-0000-0000-0000000000aa', 'failed',
    null, null, now() - interval '2 days', now() - interval '1 day'),
-  -- requested → kept
-  ('26100000-0000-0000-0000-000000000006', '26000000-0000-0000-0000-0000000000aa', 'requested',
+  -- requested → kept (member b: one open job per member since 20260925161119, and a holds 0003)
+  ('26100000-0000-0000-0000-000000000006', '26000000-0000-0000-0000-0000000000bb', 'requested',
    null, null, now() - interval '10 days', now() - interval '10 days'),
   -- a pre-#784 archive: ready, its 72-hour link long dead → reaped
   ('26100000-0000-0000-0000-000000000007', '26000000-0000-0000-0000-0000000000aa', 'ready',
@@ -174,12 +176,36 @@ select is(public.gdpr_export_reap_jobs(), 3,
   'three rows reaped: the expired ready, the pre-#784 ready, the week-old failed');
 select results_eq(
   $$ select id::text from public.gdpr_export_jobs
-      where profile_id = '26000000-0000-0000-0000-0000000000aa' order by id $$,
+      where profile_id in ('26000000-0000-0000-0000-0000000000aa', '26000000-0000-0000-0000-0000000000bb')
+      order by id $$,
   $$ values ('26100000-0000-0000-0000-000000000002'::text),
             ('26100000-0000-0000-0000-000000000003'),
             ('26100000-0000-0000-0000-000000000005'),
             ('26100000-0000-0000-0000-000000000006') $$,
   'a live link, the queue, and a fresh failure survive');
+
+-- ── 20260925161119: one open job per member, and a ready row with no expiry is reaped ──────
+-- 0003 (processing) is still open for member a after the reap above.
+select throws_ok(
+  $$ insert into public.gdpr_export_jobs (profile_id) values ('26000000-0000-0000-0000-0000000000aa') $$,
+  '23505', null,
+  'a second open export job for the same member is refused (each job copies the whole library)');
+update public.gdpr_export_jobs set status = 'failed' where id = '26100000-0000-0000-0000-000000000003';
+select lives_ok(
+  $$ insert into public.gdpr_export_jobs (profile_id) values ('26000000-0000-0000-0000-0000000000aa') $$,
+  'once the open job is terminal, the member can ask again');
+select lives_ok(
+  $$ insert into public.gdpr_export_jobs (profile_id) values ('26000000-0000-0000-0000-0000000000cc') $$,
+  'another member can still open theirs');
+
+insert into public.gdpr_export_jobs (id, profile_id, status, download_url, expires_at, created_at, updated_at) values
+  ('26100000-0000-0000-0000-000000000008', '26000000-0000-0000-0000-0000000000bb', 'ready',
+   'https://x', null, now() - interval '1 day', now() - interval '1 day');
+-- Two statements: a subquery in the same statement as the delete reads the pre-delete snapshot.
+select ok(public.gdpr_export_reap_jobs() >= 1, 'the reap runs and deletes');
+select ok(
+  not exists (select 1 from public.gdpr_export_jobs where id = '26100000-0000-0000-0000-000000000008'),
+  'a ready row with no expiry is reaped — the object predicate already treats it as unprotected');
 
 -- ── the app's row shape is unchanged ───────────────────────────────────────────────────────
 select columns_are('public', 'gdpr_export_jobs',

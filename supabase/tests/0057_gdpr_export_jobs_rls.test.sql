@@ -15,7 +15,11 @@ values
   ('00000000-0000-0000-0000-000000000000', '44444444-4444-4444-4444-444444444444',
    'authenticated', 'authenticated', 'gdpr_d@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
   ('00000000-0000-0000-0000-000000000000', '55555555-5555-5555-5555-555555555555',
-   'authenticated', 'authenticated', 'gdpr_e@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
+   'authenticated', 'authenticated', 'gdpr_e@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '66666666-6666-6666-6666-666666666666',
+   'authenticated', 'authenticated', 'gdpr_f@test.athanor', '{"locale":"it"}'::jsonb, now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '77777777-7777-7777-7777-777777777777',
+   'authenticated', 'authenticated', 'gdpr_g@test.athanor', '{"locale":"it"}'::jsonb, now(), now());
 select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 select set_config('test.c', '33333333-3333-3333-3333-333333333333', false);
@@ -115,15 +119,15 @@ values ('c0000000-0000-0000-0000-0000000000c2', current_setting('test.c')::uuid,
 insert into public.gdpr_export_jobs (id, profile_id, status, claimed_at, created_at)
 values ('d0000000-0000-0000-0000-0000000000d1', '44444444-4444-4444-4444-444444444444',
         'processing', now(), now() - interval '4 hours');
--- E1/E2: a STALE 'processing' row and a 'requested' one for the SAME member. Unlike erasure
--- (0058), BOTH are claimed: exports are idempotent — the upload upserts on {profile}/{job}.json —
--- so two jobs for one member are two archives, not the double-drive claim_erasure_requests
--- de-duplicates against.
+-- E1/E2: a STALE 'processing' row and a fresh 'requested' one. Until #784 these belonged to the
+-- SAME member, to show both are claimed; since 20260925161119 a member holds at most one open job
+-- (each copies their whole media library), so E2 belongs to another member and the refusal is
+-- asserted below instead.
 insert into public.gdpr_export_jobs (id, profile_id, status, claimed_at, created_at)
 values ('e0000000-0000-0000-0000-0000000000e1', '55555555-5555-5555-5555-555555555555',
         'processing', now() - interval '30 minutes', now() - interval '3 hours');
 insert into public.gdpr_export_jobs (id, profile_id, status, created_at)
-values ('e0000000-0000-0000-0000-0000000000e2', '55555555-5555-5555-5555-555555555555',
+values ('e0000000-0000-0000-0000-0000000000e2', '66666666-6666-6666-6666-666666666666',
         'requested', now() - interval '1 hour');
 -- F1: 'processing' with NO stamp at all — every row stranded before this migration existed.
 insert into public.gdpr_export_jobs (id, profile_id, status, created_at)
@@ -145,9 +149,10 @@ select is((select count(*)::int from export_claim_1 where id = 'e0000000-0000-00
   1, 'a STALE claim is re-taken — this is the stranded job #721 was filed for');
 select is((select count(*)::int from export_claim_1 where id = 'f0000000-0000-0000-0000-0000000000f1'),
   1, 'a processing row with NO stamp is infinitely stale, not never stale');
-select is((select count(*)::int from export_claim_1
-            where profile_id = '55555555-5555-5555-5555-555555555555'),
-  2, 'BOTH of one member''s open jobs are claimed: an export is idempotent, unlike an erasure');
+select throws_ok(
+  $$ insert into public.gdpr_export_jobs (profile_id) values ('55555555-5555-5555-5555-555555555555') $$,
+  '23505', null,
+  'a member whose job is being built cannot open a second one (#784: one open job per member)');
 select is((select count(*)::int from export_claim_1), 5,
   'and nothing else: five rows — not the live claim, not either terminal row');
 
@@ -203,14 +208,16 @@ select is(
 -- inherited the INSERT privilege authenticated already had; 20260908152740 closes it in the policy
 -- instead of with a column ACL, because 0121 pins how many tables carry one.
 set local role authenticated;
-select set_config('request.jwt.claim.sub', current_setting('test.c'), true);
+-- A member with no open job: test.c's C1 is open (claimed above), and since #784 a member holds
+-- one open job at most, so the ordinary request below would 23505 for them.
+select set_config('request.jwt.claim.sub', '77777777-7777-7777-7777-777777777777', true);
 select throws_ok(
   $$ insert into public.gdpr_export_jobs (profile_id, claimed_at)
-     values (current_setting('test.c')::uuid, now()) $$,
+     values ('77777777-7777-7777-7777-777777777777', now()) $$,
   '42501', null, 'a client cannot supply its own lease stamp');
 select lives_ok(
   $$ insert into public.gdpr_export_jobs (profile_id)
-     values (current_setting('test.c')::uuid) $$,
+     values ('77777777-7777-7777-7777-777777777777') $$,
   'and the ordinary request, with no stamp, still goes in');
 set local role service_role;
 
