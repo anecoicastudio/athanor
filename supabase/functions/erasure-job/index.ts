@@ -18,9 +18,9 @@
 //       Runs after (3) and before (4) because it needs the handle, which (4) cascades away,
 //   (3b-bis) CANCEL the Circle subscription at Stripe (#107) — before (3c) hides who was being
 //       billed. Pseudonymising the row stops us knowing; it does not stop Stripe charging,
-//   (3b-ter) UNTAG the member's Stripe Customers (#763) — clear `metadata.profile_id`, which
-//       the checkout/portal lookup matches on (#759), so an erasure withdrawn after (3c) cannot
-//       hand the old Customer back to a new checkout (./untag.ts),
+//   (3b-ter) UNTAG the membership row's Stripe Customer (#763) — clear `metadata.profile_id`,
+//       which the checkout/portal lookup matches on (#759), so an erasure withdrawn after (3c)
+//       cannot hand that Customer back to a new checkout (./untag.ts),
 //   (3c) PSEUDONYMIZE event_tickets + circle_memberships (#107, the controller's 2026-09-07
 //       ruling in #184): identity nulled, erased_at stamped, money columns and Stripe ids kept.
 //       Both identity columns are ON DELETE CASCADE, so this MUST precede (4b) — otherwise the
@@ -90,17 +90,9 @@ Deno.serve((req) => {
               .subscriptions.retrieve(id)
               .then((s) => (s as { status?: string | null }).status ?? null),
           cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id),
-          // #763 — which Customers, and the tag-still-ours check, live in ./untag.ts where a test
-          // reaches them; this is only the three SDK calls. Search auto-paginates: every tagged
-          // Customer, not the first page.
-          untagCustomers: customerUntagger({
-            searchCustomers: async (query) => {
-              const out: string[] = [];
-              for await (const c of stripeClient().customers.search({ query, limit: 100 })) {
-                out.push(c.id);
-              }
-              return out;
-            },
+          // #763 — the tag-still-ours check and the error classification live in ./untag.ts where
+          // a test reaches them; this is only the two SDK calls.
+          untagCustomer: customerUntagger({
             retrieveCustomer: (id) => stripeClient().customers.retrieve(id),
             clearProfileTag: (id) =>
               stripeClient().customers.update(id, { metadata: { profile_id: '' } }),

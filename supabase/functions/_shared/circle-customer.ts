@@ -21,8 +21,8 @@ import type Stripe from 'npm:stripe@22';
  *
  * Ordered by `created`, then id: two requests racing each other must agree which one is newest.
  *
- * The erasure cascade clears this tag (#763, `erasure-job/untag.ts`, step 3b-ter) before it
- * pseudonymises the membership row. Without that, an erasure stopped after the pseudonymisation
+ * The erasure cascade clears this tag on the Customer the membership row names (#763,
+ * `erasure-job/untag.ts`, step 3b-ter) before it pseudonymises that row. Without that, an erasure stopped after the pseudonymisation
  * and then withdrawn would leave an account with no row, this lookup would return the old
  * Customer, and the webhook would cache the new subscription against the pseudonymised row — the
  * member billed and not a member in the app. The fix lives in the cascade, not here.

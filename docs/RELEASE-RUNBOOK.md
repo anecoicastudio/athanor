@@ -1482,8 +1482,14 @@ Consequences for this section:
 - **A `failed` row can be past the payment step.** Several failures (the storage sweep, the KV purge,
   the reference release, the account delete) leave `circle_memberships` already pseudonymised with
   the account alive. Withdrawing such a row leaves the member with no membership row; since #763 the
-  cascade has cleared `metadata.profile_id` off their Stripe Customers before that step, so their
-  next Join makes a fresh Customer instead of landing on the pseudonymised row.
+  cascade has cleared `metadata.profile_id` off the membership's Stripe Customer before that step,
+  so their next Join makes a fresh Customer instead of landing on the pseudonymised row.
+- **`erasure-job: Customer untag failed`** / **`Stripe unconfigured, Customer not untagged`** (#763)
+  end the row `failed` with the account alive, the subscription already cancelled, and the
+  membership NOT yet pseudonymised. Fix the cause (a Stripe outage clears itself; an unset
+  `STRIPE_SECRET_KEY` does not), then re-queue with `status = 'requested'`: the cancel reads the
+  subscription's status first and the untag writes only a tag that is still there, so the re-run
+  repeats nothing.
 - **Since #725 the cascade also redacts the webhook ledger** — three migrations that ship as a set, `20260912070533` + `20260912073632` + `20260912075607`:
   `gdpr_erase_payment_footprint` nulls the identity out of every `stripe_webhook_events` payload
   that names the member, and a BEFORE INSERT trigger redacts the deliveries that arrive after the
