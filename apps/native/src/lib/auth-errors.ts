@@ -39,5 +39,13 @@ export function oauthErrorKey(message: string): MessageKey {
   // kept so a GoTrue that starts emitting the code still lands here. Same closed door as the
   // password path (#733): «try again» would be an invitation to retry forever.
   if (/user_banned|user is banned/i.test(message)) return 'auth.error.suspended';
+  // A flow state past its lifetime (#855): oauth.ts's own marker for a sheet dismissed that late,
+  // or GoTrue's `bad_oauth_state` descriptions if a callback ever hands them back to the app.
+  if (
+    /oauth_state_expired|bad_oauth_state|oauth state (has expired|not found or expired)/i.test(
+      message,
+    )
+  )
+    return 'auth.error.oauthExpired';
   return 'auth.error.oauthFailed';
 }

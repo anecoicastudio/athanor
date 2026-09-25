@@ -90,8 +90,17 @@ describe('oauthErrorKey', () => {
     expect(oauthErrorKey('')).toBe('auth.error.oauthFailed');
   });
 
-  it('both branches resolve to real copy in both locales', () => {
-    for (const message of ['provider is not enabled', 'network down']) {
+  it('an expired OAuth state reads as expired, not as a generic failure (#855)', () => {
+    // oauth.ts's own marker for a sheet dismissed past GoTrue's flow-state lifetime, and the
+    // two descriptions GoTrue itself sends with error_code=bad_oauth_state.
+    expect(oauthErrorKey('oauth_state_expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('OAuth state has expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('OAuth state not found or expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('bad_oauth_state')).toBe('auth.error.oauthExpired');
+  });
+
+  it('every branch resolves to real copy in both locales', () => {
+    for (const message of ['provider is not enabled', 'network down', 'oauth_state_expired']) {
       const key = oauthErrorKey(message);
       expect(t(key, 'it')).not.toBe(key);
       expect(t(key, 'en')).not.toBe(key);
