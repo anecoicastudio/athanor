@@ -52,7 +52,25 @@ export default function AuthCallbackScreen() {
     error_description?: string;
   }>();
   const code = Array.isArray(params.code) ? params.code[0] : params.code;
-  const errorDescription = params.error_description;
+  // Keyed on the link: a second mail opened while this screen is mounted may only update its
+  // params, and the first link's failure/resend state must not survive into the second's
+  // exchange — a failed resend link would otherwise sit silently on «Il varco è in viaggio».
+  return (
+    <CallbackBody
+      key={`${code ?? ''}|${params.error_description ?? ''}`}
+      code={code}
+      errorDescription={params.error_description}
+    />
+  );
+}
+
+function CallbackBody({
+  code,
+  errorDescription,
+}: {
+  code: string | undefined;
+  errorDescription: string | undefined;
+}) {
   const router = useRouter();
   // GoTrue appends ?error=…&error_description=… instead of a code when the link is expired or
   // already consumed. That is knowable during render, so it is derived — only the exchange's
