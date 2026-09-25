@@ -21,11 +21,11 @@ import type Stripe from 'npm:stripe@22';
  *
  * Ordered by `created`, then id: two requests racing each other must agree which one is newest.
  *
- * Known gap: the erasure cascade (#107) pseudonymises the membership row but leaves the tag on the
- * Stripe Customer. If an erasure stops after that step and is then withdrawn, the account lives
- * on with no row, and this lookup still returns that Customer. A subscription minted on it is
- * cached by the webhook against the pseudonymised row — so the member pays and the app does not
- * see it. Clearing the tag belongs in the cascade, not here.
+ * The erasure cascade clears this tag (#763, `erasure-job/untag.ts`, step 3b-ter) before it
+ * pseudonymises the membership row. Without that, an erasure stopped after the pseudonymisation
+ * and then withdrawn would leave an account with no row, this lookup would return the old
+ * Customer, and the webhook would cache the new subscription against the pseudonymised row — the
+ * member billed and not a member in the app. The fix lives in the cascade, not here.
  */
 export function taggedCircleCustomers(
   listings: Stripe.Customer[][],

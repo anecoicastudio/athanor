@@ -1479,6 +1479,11 @@ Consequences for this section:
   `set banned_until = null` while the row exists is silently re-raised, and after the row is gone
   it would also wipe a co-existing moderation ban.
 - Nothing in code lifts it, on purpose: cancelling a request is not a product flow.
+- **A `failed` row can be past the payment step.** Several failures (the storage sweep, the KV purge,
+  the reference release, the account delete) leave `circle_memberships` already pseudonymised with
+  the account alive. Withdrawing such a row leaves the member with no membership row; since #763 the
+  cascade has cleared `metadata.profile_id` off their Stripe Customers before that step, so their
+  next Join makes a fresh Customer instead of landing on the pseudonymised row.
 - **Since #725 the cascade also redacts the webhook ledger** — three migrations that ship as a set, `20260912070533` + `20260912073632` + `20260912075607`:
   `gdpr_erase_payment_footprint` nulls the identity out of every `stripe_webhook_events` payload
   that names the member, and a BEFORE INSERT trigger redacts the deliveries that arrive after the

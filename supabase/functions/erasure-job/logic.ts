@@ -75,6 +75,14 @@ export type ErasureStripe = {
   getSubscriptionStatus: (subscriptionId: string) => Promise<string | null>;
   /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
   cancelSubscription: (subscriptionId: string) => Promise<unknown>;
+  /**
+   * Clear `metadata.profile_id` off every Stripe Customer tagged with this profile — the one the
+   * membership row names, if any, plus whatever `customers.search` finds on the tag (#763,
+   * ./untag.ts). Resolves once none is left carrying the tag; rejects on any failure, and the
+   * loop halts before (3c) on it. Idempotent: a Customer whose tag is already gone is not
+   * written.
+   */
+  untagCustomers: (profileId: string, knownCustomerId: string | null) => Promise<unknown>;
 };
 
 /**
@@ -488,12 +496,15 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     the id we were given, and if it is absent there is nothing to cancel.
       const { data: subRow, error: subReadError } = await db
         .from('circle_memberships')
-        .select('stripe_subscription_id')
+        .select('stripe_subscription_id, stripe_customer_id')
         .eq('profile_id', profileId)
         .maybeSingle();
-      const subscriptionId =
-        (subRow as { stripe_subscription_id?: string | null } | null)?.stripe_subscription_id ??
-        null;
+      const membership = subRow as {
+        stripe_subscription_id?: string | null;
+        stripe_customer_id?: string | null;
+      } | null;
+      const subscriptionId = membership?.stripe_subscription_id ?? null;
+      const customerId = membership?.stripe_customer_id ?? null;
       if (subReadError) {
         // Unread is not «no subscription». Carrying on would pseudonymise the row and lose the
         // only pointer to the thing still taking the member's money.
@@ -556,6 +567,41 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
               billingLive = !isPermanentStripeError(cancelled);
               console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
             }
+          }
+        }
+      }
+
+      // (3b-ter) UNTAG THE CUSTOMER (#763), after the billing is stopped and before (3c).
+      //     `create-circle-checkout` tags every Customer with `metadata.profile_id`, and the
+      //     checkout and portal find a member's Customer BY THAT TAG whenever no membership row
+      //     names one (#759). (3c) takes the row's `profile_id` away; if the tag survived it, an
+      //     erasure withdrawn after (3c) — RELEASE-RUNBOOK §7.5, an operator act on a 'failed'
+      //     row — would leave an account whose next checkout lands on the old Customer, and the
+      //     webhook would cache that subscription onto the pseudonymised row: billed, and not a
+      //     member in the app. Hence BEFORE (3c), and a failure halts where it stands.
+      //
+      //     A metadata write, not a Stripe state transition (rules/supabase-functions.md, Money):
+      //     it charges, refunds and cancels nothing. It is NOT `billingLive` either — the billing
+      //     is already stopped by now, so a failure here ends 'failed' for an operator rather
+      //     than 'retained' for the nightly retry.
+      if (cascadeSafe) {
+        if (!stripe) {
+          // With no known Customer there is nothing this deployment could untag or has cause to
+          // believe exists; with one, unconfigured is reported, as everywhere else.
+          if (customerId) {
+            degraded = true;
+            cascadeSafe = false;
+            console.error('erasure-job: Stripe unconfigured, Customer not untagged', erasureReq.id);
+          }
+        } else {
+          const untagError = await stripe
+            .untagCustomers(profileId, customerId)
+            .then(() => null)
+            .catch((e: unknown) => e ?? new Error('untag failed'));
+          if (untagError) {
+            degraded = true;
+            cascadeSafe = false;
+            console.error('erasure-job: Customer untag failed', erasureReq.id, untagError);
           }
         }
       }
