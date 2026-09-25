@@ -63,12 +63,17 @@ export const metadata: Metadata = {
   description,
   applicationName: t('app.name', DEFAULT_LOCALE),
   keywords: ['Athanor', 'community', 'reputazione', 'reputation', 'networking', 'Aura'],
-  alternates: { canonical: '/' },
+  /*
+   * No `alternates.canonical` and no `openGraph.url` here (#792). Both are per-URL facts, and
+   * whatever this layout declares, every page that does not override it inherits: a `'/'` here
+   * told crawlers that /privacy, /@handle and /event/{id} were all duplicates of the homepage.
+   * Each indexable page declares its own self-canonical instead; app/canonical.test.ts sweeps
+   * every page.tsx and fails on one that neither declares it nor is noindex.
+   */
   robots: { index: true, follow: true },
   openGraph: {
     title,
     description,
-    url: '/',
     type: 'website',
     locale: 'it_IT',
     siteName: t('app.name', DEFAULT_LOCALE),

@@ -5,10 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * and can run without a renderer (vitest.config.ts: components are Playwright's job).
  *
  * Worth pinning rather than eyeballing, because every assertion here is a claim a crawler
- * acts on and nothing else in the tree checks: the self-canonical that keeps `/dream/{id}`
- * from being consolidated into `/@handle`, the site-wide OG card the page must name because
- * it renders none of its own, and the fact that a dream nobody may read still returns a title
- * rather than throwing.
+ * acts on: the self-canonical that keeps `/dream/{id}` from being consolidated into `/@handle`
+ * (the route-wide sweep is app/canonical.test.ts), the site-wide OG card the page must name
+ * because it renders none of its own, and the fact that a dream nobody may read still returns
+ * a title rather than throwing.
  */
 const getPublicDreamById = vi.fn();
 const createAnonClient = vi.fn(() => ({ tag: 'anon-client' }));
