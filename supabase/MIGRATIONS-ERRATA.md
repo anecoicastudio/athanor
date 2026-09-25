@@ -2383,3 +2383,14 @@ last_read_at AND last_message_sender_id <> me` (`20260902153057`), and v1 moved 
   `audit_log.report_id`'s `ON DELETE CASCADE` deleted it when a reporter's erasure deleted the
   report. `20260923064927` detaches content rows before the cascade (`reports_detach_content_audit`).
   pgTAP `0155` I1–I3 assert it.
+
+## `20260925124457_notification_actor_id_and_handle_rename_purge.sql` — 0121 does not read the five `athanor` producers
+
+- **«the revokes are restated because 0121 reads the migration that last defines a trigger
+  function»** (section 1's header). 0121 reads the catalog (`pg_proc.proacl`), not migrations,
+  and its trigger-function rule filters on the `public` schema. It covers
+  `public.on_momento_proposal_push` only; the five `athanor.notify_*` producers and
+  `athanor.enqueue_handle_rename_purge` are outside it. The revokes are still right — `create or
+replace` keeps the existing ACL, so restating them changes nothing — but the reason given is not
+  the real one. pgTAP `0156` asserts that no client role can execute
+  `athanor.enqueue_handle_rename_purge()`.
