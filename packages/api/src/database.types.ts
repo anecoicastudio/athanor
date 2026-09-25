@@ -2411,6 +2411,7 @@ export type Database = {
           locale: string
           mission: string | null
           profession: string | null
+          public_zodiac_sign: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
@@ -2438,6 +2439,7 @@ export type Database = {
           locale?: string
           mission?: string | null
           profession?: string | null
+          public_zodiac_sign?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
@@ -2465,6 +2467,7 @@ export type Database = {
           locale?: string
           mission?: string | null
           profession?: string | null
+          public_zodiac_sign?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
@@ -3450,6 +3453,7 @@ export type Database = {
           voters: number
         }[]
       }
+      event_going_count: { Args: { p_event_id: string }; Returns: number }
       event_reminder_sweep: { Args: never; Returns: undefined }
       event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
@@ -3585,6 +3589,7 @@ export type Database = {
           locale: string
           mission: string | null
           profession: string | null
+          public_zodiac_sign: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
@@ -3610,6 +3615,7 @@ export type Database = {
           display_name: string
           founding_member: boolean
           handle: string
+          has_public_page: boolean
           id: string
           identity_tags: string[]
           identity_verified: boolean

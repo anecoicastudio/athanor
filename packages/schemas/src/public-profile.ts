@@ -21,8 +21,9 @@ export const publicMilestoneSchema = z.object({
  * (members/private columns aren't granted to anon — public bio is deferred to an
  * M9 SECURITY DEFINER RPC). Mobile PersonDetail and the web @handle page share this shape.
  *
- * `displayName` + `avatarUrl` are the #251 default shell: anon-readable for every member
- * whose `identity` visibility facet is public (the default — migration 20260814151601).
+ * `displayName` + `avatarUrl` are the #251 shell: anon-readable for every member whose
+ * `identity` visibility facet is public. New members start at 'members' since #790
+ * (20260925143552); an absent key still reads as public, which is what #251 left older maps.
  * `avatarUrl` is a short-lived SIGNED url, never a storage key: the avatars bucket is
  * private, and the anon storage policy is what lets the signing succeed. Both null when the
  * member set none — initials render instead.
@@ -31,8 +32,9 @@ export const publicProfileSchema = z.object({
   handle: handleSchema,
   displayName: displayNameSchema.nullable(),
   avatarUrl: z.string().url().nullable(),
-  // #694 — the sun sign is public by decision and anon-granted on the column, so it rides the
-  // shell with the name and the photo. Null for a member who has no date yet.
+  // #790 — the sun sign rides the shell only when the member set the `zodiac` facet to
+  // 'public' (anon reads it through the generated public_zodiac_sign column). Null otherwise,
+  // and for a member who has no date yet.
   zodiacSign: zodiacSignSchema.nullable(),
   bio: z.string().nullable(),
   dream: z

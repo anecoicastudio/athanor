@@ -1,6 +1,7 @@
-// handle-rename-purge (#800) — internal service-role: purges the cached `/@old` page and OG card
-// from Cloudflare KV after a member renames their handle. Posted to by
-// athanor.enqueue_handle_rename_purge() (AFTER UPDATE OF handle on profiles) through pg_net,
+// handle-rename-purge (#800) — internal service-role: purges the cached `/@handle` page and OG
+// card from Cloudflare KV after a member renames their handle, or (#790) changes the identity,
+// dream or zodiac visibility facet. Posted to by athanor.enqueue_handle_rename_purge() (AFTER
+// UPDATE OF handle / OF visibility on profiles) through pg_net,
 // with the key on the `apikey` header. Transport shell only — ./logic.ts decides, and the sweep
 // is _shared/kv-purge.ts, the one erasure-job runs.
 import { requireServiceRole } from '../_shared/auth.ts';

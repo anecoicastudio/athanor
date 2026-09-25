@@ -212,7 +212,13 @@ export default function PersonDetailScreen() {
   // Native share sheet, via the one builder both profile surfaces use. Built at render so
   // the control can be withheld when there is nothing to share — the `missing` branch
   // renders headerRight too, and a button that silently no-ops is the defect #110 is about.
-  const shareMessage = profileShareMessage(personHandle, t('app.name', locale));
+  // The link rides along only when their /@handle page exists (#790). Absent flag = a database
+  // before 20260925143552, where the page was the default: keep the link, as before.
+  const shareMessage = profileShareMessage(
+    personHandle,
+    t('app.name', locale),
+    person?.has_public_page ?? true,
+  );
 
   const shareProfile = async () => {
     if (!shareMessage) return;

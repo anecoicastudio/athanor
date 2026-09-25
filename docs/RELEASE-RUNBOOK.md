@@ -743,8 +743,8 @@ in its URL; never paste it anywhere.
 ### 4.6 Migration ORDER when a client schema REQUIRES a column (#694)
 
 `profileSchema` and `personProfileSchema` require the keys `birth_date` and `zodiac_sign`
-(`.nullable()`, not optional), and `getPublicProfileByHandle` selects `zodiac_sign` off
-`profiles`. A build or a web deploy that carries that schema against a database without
+(`.nullable()`, not optional), and `getPublicProfileByHandle` selected `zodiac_sign` off
+`profiles` (since #790, `public_zodiac_sign` — see the rider). A build or a web deploy that carries that schema against a database without
 `20260905165133` fails **every** sign-in (`get_own_profile` → ZodError, non-retryable in
 `profile-read.ts`) and every `/@handle` render (42703). So:
 
@@ -753,6 +753,16 @@ of §4.4, and for the same reason: the side that starts depending on the other m
 Check `supabase/.temp/linked-project.json` reads `athanor` (production) before the push, and
 verify with `select column_name from information_schema.columns where table_name = 'profiles'
 and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
+
+**Rider — #790 (`20260925143552`) has no safe order, only a short one.** It revokes anon's
+SELECT on `zodiac_sign` and adds `public_zodiac_sign`, and the web build that ships with it
+selects the new column. Migration first: the live Worker still selects `zodiac_sign` as anon
+and every **uncached** `/@handle` render fails 42501 until the deploy lands (cached pages keep
+serving). Deploy first: every render fails 42703. So keep the rule above — push, then deploy
+`apps/web` in the same sitting, with nothing in between. App builds from before #790 keep
+working, with one visible difference for a member who is neither organiser nor attendee: they
+count RSVP rows themselves, now see zero, and a full free event reads as open (the capacity
+trigger still refuses the RSVP).
 
 ### 4.7 Ticket refunds and disputes are DESTINATION charges now (#104, ruling 2026-09-06) — and the fund rail, which is not
 

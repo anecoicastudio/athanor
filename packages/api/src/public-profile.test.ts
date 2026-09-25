@@ -122,6 +122,30 @@ describe('getPublicProfileByHandle — shell name + signed avatar', () => {
     });
   });
 
+  // #790: anon holds no grant on zodiac_sign — selecting it would 42501 and take the page
+  // down. The sign arrives through public_zodiac_sign, NULL unless the member chose «Tutti».
+  it('reads the sign from public_zodiac_sign and never names zodiac_sign', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        {
+          data: {
+            id: PROFILE_ID,
+            handle: 'lucia',
+            display_name: 'Lucia Riva',
+            avatar_path: null,
+            public_zodiac_sign: 'leone',
+          },
+        },
+      ],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      zodiacSign: 'leone',
+    });
+    const cols = fake.calls.find((c) => c.table === 'profiles')?.columns ?? '';
+    expect(cols.split(/,\s*/)).toContain('public_zodiac_sign');
+    expect(cols.split(/,\s*/)).not.toContain('zodiac_sign');
+  });
+
   it('never signs when there is no avatar — no storage round-trip for an initials render', async () => {
     const fake = makeFakeClient({
       'profiles.select': [

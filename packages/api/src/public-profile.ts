@@ -10,13 +10,15 @@ import { parseOrWithhold } from './parse-or-withhold';
 
 /**
  * The public @handle read-model (frontend 02 §6): assembled from anon, visibility-gated
- * reads. Returns null when no row resolves — the handle does not exist, or the member set
- * their `identity` facet to 'members' and the row is anon-invisible (#251: the default
- * shell is opt-out, so this is the explicit opt-out case). Plumbing only — no business
- * logic, no Aura.
+ * reads. Returns null when no row resolves — the handle does not exist, or the member's
+ * `identity` facet is 'members' and the row is anon-invisible. Since #790 that is where a new
+ * member starts; members from before keep whatever they had (the #251 shell was opt-out).
+ * Plumbing only — no business logic, no Aura.
  *
  * The shell columns (handle, display_name, avatar_path) are anon-granted since
- * 20260814151601, and zodiac_sign since 20260905165133 (#694 — public by decision). `bio` is still always null on this anon path: content columns are not
+ * 20260814151601. The sign is `public_zodiac_sign` (#790): the sign when the member's `zodiac`
+ * facet is 'public', NULL otherwise — anon holds no grant on `zodiac_sign` itself, because a
+ * column grant cannot follow a per-member choice. `bio` is still always null on this anon path: content columns are not
  * granted to anon at the trust boundary (migration 20260614153620 — column-level GRANT),
  * so public bio (when bio:public) stays deferred to a future SECURITY DEFINER RPC that
  * projects only the allowed columns server-side. Dream + tappe are whole-row-public (RLS
@@ -35,7 +37,7 @@ export async function getPublicProfileByHandle(
 ): Promise<PublicProfile | null> {
   const { data: profile, error: pErr } = await client
     .from('profiles')
-    .select('id, handle, display_name, avatar_path, zodiac_sign')
+    .select('id, handle, display_name, avatar_path, public_zodiac_sign')
     .eq('handle', handle)
     .maybeSingle();
   if (pErr) throw pErr;
@@ -81,8 +83,8 @@ export async function getPublicProfileByHandle(
     handle: profile.handle,
     displayName: profile.display_name ?? null,
     avatarUrl,
-    // #694 — anon-granted on the column like the shell; null until the member has a date.
-    zodiacSign: profile.zodiac_sign ?? null,
+    // #790 — null unless the member set the zodiac facet to «Tutti» and has a date.
+    zodiacSign: profile.public_zodiac_sign ?? null,
     bio,
     dream,
   });

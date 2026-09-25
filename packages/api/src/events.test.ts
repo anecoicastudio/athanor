@@ -742,27 +742,44 @@ describe('getEventsByOrganizer', () => {
 describe('getEventAttendees', () => {
   it('returns a head count plus a capped preview, never the full list (PRD §4.5)', async () => {
     const fake = makeFakeClient({
-      'rsvps.select': [{ data: [], count: 42 }, { data: [{ user_id: U }, { user_id: U2 }] }],
+      'rpc.event_going_count': [{ data: 42 }],
+      'rsvps.select': [{ data: [{ user_id: U }, { user_id: U2 }] }],
     });
     const preview = await getEventAttendees(asClient(fake), E, 2);
 
     expect(preview.count).toBe(42);
     expect(preview.userIds).toEqual([U, U2]);
-    expect(fake.calls[0]!.options).toMatchObject({ count: 'exact', head: true });
-    expect(fake.calls[1]!.modifiers).toEqual(expect.arrayContaining([['limit', 2]]));
-    expect(
-      fake.calls.every((c) => c.filters.some((f) => f[1] === 'status' && f[2] === 'going')),
-    ).toBe(true);
+    const rpc = fake.calls.find((c) => c.table === 'rpc');
+    expect(rpc?.columns).toBe('event_going_count');
+    const rows = fake.calls.find((c) => c.table === 'rsvps');
+    expect(rows!.modifiers).toEqual(expect.arrayContaining([['limit', 2]]));
+    expect(rows!.filters.some((f) => f[1] === 'status' && f[2] === 'going')).toBe(true);
+  });
+
+  // #790: RLS hands the ids to the organiser and the attendees only. A member who is neither
+  // gets the count and no faces — the count must not come from counting the rows they can see.
+  it('keeps the count when RLS returns no rows to a member who is not attending', async () => {
+    const fake = makeFakeClient({
+      'rpc.event_going_count': [{ data: 5 }],
+      'rsvps.select': [{ data: [] }],
+    });
+    await expect(getEventAttendees(asClient(fake), E)).resolves.toEqual({
+      count: 5,
+      userIds: [],
+    });
   });
 
   it('reports zero when nobody is going', async () => {
-    const fake = makeFakeClient({ 'rsvps.select': [{ data: [], count: 0 }, { data: [] }] });
+    const fake = makeFakeClient({
+      'rpc.event_going_count': [{ data: 0 }],
+      'rsvps.select': [{ data: [] }],
+    });
     const preview = await getEventAttendees(asClient(fake), E);
     expect(preview).toEqual({ count: 0, userIds: [] });
   });
 
-  it('throws when the count query errors', async () => {
-    const fake = makeFakeClient({ 'rsvps.select': [{ error: { message: 'boom' } }] });
+  it('throws when the count RPC errors', async () => {
+    const fake = makeFakeClient({ 'rpc.event_going_count': [{ error: { message: 'boom' } }] });
     await expect(getEventAttendees(asClient(fake), E)).rejects.toThrow();
   });
 });
@@ -1122,7 +1139,8 @@ describe('events — a null payload is an empty result, not a crash', () => {
 
   it('getEventAttendees reports zero rather than throwing on a null preview', async () => {
     const fake = makeFakeClient({
-      'rsvps.select': [{ count: null }, { data: null }],
+      'rpc.event_going_count': [{ data: null }],
+      'rsvps.select': [{ data: null }],
     });
     await expect(getEventAttendees(asClient(fake), 'e1')).resolves.toEqual({
       count: 0,
