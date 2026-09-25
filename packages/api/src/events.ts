@@ -381,9 +381,13 @@ export async function getMyRsvp(
 /**
  * Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest
  * user_ids. Since #522 that count is the whole audience on a paid event too — the webhook
- * mirrors each settled ticket as a going RSVP, so «N partecipano» stopped reading zero there
- * without this query changing. The preview ids follow: a paid event's attendees are as visible
- * as a free one's, which is the same rule the product already applies to attendance.
+ * mirrors each settled ticket as a going RSVP.
+ *
+ * The two halves have different audiences since #790. The count is for every signed-in
+ * member, so it comes from the `event_going_count` DEFINER RPC. The ids are for the organiser
+ * and the event's attendees only: RLS returns the other members' rows to them and to nobody
+ * else, so for anyone else `userIds` is empty while `count` is not. Counting rows as the client
+ * would read 0 for exactly those members and make a full free event look open.
  */
 export type AttendeePreview = { count: number; userIds: string[] };
 export async function getEventAttendees(
@@ -391,20 +395,18 @@ export async function getEventAttendees(
   eventId: string,
   previewLimit = 4, // 4 = the avatar-stack size on the event detail
 ): Promise<AttendeePreview> {
-  const { count, error: countErr } = await client
-    .from('rsvps')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('status', 'going');
+  // Independent reads — one round trip, not two.
+  const [{ data: count, error: countErr }, { data, error }] = await Promise.all([
+    client.rpc('event_going_count', { p_event_id: eventId }),
+    client
+      .from('rsvps')
+      .select('user_id')
+      .eq('event_id', eventId)
+      .eq('status', 'going')
+      .order('created_at', { ascending: true })
+      .limit(previewLimit),
+  ]);
   if (countErr) throw countErr;
-
-  const { data, error } = await client
-    .from('rsvps')
-    .select('user_id')
-    .eq('event_id', eventId)
-    .eq('status', 'going')
-    .order('created_at', { ascending: true })
-    .limit(previewLimit);
   if (error) throw error;
 
   return {

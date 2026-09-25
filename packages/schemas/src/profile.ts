@@ -163,8 +163,9 @@ export const personProfileSchema = profileSchema
     skills: true,
     profession: true,
     city: true,
-    // #694 — public by decision, no visibility key; NULL on a tombstone. birth_date is never
-    // picked here: the RPC does not project it, and this schema must not suggest it could.
+    // #790 — gated by its own `zodiac` visibility key (absent = members), NULL when hidden and
+    // on a tombstone. birth_date is never picked here: the RPC does not project it, and this
+    // schema must not suggest it could.
     zodiac_sign: true,
     identity_verified: true,
     founding_member: true,
@@ -188,6 +189,13 @@ export const personProfileSchema = profileSchema
      * separate mechanism and does not surface here: it deletes the row outright.
      */
     removed: z.boolean(),
+    /**
+     * True when this member's `/@handle` page resolves for a signed-out reader (#790) — the
+     * anon row policy's predicate, projected. The share sheet carries the link only then:
+     * since #790 a new member starts at «Membri» and has no page. Optional so a build that
+     * reaches a database without 20260925143552 still parses (the handle_changed_at precedent).
+     */
+    has_public_page: z.boolean().optional(),
   });
 
 export type Locale = z.infer<typeof localeSchema>;

@@ -122,6 +122,65 @@ describe('getPublicProfileByHandle — shell name + signed avatar', () => {
     });
   });
 
+  // #790: anon holds no grant on zodiac_sign — selecting it would 42501 and take the page
+  // down. The sign arrives through public_zodiac_sign, NULL unless the member chose «Tutti».
+  it('reads the sign from public_zodiac_sign and never names zodiac_sign', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        {
+          data: {
+            id: PROFILE_ID,
+            handle: 'lucia',
+            display_name: 'Lucia Riva',
+            avatar_path: null,
+            public_zodiac_sign: 'leone',
+          },
+        },
+      ],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      zodiacSign: 'leone',
+    });
+    const cols = fake.calls.find((c) => c.table === 'profiles')?.columns ?? '';
+    expect(cols.split(/,\s*/)).toContain('public_zodiac_sign');
+    expect(cols.split(/,\s*/)).not.toContain('zodiac_sign');
+  });
+
+  // CI's web build prerenders against production, which has no public_zodiac_sign until the
+  // release migrates it. The undefined-column error — and only that one — falls back to the
+  // pre-#790 column; anything else still throws.
+  it('falls back to zodiac_sign when public_zodiac_sign does not exist yet (42703)', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [
+        { error: { code: '42703', message: 'column profiles.public_zodiac_sign does not exist' } },
+        {
+          data: {
+            id: PROFILE_ID,
+            handle: 'lucia',
+            display_name: null,
+            avatar_path: null,
+            zodiac_sign: 'toro',
+          },
+        },
+      ],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).resolves.toMatchObject({
+      handle: 'lucia',
+      zodiacSign: 'toro',
+    });
+    const selects = fake.calls.filter((c) => c.table === 'profiles').map((c) => c.columns);
+    expect(selects).toHaveLength(2);
+    expect(selects[1]).toContain('zodiac_sign');
+  });
+
+  it('does not fall back on any other error — a refused read still throws', async () => {
+    const fake = makeFakeClient({
+      'profiles.select': [{ error: { code: '42501', message: 'permission denied' } }],
+    });
+    await expect(getPublicProfileByHandle(asClient(fake), 'lucia')).rejects.toBeTruthy();
+    expect(fake.calls.filter((c) => c.table === 'profiles')).toHaveLength(1);
+  });
+
   it('never signs when there is no avatar — no storage round-trip for an initials render', async () => {
     const fake = makeFakeClient({
       'profiles.select': [

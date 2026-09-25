@@ -535,6 +535,7 @@
   "profile.saved": "Profile updated.",
   "profile.error": "We couldn't save that. Try again.",
   "profile.identityVerified": "✓ Verified identity",
+  "profile.zodiac.label": "Zodiac sign",
   "profile.zodiac.a11y": "star sign {sign}",
   "profile.visibility.label": "Who can see this",
   "profile.visibility.tagsPrivateHint": "With both «{identity}» and «{seeking}» set to «{private}», you'll stop being matched with anyone.",

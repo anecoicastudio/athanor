@@ -5,9 +5,9 @@ select plan(13);
 
 -- Fixtures: A = bio+dream public (+ active dream + tappa); B = untouched default map;
 -- C = bio public, dream members (+ active dream). Profiles auto-created by handle_new_user.
--- Since 20260814151601 (#251) the default map carries identity:'public' and anon row
--- reachability keys on that facet ALONE (absent key coalesces to 'public'), so all three are
--- anon-reachable: B by the default, A and C because their explicit maps lack the identity key.
+-- Anon row reachability keys on the identity facet ALONE (#251), and an absent key coalesces to
+-- 'public', so A and C are anon-reachable: their explicit maps lack the identity key. B keeps
+-- the untouched default map, which since 20260925143552 (#790) is identity:'members' — anon-dark.
 -- The shell matrix — explicit identity:'members' opt-out, exact column reach, storage,
 -- the dream combo — lives in 0101_public_handle_shell.
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -24,7 +24,7 @@ update public.profiles set handle = 'pub_a', bio = 'Bio A',
   visibility = '{"bio":"public","dream":"public"}'::jsonb
   where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 update public.profiles set handle = 'mem_b', bio = 'Bio B'
-  where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';            -- default map ⇒ identity public (#251)
+  where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';            -- default map ⇒ identity members (#790)
 update public.profiles set handle = 'bio_c', bio = 'Bio C',
   visibility = '{"bio":"public"}'::jsonb
   where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';            -- dream stays members
@@ -50,8 +50,8 @@ set local request.jwt.claims = '';
 
 select results_eq(
   $$ select handle from public.profiles order by handle $$,
-  $$ values ('bio_c'),('mem_b'),('pub_a') $$,
-  'anon reads every profile whose identity facet is public — the #251 default shell'
+  $$ values ('bio_c'),('pub_a') $$,
+  'anon reads every profile whose identity facet is public, and not the default signup (#790)'
 );
 select results_eq(
   $$ select text from public.dreams $$,

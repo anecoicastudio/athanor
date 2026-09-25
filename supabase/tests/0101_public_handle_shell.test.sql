@@ -1,16 +1,17 @@
 -- 0101_public_handle_shell.test.sql
 -- #251 — the default public shell (migration 20260814151601).
 --
--- The ruling: handle + display_name + avatar_path are anon-readable BY DEFAULT through the
--- `identity` visibility facet; a member may set identity:'members' and the whole row goes
+-- The ruling: handle + display_name + avatar_path are anon-readable through the `identity`
+-- visibility facet (by default under #251; opt-in for new members since #790); a member may set identity:'members' and the whole row goes
 -- anon-dark (control beats the default, the dead link is accepted). Four properties carry it:
 --
---   1. A plain signup lands the default map — the shell is opt-OUT, not opt-in.
+--   1. A plain signup lands the default map. Since 20260925143552 (#790) that map is
+--      identity:'members' — the shell became opt-IN for new members; S below opts in.
 --   2. identity:'members' hides the ROW, not just the columns — the role-wide column grant
 --      cannot leak name/face through a row made reachable by some OTHER public facet. This is
 --      the assertion that forced the row policy onto the identity facet alone.
 --   3. An absent identity key (an older client replacing the whole map) falls back to
---      'public' — the DEFAULT — never to an accidental opt-out.
+--      'public' — the #251 default, kept since #790 so no older member's page goes dark.
 --   4. The storage read mirrors the row policy: anon signs a shell member's avatar and
 --      nobody else's.
 --
@@ -23,7 +24,8 @@ create extension if not exists pgtap with schema extensions;
 select plan(14);
 
 -- ── fixtures ──────────────────────────────────────────────────────────────────────────────
--- S = untouched default (the shell case). M = explicit opt-out with OTHER facets public —
+-- S = the opted-in shell (a new signup, then identity:'public' — #790 made that an opt-in).
+-- M = explicit opt-out with OTHER facets public —
 -- the leak probe. F = a map written without an identity key (old-client whole-map replace).
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -40,16 +42,16 @@ values
 -- ── 1. the default map, through the real signup path ──────────────────────────────────────
 select is(
   (select visibility from public.profiles where id = 'a1010000-0000-0000-0000-000000000001'),
-  '{"identity": "public"}'::jsonb,
-  'a plain signup lands visibility = {identity: public} — the shell is the default'
+  '{"identity": "members"}'::jsonb,
+  'a plain signup lands visibility = {identity: members} — no public page until the member opts in (#790)'
 );
 
--- S keeps the default and adds dream:'public' (|| preserves the identity key); M opts the
+-- S opts into the shell and adds dream:'public' (|| overwrites the identity key); M opts the
 -- identity facet out while holding bio+dream public; F simulates an old client replacing the
 -- whole map without an identity entry.
 update public.profiles set handle = 'shell_s',
   avatar_path = 'a1010000-0000-0000-0000-000000000001/a1010000-0000-0000-0000-000000000001.jpg',
-  visibility = visibility || '{"dream": "public"}'::jsonb
+  visibility = visibility || '{"identity": "public", "dream": "public"}'::jsonb
   where id = 'a1010000-0000-0000-0000-000000000001';
 update public.profiles set handle = 'optout_m', bio = 'Bio M',
   avatar_path = 'b1010000-0000-0000-0000-000000000002/b1010000-0000-0000-0000-000000000002.jpg',
@@ -84,7 +86,7 @@ select results_eq(
   $$ select handle, display_name, avatar_path from public.profiles where handle = 'shell_s' $$,
   $$ values ('shell_s', 'Sara Shell',
              'a1010000-0000-0000-0000-000000000001/a1010000-0000-0000-0000-000000000001.jpg') $$,
-  'anon reads exactly the shell of a default member: handle, name, avatar key'
+  'anon reads exactly the shell of an opted-in member: handle, name, avatar key'
 );
 
 -- Content facets stay behind the grant boundary no matter what the visibility map says.
@@ -106,7 +108,9 @@ select is(
   'identity:members hides the whole row even when other facets are public — no name/face leak'
 );
 
--- Property 3: F's map has no identity key at all — reachable, because absent = the default.
+-- Property 3: F's map has no identity key at all — reachable, because an absent key reads as
+-- public. That was the default when #251 wrote it; since #790 it is the legacy reading that
+-- keeps older members' pages up, not the default (new rows carry identity:'members').
 select results_eq(
   $$ select handle from public.profiles order by handle $$,
   $$ values ('legacy_f'), ('shell_s') $$,

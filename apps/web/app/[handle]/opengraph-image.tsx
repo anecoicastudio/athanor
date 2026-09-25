@@ -37,10 +37,13 @@ import { createAnonClient } from '@/utils/supabase/server';
  * And an ISR re-render (any numeric revalidate) would execute in the Worker,
  * hit the redirect branch, and cache a generic card over every personal one
  * five minutes after deploy. The trade is that the card is frozen until the
- * next deploy — a dream edit, a visibility toggle, or the M9 erasure job
- * update the page within 5 minutes but the card only at release. Same class
- * of staleness the deletion commit accepted for the whole route; called out
- * in the PR for the erasure case.
+ * next deploy — a dream edit updates the page within 5 minutes but the card
+ * only at release. Three events do not wait: a rename (#800), a change to the
+ * identity, dream or zodiac visibility facet (#790), and the M9 erasure job
+ * each purge the page and this card from KV (supabase/functions/_shared/
+ * kv-purge.ts). The next request then misses and takes the redirect branch
+ * below, so after a purge the member shows the site-wide card until the next
+ * deploy renders theirs again.
  *
  * What a redeploy does to an ALREADY-cached card (#440, measured against the
  * production namespace on 2026-08-18, not inferred): every incremental-cache

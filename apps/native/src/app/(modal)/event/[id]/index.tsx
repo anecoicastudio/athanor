@@ -246,7 +246,10 @@ export default function EventDetailScreen() {
           <View className="gap-5 px-5">
             <EventCover event={event} locale={locale} />
 
-            {count > 0 ? (
+            {/* Faces only for the organiser and the attendees (#790): RLS hands everyone
+                else no ids, and a stack of nothing but «+N» would be a count dressed as a
+                list. The count itself stays in the meta row below for every member. */}
+            {count > 0 && (attendees.data?.userIds.length ?? 0) > 0 ? (
               <AttendeeStack
                 userIds={attendees.data?.userIds ?? []}
                 count={count}
