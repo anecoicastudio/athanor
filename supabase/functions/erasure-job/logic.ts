@@ -75,6 +75,12 @@ export type ErasureStripe = {
   getSubscriptionStatus: (subscriptionId: string) => Promise<string | null>;
   /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
   cancelSubscription: (subscriptionId: string) => Promise<unknown>;
+  /**
+   * Clear `metadata.profile_id` off the Stripe Customer the membership row names (#763,
+   * ./untag.ts has why only that one). Rejects on any failure, and the loop halts before (3c) on
+   * it. Idempotent: a Customer whose tag is already gone is not written.
+   */
+  untagCustomer: (profileId: string, customerId: string) => Promise<unknown>;
 };
 
 /**
@@ -98,9 +104,25 @@ const SETTLED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired']
  */
 const PERMANENT_STRIPE_CODES = new Set(['resource_missing', 'livemode_mismatch']);
 
-function isPermanentStripeError(e: unknown): boolean {
+export function isPermanentStripeError(e: unknown): boolean {
   const code = (e as { code?: unknown } | null)?.code;
   return typeof code === 'string' && PERMANENT_STRIPE_CODES.has(code);
+}
+
+/**
+ * Settle a port call into «did it reject», decided by the rejection itself rather than by the
+ * truthiness of what it rejected with. `.catch((e) => e)` reads a rejection with `undefined`, `''`
+ * or `0` as success — and on the Stripe steps a false success is a pseudonymisation over a live
+ * subscription or a surviving tag.
+ */
+async function attempt<T>(
+  p: Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> {
+  try {
+    return { ok: true, value: await p };
+  } catch (error) {
+    return { ok: false, error };
+  }
 }
 
 /**
@@ -488,12 +510,15 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     the id we were given, and if it is absent there is nothing to cancel.
       const { data: subRow, error: subReadError } = await db
         .from('circle_memberships')
-        .select('stripe_subscription_id')
+        .select('stripe_subscription_id, stripe_customer_id')
         .eq('profile_id', profileId)
         .maybeSingle();
-      const subscriptionId =
-        (subRow as { stripe_subscription_id?: string | null } | null)?.stripe_subscription_id ??
-        null;
+      const membership = subRow as {
+        stripe_subscription_id?: string | null;
+        stripe_customer_id?: string | null;
+      } | null;
+      const subscriptionId = membership?.stripe_subscription_id ?? null;
+      const customerId = membership?.stripe_customer_id ?? null;
       if (subReadError) {
         // Unread is not «no subscription». Carrying on would pseudonymise the row and lose the
         // only pointer to the thing still taking the member's money.
@@ -525,11 +550,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
           // A status we could not READ is not «already cancelled»: it is treated exactly like a
           // failed cancel, because carrying on would pseudonymise the row and lose the only
           // pointer to the thing still taking the member's money.
-          const status = await stripe
-            .getSubscriptionStatus(subscriptionId)
-            .then((s) => ({ status: s, error: null as unknown }))
-            .catch((e: unknown) => ({ status: null, error: e ?? new Error('status read failed') }));
-          if (status.error) {
+          const status = await attempt(stripe.getSubscriptionStatus(subscriptionId));
+          if (!status.ok) {
             degraded = true;
             cascadeSafe = false;
             billingLive = !isPermanentStripeError(status.error);
@@ -538,24 +560,57 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
               erasureReq.id,
               status.error,
             );
-          } else if (status.status !== null && SETTLED_SUBSCRIPTION_STATUSES.has(status.status)) {
+          } else if (status.value !== null && SETTLED_SUBSCRIPTION_STATUSES.has(status.value)) {
             // Already stopped — by an earlier pass of this same request, by the member through
             // the portal, or by Stripe itself when the first invoice never settled. Nothing to
             // do, and NOT a degradation: the obligation this step exists for is met.
           } else {
-            // `status.status === null` lands here too, and deliberately: Stripe not knowing the
+            // `status.value === null` lands here too, and deliberately: Stripe not knowing the
             // id is a state we have never observed, and attempting the cancel makes it visible
             // as an error on the row rather than passing silently for «already gone».
-            const cancelled = await stripe
-              .cancelSubscription(subscriptionId)
-              .then(() => null)
-              .catch((e: unknown) => e);
-            if (cancelled) {
+            const cancelled = await attempt(stripe.cancelSubscription(subscriptionId));
+            if (!cancelled.ok) {
               degraded = true;
               cascadeSafe = false;
-              billingLive = !isPermanentStripeError(cancelled);
-              console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
+              billingLive = !isPermanentStripeError(cancelled.error);
+              console.error(
+                'erasure-job: subscription cancel failed',
+                erasureReq.id,
+                cancelled.error,
+              );
             }
+          }
+        }
+      }
+
+      // (3b-ter) UNTAG THE CUSTOMER (#763), after the billing is stopped and before (3c).
+      //     `create-circle-checkout` tags every Customer with `metadata.profile_id`, and the
+      //     checkout and portal find a member's Customer BY THAT TAG whenever no membership row
+      //     names one (#759). (3c) takes the row's `profile_id` away; if the tag survived it, an
+      //     erasure withdrawn after (3c) — RELEASE-RUNBOOK §7.5, an operator act on a 'failed'
+      //     row — would leave an account whose next checkout lands on the row's Customer, and the
+      //     webhook would cache that subscription onto the pseudonymised row: billed, and not a
+      //     member in the app. Hence BEFORE (3c), and a failure halts where it stands.
+      //
+      //     Only when the row names a Customer: a member who never reached Circle makes no Stripe
+      //     call here, so Stripe's availability is no condition of erasing them (./untag.ts).
+      //
+      //     A metadata write, not a Stripe state transition (rules/supabase-functions.md, Money):
+      //     it charges, refunds and cancels nothing. It is NOT `billingLive` either — the billing
+      //     is already stopped by now, so a failure here ends 'failed' for an operator rather
+      //     than 'retained' for the nightly retry; the re-drive is safe (RELEASE-RUNBOOK §7.5).
+      if (cascadeSafe && customerId) {
+        if (!stripe) {
+          // Unconfigured is reported, never skipped past — as for the subscription above.
+          degraded = true;
+          cascadeSafe = false;
+          console.error('erasure-job: Stripe unconfigured, Customer not untagged', erasureReq.id);
+        } else {
+          const untagged = await attempt(stripe.untagCustomer(profileId, customerId));
+          if (!untagged.ok) {
+            degraded = true;
+            cascadeSafe = false;
+            console.error('erasure-job: Customer untag failed', erasureReq.id, untagged.error);
           }
         }
       }

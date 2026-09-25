@@ -37,6 +37,8 @@ type Ctx = ErasureCtx & {
   cancelled: string[];
   /** subscription ids whose status the loop READ before cancelling (#717, step 3b-bis) */
   statusRead: string[];
+  /** [profile id, the membership row's customer id] handed to the untag port (#763, 3b-ter) */
+  untagged: [string, string][];
 };
 
 /** No CF_KV_* trio configured — the case #515 forbids treating as a silent skip. */
@@ -58,6 +60,8 @@ const ctx = (
     cancelSubscription?: ErasureStripe['cancelSubscription'] | typeof NO_STRIPE;
     /** a status implementation; the default reports a live subscription, so the cancel runs */
     getSubscriptionStatus?: ErasureStripe['getSubscriptionStatus'];
+    /** an untag implementation; the default resolves, so the cascade carries on (#763) */
+    untagCustomer?: ErasureStripe['untagCustomer'];
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
@@ -68,6 +72,7 @@ const ctx = (
   const deleted: string[] = [];
   const cancelled: string[] = [];
   const statusRead: string[] = [];
+  const untagged: [string, string][] = [];
   return {
     db,
     auth: {
@@ -129,6 +134,12 @@ const ctx = (
                 cancelled.push(id);
                 return Promise.resolve({});
               }),
+            untagCustomer:
+              overrides.untagCustomer ??
+              ((profileId: string, customerId: string) => {
+                untagged.push([profileId, customerId]);
+                return Promise.resolve(true);
+              }),
           },
     revoked,
     removed,
@@ -137,6 +148,7 @@ const ctx = (
     deleted,
     cancelled,
     statusRead,
+    untagged,
   } as unknown as Ctx;
 };
 
@@ -1248,6 +1260,7 @@ Deno.test('the subscription is cancelled at Stripe BEFORE the row is pseudonymis
   const rpcsAtCancel: string[] = [];
   c.stripe = {
     getSubscriptionStatus: () => Promise.resolve('active'),
+    untagCustomer: () => Promise.resolve(true),
     cancelSubscription: (id: string) => {
       rpcsAtCancel.push(...cascadeRpcs(c.db).map((k) => k.columns as string));
       c.cancelled.push(id);
@@ -1622,3 +1635,205 @@ Deno.test(
     assertEquals(transient.body.billingRetained, 1);
   },
 );
+
+// ── #763: the Customer keeps the member's tag ─────────────────────────────────────────────
+//
+// `create-circle-checkout` / `create-circle-portal` find a member's Customer by its
+// `metadata.profile_id` tag when no membership row names one (#759). (3c) nulls the row's
+// `profile_id`, so an erasure withdrawn after (3c) left the account with no row and a tag that
+// still pointed at the old Customer: a subscription minted there lands on the pseudonymised row.
+// The tag is cleared BEFORE (3c), and a failure to clear it halts the cascade where it stands.
+
+Deno.test(
+  'the Customer tag is cleared after the cancel and BEFORE the row is pseudonymised',
+  async () => {
+    const c = ctx({
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    });
+    const order: string[] = [];
+    const cancel = c.stripe!.cancelSubscription;
+    c.stripe!.cancelSubscription = (id) => {
+      order.push('cancel');
+      return cancel(id);
+    };
+    c.stripe!.untagCustomer = (profileId, customerId) => {
+      order.push('untag', ...cascadeRpcs(c.db).map((k) => k.columns as string));
+      c.untagged.push([profileId, customerId]);
+      return Promise.resolve(1);
+    };
+
+    await processErasureRequests(c);
+    assertEquals(c.untagged, [['user-1', 'cus_erased']]);
+    assertEquals(order.slice(0, 2), ['cancel', 'untag']);
+    assert(
+      !order.includes('gdpr_erase_payment_footprint'),
+      'untagging after (3c) would leave a window where the row is gone and the tag is not',
+    );
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['done'],
+    );
+  },
+);
+
+Deno.test('the membership read asks for the Customer id as well as the subscription', async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+  });
+  await processErasureRequests(c);
+  const read = c.db.calls.find((k) => k.table === 'circle_memberships' && k.op === 'select');
+  assert(read?.columns?.includes('stripe_customer_id'), `read ${read?.columns}`);
+});
+
+Deno.test('a member with no membership row makes no Stripe call at all', async () => {
+  // Stripe's availability must be no condition of erasing someone who never reached Circle.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [{ data: null }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.untagged, []);
+  assertEquals(c.cancelled, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['done'],
+  );
+});
+
+Deno.test('a Customer with no subscription is untagged too', async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [
+      { data: { stripe_subscription_id: null, stripe_customer_id: 'cus_lapsed' } },
+    ],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.cancelled, []);
+  assertEquals(c.untagged, [['user-1', 'cus_lapsed']]);
+});
+
+Deno.test('an untag that rejects halts the cascade before (3c): failed, not retained', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    },
+    { untagCustomer: () => Promise.reject(new Error('stripe 503')) },
+  );
+  const res = await processErasureRequests(c);
+  assertEquals(c.cancelled, ['sub_erased']);
+  assert(
+    !c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'),
+    'the row must not be pseudonymised while the tag still points at its Customer',
+  );
+  assertEquals(c.deleted, []);
+  // The billing IS stopped, so this is not the nightly-retried 'retained' state.
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assertEquals((await res.json()).billingRetained, 0);
+});
+
+Deno.test('the untag is not attempted when the cancel already halted the cascade', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    },
+    { cancelSubscription: () => Promise.reject(new Error('stripe down')) },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.untagged, []);
+});
+
+Deno.test('an unconfigured Stripe blocks the erasure of a member with a Customer', async () => {
+  // No subscription to stop, but a tag to clear and no key to clear it with. Same doctrine as
+  // the KV trio: unconfigured is REPORTED, never skipped past.
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: null, stripe_customer_id: 'cus_lapsed' } },
+      ],
+    },
+    { cancelSubscription: NO_STRIPE },
+  );
+  const res = await processErasureRequests(c);
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assertEquals((await res.json()).billingRetained, 0);
+});
+
+Deno.test(
+  'an unconfigured Stripe and no membership row: nothing known to untag, erasure completes',
+  async () => {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [{ data: null }],
+      },
+      { cancelSubscription: NO_STRIPE },
+    );
+    await processErasureRequests(c);
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['done'],
+    );
+  },
+);
+
+Deno.test('a Stripe port rejecting with a falsy reason is still a failure', async () => {
+  // `.catch((e) => e)` read `Promise.reject(undefined)` as success; the cascade then pseudonymised
+  // over a subscription it had not cancelled. Decided by the rejection, not by its value.
+  for (const which of ['cancel', 'untag'] as const) {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [
+          { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+        ],
+      },
+      which === 'cancel'
+        ? { cancelSubscription: () => Promise.reject(undefined) }
+        : { untagCustomer: () => Promise.reject('') },
+    );
+    await processErasureRequests(c);
+    assert(
+      !c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'),
+      `${which}: a falsy rejection must not let (3c) run`,
+    );
+    assertEquals(c.deleted, [], which);
+  }
+});
