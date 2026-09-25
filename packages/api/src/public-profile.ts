@@ -35,12 +35,7 @@ export async function getPublicProfileByHandle(
   client: AthanorClient,
   handle: string,
 ): Promise<PublicProfile | null> {
-  const { data: profile, error: pErr } = await client
-    .from('profiles')
-    .select('id, handle, display_name, avatar_path, public_zodiac_sign')
-    .eq('handle', handle)
-    .maybeSingle();
-  if (pErr) throw pErr;
+  const profile = await readShell(client, handle);
   if (!profile || !profile.handle) return null;
 
   let avatarUrl: string | null = null;
@@ -84,10 +79,53 @@ export async function getPublicProfileByHandle(
     displayName: profile.display_name ?? null,
     avatarUrl,
     // #790 — null unless the member set the zodiac facet to «Tutti» and has a date.
-    zodiacSign: profile.public_zodiac_sign ?? null,
+    zodiacSign: profile.zodiacSign,
     bio,
     dream,
   });
+}
+
+type ShellRow = {
+  id: string;
+  handle: string | null;
+  display_name: string | null;
+  avatar_path: string | null;
+  zodiacSign: string | null;
+};
+
+/**
+ * The anon shell row, across the #790 schema change.
+ *
+ * `apps/web` builds against PRODUCTION (CI's `web build` and `deploy` read the live project),
+ * and production takes migrations only at release, so for a while this code runs against a
+ * database without `public_zodiac_sign`. There the select answers 42703 (undefined column),
+ * and the read falls back to the pre-#790 shape, where anon still holds `zodiac_sign` and the
+ * sign is public by the rule of that schema. On a migrated database the first select
+ * succeeds and the fallback never runs — anon's `zodiac_sign` grant is gone there (42501),
+ * so it could not leak even if it did. The fallback also makes «deploy web, then migrate» a
+ * safe release order (RELEASE-RUNBOOK §4.6 rider). Remove it once production carries
+ * 20260925143552.
+ */
+async function readShell(client: AthanorClient, handle: string): Promise<ShellRow | null> {
+  const current = await client
+    .from('profiles')
+    .select('id, handle, display_name, avatar_path, public_zodiac_sign')
+    .eq('handle', handle)
+    .maybeSingle();
+  if (!current.error) {
+    const row = current.data;
+    return row && { ...row, zodiacSign: row.public_zodiac_sign ?? null };
+  }
+  if (current.error.code !== '42703') throw current.error;
+
+  const legacy = await client
+    .from('profiles')
+    .select('id, handle, display_name, avatar_path, zodiac_sign')
+    .eq('handle', handle)
+    .maybeSingle();
+  if (legacy.error) throw legacy.error;
+  const row = legacy.data;
+  return row && { ...row, zodiacSign: row.zodiac_sign ?? null };
 }
 
 /**

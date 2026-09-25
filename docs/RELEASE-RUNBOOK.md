@@ -754,12 +754,14 @@ Check `supabase/.temp/linked-project.json` reads `athanor` (production) before t
 verify with `select column_name from information_schema.columns where table_name = 'profiles'
 and column_name in ('birth_date', 'zodiac_sign')` returning two rows before tagging.
 
-**Rider — #790 (`20260925143552`) has no safe order, only a short one.** It revokes anon's
-SELECT on `zodiac_sign` and adds `public_zodiac_sign`, and the web build that ships with it
-selects the new column. Migration first: the live Worker still selects `zodiac_sign` as anon
-and every **uncached** `/@handle` render fails 42501 until the deploy lands (cached pages keep
-serving). Deploy first: every render fails 42703. So keep the rule above — push, then deploy
-`apps/web` in the same sitting, with nothing in between. App builds from before #790 keep
+**Rider — #790 (`20260925143552`): here the web goes FIRST.** The migration revokes anon's
+SELECT on `zodiac_sign` and adds `public_zodiac_sign`. The web build that ships with it reads
+the new column and, on 42703 (column absent), falls back to `zodiac_sign`
+(`packages/api/src/public-profile.ts` `readShell`), so it renders against either schema; CI's
+`web build` already proves the old one, since it prerenders against production. The build
+running before it does not: once the migration lands, it selects `zodiac_sign` as anon and
+every **uncached** `/@handle` render fails 42501 (cached pages keep serving). So for this
+release deploy `apps/web` before the db push, or push and deploy in the same sitting. App builds from before #790 keep
 working, with one visible difference for a member who is neither organiser nor attendee: they
 count RSVP rows themselves, now see zero, and a full free event reads as open (the capacity
 trigger still refuses the RSVP).
