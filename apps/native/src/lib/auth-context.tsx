@@ -7,6 +7,7 @@ import { devWarn } from '@/lib/log';
 import { supabase } from './supabase';
 import { flushOnboardingDraft } from './flush-onboarding';
 import { consumePendingReferral } from './referral';
+import { clearRecoveryRequest, readRecoveryRequest } from './recovery-request';
 import { asyncStoragePersister, queryClient } from './query-client';
 import { readProfileWithRetry } from './profile-read';
 import { registerForPush, unregisterPush } from './push';
@@ -109,6 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // #863: the recovery stash's one-hour window is otherwise enforced only when a failed link
+    // reads it, so an address whose link was never opened would sit on disk indefinitely. A
+    // read past the window deletes it; inside the window it is left for auth-callback.
+    void readRecoveryRequest();
     supabase.auth
       .getSession()
       .then(({ data }) => {
@@ -134,6 +139,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // nothing rehydrates into the next session.
         queryClient.clear();
         void asyncStoragePersister.removeClient();
+        // #863: the address a reset was requested for does not outlive a sign-out on a shared
+        // phone. SIGNED_OUT only — this branch also runs on a signed-out cold start
+        // (INITIAL_SESSION, no session), which is exactly how a recovery mail tends to open the
+        // app, and clearing there would erase the stash auth-callback is about to read.
+        if (event === 'SIGNED_OUT') void clearRecoveryRequest();
       } else if (event === 'PASSWORD_RECOVERY') {
         // Recovery-link exchange (auth-callback). The session is live, but AuthGuard
         // must park the member on the new-password sheet instead of routing home.

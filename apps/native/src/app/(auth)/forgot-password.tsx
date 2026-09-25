@@ -6,12 +6,14 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
+import { RecoverySent } from '@/components/RecoverySent';
 import { SectionLabel } from '@/components/SectionLabel';
 import { authErrorKey } from '@/lib/auth-errors';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { useDraftLocale } from '@/hooks/use-draft-locale';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { AUTH_REDIRECT_URL } from '@/lib/oauth';
+import { rememberRecoveryRequest } from '@/lib/recovery-request';
 import { supabase } from '@/lib/supabase';
 
 // Same UX-only gate as (auth)/welcome — the real verdict is Supabase's.
@@ -73,6 +75,9 @@ export default function ForgotPasswordScreen() {
       setError(t(authErrorKey(err), locale));
       return;
     }
+    // #863: auth-callback learns nothing but a code from the link; this is how a dead one
+    // can offer a one-tap resend to the same address.
+    await rememberRecoveryRequest(email);
     setPhase('sent');
   };
 
@@ -104,42 +109,11 @@ export default function ForgotPasswordScreen() {
           </View>
 
           {phase === 'sent' ? (
-            /* Confirmation register, not moment register — the same rule-4 call the
-              signup confirmation makes: nothing has happened yet, a mail is in
-              flight. `success` mark, no ✦, no glow. */
-            <View className="mt-6 gap-4">
-              <SectionLabel tone="aura">{t('auth.forgot.sent.eyebrow', locale)}</SectionLabel>
-              <Text
-                accessibilityRole="header"
-                className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-              >
-                {t('auth.forgot.sent.title', locale)}
-              </Text>
-
-              <View className="mt-2 gap-3 rounded-hero border border-hair bg-raise p-5">
-                <Text
-                  className="text-2xl text-success"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                >
-                  ✓
-                </Text>
-                <Text className="text-[15px] leading-[22px] text-foreground">
-                  {t('auth.forgot.sent.body', locale, { email: email.trim() })}
-                </Text>
-                {/* The one failure copy can prevent: a link opened on another device
-                  has no code-verifier to meet it (PKCE) and dies as «varco scaduto». */}
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('auth.forgot.sent.hint', locale)}
-                </Text>
-              </View>
-
-              <Button
-                variant="ghost"
-                label={t('auth.forgot.sent.changeEmail', locale)}
-                onPress={() => setPhase('idle')}
-              />
-            </View>
+            <RecoverySent
+              email={email.trim()}
+              locale={locale}
+              onChangeEmail={() => setPhase('idle')}
+            />
           ) : (
             <>
               <View className="mt-6 gap-3">
