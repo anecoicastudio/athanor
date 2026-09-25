@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Linking } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
@@ -13,7 +14,10 @@ import { Screen } from '@/components/Screen';
 
 /**
  * GDPR data export (09 §3.5.1). Request → processing → ready, or → failed (#721), which is
- * terminal and re-requestable from the same button. The archive is assembled server-side
+ * terminal and re-requestable from the same button. A ready archive lives 7 days (#784): the link
+ * is signed for the whole window and the nightly pass then deletes the archive and the row, so
+ * past `expires_at` the screen says the link has expired and offers the request button again —
+ * never a Download button on a dead link. The archive is assembled server-side
  * by the gdpr-export-job; BOTH terminal outcomes send a gdprExport notification that routes back
  * here — ready (#129), where the time-limited signed link is served, and failed (#721), where the
  * request button is the retry. Neutral chrome, flat cyan
@@ -23,6 +27,9 @@ export default function DataExportScreen() {
   const locale = useLocale();
   const qc = useQueryClient();
   const { showToast } = useToast();
+  // The clock the expiry is read against: when the screen opened. Render must stay pure, and a
+  // screen held open across the moment a 7-day link expires is not a case worth a timer.
+  const [openedAt] = useState(() => Date.now());
 
   const job = useQuery({
     queryKey: gdprKeys.exportStatus(),
@@ -30,7 +37,12 @@ export default function DataExportScreen() {
   });
   const status = job.data?.status ?? null;
   const pending = status === 'requested' || status === 'processing';
-  const ready = status === 'ready' && !!job.data?.download_url;
+  const expiresAt = job.data?.expires_at ? Date.parse(job.data.expires_at) : Number.NaN;
+  // Past the window the row may still be there for a few hours until the nightly reap; it must not
+  // read as ready. An unparseable expiry is treated as expired — the request button is the safe
+  // side, a dead link is not.
+  const expired = status === 'ready' && !(expiresAt > openedAt);
+  const ready = status === 'ready' && !!job.data?.download_url && !expired;
   // Terminal (#721): the archive could not be produced or handed over. The retry is the ordinary
   // request button below, which files a NEW job — a failed one is never re-claimed.
   const failed = status === 'failed';
@@ -64,6 +76,14 @@ export default function DataExportScreen() {
           <View className="rounded-card border border-hair bg-raise p-5">
             <Text className="text-[14px] leading-relaxed text-muted-foreground">
               {t('gdpr.export.failed', locale)}
+            </Text>
+          </View>
+        ) : null}
+
+        {expired ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('gdpr.export.expired', locale)}
             </Text>
           </View>
         ) : null}

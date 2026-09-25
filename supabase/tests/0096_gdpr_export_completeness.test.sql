@@ -24,7 +24,7 @@ insert into gdpr_exported values
   ('moments'), ('momento_proposals'), ('story_segments'), ('story_reactions'),
   ('projects'), ('favor_offers'),
   ('events'), ('athanor_days_interest'), ('rsvps'), ('event_tickets'), ('event_attendance'),
-  ('messages'), ('conversation_reads'), ('connection_requests'), ('connections'), ('blocks'), ('reports'),
+  ('conversations'), ('messages'), ('conversation_reads'), ('connection_requests'), ('connections'), ('blocks'), ('reports'),
   ('notifications'), ('notification_preferences'), ('push_tokens'),
   ('aura_events'), ('aura_scores'), ('stars'),
   ('dream_candidacies'), ('realization_plans'), ('realization_plan_phases'),
@@ -32,10 +32,11 @@ insert into gdpr_exported values
   ('payout_accounts'), ('realization_updates'),
   ('invites'), ('consent'), ('verifications'), ('gdpr_export_jobs'), ('gdpr_erasure_requests');
 
--- personal-data-adjacent tables deliberately NOT in the archive, each with its reason
+-- personal-data-adjacent tables deliberately NOT in the archive, each with its reason.
+-- `conversations` was here until #784 ("the row itself mostly names the counterpart"); it is
+-- exported now that gdpr-export-job redacts the counterpart to a handle before assembly.
 create temp table gdpr_excluded (t text primary key, reason text not null);
 insert into gdpr_excluded values
-  ('conversations',  'pairwise container: the member''s content is the messages (exported); the row itself mostly names the counterpart'),
   ('audit_log',      'moderation internals: actor_id is the acting admin, not the member; verdicts reach the member as notifications (exported)'),
   ('push_receipts',  'transient delivery telemetry, purged by the receipt sweep — no durable member content'),
   ('event_reminder_sends', 'athanor: dispatch dedupe markers for event reminders (#126); derivable from rsvps + notifications (both exported), reaped after 30 days, dropped with the profile by FK'),

@@ -2394,3 +2394,19 @@ last_read_at AND last_message_sender_id <> me` (`20260902153057`), and v1 moved 
 replace` keeps the existing ACL, so restating them changes nothing — but the reason given is not
   the real one. pgTAP `0156` asserts that no client role can execute
   `athanor.enqueue_handle_rename_purge()`.
+
+## `20260620140149_m9_gdpr_export_erasure.sql` — «the job deletes the object» was true of no code until #784
+
+- **«To cut off access, the job deletes the object»** (the `exports` bucket comment). No code
+  deleted an export object before `20260925154710`; archives stayed until the member's erasure
+  swept their prefix, and /privacy said so («kept as long as you have the account»). Since #784
+  gdpr-export-job's nightly pass deletes every `exports` object no live job protects
+  (`gdpr_export_reap_candidates`) and every row past its window (`gdpr_export_reap_jobs`). pgTAP
+  `0158` asserts both predicates.
+- **«104857600»** is no longer the bucket's ceiling: `20260925154710` §1 raises it to 200 MiB,
+  because the archive now holds copies of the member's media and a candidacy video can be that
+  large.
+- The `20260827110034` entry above quotes the archive key as `${job.profile_id}/${job.id}.json`.
+  Since #784 the writer uses `{uid}/{job}/archive.json` with media under `{uid}/{job}/media/…`.
+  The first segment is still the member's id, so the erasure prefix sweep still covers every
+  object, and `0137`'s `{uid}/` fixture is still the right shape.

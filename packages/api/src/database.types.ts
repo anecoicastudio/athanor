@@ -3514,6 +3514,28 @@ export type Database = {
         Args: { p_profile_id: string }
         Returns: undefined
       }
+      gdpr_export_media: {
+        Args: {
+          p_after_bucket?: string
+          p_after_name?: string
+          p_limit?: number
+          p_profile_id: string
+        }
+        Returns: {
+          bucket_id: string
+          created_at: string
+          mimetype: string
+          name: string
+          size: number
+        }[]
+      }
+      gdpr_export_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
+      }
+      gdpr_export_reap_jobs: { Args: never; Returns: number }
       gdpr_purge_waitlist_email: { Args: { p_email: string }; Returns: number }
       gdpr_redact_stripe_identity: { Args: { p_payload: Json }; Returns: Json }
       gdpr_release_profile_references: {
