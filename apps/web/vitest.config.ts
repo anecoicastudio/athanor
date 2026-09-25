@@ -31,7 +31,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['lib/**', 'utils/**', 'app/**/*.ts'],
-      exclude: ['**/*.test.ts'],
+      // `**/*.tsx` because the include glob alone does not hold the line drawn above: a page
+      // a test imports for its metadata (app/canonical.test.ts, app/dream/[id]/metadata.test.ts)
+      // is reported anyway, render function and all — a denominator no unit test can move.
+      exclude: ['**/*.test.ts', '**/*.tsx'],
       // Ratcheted 2026-08-21 (issue #423) from 85/95/72/85. The old floors dated from
       // 2026-08-08 and their rationale — "the four modules with no logic of their own" —
       // had stopped being true: `lib/mandorla-svg.ts` was already fully covered, and the
