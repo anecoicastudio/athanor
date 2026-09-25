@@ -701,7 +701,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: "Dall'app",
         body: [
-          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}». Scaricala prima di chiedere la cancellazione: finché l'archivio è in preparazione l'app non ti lascia procedere, e un archivio non ancora scaricato viene cancellato insieme all'account.`,
+          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}». Scaricala prima di chiedere la cancellazione: mentre l'archivio è in preparazione l'app ti chiede di aspettare, e un archivio non ancora scaricato viene cancellato insieme all'account.`,
           `1. Apri la scheda «${tIt('tabs.profile')}» e tocca la piccola ruota delle impostazioni («${tIt('settings.title')}»).`,
           `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
           `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
@@ -741,7 +741,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'From the app',
         body: [
-          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”. Download it before you request deletion: while the archive is being prepared the app won't let you go ahead, and an archive you haven't downloaded yet is deleted along with your account.`,
+          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”. Download it before you request deletion: while the archive is being prepared the app asks you to wait, and an archive you haven't downloaded yet is deleted along with your account.`,
           `1. Open the “${tEn('tabs.profile')}” tab and tap the small settings wheel (“${tEn('settings.title')}”).`,
           `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
           `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,
