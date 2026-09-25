@@ -24,6 +24,7 @@ import {
   STRIPE_API_VERSION,
   stripeClient,
   verifyWithAnySecret,
+  webhookRequiresLivemode,
   webhookSigningSecrets,
 } from './stripe.ts';
 
@@ -369,4 +370,41 @@ Deno.test('a tampered body no longer matches its own signature', async () => {
   const payload = JSON.stringify({ id: 'evt_1', type: 'account.updated', data: {} });
   const { sig, verifyEvent } = await signedDelivery(payload, CONNECT_SECRET);
   await assertRejects(() => verifyEvent(payload.replace('evt_1', 'evt_2'), sig), Error);
+});
+
+// ── livemode guard flag (#802) ───────────────────────────────────────────────
+
+Deno.test('webhookRequiresLivemode is off while the flag is unset or blank (fail-open)', () => {
+  // The test-mode rehearsal on production runs with the flag unset, so absence must never refuse.
+  assertEquals(webhookRequiresLivemode(env({})), false);
+  for (const raw of ['', '   ', '\n']) {
+    assertEquals(
+      webhookRequiresLivemode(env({ STRIPE_WEBHOOK_REQUIRE_LIVEMODE: raw })),
+      false,
+      `blank ${JSON.stringify(raw)} reads as unset`,
+    );
+  }
+});
+
+Deno.test('webhookRequiresLivemode is off only for an explicit false', () => {
+  for (const raw of ['false', 'FALSE', ' False ', '0']) {
+    assertEquals(
+      webhookRequiresLivemode(env({ STRIPE_WEBHOOK_REQUIRE_LIVEMODE: raw })),
+      false,
+      raw,
+    );
+  }
+});
+
+Deno.test('webhookRequiresLivemode is on for any other value, typos included', () => {
+  // An operator who set the variable meant to turn the guard on. Reading a typo as «off» would
+  // fail open on production silently — the one direction this flag exists to prevent.
+  for (const raw of ['true', 'TRUE', '1', 'yes', 'ture']) {
+    assertEquals(webhookRequiresLivemode(env({ STRIPE_WEBHOOK_REQUIRE_LIVEMODE: raw })), true, raw);
+  }
+});
+
+Deno.test('webhookRequiresLivemode reads its own name and nothing else', () => {
+  assertEquals(webhookRequiresLivemode(env({ STRIPE_REQUIRE_LIVEMODE: 'true' })), false);
+  assertEquals(webhookRequiresLivemode(env({ STRIPE_WEBHOOK_SECRET: 'true' })), false);
 });

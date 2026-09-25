@@ -28,6 +28,12 @@ export type WebhookCtx = {
   verifyEvent: (raw: string, sig: string) => Promise<Stripe.Event>;
   /** stripe.subscriptions.retrieve — only the W11 reconcile path calls Stripe outbound */
   retrieveSubscription: (id: string) => Promise<Stripe.Subscription>;
+  /**
+   * Ack-and-ignore any delivery whose `livemode` is not `true` (#802). Absent = off: the guard is
+   * fail-open, so production's test-mode rehearsal runs with it unset. index.ts resolves it per
+   * request from STRIPE_WEBHOOK_REQUIRE_LIVEMODE through _shared/stripe.ts.
+   */
+  requireLivemode?: boolean;
 };
 
 /**
@@ -425,10 +431,25 @@ async function revokeTicket(db: Db, paymentIntentRef: unknown): Promise<void> {
  * W4 — a charge refunded. The payment intent belongs to exactly one of the two purchasable
  * things (a fund contribution or an event ticket), so both reversals run and at most one
  * matches. Match by payment_intent; ack if not found.
+ *
+ * Stripe sends this event «whenever a charge is refunded, including partial refunds», and
+ * `charge.refunded` is true only once the charge is refunded IN FULL (#802). The two arms read
+ * that differently, on purpose:
+ *
+ * - The ticket is revoked only on a full refund. A partial one — a goodwill gesture, a venue
+ *   change — leaves a ticket the buyer still paid for, so the door pass and the RSVP stay. The
+ *   delivery that finally reaches the full amount carries `refunded: true` and revokes then.
+ * - The contribution is reversed on ANY refund. Contribution refunds are partial by instruction
+ *   (RELEASE-RUNBOOK §4.7: refund exactly the gift, never the coverage), so gating this arm too
+ *   would leave a correctly refunded gift on the public ticker forever. reverseContribution's
+ *   docblock has why whole-row is exact there.
+ *
+ * The gate sits here and not in revokeTicket, because W12 shares revokeTicket and a dispute
+ * revokes whatever its amount.
  */
 export async function handleChargeRefunded(db: Db, charge: Stripe.Charge): Promise<void> {
   await reverseContribution(db, charge.payment_intent);
-  await revokeTicket(db, charge.payment_intent);
+  if (charge.refunded === true) await revokeTicket(db, charge.payment_intent);
 }
 
 /**
@@ -852,9 +873,29 @@ export async function handleWebhook(ctx: WebhookCtx, req: Request): Promise<Resp
     return new Response('bad signature', { status: 400 });
   }
 
+  // 1b) LIVEMODE GUARD (#802) — after the signature, because `livemode` is only trustworthy once
+  // the bytes are verified; before the ledger, so a refused delivery leaves NO row and touches no
+  // money table. `!== true` rather than `=== false`: with the flag on, an event that does not say
+  // it is live is not let through.
+  //
+  // It ACKS (200) rather than failing, on purpose. Stripe delivers a connected account's
+  // TEST-mode events to the production «Connected accounts» endpoint too — «production webhook
+  // URLs receive both live and test webhooks» (docs.stripe.com/connect/webhooks) — signed with
+  // that live endpoint's secret. A non-2xx would have Stripe retry every one of them for days,
+  // mixed into the live endpoint's traffic, and sustained failures are what gets an endpoint
+  // disabled: W13 would go quiet exactly as #702 did. Stripe's own advice is to check livemode
+  // and decide; here the decision is «acknowledged, not processed». One log line, names only —
+  // the event id and type, never the payload — so an operator can still see the refusals.
+  if (ctx.requireLivemode && event.livemode !== true) {
+    console.warn('test-mode event ignored (STRIPE_WEBHOOK_REQUIRE_LIVEMODE)', event.id, event.type);
+    return new Response('test-mode event ignored', { status: 200 });
+  }
+
   // 2) IDEMPOTENCY GATE — upsert the ledger row, branch on processed_at (00 §7 / 08 §4.1).
   // A failed ledger write breaks the dedupe guarantee (a later processed_at update would target a
   // missing row → Stripe retries reprocessing), so a ledger error must 500 and let Stripe retry.
+  // The row's mode is queryable as `stripe_webhook_events.livemode` (#802), a column GENERATED
+  // from `payload` — so it is never written here, and a delivery can never leave it out.
   const { error: ledgerErr } = await db.from('stripe_webhook_events').upsert(
     {
       event_id: event.id,

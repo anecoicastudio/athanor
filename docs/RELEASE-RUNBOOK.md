@@ -430,15 +430,16 @@ silently, until the ids are swapped too. That is a feature of the fix, not a reg
 alternative was quoting a price nobody could be charged. It does mean the price ids are no
 longer the low-stakes member of this table.
 
-| Variable                        | Read at                                                                                                                                          | Live value                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`             | `supabase/functions/_shared/stripe.ts:52`                                                                                                        | the live-mode secret key, or a restricted key                 |
-| `STRIPE_WEBHOOK_SECRET`         | `supabase/functions/_shared/stripe.ts:154` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:13`)                                   | the new live **Your account** endpoint's signing secret       |
-| `STRIPE_CONNECT_WEBHOOK_SECRET` | `supabase/functions/_shared/stripe.ts:155` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
-| `STRIPE_PRICE_CIRCLE_MONTHLY`   | `supabase/functions/_shared/stripe.ts:124` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
-| `STRIPE_PRICE_CIRCLE_ANNUAL`    | `supabase/functions/_shared/stripe.ts:125` (same resolver)                                                                                       | the live-mode price id                                        |
+| Variable                          | Read at                                                                                                                                          | Live value                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`               | `supabase/functions/_shared/stripe.ts:52`                                                                                                        | the live-mode secret key, or a restricted key                 |
+| `STRIPE_WEBHOOK_SECRET`           | `supabase/functions/_shared/stripe.ts:168` (`webhookSigningSecrets`, resolved at `stripe-webhook/index.ts:14`)                                   | the new live **Your account** endpoint's signing secret       |
+| `STRIPE_CONNECT_WEBHOOK_SECRET`   | `supabase/functions/_shared/stripe.ts:169` (same resolver, #702)                                                                                 | the new live **Connected accounts** endpoint's signing secret |
+| `STRIPE_PRICE_CIRCLE_MONTHLY`     | `supabase/functions/_shared/stripe.ts:138` (`circlePriceIds`, the one resolver both `create-circle-checkout` and `get-circle-prices` call, #674) | the live-mode price id                                        |
+| `STRIPE_PRICE_CIRCLE_ANNUAL`      | `supabase/functions/_shared/stripe.ts:139` (same resolver)                                                                                       | the live-mode price id                                        |
+| `STRIPE_WEBHOOK_REQUIRE_LIVEMODE` | `supabase/functions/_shared/stripe.ts:189` (`webhookRequiresLivemode`, resolved at `stripe-webhook/index.ts:15`, #802)                           | `true` — `stripe-webhook` then refuses every test-mode event  |
 
-Those five are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
+Those six are the whole set: no other `STRIPE_*` **environment variable** is read anywhere in the
 repo. Other names look like they belong here and do not. `STRIPE_API_VERSION` is a code
 constant (`supabase/functions/_shared/stripe.ts:19`), deliberately, so that it cannot be set
 per-environment and must move in lockstep with the Dashboard webhook endpoint —
@@ -470,10 +471,85 @@ connected one, so they arrive on the «Your account» endpoint).
    (#246) for `account.updated`. Read the last one whole, and the **Stripe https return pages**
    rider (#418) with it: live mode is where Stripe starts rejecting the non-HTTPS return URLs those
    two riders configure, so a cutover that only swaps keys can still land a broken Connect flow.
-3. **Set all five variables together** on production, with
+3. **Set all six variables together** on production, with
    `supabase secrets set --project-ref kwzeiqvrnnaagccyoose`. The signing secret exists only once
    step 2 has run, which is why it comes last and why unset is the right interim state rather than a
    gap to be filled early.
+
+   `STRIPE_WEBHOOK_REQUIRE_LIVEMODE=true` is the one that closes the rehearsal (#802). Unset, the
+   webhook accepts test-mode events — that is what lets production run a test-mode rehearsal at
+   all. Set, it answers every event whose `livemode` is not `true` with `200 test-mode event
+ignored` after verifying the signature and **before** writing the ledger: the event leaves no
+   `stripe_webhook_events` row and touches no money table. It acks rather than fails because
+   Stripe sends connected accounts' **test-mode** events to the live «Connected accounts»
+   endpoint as well (docs.stripe.com/connect/webhooks: production URLs «receive both live and
+   test webhooks»), and failing those would retry each one for days against the live endpoint's
+   failure budget. The cost is that a stray test-mode endpoint aimed at production does not show
+   as failing — step 4's inventory is what finds it, and every ignored event logs one
+   `test-mode event ignored` line (id and type) in the function logs. **This flag is not
+   optional once Connect is live:** without it those connected-account test events are
+   processed. Every value except unset, blank, `false` and `0` turns it on, typos included. It is
+   read per request, so it binds as soon as the secret is set. It needs the #802 `stripe-webhook`
+   deployed (§4.3); an older deploy ignores the variable.
+
+   **Then clear the rehearsal's rows.** Every ledger row carries its event's mode in
+   `stripe_webhook_events.livemode` (#802) — a column generated from `payload`, so it covers
+   every row ever written, and `NULL` means only that the payload carried no boolean `livemode`. The rehearsal's money rows reference Stripe
+   objects that exist only in test mode, and live mode will never send an event about them, so
+   nothing else will ever correct them. First the inventory — read-only, run it and read it:
+
+   ```sql
+   -- Stripe ids every test-mode event named.
+   with t as (
+     select type,
+            payload #>> '{data,object,id}'             as obj,
+            payload #>> '{data,object,payment_intent}' as pi,
+            payload #>> '{data,object,customer}'       as cus
+       from public.stripe_webhook_events
+      where livemode = false
+   )
+   select 'event_tickets' as tbl, count(*) from public.event_tickets
+    where stripe_payment_id in (select pi from t)
+   union all
+   select 'fund_contributions', count(*) from public.fund_contributions
+    where stripe_checkout_session_id in (select obj from t)
+       or stripe_payment_intent_id in (select pi from t)
+   union all
+   select 'circle_memberships', count(*) from public.circle_memberships
+    where stripe_customer_id in (select cus from t)
+   union all
+   select 'verifications', count(*) from public.verifications
+    where stripe_session_id in (select obj from t)
+   union all
+   select 'payout_accounts', count(*) from public.payout_accounts
+    where stripe_account_id in (select obj from t where type = 'account.updated')
+   union all
+   select 'fund_payout_ledger', count(*) from public.fund_payout_ledger
+    where stripe_transfer_id in (select obj from t where type like 'transfer.%')
+   union all
+   select 'ledger rows: test mode', count(*) filter (where livemode = false)
+     from public.stripe_webhook_events
+   union all
+   select 'ledger rows: mode unrecorded', count(*) filter (where livemode is null)
+     from public.stripe_webhook_events;
+   ```
+
+   The ledger names only what an event touched, and two rows can exist without one: a
+   `payout_accounts` row is created by `create-payout-onboarding` before Stripe has sent anything,
+   and a `fund_payout_ledger` row by the release path before its `transfer.created`. Production's
+   money tables held **0 rows** before the rehearsal (#802, 2026-09-19), so cross-check each table
+   by `created_at` against the moment of step 3 as well — a row created before the swap that the
+   query above does not count is a rehearsal row the ledger never saw.
+
+   Deleting them is a **hand decision per table, never a blind sweep**, and each has a
+   side effect that is not in the row itself: a deleted ticket leaves its mirrored `rsvps` row at
+   `going` (#522); a deleted contribution leaves the ticker counting it until
+   `select public.recompute_fund_aggregate('<edition id>')` runs; a deleted verification leaves
+   `profiles.identity_verified` (and anything the score engine awarded for it) exactly where the
+   test event put it. Keep the `stripe_webhook_events` rows themselves: they are
+   the record of what was removed, and deleting them would also delete the only evidence of which
+   rows were test-mode.
+
 4. **Re-take the inventory** above, and confirm three things: no test-mode endpoint points at
    production, the Vercel endpoint is identified or gone, and exactly one live-mode endpoint points
    at production.
@@ -835,6 +911,21 @@ are not offered, the charge is not a destination charge — stop and find out wh
 Neither flag returns Stripe's **processing fee**, which is not refunded on a refund. Athanor is out
 that amount on every refunded ticket regardless of the flags, because the platform is the one that
 paid it (`controller.fees.payer: 'application'` on these accounts).
+
+#### Full or partial — what the ticket does (#802)
+
+**A ticket is revoked only by a FULL refund.** Stripe sends `charge.refunded` for partial refunds
+too, and `stripe-webhook` revokes the ticket (status `refunded`, QR nulled, RSVP cancelled) only
+when the event's `charge.refunded` is `true` — Stripe's «fully refunded» flag
+(`handleChargeRefunded` in `supabase/functions/stripe-webhook/handlers.ts`). A partial refund — a
+goodwill gesture, a venue change — leaves the ticket valid: the buyer still paid for a seat and
+still gets in. Several partials that together reach the full amount revoke on the one that
+completes it. So: **to cancel a ticket, refund it in full; to compensate a buyer who is still
+coming, refund part of it.** There is no third outcome. A dispute revokes whatever its amount.
+
+Fund contributions read the same event the other way: a contribution leaves the ticker on **any**
+refund, partial included, because the refund the contribution rule below asks for is the gift alone — a
+partial refund of the charge by design.
 
 #### Disputes
 
