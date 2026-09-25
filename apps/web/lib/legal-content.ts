@@ -242,7 +242,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.it,
           ...ERASURE_KEEPS.it,
           'Le segnalazioni che riguardano te o i tuoi contenuti, con le decisioni prese, restano anche dopo; le cancelliamo quando chi le ha fatte elimina il proprio account. Quelle che hai fatto tu le cancelliamo con il tuo account.',
-          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo 7 giorni, per tutto il tempo in cui vale il collegamento per scaricarlo; poi lo cancelliamo, e puoi chiederne uno nuovo quando vuoi.`,
+          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo 7 giorni, per tutto il tempo in cui vale il collegamento per scaricarlo; poi lo cancelliamo, e puoi chiederne uno nuovo quando vuoi. Se elimini l'account prima di averlo scaricato, l'archivio viene cancellato insieme all'account.`,
         ],
       },
       {
@@ -414,7 +414,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.en,
           ...ERASURE_KEEPS.en,
           'Reports concerning you or your content, with the decisions taken on them, remain afterwards; we delete them when the person who made them deletes their own account. Reports you made are deleted with your account.',
-          `The archive we prepare with “${tEn('settings.export.title')}” is kept for 7 days, as long as the link to download it works; then we delete it, and you can ask for a new one whenever you like.`,
+          `The archive we prepare with “${tEn('settings.export.title')}” is kept for 7 days, as long as the link to download it works; then we delete it, and you can ask for a new one whenever you like. If you delete your account before downloading it, the archive is deleted along with your account.`,
         ],
       },
       {
@@ -701,7 +701,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: "Dall'app",
         body: [
-          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}».`,
+          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}». Scaricala prima di chiedere la cancellazione: mentre l'archivio è in preparazione l'app ti chiede di aspettare, e un archivio non ancora scaricato viene cancellato insieme all'account.`,
           `1. Apri la scheda «${tIt('tabs.profile')}» e tocca la piccola ruota delle impostazioni («${tIt('settings.title')}»).`,
           `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
           `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
@@ -741,7 +741,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'From the app',
         body: [
-          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”.`,
+          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”. Download it before you request deletion: while the archive is being prepared the app asks you to wait, and an archive you haven't downloaded yet is deleted along with your account.`,
           `1. Open the “${tEn('tabs.profile')}” tab and tap the small settings wheel (“${tEn('settings.title')}”).`,
           `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
           `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,

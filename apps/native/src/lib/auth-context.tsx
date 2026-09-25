@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
-import { getOwnProfile } from '@athanor/api';
+import { getOwnProfile, hasOpenErasureRequest } from '@athanor/api';
 import { nextOnboardingStep } from '@athanor/core';
 import type { Profile } from '@athanor/schemas';
 import { devWarn } from '@/lib/log';
@@ -24,6 +25,11 @@ type AuthState = {
    *  to the onboarding funnel. Only the catch paths set it, so the guard can tell
    *  a broken read apart from a new account and show something instead of freezing. */
   profileError: boolean;
+  /** #735 — the member has an erasure request that is not `done`. The server already denies
+   *  every social write while one exists (athanor.is_active()); this is what lets a SECOND
+   *  device, signed in before the tap, say «in cancellazione» instead of a bare 42501. Read at
+   *  bootstrap, on every return to the foreground, and on refreshProfile. False when unread. */
+  erasureOpen: boolean;
   refreshProfile: () => Promise<void>;
   /** End the session. Unregisters the push token FIRST — after auth signOut the
    *  DELETE on push_tokens would run as anon, which the grants deny by design
@@ -52,6 +58,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   flushing: false,
   profileError: false,
+  erasureOpen: false,
   refreshProfile: async () => {},
   signOut: async () => {},
   registerPush: async () => {},
@@ -66,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [flushing, setFlushing] = useState(false);
   const [profileError, setProfileError] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
+  const [erasureOpen, setErasureOpen] = useState(false);
   const sessionRef = useRef<Session | null>(null);
   const pushTokenRef = useRef<string | null>(null);
 
@@ -88,12 +96,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearRecovery = useCallback(() => setRecoveryPending(false), []);
 
+  // #735 — a failed read keeps the last known answer rather than flipping to «no request»: the
+  // banner is the only explanation the member gets for writes that fail, so losing it on one
+  // dropped request would put the bare 42501 back. The answer is for ONE identity: it is dropped
+  // the moment the user id changes (onAuthStateChange below), so it never carries across a
+  // SIGNED_IN that swaps accounts without a SIGNED_OUT. Reads overlap — bootstrap, foreground,
+  // refreshProfile — so only the newest one may write.
+  const erasureReadSeq = useRef(0);
+  const readErasure = useCallback(async () => {
+    const userId = sessionRef.current?.user.id ?? null;
+    if (!userId) return;
+    const seq = ++erasureReadSeq.current;
+    try {
+      const open = await hasOpenErasureRequest(supabase);
+      if (seq === erasureReadSeq.current && sessionRef.current?.user.id === userId) {
+        setErasureOpen(open);
+      }
+    } catch (e) {
+      devWarn('[auth] erasure read', e);
+    }
+  }, []);
+
   const refreshProfile = useCallback(async () => {
     const userId = sessionRef.current?.user.id ?? null;
     if (!userId) {
       setProfile(null);
       return;
     }
+    void readErasure();
     try {
       // #512 — «Riprova» is the member's one way out of the error screen; leaving IT
       // single-attempt meant one more dropped request put them straight back on it.
@@ -107,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // keep prior profile; next session change or manual refresh retries
       setProfileError(true);
     }
-  }, []);
+  }, [readErasure]);
 
   useEffect(() => {
     // #863: the recovery stash's one-hour window is otherwise enforced only when a failed link
@@ -122,6 +152,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => setLoading(false));
     const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (sessionRef.current?.user.id !== next?.user.id) {
+        // #735 — another identity: the previous one's erasure state is not this one's, and an
+        // in-flight read for it must not land.
+        erasureReadSeq.current++;
+        setErasureOpen(false);
+      }
       sessionRef.current = next;
       setSession(next);
       if (!next) {
@@ -212,6 +248,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [userId, refreshProfile]);
 
+  // #735 — the open erasure request, per identity and again on every return to the foreground:
+  // the tap usually happens on ANOTHER device while this one sits in the background, and a
+  // read keyed only on userId would never see it. The JWT this device holds stays valid for up
+  // to an hour after the tap, so the own-read still answers.
+  useEffect(() => {
+    if (!userId) return;
+    // Deferred a tick, like the hydration above: readErasure only sets state after its await,
+    // but the hooks lint cannot see past the call.
+    void Promise.resolve().then(readErasure);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void readErasure();
+    });
+    return () => sub.remove();
+  }, [userId, readErasure]);
+
   // Referral (#78): the stash is spent here, not on the auth screens. An OAuth signup carries
   // no user_metadata, so athanor.redeem_referral — which reads the code out of exactly that —
   // never sees one from a trigger, and every Google or Apple member arrived attributed to
@@ -232,6 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         flushing,
         profileError,
+        erasureOpen,
         refreshProfile,
         signOut,
         registerPush,

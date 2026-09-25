@@ -1,4 +1,9 @@
-import { type GdprExportJob, gdprExportJobSchema, gdprRequestInsertSchema } from '@athanor/schemas';
+import {
+  type GdprExportJob,
+  gdprErasureRequestSchema,
+  gdprExportJobSchema,
+  gdprRequestInsertSchema,
+} from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 /**
@@ -54,4 +59,33 @@ export async function requestErasure(client: AthanorClient): Promise<void> {
   // waiting for tonight's job. Surfacing it would tell somebody who has just typed ELIMINA that
   // their deletion failed, which is both frightening and false. Every other error still throws.
   if (error && error.code !== '23505') throw error;
+}
+
+/**
+ * Does the caller have an OPEN erasure request — any status but 'done'? (RLS scopes to own.)
+ * #735: the erasure ban lives on auth.users, which the app cannot read, while athanor.is_active()
+ * already denies every social write for as long as such a row exists. A second device signed in
+ * before the tap reads this so it can say «in cancellazione» instead of failing each write with a
+ * bare 42501.
+ *
+ * The row is still parsed (api.md: Zod at a query boundary), but a row that fails is reported
+ * and COUNTED AS OPEN rather than withheld: the query's own predicate already proves openness,
+ * and a status this build does not know yet — which is how 'retained' reached older builds — must
+ * not make the banner disappear. The warning carries the row id, never member content.
+ */
+export async function hasOpenErasureRequest(client: AthanorClient): Promise<boolean> {
+  const { data, error } = await client
+    .from('gdpr_erasure_requests')
+    .select('id, status')
+    .neq('status', 'done')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return false;
+  if (!gdprErasureRequestSchema.safeParse(data).success) {
+    console.warn('[gdpr] erasure request row failed its schema', (data as { id?: unknown }).id);
+  }
+  return true;
 }
