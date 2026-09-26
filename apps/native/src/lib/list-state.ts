@@ -45,7 +45,7 @@ export function listState({
    * When a refetch fails over cached content, does the content stay?
    *
    * The one axis the app's two prior answers disagreed on, and both were deliberate.
-   * `MomentiCard.tsx:41-44` draws the line: *a stale Aura number is a claim about a person's
+   * `MomentiCard`'s error note draws the line: *a stale Aura number is a claim about a person's
    * worth, a stale proposal costs one wasted tap.*
    *
    * - `true` for lists — blanking rows the member is reading is worse than showing them a

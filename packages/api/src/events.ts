@@ -272,7 +272,9 @@ export async function getEventsByOrganizer(client: AthanorClient, uid: string): 
  * Publish an event via the create_event RPC (the server builds the geography point
  * from lat/long; RLS enforces organizer = auth.uid()). Returns the new event row.
  * NEVER writes money or Aura (rule #1) — price_cents is set, but the ticket/Stripe
- * flow is the tickets-qr slice; the +30 organize award is M6 (TODO(M6)).
+ * flow is the tickets-qr slice; the +30 organize award is minted once, when
+ * the event reaches ≥5 check-ins, by the `event_attendance_aura` trigger (migration
+ * 20260701124122, M6) — not here.
  */
 export async function createEvent(client: AthanorClient, input: EventCreate): Promise<Event> {
   const v = eventCreateSchema.parse(input);
@@ -340,7 +342,8 @@ export async function registerAthanorDaysInterest(
  * Upsert the viewer's RSVP for a free event. Idempotent: the unique (user_id, event_id)
  * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
  * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
- * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ * (rule #1): the +15 attend award is minted at check-in by the `event_attendance_aura`
+ * trigger (migration 20260701124122, M6), and an RSVP is not a check-in.
  *
  * No longer the table's only writer: stripe-webhook mirrors a settled ticket as a going row
  * (#522). Nothing here has to know that — the mirror is an ordinary row, and the capacity gate

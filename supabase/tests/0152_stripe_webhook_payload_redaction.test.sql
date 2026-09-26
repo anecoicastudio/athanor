@@ -14,10 +14,11 @@
 --      their tickets. Invoices carry no metadata of ours, so without the customer arm they would
 --      stay legible; refunds carry neither, so without the payment-intent arm they would too.
 --   2. WHAT ARRIVES AFTER THE CASCADE IS CAUGHT ON THE WAY IN. The erasure cancels the Circle
---      subscription (erasure-job/logic.ts:447-526) and Stripe answers with
+--      subscription (step 3b-bis in erasure-job/logic.ts) and Stripe answers with
 --      `customer.subscription.deleted` AFTER the sweep has run — «the FIRST event this endpoint
---      sees after an erasure» (stripe-webhook/handlers.ts:495-496). §8 inserts exactly that event
---      and asserts it lands redacted, and the one beside it isolates the in-flight arm.
+--      sees after an erasure» (`handleSubscription` in stripe-webhook/handlers.ts). §8 inserts
+-- exactly that event and asserts it lands redacted, and the one beside it isolates the in-flight
+-- arm.
 --   3. THE MONEY SURVIVES THE REDACTION. Amounts, currencies, statuses and every Stripe id stay
 --      verbatim — the ledger is still the forensic record rule 6 keeps.
 --   4. THE DEDUPE GATE IS UNCHANGED. A re-delivery of a redacted event is still a no-op (ON
@@ -155,8 +156,8 @@ select is(
   'and everything else — amount, currency, the Stripe ids — is kept verbatim');
 
 -- Invoices nest the subscription metadata under `parent.subscription_details` on the pinned API
--- version (handlers.ts:599-606). A path-by-path redaction would have missed it; a key list at any
--- depth does not.
+-- version (the invoice handlers in handlers.ts). A path-by-path redaction would have missed it; a
+-- key list at any depth does not.
 select is(
   public.gdpr_redact_stripe_identity(
     '{"data":{"object":{"parent":{"subscription_details":{"metadata":{"profile_id":"49000000-0000-0000-0000-0000000000aa","kind":"subscription"}}}}}}'::jsonb)
@@ -583,8 +584,8 @@ select ok(
     where event_id = 'evt_725_checkout_a'),
   'processed_at still answers the replay, so the handler acks 200 as before');
 
--- The claim UPDATE the handler runs (handlers.ts:877-883), against a processed row: zero rows,
--- which is what tells the handler this is a true replay.
+-- The claim UPDATE the handler runs (the ATOMIC LEASE CLAIM in `handleWebhook`, handlers.ts),
+-- against a processed row: zero rows, which is what tells the handler this is a true replay.
 with claimed as (
   update public.stripe_webhook_events
      set claimed_at = now()

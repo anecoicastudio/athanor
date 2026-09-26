@@ -717,10 +717,10 @@ describe('calendar blocked copy diverges from the shared permission body (#552)'
    * states share the one key) and chose divergence, on two load-bearing axes:
    *
    * 1. AGENCY. The shared body opens «L'hai disattivato» — the member turned it off. Calendar
-   *    `blocked` is reachable with nobody having turned anything off (calendar.ts:5-16): iOS
-   *    17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go grant belongs
-   *    to Expo Go, shared by every project ever run on the phone. On those, the shared body
-   *    would be false — and this product's copy does not say false things to be tidy.
+   *    `blocked` is reachable with nobody having turned anything off (the `blocked` docblock in
+   * calendar.ts): iOS 17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go
+   * grant belongs to Expo Go, shared by every project ever run on the phone. On those, the shared
+   * body would be false — and this product's copy does not say false things to be tidy.
    * 2. RECOVERY. The RSVP bar does not re-launch the add after the Settings round trip, so the
    *    copy must instruct the retry («riprova»); the shared body's «quando vuoi» is written
    *    for primers whose surface re-runs on its own.

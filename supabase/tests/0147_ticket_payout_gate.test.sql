@@ -97,8 +97,8 @@ select ok(not has_function_privilege('anon', 'public.has_payouts_enabled(uuid)',
   'anon cannot execute has_payouts_enabled');
 select ok(has_function_privilege('authenticated', 'public.has_payouts_enabled(uuid)', 'EXECUTE'),
   'authenticated executes has_payouts_enabled');
--- The is_identity_verified precedent (20260815164809:228): a write that fires the trigger under the
--- service key must fail on the GATE, not with a confusing 42501 on the helper behind it.
+-- The is_identity_verified precedent (migration 20260815164809): a write that fires the trigger
+-- under the service key must fail on the GATE, not with a confusing 42501 on the helper behind it.
 select ok(has_function_privilege('service_role', 'public.has_payouts_enabled(uuid)', 'EXECUTE'),
   'service_role executes has_payouts_enabled, so the trigger works on every write path');
 select ok(not has_function_privilege('anon', 'public.organizer_payout_destination(uuid)', 'EXECUTE'),

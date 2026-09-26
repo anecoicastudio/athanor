@@ -46,7 +46,8 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  *   Nothing to pick (no dream, or every open tappa already offered on) is an honest empty
  *   state with no CTA — never a toast claiming a write that did not happen (issue #108).
  *
- * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
+ * The (modal) route IS the sheet: the Foundation Sheet host M3 once planned was never built,
+ * and no open issue revives it (as of 2026-09-26).
  */
 export default function HelpScreen() {
   const leave = useGuardedBack();

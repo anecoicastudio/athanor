@@ -87,7 +87,7 @@ export type PurgePostMediaInput = z.infer<typeof purgePostMediaInput>;
 /**
  * The audit_log vocabulary, split the way the database splits it. Two CHECK constraints
  * govern it and both are re-declared whole by whichever migration last widened them —
- * currently `20260816110227_fund_tranche_gate.sql:43-54`:
+ * currently `20260816110227_fund_tranche_gate.sql`:
  *
  * - `audit_log_action_check` admits MODERATION ∪ FUND, in this order;
  * - `audit_log_fund_shape` names exactly FUND, and demands those rows carry an edition

@@ -27,9 +27,9 @@ describe('topWaitingMomento', () => {
     expect(topWaitingMomento([])).toBeNull();
   });
 
-  // Rule #3 (`(tabs)/_layout.tsx:18-19` — "never a numeric count"): Home surfaces ONE card, not
-  // "3 Momenti". By identity, not by field: an implementation that rebuilt the card would drop
-  // whatever the schema gains next.
+  // Rule #3 (the ✦ badge comment in `(tabs)/_layout.tsx` — "never a numeric count"): Home surfaces
+  // ONE card, not "3 Momenti". By identity, not by field: an implementation that rebuilt the card
+  // would drop whatever the schema gains next.
   it('takes the first card and only the first, whatever the deck length', () => {
     const [a, b, c] = [card('a', 'ele_yoga'), card('b', 'marta_ceramica'), card('c', 'tino_chef')];
     expect(topWaitingMomento([a, b, c])).toBe(a);

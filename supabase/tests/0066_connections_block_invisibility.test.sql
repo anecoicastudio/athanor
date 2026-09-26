@@ -1,6 +1,6 @@
 -- 0066_connections_block_invisibility.test.sql
 -- P2.3 — asserts athanor.not_blocked() is wired into the three connection policies the
--- M9 blocks migration deferred (TODO(M9) in 20260616153035): a block hides pending
+-- M9 blocks migration deferred (an M9 TODO in 20260616153035): a block hides pending
 -- connection_requests and established connections in BOTH directions, and blocks new
 -- request INSERTs from either side (42501). Mirrors 0052's two-user structure.
 

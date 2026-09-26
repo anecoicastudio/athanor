@@ -78,9 +78,8 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  * - **Collapse** — absence asserts nothing, so the slot vanishes and the destination screen
  *   owns the copy and the retry. That treatment is a bare `return null` at the caller, not a
  *   prop here, because what has to disappear is the whole section — its eyebrow and its link
- *   included — and a child cannot unmount its parent. `FavorNudgeCard.tsx:19-30`,
- *   `MomentiCard.tsx:20-27` and `TodaySection.tsx` are the three, and each carries the
- *   reasoning in its own docblock.
+ *   included — and a child cannot unmount its parent. `FavorNudgeCard`, `MomentiCard`
+ *   and `TodaySection` are the three, and each carries the reasoning in its own docblock.
  *
  * Named is the default: reach for collapse only when a member losing the block entirely costs
  * them nothing, and say so in the caller's docblock.

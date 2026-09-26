@@ -12,8 +12,8 @@ import { error, json } from '../_shared/respond.ts';
 // WHY THIS IS AN OPERATOR PATH AND NOT A MEMBER ONE (RELEASE-RUNBOOK §9.2c): recording that
 // a phase met its criteria is the act that unlocks that phase's tranche. A winner who could
 // take it would hold the gate on their own money — so verified_at is granted to no client
-// (20260816082552:80-83) and this function is service-role only, the D41 pattern every fund
-// transition follows: edge function first, admin panel later.
+// (the column grants in migration 20260816082552 leave it out) and this function is service-role
+// only, the D41 pattern every fund transition follows: edge function first, admin panel later.
 
 const payload = z
   .object({

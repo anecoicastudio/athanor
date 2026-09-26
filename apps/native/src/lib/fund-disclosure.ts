@@ -37,7 +37,7 @@ export const DISCLOSURE_BLOCKS: readonly DisclosureBlock[] = [
     ],
   },
   {
-    // ③ non c'è restituzione — `nextDream` is the FUND-18 line PR #375 deferred to #235
+    // ③ non c'è restituzione — `nextDream` is the FUND-18 line PR #375 deferred and #235 added
     title: 'fund.disclose.noReturn.title',
     facts: [
       'fund.disclose.noReturn.othersDream',

@@ -36,9 +36,8 @@ export async function addMilestone(client: AthanorClient, insert: MilestoneInser
 
 /**
  * Owner marks a tappa done / in_progress. status→done is the +10 own-milestone domain
- * event the M6 engine reads — this writes only dream_milestones, never Aura (rule #1).
- * TODO(M6): wire the score-engine (backend `07`) to consume this status='done'
- * transition and award the +10 + «Creatore» star progress (service-role only).
+ * event — this writes only dream_milestones, never Aura (rule #1). The
+ * `dream_milestones_aura_own` trigger (migration 20260701124122, M6) enqueues the award.
  */
 export async function updateMilestoneStatus(
   client: AthanorClient,

@@ -932,14 +932,14 @@ on conflict do nothing;
 -- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.
 -- candidacy/[id].tsx feeds it straight to signMediaUrls, and candidacy.tsx writes
 -- candidacyVideoPath(uid, candidacyId) into it — `{uid}/{candidacy_id}.mp4`
--- (packages/api/src/candidacy.ts:26). The old 'https://example.invalid/video/<handle>' could
--- never sign, so the candidacy detail has always shown an empty player.
--- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
--- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
--- budget_cents / min_viable_cents are NOT NULL with no default (#225): the seed CHOOSES the
--- same fake-world values 20260815080109 backfilled the pre-existing rows with. category uses
--- the project_category enum as-is (the old 'craft'/'wellbeing' values fail its CHECK);
--- skills_needed keys come from @athanor/core SKILLS.
+-- (`candidacyVideoPath` in packages/api/src/candidacy.ts). The old
+-- 'https://example.invalid/video/<handle>' could never sign, so the candidacy detail has always
+-- shown an empty player. `thumb_path` is set here too, from the same two ids, so a fresh seed is
+-- correct on its own — the standalone UPDATE further up only exists to backfill rows inserted
+-- before this column did. budget_cents / min_viable_cents are NOT NULL with no default (#225): the
+-- seed CHOOSES the same fake-world values 20260815080109 backfilled the pre-existing rows with.
+-- category uses the project_category enum as-is (the old 'craft'/'wellbeing' values fail its
+-- CHECK); skills_needed keys come from @athanor/core SKILLS.
 -- ele_yoga is 'shortlisted' rather than 'submitted' since #227. Not a taste change: #218
 -- narrowed public.is_on_ballot to ('shortlisted','winner') (20260815164809), so the two
 -- 'submitted' rows stopped being visible on the ballot at all and staging's fake ballot became

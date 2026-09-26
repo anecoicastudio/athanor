@@ -23,12 +23,12 @@ export const SIGNED_TTL_SECONDS = RETENTION_DAYS * 24 * 60 * 60; // ≤ the 30-d
  * How long after it was requested a job can still be SERVED.
  *
  * `gdpr_export_jobs` carries `check (expires_at <= created_at + interval '30 days')`
- * (20260620140149:16) and every 'ready' write signs its link for SIGNED_TTL_SECONDS. So once a job
- * is older than 30 days minus that TTL, the terminal write cannot satisfy the constraint and
- * raises 23514 — and that is precisely the population the #721 stale-claim re-drive reaches. Left
- * unfenced, the lease would convert a job stuck on 'processing' into one re-claimed, rebuilt,
- * re-uploaded and rejected every night for ever, with nothing in the logs. Such a job is filed
- * 'failed' instead, before any work is done, and the member re-requests.
+ * (migration 20260620140149, `gdpr_export_jobs`) and every 'ready' write signs its link for
+ * SIGNED_TTL_SECONDS. So once a job is older than 30 days minus that TTL, the terminal write cannot
+ * satisfy the constraint and raises 23514 — and that is precisely the population the #721
+ * stale-claim re-drive reaches. Left unfenced, the lease would convert a job stuck on 'processing'
+ * into one re-claimed, rebuilt, re-uploaded and rejected every night for ever, with nothing in the
+ * logs. Such a job is filed 'failed' instead, before any work is done, and the member re-requests.
  */
 export const SERVABLE_WINDOW_MS =
   30 * 24 * 60 * 60 * 1000 - SIGNED_TTL_SECONDS * 1000 - 60 * 60 * 1000;
@@ -809,13 +809,13 @@ function firstSectionError(
 /**
  * Write a job's status, but ONLY while this pass still holds the lease it was claimed under.
  *
- * The fence is `erasure-job`'s (`logic.ts:159-181`, #717) and it is not decoration. A pass can
- * outlive its lease — an unusually long assembly, or an operator releasing the lease by hand
- * (RELEASE-RUNBOOK §7.6) — and a later pass then re-claims the row and starts building it. Without
- * the guard this pass's write lands on that row: 'ready' with a URL for an archive the second pass
- * is still uploading, or a requeue that takes the row OUT of 'processing' while it is being
- * worked. PostgREST answers a no-op update with success, so the `.select()` is what makes the lost
- * lease visible at all.
+ * The fence is `erasure-job`'s (`writeTerminalStatus` in `erasure-job/logic.ts`, #717) and it is
+ * not decoration. A pass can outlive its lease — an unusually long assembly, or an operator
+ * releasing the lease by hand (RELEASE-RUNBOOK §7.6) — and a later pass then re-claims the row and
+ * starts building it. Without the guard this pass's write lands on that row: 'ready' with a URL for
+ * an archive the second pass is still uploading, or a requeue that takes the row OUT of
+ * 'processing' while it is being worked. PostgREST answers a no-op update with success, so the
+ * `.select()` is what makes the lost lease visible at all.
  *
  * `claimed_at` is deliberately not cleared, on any path: the column's contract
  * (20260908152740) is that it is set by the claim and never cleared, so a requeued row carries

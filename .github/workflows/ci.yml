@@ -45,6 +45,7 @@ jobs:
           restore-keys: turbo-${{ runner.os }}-
       - run: pnpm turbo run lint typecheck test --cache-dir=.turbo
       - run: pnpm i18n:check
+      - run: pnpm comments:check
       - run: pnpm format:check
 
   # PR path-trim for the e2e job below. Unlike the db and native-prebuild filters, this one

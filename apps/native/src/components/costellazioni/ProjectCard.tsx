@@ -22,7 +22,8 @@ import { stacksTrailing } from '@/lib/type-scale';
  *
  * No `accessibilityLabel` on the content block on purpose. An explicit label REPLACES the one
  * derived from children, so a static string would cost the title, the category and the
- * description — the three things the card is (`CalendarPanel.tsx:63-70` states the same trade).
+ * description — the three things the card is (`live/CalendarPanel.tsx`'s filter-pill label states
+ * the same trade).
  */
 export function ProjectCard({ project, locale }: { project: Project; locale: Locale }) {
   const router = useRouter();

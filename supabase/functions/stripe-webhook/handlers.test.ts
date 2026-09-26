@@ -1709,7 +1709,7 @@ const identitySession = () =>
 
 /**
  * Every surface through which Aura can be granted. `aura_events` is the append-only ledger and
- * `aura_scores` the projection (docs/PRD.md:394, docs/PRD.md:398); a `SECURITY DEFINER` rpc whose
+ * `aura_scores` the projection (docs/PRD.md §7); a `SECURITY DEFINER` rpc whose
  * name mentions aura/score would be the other way in. WebhookCtx injects no score-engine
  * capability, so a score event originating in this function has to appear here.
  */
@@ -1731,15 +1731,15 @@ const moneyWrites = (db: FakeDb) =>
 
 // ═══ A. Anti-buyability — the money side of "Aura is never purchasable" ═══════
 //
-// docs/PRD.md:191 — "Aura never purchasable. Athanor Circle membership and fund contributions
+// docs/PRD.md §4.9 — "Aura never purchasable. Athanor Circle membership and fund contributions
 // yield **zero** points. Enforced in engine, asserted in tests." The engine half lives in
 // packages/core; THIS is the webhook half, and it is the half where money actually arrives.
-// docs/PRD.md:386 and :387 give the fund and subscription branches exactly one destination each
+// docs/PRD.md §8 gives the fund and subscription branches exactly one destination each
 // (fund_contributions, circle_memberships) — no score event is listed for either.
-// docs/PRD.md:220 — Circle is "never: score boost".
+// docs/PRD.md §4.12 — Circle is "never: score boost".
 
 Deno.test('paying money writes ZERO score events, on every paying branch', async () => {
-  // Ticket is in the list on purpose: docs/PRD.md:153 and :181 grant +15 for *checked-in
+  // Ticket is in the list on purpose: docs/PRD.md §4.6 and §4.9 grant +15 for *checked-in
   // attendance*, not for the purchase. Buying a ticket and never showing up must be worth 0.
   const cases: [string, string, unknown][] = [
     ['fund contribution', 'checkout.session.completed', contributionSession()],
@@ -1772,8 +1772,8 @@ Deno.test('paying money writes ZERO score events, on every paying branch', async
 });
 
 Deno.test('identity.verified produces its score event only via the profile flip', async () => {
-  // docs/PRD.md:388 — "identity.verified → verifications → badge + score event".
-  // docs/PRD.md:180 — "Identity verified +50, once".
+  // docs/PRD.md §8 — "identity.verified → verifications → badge + score event".
+  // docs/PRD.md §4.9 — "Identity verified +50, once".
   //
   // The webhook does exactly two things — cache `verifications` and flip
   // `profiles.identity_verified`. The +50 is minted a layer down by the `profiles_aura_identity`
@@ -1792,7 +1792,7 @@ Deno.test('identity.verified produces its score event only via the profile flip'
 });
 
 Deno.test('a FAILED identity check writes no score event', async () => {
-  // docs/PRD.md:388 attaches the score event to `identity.verified` alone; requires_input is
+  // docs/PRD.md §8 attaches the score event to `identity.verified` alone; requires_input is
   // the not-verified terminal state, so awarding there would make +50 retryable.
   const db = makeFakeDb();
   await processEvent(
@@ -1804,7 +1804,7 @@ Deno.test('a FAILED identity check writes no score event', async () => {
 
 // ═══ B. Branch isolation — one destination per branch ═════════════════════════
 //
-// docs/PRD.md:385-388 map each event to exactly one money table. Asserting only that the first
+// docs/PRD.md §8 maps each event to exactly one money table. Asserting only that the first
 // call lands on the right table would miss a branch that *also* touches another ledger, which
 // is what a `kind` typo or a fallthrough produces.
 
@@ -1833,7 +1833,7 @@ Deno.test('each money branch touches its own ledger and no other', async () => {
 });
 
 Deno.test('a completed checkout with an unknown kind writes to no money ledger', async () => {
-  // docs/PRD.md:385-387 enumerate three checkout kinds. A fourth means money arrived that this
+  // docs/PRD.md §8 enumerates three checkout kinds. A fourth means money arrived that this
   // webhook cannot classify — it must not be guessed into one of the three books.
   const db = makeFakeDb({
     'fund_contributions.upsert': [{ count: 1 }],
@@ -1851,7 +1851,7 @@ Deno.test('a completed checkout with an unknown kind writes to no money ledger',
 
 // ═══ C. Signature verification over the RAW body ═════════════════════════════
 //
-// docs/PRD.md:406 — "Webhooks signature-verified + idempotent". The signature covers the exact
+// docs/PRD.md §9 — "Webhooks signature-verified + idempotent". The signature covers the exact
 // bytes Stripe sent, so a reserialization before verifying would check a payload that never
 // arrived — a distinct failure from the bad-signature rejection asserted above.
 
@@ -1889,9 +1889,9 @@ Deno.test('handleWebhook verifies the exact bytes it received, not a reserializa
 
 // ═══ D. Idempotency keyed on Stripe's event id ═══════════════════════════════
 //
-// docs/PRD.md:358 — "stripe_webhook_events (event_id unique → idempotency)".
-// docs/PRD.md:384 — "dedup on stripe_webhook_events.event_id".
-// docs/PRD.md:155 — "webhook-confirmed, idempotent".
+// docs/PRD.md §7 — "stripe_webhook_events (event_id unique → idempotency)".
+// docs/PRD.md §8 — "dedup on stripe_webhook_events.event_id".
+// docs/PRD.md §4.6 — "webhook-confirmed, idempotent".
 
 Deno.test('the ledger row is keyed on the Stripe event id', async () => {
   const db = makeFakeDb({
@@ -1926,9 +1926,9 @@ Deno.test('the ledger row is keyed on the Stripe event id', async () => {
 });
 
 Deno.test('the same event delivered twice buys exactly one ticket', async () => {
-  // The composed claim behind docs/PRD.md:384: each phase is proven in isolation above (claim
-  // won / claim lost + processed_at set); this is the money-visible consequence of running both
-  // back to back against one ledger row.
+  // The composed claim behind docs/PRD.md §8 «dedup on …event_id»: each phase is proven in
+  // isolation above (claim won / claim lost + processed_at set); this is the money-visible
+  // consequence of running both back to back against one ledger row.
   const db = makeFakeDb({
     'stripe_webhook_events.update': [
       { data: [{ event_id: 'evt_1' }] }, // delivery 1: lease claim won

@@ -20,8 +20,8 @@ import { devWarn } from '@/lib/log';
  *
  *  - iOS (`ios/RNCAsyncStorage.mm`): `multiSet` → `_writeEntry` → `_writeManifest`, which is
  *    `[serialized writeToFile:… atomically:YES]` — a synchronous, rename-based write — and only
- *    THEN `callback(...)`. `setItem` resolves on that callback (`src/AsyncStorage.native.ts:84`),
- *    and unlike `getItem` it is not batched behind a `setImmediate`.
+ *    THEN `callback(...)`. `setItem` resolves on that callback (its body in
+ * `src/AsyncStorage.native.ts`), and unlike `getItem` it is not batched behind a `setImmediate`.
  *  - Android (`next/StorageModule.kt:52`): `multiSet` awaits `storage.setValues(entries)` — a
  *    committed SQLite transaction — before `cb(null)`.
  *

@@ -7,9 +7,9 @@ import { useRouter, type Href } from 'expo-router';
  * `router.back()` is a SILENT no-op when the screen is the root of its stack, and a `(modal)`
  * screen is the stack root far more often than the in-app push path suggests:
  *
- * - `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`), so anything the gate
- *   routes to starts life as a root.
- * - `src/app/[handle].tsx:52` `replace`s every `/@handle` link into `/(modal)/user/[id]` —
+ * - `AuthGuard` only ever `replace`s (`src/app/_layout.tsx`), so anything the gate routes to
+ *   starts life as a root.
+ * - `src/app/[handle].tsx` `replace`s every `/@handle` link into `/(modal)/user/[id]` —
  *   that screen is a stack root on EVERY deep link to it, cold start or warm.
  * - the Android `intentFilters` (`app.json`) claim `/post`, `/event` and `/dream`, and no
  *   top-level route directory answers them, so they resolve into `(modal)` too.
@@ -66,7 +66,8 @@ export type ExitHref = Extract<Href, string>;
 
 /**
  * Home. Deliberately `'/(tabs)'` and not `'/'` — both `(tabs)/index` and `(onboarding)/index`
- * resolve to `'/'` and onboarding wins the bare path (`src/app/_layout.tsx:68-70`).
+ * resolve to `'/'` and onboarding wins the bare path, which is why `AuthGuard`
+ * (`src/app/_layout.tsx`) always names a group.
  */
 export const MODAL_EXIT_FALLBACK: ExitHref = '/(tabs)';
 

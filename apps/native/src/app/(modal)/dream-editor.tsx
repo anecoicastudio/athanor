@@ -18,7 +18,8 @@ import { Screen } from '@/components/Screen';
  * Dream editor (M2, frontend `02` §3.2) — create-or-edit the single active dream.
  * Full-screen modal (the project's sheet convention is (modal)/* routes). Writes
  * only dreams.text via upsertActiveDream; never Aura (rule #1). Copy via @athanor/i18n.
- * TODO(M3): migrate to the Foundation Sheet host (bottom sheet) when it lands.
+ * The (modal) route IS the sheet: the Foundation Sheet host M3 once planned was never built,
+ * and no open issue revives it (as of 2026-09-26).
  */
 export default function DreamEditorScreen() {
   const leave = useGuardedBack();

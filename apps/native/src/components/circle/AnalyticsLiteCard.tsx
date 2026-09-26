@@ -59,7 +59,7 @@ export function AnalyticsLiteCard({ profileId, locale }: { profileId: string; lo
   // had this bug: it degrades to «—», which is the pattern #100 cites as the right one.
   //
   // `staleWins: false` — this is the member's own Aura, so it takes the week slot's side of
-  // the line `MomentiCard.tsx:41-44` draws: a stale breakdown is a claim about what they
+  // the line `MomentiCard`'s error note draws: a stale breakdown is a claim about what they
   // earned, and the query client persists to AsyncStorage for 24h while Aura decays. Showing
   // yesterday's sources as today's is the false confidence `aura-display.ts` already refused
   // for the score itself.

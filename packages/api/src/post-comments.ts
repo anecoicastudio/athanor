@@ -50,8 +50,9 @@ export async function getCommentsPage(
 
 /**
  * Add a comment (optionally a reply via parent_id). `author_id` is the caller's
- * auth uid — RLS re-checks it. Posting a comment is the M6 +2 domain event; this
- * writes only `post_comments`, never aura (rule #1). TODO(M6): the engine award.
+ * auth uid — RLS re-checks it. Writes only `post_comments`, never
+ * aura (rule #1), and a comment earns none: the engine never rewards creating content
+ * (`ENGINE_WEIGHTS` in packages/core/src/score/weights.ts has no row for it).
  */
 export async function addComment(
   client: AthanorClient,
