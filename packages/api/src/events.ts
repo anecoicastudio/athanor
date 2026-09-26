@@ -272,8 +272,9 @@ export async function getEventsByOrganizer(client: AthanorClient, uid: string): 
  * Publish an event via the create_event RPC (the server builds the geography point
  * from lat/long; RLS enforces organizer = auth.uid()). Returns the new event row.
  * NEVER writes money or Aura (rule #1) — price_cents is set, but the ticket/Stripe
- * flow is the tickets-qr slice; the +30 organize award is minted at
- * check-in by the `event_attendance_aura` trigger (migration 20260701124122, M6), not here.
+ * flow is the tickets-qr slice; the +30 organize award is minted once, when
+ * the event reaches ≥5 check-ins, by the `event_attendance_aura` trigger (migration
+ * 20260701124122, M6) — not here.
  */
 export async function createEvent(client: AthanorClient, input: EventCreate): Promise<Event> {
   const v = eventCreateSchema.parse(input);
