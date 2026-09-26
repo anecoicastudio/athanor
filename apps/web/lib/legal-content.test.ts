@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NEARBY_RADIUS_KM } from '@athanor/core';
-import { t } from '@athanor/i18n';
+import { DONATION_STEM, t } from '@athanor/i18n';
 import { REPORT_CATEGORIES } from '@athanor/schemas';
 import {
   childSafety,
@@ -115,9 +115,15 @@ describe.each(docs)('%s', (_name, doc) => {
   });
 
   it.each(['it', 'en'] as const)('%s never calls a contribution a donation', (loc) => {
-    // #789: «donare / donazione» are ruled out of the product by the German and Italian
-    // public-collection rules; the fund terms say «contributo». Same stem as the catalog test.
-    expect(JSON.stringify(doc[loc])).not.toMatch(/\bdon(?:a|or|o\b|i)/i);
+    // #789: «donare / donazione» are ruled out of the product (DONATION_STEM, @athanor/i18n).
+    // Each string is tested on its own, not the stringified doc: JSON escapes a newline as
+    // `\n`, and the `n` it leaves before the next word would erase the stem's word boundary.
+    const strings: string[] = [];
+    JSON.stringify(doc[loc], (_key, value: unknown) => {
+      if (typeof value === 'string') strings.push(value);
+      return value;
+    });
+    expect(strings.filter((s) => DONATION_STEM.test(s))).toEqual([]);
   });
 
   it('is genuinely translated, not IT text copied into the EN slot', () => {

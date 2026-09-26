@@ -2,6 +2,7 @@
 // Characterization tests for the contribution amount floor + legal-flag gate + session params.
 // All db I/O through injected fakes; Stripe as a capability closure (DI over mocks).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { DONATION_STEM } from '../../../packages/i18n/src/voice.ts';
 // stripe pinned to major 22: deno.lock is gitignored, so CI resolves fresh on every
 // run — an unpinned specifier would typecheck against latest and redden on SDK majors.
 import type Stripe from 'npm:stripe@22';
@@ -268,6 +269,23 @@ Deno.test('feeCoverage never leaves the fund short of the gift', () => {
       `gift ${gift}: net ${net} overshoots — coverage is a cost, not a margin`,
     );
   }
+});
+
+Deno.test('the Checkout copy never calls the contribution a donation (#789)', async () => {
+  // The line-item names reach Stripe's hosted page and the payer's emailed receipt — the most
+  // legally visible text the fund has. Every string in the session params is held, not only
+  // today's two names, so a later `description` or `custom_text` is covered too.
+  const c = ctx({ 'fund_editions.select': [{ data: editionRow() }] });
+  await run(c, 100, true);
+  const strings: string[] = [];
+  JSON.stringify(c.created[0], (_key, value: unknown) => {
+    if (typeof value === 'string') strings.push(value);
+    return value;
+  });
+  assertEquals(
+    strings.filter((s) => DONATION_STEM.test(s)),
+    [],
+  );
 });
 
 Deno.test(

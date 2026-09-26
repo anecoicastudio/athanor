@@ -3,6 +3,7 @@ import { NOTIFICATION_TEMPLATE_KEYS } from '@athanor/schemas';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
 import { t, tagLabel, tn, type MessageKey } from './t';
+import { DONATION_STEM } from './voice';
 
 describe('catalog parity', () => {
   test('EN mirrors every IT key (IT is canonical)', () => {
@@ -403,12 +404,9 @@ describe('catalog quality', () => {
 
   // I-3: Athanor voice — no vanity/tech-speak in any value, either locale.
   // «Notifiche» (plural feature title) is fine; \bnotifica\b targets the singular vanity sense.
-  // The donation stem is banned by the 2026-09-19 fund ruling (#789): German and Italian
-  // public-collection rules keep «donare / donazione» out of the product, and a fund
-  // contribution is not a donation. Stem, not form: dona|donare|donazione|donato, dono|doni,
-  // EN donate|donation|donor. «donna» and «dondolo» do not match. No exceptions.
+  // DONATION_STEM (#789, voice.ts) holds the fund ruling; no catalog value is excepted.
   test('no banned vanity/tech-speak terms in any value', () => {
-    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i, /\bdon(?:a|or|o\b|i)/i];
+    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i, DONATION_STEM];
     const offenders: string[] = [];
     for (const cat of [it, en] as Record<string, string>[]) {
       for (const [key, value] of Object.entries(cat)) {
@@ -416,6 +414,27 @@ describe('catalog quality', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  // The stem is only as good as its forms: pin what it must catch and what it must leave alone.
+  test('DONATION_STEM catches every form of the word and nothing near it', () => {
+    const caught = [
+      'Si dona per i sogni',
+      'una donazione',
+      'Donare è bello',
+      'ha donato',
+      'si donerà',
+      'donerebbe',
+      'Marta donò 10€',
+      'un dono',
+      'che tu doni',
+      'donate now',
+      'a Donation',
+      'every donor',
+    ];
+    const spared = ['una donna', 'il dondolo', 'done', 'condono', 'Madonna', 'abbandona'];
+    expect(caught.filter((s) => !DONATION_STEM.test(s))).toEqual([]);
+    expect(spared.filter((s) => DONATION_STEM.test(s))).toEqual([]);
   });
 });
 
