@@ -2652,7 +2652,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
     'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:469':
+    'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
@@ -4527,6 +4527,30 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
       'a Button in a `flex-1` cell: the pill gets a fixed share of the row and its label ' +
         'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
         '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 44 — a tag label built from data goes through the shared fallback (#883)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A tag key is DATA — `profiles.profession`, `skills`, `identity_tags`, `seeking` are text
+ * columns the database does not constrain to the curated lists — so it cannot be typed as a
+ * MessageKey. Cast it anyway and `t()` echoes an unknown key back: tino_chef's profile read
+ * «tag.profession.Chef» (#883). `tagLabel` in `@athanor/i18n` is the one helper that falls back
+ * to the stored value instead, so a template `tag.${…}` key and a local `tagLabel` that
+ * shadows the shared one are both the same bug waiting for an off-list value.
+ */
+describe('a tag label built from data goes through the shared fallback (#883)', () => {
+  it('no screen builds a `tag.` key from data or defines its own tagLabel', () => {
+    const hits = codeLines()
+      .filter(([, t]) => /`tag\.\$\{|`tag\.[a-z]+\.\$\{|\b(?:const|function)\s+tagLabel\b/.test(t))
+      .map(([at]) => at.replace('apps/native/src/', ''));
+    expect(
+      hits,
+      "a tag key built from data and handed to t(): an off-list value renders as the raw key. Use tagLabel(kind, tag, locale) from '@athanor/i18n', which falls back to the stored value (#883).",
     ).toEqual([]);
   });
 });
