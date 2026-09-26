@@ -16,9 +16,9 @@
 //       incremental cache outlives the rows it renders and a deploy strands rather than
 //       replaces its entries, so erasure sweeps every build prefix (#515, _shared/kv-purge.ts).
 //       Keys: the handle, the dream ids and — since #775 — the ids of the events the subject
-//       organised. Runs after (3) and before (4) because it needs the handle and dreams, which
-//       (4) cascades away, and before (3d), which disowns the events; while their pages are not
-//       confirmed purged, (3d) is held back so the re-drive can still find them,
+//       organised, all READ before (3d) disowns the events and (4) cascades the rest away; the
+//       sweep itself runs as (3e), after (3d), so an event page cannot be re-cached from a row
+//       not yet soft-deleted,
 //   (3b-bis) CANCEL the Circle subscription at Stripe (#107) — before (3c) hides who was being
 //       billed. Pseudonymising the row stops us knowing; it does not stop Stripe charging,
 //   (3b-ter) UNTAG the membership row's Stripe Customer (#763) — clear `metadata.profile_id`,
