@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Linking, Share } from 'react-native';
+import { Alert, Linking, Share, useWindowDimensions } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -19,6 +19,7 @@ import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
 import { legalUrl, supportMailto } from '@/lib/links';
+import { stacksTrailing } from '@/lib/type-scale';
 import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
@@ -40,6 +41,7 @@ import { useAuraScore } from '@/hooks/use-aura-score';
 export default function SettingsScreen() {
   const router = useRouter();
   const { session, profile, refreshProfile, signOut: endSession } = useAuth();
+  const stackLangChips = stacksTrailing(useWindowDimensions().fontScale);
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
   // #761: members see their status everywhere; an iOS non-member sees no Circle row at all;
@@ -172,9 +174,17 @@ export default function SettingsScreen() {
 
         {/* Preferenze */}
         <SettingsGroup label={t('settings.section.prefs', locale)}>
-          {/* Lingua — functional inline toggle */}
-          <View className="flex-row items-center justify-between gap-4 px-5 py-4">
-            <View className="flex-1 gap-1">
+          {/* Lingua — functional inline toggle. At the accessibility sizes the chips move under
+              the title (#847): beside them the one-word description broke mid-word
+              («Languag / e»). */}
+          <View
+            className={
+              stackLangChips
+                ? 'items-start gap-3 px-5 py-4'
+                : 'flex-row items-center justify-between gap-4 px-5 py-4'
+            }
+          >
+            <View className={stackLangChips ? 'gap-1' : 'flex-1 gap-1'}>
               <Text className="text-base text-foreground">{t('settings.lang.title', locale)}</Text>
               <Text className="text-[13px] text-faint">{t('settings.lang.desc', locale)}</Text>
             </View>
