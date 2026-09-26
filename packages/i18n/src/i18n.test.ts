@@ -26,6 +26,9 @@ describe('tagLabel', () => {
   test('falls back to the raw key rather than rendering "undefined"', () => {
     // A tag added to the DB before the catalogs must degrade to something legible.
     expect(tagLabel('identity', 'astronauta', 'it')).toBe('astronauta');
+    // A profession outside the curated list reads as itself, never «tag.profession.Chef» (#883).
+    expect(tagLabel('profession', 'Chef', 'it')).toBe('Chef');
+    expect(tagLabel('profession', 'Chef', 'en')).toBe('Chef');
   });
 });
 

@@ -11,7 +11,7 @@ import {
   classifyHandle,
   handleRenameOpensAt,
 } from '@athanor/core';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
@@ -227,11 +227,6 @@ export function ProfileEditForm({
       setSaving(false);
     }
   };
-
-  const tagLabel = (
-    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
-    key: string,
-  ) => t(`${prefix}.${key}` as MessageKey, locale);
 
   const toggleSkill = (key: string) =>
     setSkills((prev) => {
@@ -517,7 +512,7 @@ export function ProfileEditForm({
             {IDENTITY_TAGS.map((tag) => (
               <Chip
                 key={tag}
-                label={tagLabel('tag.identity', tag)}
+                label={tagLabel('identity', tag, locale)}
                 selected={identity.includes(tag)}
                 onPress={() => setIdentity(toggleTag(identity, tag))}
               />
@@ -538,7 +533,7 @@ export function ProfileEditForm({
             {SEEKING_TAGS.map((tag) => (
               <Chip
                 key={tag}
-                label={tagLabel('tag.seeking', tag)}
+                label={tagLabel('seeking', tag, locale)}
                 selected={seeking.includes(tag)}
                 onPress={() => setSeeking(toggleTag(seeking, tag))}
               />
@@ -589,7 +584,7 @@ export function ProfileEditForm({
             {PROFESSIONS.map((key) => (
               <Chip
                 key={key}
-                label={tagLabel('tag.profession', key)}
+                label={tagLabel('profession', key, locale)}
                 selected={profession === key}
                 onPress={() => setProfession(profession === key ? null : key)}
               />
@@ -610,7 +605,7 @@ export function ProfileEditForm({
             {SKILLS.map((key) => (
               <Chip
                 key={key}
-                label={tagLabel('tag.skill', key)}
+                label={tagLabel('skill', key, locale)}
                 selected={skills.includes(key)}
                 onPress={() => toggleSkill(key)}
               />

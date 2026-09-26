@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { getProfileStatCounts, profileKeys } from '@athanor/api';
 import { profileCompleteness } from '@athanor/core';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t, tagLabel } from '@athanor/i18n';
 import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -87,11 +87,6 @@ export function ProfileView({
   const seeking = profile.seeking;
   const skills = profile.skills ?? [];
 
-  const tagLabel = (
-    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
-    key: string,
-  ) => t(`${prefix}.${key}` as MessageKey, locale);
-
   return (
     <>
       {/* Shared Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02 §3.5) */}
@@ -165,7 +160,7 @@ export function ProfileView({
           <SectionLabel>{t('profile.identity.label', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-3">
             {identity.map((tag) => (
-              <Tag key={tag} label={tagLabel('tag.identity', tag)} />
+              <Tag key={tag} label={tagLabel('identity', tag, locale)} />
             ))}
           </View>
         </View>
@@ -177,7 +172,7 @@ export function ProfileView({
           <SectionLabel>{t('profile.seeking.label', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-3">
             {seeking.map((tag) => (
-              <Tag key={tag} label={tagLabel('tag.seeking', tag)} />
+              <Tag key={tag} label={tagLabel('seeking', tag, locale)} />
             ))}
           </View>
         </View>
@@ -188,7 +183,7 @@ export function ProfileView({
         <View className="gap-3">
           <SectionLabel>{t('profile.profession.label', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-3">
-            <Tag label={tagLabel('tag.profession', profile.profession)} />
+            <Tag label={tagLabel('profession', profile.profession, locale)} />
           </View>
         </View>
       ) : null}
@@ -198,7 +193,7 @@ export function ProfileView({
           <SectionLabel>{t('profile.skills.label', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-3">
             {skills.map((key) => (
-              <Tag key={key} label={tagLabel('tag.skill', key)} />
+              <Tag key={key} label={tagLabel('skill', key, locale)} />
             ))}
           </View>
         </View>
