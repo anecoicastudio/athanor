@@ -2650,8 +2650,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
+    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -2659,7 +2659,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
+    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
     'components/stories/StoryRing.tsx:127':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
