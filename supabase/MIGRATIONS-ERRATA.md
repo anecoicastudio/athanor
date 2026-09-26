@@ -2455,3 +2455,30 @@ replace` keeps the existing ACL, so restating them changes nothing — but the r
   `comms` row an old build's switch still writes, so the upsert succeeds with nothing stored.
   pgTAP `0056` asserts the constraint's accepted set, the discard on both insert and upsert, and
   that no `comms` row exists.
+
+---
+
+## `20260815090015_cast_vote_window.sql:5-11` — "When #218 lands … this set converges on the screened set with no change here" converged only WITH a change
+
+The header counts the VOTABLE set (`submitted`, `screening`, `shortlisted`, `winner`) as the
+ballot minimum and promises that once #218 moves statuses the set "converges on the screened
+set with no change here". #218 landed the same day (`20260815164809_fund_screening.sql`, closed
+2026-08-15), and the convergence did happen — but not with no change. That migration's §5
+("The ballot converges on the screened set") rewrote the predicate itself: on the ballot is now
+`shortlisted` plus the declared `winner`, in the predicate's single home (#383), and
+`submitted`/`screening` rows are owner-visible only, unvotable, and uncounted by the minimum.
+Read the window clause in this file; read the ballot membership in `20260815164809` and later.
+
+Asserted by: `supabase/tests/0106_is_on_ballot.test.sql` (the truth table: `submitted` is not on
+the ballot, `shortlisted` is, and every former call site reads the one predicate).
+
+## `20260816073905_fund_realization_plans.sql:39-41` — "the sweep stays inert by construction until #231 lands"
+
+The same SEAMS paragraph as the `:37-38, 234` entry above, its last clause. #231 landed
+(`20260816110227_fund_tranche_gate.sql`, closed 2026-08-16), so the sweep is no longer inert;
+the `20260816071602_fund_settle_sweep.sql` entry records what it enumerates now. The clause's
+`release-fund-payout` "reserved refusal (logic.ts:111-117)" is stale too: the slot is the
+`phase not verified` rung (`THE GATE. No verification, no money.`) of the refusal ladder in
+`release-fund-payout/logic.ts`, which that function's header says #231 now occupies.
+
+Asserted by: `supabase/tests/0117_fund_tranche_gate.test.sql`.
