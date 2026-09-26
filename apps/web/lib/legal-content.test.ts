@@ -448,6 +448,36 @@ describe('privacy', () => {
     },
   );
 
+  it.each(locales)(
+    '%s names every provider the app sends data to, Mapbox and Resend included',
+    (loc) => {
+      // App Review 2.1 reply of 2026-09-26 (#84): Apple asked for the external services, and the
+      // honest list has two names this section lacked. Mapbox receives the typed city text
+      // (`apps/native/src/lib/city-search.ts` sends text, language and token — no coordinates);
+      // Resend relays the sign-in mail Supabase composes (custom SMTP since #825). A provider named
+      // to Apple and absent from the policy is a gap a reviewer reading /privacy can see.
+      const recipients = privacy[loc].sections.find((s) =>
+        s.heading.startsWith(loc === 'it' ? 'A chi arrivano' : 'Who receives'),
+      )!;
+      const text = recipients.body.join('\n');
+      for (const provider of [
+        'Supabase',
+        'Cloudflare',
+        'Stripe',
+        'Expo',
+        'Sentry',
+        'Mapbox',
+        'Resend',
+      ]) {
+        expect(text, `${loc} names ${provider}`).toContain(provider);
+      }
+      // Mapbox gets text, never a position — the sentence must say so.
+      expect(text).toMatch(
+        loc === 'it' ? /Mapbox[^.]*non la tua posizione/ : /Mapbox[^.]*not your location/,
+      );
+    },
+  );
+
   it('claims no parental consent — the app performs no such step', () => {
     expect(all('it')).not.toMatch(/genitor|tutore|responsabilità genitoriale/i);
     expect(all('en')).not.toMatch(/parent|guardian/i);

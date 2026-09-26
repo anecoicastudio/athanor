@@ -340,7 +340,7 @@ The last three are the `production` environment only — `development` and `prev
 
 ## Appendix B — P1.5 store submission `[manual-you]`
 
-- **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (12+) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
+- **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (**18+**, ruled 2026-09-19 on #84 to match `MIN_MEMBER_AGE`, #778) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
 - **Play Console:** internal testing track → upload AAB → Store listing (IT+EN) → Data Safety form (match iOS) → Content rating (Teen) → paste `store.*` copy.
 - Pre-submit: `pnpm exec expo-doctor` clean · R-1 bundle grep (above) · deep-link cold-start + push entitlement on a release build.
 
