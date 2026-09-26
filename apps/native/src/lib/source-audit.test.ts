@@ -4595,7 +4595,8 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     openingTags(stripComments(read(p)), 'Avatar').map(({ line, attrs }) => ({
       file: rel(p).replace('apps/native/src/', ''),
       line,
-      decorative: /(^|\s)decorative(?=[\s/=]|$)/.test(attrs),
+      // Bare or `={true}` only: `decorative={false}` is a labelled site written out.
+      decorative: /(^|\s)decorative(?=[\s/>]|$|=\{true\})/.test(attrs),
     })),
   );
 
