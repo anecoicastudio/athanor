@@ -13,6 +13,7 @@
 // exchangeCodeForSession) needs a link and the product has no field to type a code into.
 // A required-variable assertion is what would have caught it.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { DONATION_STEM } from '../../../packages/i18n/src/voice.ts';
 
 /**
  * Every mail template this project declares, and the GoTrue variable its flow cannot work
@@ -240,6 +241,9 @@ Deno.test('templates use the Athanor voice — no metrics vocabulary', () => {
         `template '${name}' contains the banned word "${word}" (rules/i18n.md)`,
       );
     }
+    // #789: the donation stem is ruled out of the product. A stem, not a word, so it sits
+    // outside the word list above; one definition in packages/i18n/src/voice.ts.
+    assert(!DONATION_STEM.test(copy), `template '${name}' uses the donation stem (#789)`);
   }
 });
 

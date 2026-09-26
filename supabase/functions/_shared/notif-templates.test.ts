@@ -1,4 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
+import { DONATION_STEM } from '../../../packages/i18n/src/voice.ts';
 import { buildPushMessages } from './notif-templates.ts';
 
 const allValid = (_t: string) => true;
@@ -453,3 +454,15 @@ Deno.test(
     }
   },
 );
+
+// #789: push copy is hand-written IT/EN here, outside the catalogs, and the fund broadcasts
+// (notif.tpl.fund*) reach every member — so the donation stem is held on this file too. The
+// bodies are functions of their params, so the SOURCE is what gets read, line by line.
+Deno.test('no push template calls a contribution a donation', async () => {
+  const source = await Deno.readTextFile(new URL('./notif-templates.ts', import.meta.url));
+  const hits = source
+    .split('\n')
+    .map((line, i) => `${i + 1}: ${line.trim()}`)
+    .filter((line) => DONATION_STEM.test(line));
+  assertEquals(hits, []);
+});
