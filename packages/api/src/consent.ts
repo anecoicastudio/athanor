@@ -1,5 +1,6 @@
 import { type Consent, type SetConsentInput, consentSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
+import { parseOrWithhold } from './parse-or-withhold';
 
 // gdprKeys covers the GDPR surface query factory (consent records + export-job status).
 export const gdprKeys = {
@@ -12,13 +13,23 @@ export const gdprKeys = {
   erasure: () => [...gdprKeys.all, 'erasure'] as const,
 };
 
-/** All of the caller's consent records (RLS scopes to own). */
+/**
+ * All of the caller's consent records (RLS scopes to own).
+ *
+ * A row the schema does not recognise is withheld, never thrown on (#841): this feeds Trust,
+ * SentryConsentGate and useLocationConsent, and a throw would leave the location gate `unknown`
+ * and diagnostics off over one retired `comms` row — the case between a build shipping the
+ * narrowed schema and production receiving the purge migration. The count is not returned: every
+ * reader looks up one kind and falls back to its default when the row is absent, which is the
+ * right answer for a withheld row too, and the three share one persisted cache entry whose shape
+ * a wrapper would change under a rehydrating install. The warning names the row.
+ */
 export async function getConsents(client: AthanorClient): Promise<Consent[]> {
   const { data, error } = await client
     .from('consent')
     .select('id, profile_id, kind, granted, granted_at, source, created_at, updated_at');
   if (error) throw error;
-  return (data ?? []).map((r) => consentSchema.parse(r));
+  return parseOrWithhold(data, consentSchema, 'consent', 'the consent records').parsed;
 }
 
 /**

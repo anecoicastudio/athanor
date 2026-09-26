@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(16);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
 values
@@ -30,19 +30,19 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', current_setting('test.a'), true);
 select lives_ok(
   $$ insert into public.consent (profile_id, kind, granted, source)
-     values (current_setting('test.a')::uuid, 'comms', false, 'settings') $$,
+     values (current_setting('test.a')::uuid, 'analytics', false, 'settings') $$,
   'owner inserts own consent');
 
 -- cannot forge a consent row for ANOTHER profile (insert_own WITH CHECK)
 select throws_ok(
   $$ insert into public.consent (profile_id, kind, granted, source)
-     values (current_setting('test.b')::uuid, 'comms', true, 'settings') $$,
+     values (current_setting('test.b')::uuid, 'analytics', true, 'settings') $$,
   '42501', null, 'cannot forge consent for another profile');
 
 -- unique (profile_id, kind)
 select throws_ok(
   $$ insert into public.consent (profile_id, kind, granted, source)
-     values (current_setting('test.a')::uuid, 'comms', true, 'settings') $$,
+     values (current_setting('test.a')::uuid, 'analytics', true, 'settings') $$,
   '23505', null, 'duplicate (profile_id,kind) rejected');
 
 -- «never_sold» is constitutional, not a stored kind (check constraint excludes it)
@@ -50,6 +50,31 @@ select throws_ok(
   $$ insert into public.consent (profile_id, kind, granted, source)
      values (current_setting('test.a')::uuid, 'never_sold', true, 'settings') $$,
   '23514', null, 'never_sold kind rejected — guarantee, not a toggle');
+
+-- #841: `comms` is retired. The CHECK accepts exactly the two live kinds…
+select is(
+  (select pg_get_constraintdef(c.oid) from pg_constraint c
+    where c.conrelid = 'public.consent'::regclass and c.conname = 'consent_kind_check'),
+  $$CHECK ((kind = ANY (ARRAY['analytics'::text, 'location_approx'::text])))$$,
+  'consent_kind_check accepts exactly analytics and location_approx');
+
+-- …and an old build's switch (the Play build predating PR 840) still writes `comms`, as an
+-- upsert. It must succeed with nothing written — a 23514 would toast on every tap there.
+select lives_ok(
+  $$ insert into public.consent (profile_id, kind, granted, source)
+     values (current_setting('test.a')::uuid, 'comms', true, 'settings') $$,
+  'retired comms insert succeeds (old-build safety)');
+select lives_ok(
+  $$ insert into public.consent (profile_id, kind, granted, source)
+     values (current_setting('test.a')::uuid, 'comms', false, 'settings')
+     on conflict (profile_id, kind) do update set granted = excluded.granted $$,
+  'retired comms upsert succeeds (the PostgREST shape)');
+
+-- the trigger that makes it succeed is the only thing between the old build and the CHECK
+select trigger_is(
+  'public', 'consent', 'consent_discard_retired_kind',
+  'athanor', 'consent_discard_retired_kind',
+  'consent_discard_retired_kind discards comms before the CHECK');
 
 -- non-owner update affects 0 rows (not an error)
 select set_config('request.jwt.claim.sub', current_setting('test.b'), true);
@@ -66,15 +91,25 @@ select is(
   (select count(*)::int from public.consent),
   1, 'owner sees only own consent');
 
+-- the purge, by value: no `comms` row exists anywhere, the old-build writes above included
+set local role service_role;
+select is(
+  (select count(*)::int from public.consent where kind = 'comms'),
+  0, 'no comms consent row is stored (#841)');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', current_setting('test.a'), true);
+
 -- client DELETE denied (owner CRUD-minus-delete; hosted-revoke lockdown)
 select throws_ok(
   $$ delete from public.consent where profile_id = current_setting('test.a')::uuid $$,
   '42501', null, 'client DELETE denied');
 
--- rule #1: consent writes zero Aura (true global under service_role)
+-- rule #1: consent writes zero Aura. Scoped to the fixture profiles, so the claim holds on a
+-- seeded world too (staging), not only on CI's empty stack.
 set local role service_role;
 select is(
-  (select count(*)::int from public.aura_events),
+  (select count(*)::int from public.aura_events
+    where profile_id in (current_setting('test.a')::uuid, current_setting('test.b')::uuid)),
   0, 'consent path writes zero Aura (rule #1)');
 
 select * from finish();

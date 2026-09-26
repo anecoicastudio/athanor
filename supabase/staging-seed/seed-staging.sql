@@ -243,7 +243,7 @@ where pr.id = md5('user:' || p.handle)::uuid;
 insert into public.consent (id, profile_id, kind, granted, granted_at, source)
 select md5('consent:' || pr.handle || ':' || k.kind)::uuid, pr.id, k.kind, k.granted, now(), 'signup'
 from public.profiles pr
-cross join (values ('comms', true), ('analytics', false), ('location_approx', true)) as k(kind, granted)
+cross join (values ('analytics', false), ('location_approx', true)) as k(kind, granted)
 where pr.id = md5('user:' || pr.handle)::uuid
 on conflict do nothing;
 

@@ -25,12 +25,7 @@ describe('locationConsentOf', () => {
   });
 
   it('reads only the location row, never another consent', () => {
-    expect(
-      locationConsentOf([
-        { kind: 'analytics', granted: false },
-        { kind: 'comms', granted: false },
-      ]),
-    ).toBe('on');
+    expect(locationConsentOf([{ kind: 'analytics', granted: false }])).toBe('on');
     expect(
       locationConsentOf([
         { kind: 'analytics', granted: true },
