@@ -166,6 +166,16 @@ Review page **and** appended to App Review Information → Notes, so the next su
 A metadata reply needs no new build. Expect 24–48 h after the reply; a 2.1 loop is the norm for a
 first app (#84, 2026-09-03 comment).
 
+The mail's "Prevent Common Issues" list links two Apple pages, both boilerplate rather than
+findings, and the reply answers each explicitly: **3.1.1** (App Store Connect → "Overview for
+configuring in-app purchases": IAP products are created under Distribution and "if you're submitting
+your first In-App Purchase, you must submit it with a new version of your app", after the Paid Apps
+Agreement, banking and tax are active) — Athanor configures none because nothing is sold on iOS;
+when Circle reaches iOS as StoreKit (#672, S-6) that first IAP rides a new app version, never a
+metadata update. **3.2** (Apple Platform Deployment → "Intro to content distribution": Custom Apps,
+unlisted apps and in-house distribution are for a business's own members or employees) — Athanor is
+a general-public app, and the reply says so.
+
 **Before pasting, re-check the facts the text rests on** (read-only, Management API `database/query`
 with `read_only: true`, never a `supabase link` to production): `remote_config` has no
 `paid_events_enabled` and no `circle_checkout_enabled` row, `fund_surfaces_enabled` is off,
@@ -219,7 +229,8 @@ to date; Do Not Disturb; a `+review1`-style alias ready; demo password in hand; 
 > can be bought or gamed. Athanor replaces follower counts and likes with a reputation score, "Aura",
 > that grows only through verifiable actions (helping on someone's milestone, completing one,
 > attending an event). Nothing purchasable changes it, and no popularity counter is shown publicly.
-> The app is Italian-first, in Italian and English, and launches in the European Economic Area.
+> The app is for the general public — not for the members or employees of a specific organisation —
+> Italian-first, in Italian and English, and launches in the European Economic Area.
 >
 > **3. Setup and access.** No setup or sample files are needed. Demo credentials are in App Review
 > Information (that account is set to English). A new account can also be created with any e-mail
@@ -241,7 +252,10 @@ to date; Do Not Disturb; a `+review1`-style alias ready; demo password in hand; 
 > identity verification and payouts **when those features open — every Stripe flow is switched off
 > server-side in this build and no payment can be started on iOS**. Cloudflare: hosts the public
 > website, www.athanor.world. No AI or machine-learning services, no analytics or advertising SDKs,
-> no tracking.
+> no tracking. **In-app purchases: none.** No in-app purchase products are configured because this
+> version sells nothing on iOS — no digital content, feature or subscription. Should a membership
+> ever be offered on iOS, it will be an auto-renewable subscription through StoreKit and submitted
+> with a new app version.
 >
 > **5. Regional differences.** None. The app offers the same features and content in every
 > territory; the member chooses Italian or English in the app, independently of the device language.
@@ -266,7 +280,8 @@ sent YYYY-MM-DD HH:MM CEST».
 > **Services.** Supabase (EU) for database, auth, storage and server functions; Sign in with Apple and
 > Google; Resend (sign-in e-mails); Expo (builds, updates, push relay to APNs); Mapbox (typed city
 > search, text only); Sentry (opt-in crash reports, EU); Stripe (payments — switched off server-side in
-> this build, nothing purchasable on iOS); Cloudflare (public website). No AI, analytics or ad SDKs.
+> this build, nothing purchasable on iOS, no in-app purchase products); Cloudflare (public website).
+> No AI, analytics or ad SDKs. General-public app, not for a specific organisation.
 > **Not regulated**, no third-party protected material. Developer: Anecoica Studio UG, Berlin, DSA
 > trader. A screen recording of the full flow was attached to the 2.1 reply of [date].
 
