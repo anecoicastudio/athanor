@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import { gdprKeys, getLatestExportJob, requestErasure } from '@athanor/api';
+import { requestErasure } from '@athanor/api';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useExportJob } from '@/hooks/use-export-job';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -46,17 +47,14 @@ export default function DeleteAccountScreen() {
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
 
-  // Same key as the export screen, so a request filed there reads here without a second fetch.
+  // Same query as the export screen (`useExportJob`), so a request filed there reads here without
+  // a second fetch, and a job that finishes while the app is away releases the gate on return.
   // The gate is a courtesy, never a way to keep somebody from leaving, so it holds only on an
   // answer read NOW: `isFetchedAfterMount` because the cache is persisted for 24 h and a stale
   // row must not decide; `!isError` because TanStack keeps the last good data through a failed
   // refetch. A fetch still in flight does not hold the CTA either — a hung request would.
   const [openedAt] = useState(() => Date.now());
-  const exportJob = useQuery({
-    queryKey: gdprKeys.exportStatus(),
-    queryFn: () => getLatestExportJob(supabase),
-    refetchOnMount: 'always',
-  });
+  const exportJob = useExportJob();
   const exportStatus = exportJob.data?.status ?? null;
   const exportCreated = exportJob.data ? Date.parse(exportJob.data.created_at) : Number.NaN;
   // A job the nightly pass has not served within two nights is retrying a failure

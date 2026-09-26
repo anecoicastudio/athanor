@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Linking } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { t } from '@athanor/i18n';
-import { gdprKeys, getLatestExportJob, requestExport } from '@athanor/api';
+import { gdprKeys, requestExport } from '@athanor/api';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useExportJob } from '@/hooks/use-export-job';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -31,10 +32,9 @@ export default function DataExportScreen() {
   // screen held open across the moment a 7-day link expires is not a case worth a timer.
   const [openedAt] = useState(() => Date.now());
 
-  const job = useQuery({
-    queryKey: gdprKeys.exportStatus(),
-    queryFn: () => getLatestExportJob(supabase),
-  });
+  // Re-read on entry and on every return to the foreground: the job turns ready on a nightly
+  // pass while the member is away, and a cached «Stiamo preparando» must not outlive it (#879).
+  const job = useExportJob();
   const status = job.data?.status ?? null;
   const pending = status === 'requested' || status === 'processing';
   const expiresAt = job.data?.expires_at ? Date.parse(job.data.expires_at) : Number.NaN;
