@@ -146,7 +146,7 @@ export default function StoriesScreen() {
   if (!currentAuthorId || personQuery.isLoading) {
     return (
       <Screen className="items-center justify-center">
-        {/* Decorative loading glyph — hidden, like `(tabs)/profile.tsx:41-47` (#635). */}
+        {/* Decorative loading glyph — hidden, like `(tabs)/profile.tsx`'s loading ✦ (#635). */}
         <Text
           className="text-2xl text-faint"
           accessibilityElementsHidden

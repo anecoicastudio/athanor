@@ -390,7 +390,7 @@ export function MediaSheet({
              * sheet had no other close control, so without this row a VoiceOver user could
              * reach the three options and nothing that leaves. `onAccessibilityEscape` cannot
              * stand in for it: RN fires the escape gesture only "when accessible is true"
-             * (ViewAccessibility.d.ts:300-303), which is precisely what is turned off above.
+             * (RN's ViewAccessibility.d.ts), which is precisely what is turned off above.
              *
              * NOT `disabled={busy}`, unlike the three options: cancelling has to stay reachable
              * *especially* while something is in flight, or the dead end returns for exactly as

@@ -38,31 +38,33 @@ import ts from 'typescript';
  * `check-i18n-hardcoded.mjs` lists, for the same reason — the app root also holds build output
  * and e2e fixtures), every package's `src`, the edge functions, the pgTAP tests, the staging
  * seed and these scripts. A root that stops existing throws ENOENT from `walk`, the loud failure
- * a silently narrowed scan would not be.
+ * a silently narrowed scan would not be. A root may also be a single file.
+ *
+ * Built only when no roots were passed: the package list is read off `packages/`, which does not
+ * exist under the fixture trees the test hands in.
  */
-const PACKAGE_ROOTS = readdirSync('packages', { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => join('packages', d.name, 'src'))
-  .filter((p) => {
-    try {
-      return statSync(p).isDirectory();
-    } catch {
-      return false;
-    }
-  });
-const DEFAULT_ROOTS = [
+const defaultRoots = () => [
   'apps/native/src',
   'apps/web/app',
   'apps/web/components',
   'apps/web/lib',
   'apps/web/utils',
-  ...PACKAGE_ROOTS,
+  ...readdirSync('packages', { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => join('packages', d.name, 'src'))
+    .filter((p) => {
+      try {
+        return statSync(p).isDirectory();
+      } catch {
+        return false;
+      }
+    }),
   'supabase/functions',
   'supabase/tests',
   'supabase/staging-seed',
   'scripts',
 ];
-const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_ROOTS;
+const ROOTS = process.argv.slice(2).length ? process.argv.slice(2) : defaultRoots();
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -134,32 +136,41 @@ function lineOf(starts, pos) {
 /**
  * Every comment range in a TS/JS file, as `[start, end)` offsets.
  *
- * Every comment sits in the leading trivia of exactly one token (the end-of-file token included),
- * so reading `getLeadingCommentRanges` at each LEAF token's `pos` finds them all once — JSX
- * `{/* … *\/}` comments included, which hang off the closing brace. Two leaves are skipped:
- * `JsxText`, whose `pos` starts inside rendered text where a `//` is copy, not a comment; and
- * JSDoc nodes, which are themselves comments and would be read twice. A raw `ts.createScanner`
- * loop is NOT a substitute: without the parser's rescans it loses its place after a template
- * literal or a regex and silently misses the rest of the file.
+ * Read off the LEAF tokens in order: `getLeadingCommentRanges` at each leaf's `pos` finds the
+ * comments on the lines above it, and `getTrailingCommentRanges` at its `end` finds the ones on
+ * its own line — the compiler's leading scan deliberately skips a same-line comment until it has
+ * crossed a newline, so a `// …` after code, and a JSX `{/* … *\/}` hanging off its `{`, are only
+ * reachable as trailing trivia. Deduped by start offset, since one comment is often both.
+ *
+ * Three exclusions keep rendered text out: no leading scan from a `JsxText` leaf, and no trailing
+ * scan from a leaf whose NEXT leaf is `JsxText` — in both, the text that follows is copy where a
+ * `//` is literal. JSDoc nodes are skipped because they are comments themselves and would be read
+ * twice. A raw `ts.createScanner` loop is NOT a substitute: without the parser's rescans it loses
+ * its place after a template literal or a regex and silently misses the rest of the file.
  */
 function tsComments(file, text) {
   const kind =
     file.endsWith('.tsx') || file.endsWith('.jsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
-  const seen = new Map();
+  const leaves = [];
   const visit = (node) => {
     if (node.kind >= ts.SyntaxKind.FirstJSDocNode && node.kind <= ts.SyntaxKind.LastJSDocNode)
       return;
     const children = node.getChildren(sf);
-    if (children.length === 0) {
-      if (node.kind === ts.SyntaxKind.JsxText || node.kind === ts.SyntaxKind.JsxTextAllWhiteSpaces)
-        return;
-      for (const r of ts.getLeadingCommentRanges(text, node.pos) ?? []) seen.set(r.pos, r.end);
-      return;
-    }
-    for (const child of children) visit(child);
+    if (children.length === 0) leaves.push(node);
+    else for (const child of children) visit(child);
   };
   visit(sf);
+  const isJsxText = (n) =>
+    n !== undefined &&
+    (n.kind === ts.SyntaxKind.JsxText || n.kind === ts.SyntaxKind.JsxTextAllWhiteSpaces);
+  const seen = new Map();
+  leaves.forEach((leaf, i) => {
+    if (!isJsxText(leaf))
+      for (const r of ts.getLeadingCommentRanges(text, leaf.pos) ?? []) seen.set(r.pos, r.end);
+    if (!isJsxText(leaf) && !isJsxText(leaves[i + 1]))
+      for (const r of ts.getTrailingCommentRanges(text, leaf.end) ?? []) seen.set(r.pos, r.end);
+  });
   return [...seen.entries()];
 }
 
@@ -207,7 +218,7 @@ function sqlComments(text) {
 
 const violations = [];
 let scanned = 0;
-for (const file of ROOTS.flatMap((root) => [...walk(root)])) {
+for (const file of ROOTS.flatMap((root) => (statSync(root).isFile() ? [root] : [...walk(root)]))) {
   if (EXEMPT_PATH.test(file) || file.endsWith('.snap')) continue;
   const isTs = TS_EXT.test(file) && !file.endsWith('.d.ts');
   const isSql = SQL_EXT.test(file);
