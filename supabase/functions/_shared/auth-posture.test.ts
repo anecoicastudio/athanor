@@ -8,7 +8,7 @@
 // false, authenticity from the Stripe signature + the stripe_webhook_events dedupe). The rule
 // also fixes that "`profile_id` is always derived from getUser(), never taken from the request
 // body". These tests cover the whole user-callable family, which is posture one.
-// docs/PRD.md:225 makes Identity the gate for creating paid
+// docs/PRD.md §4.13 makes Identity the gate for creating paid
 // events and candidating a dream, so a spoofable profile_id here is not a nuisance — it verifies
 // the wrong person and unlocks the paid surfaces for them.
 //

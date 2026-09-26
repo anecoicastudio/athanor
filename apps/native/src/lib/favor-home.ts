@@ -20,8 +20,8 @@ export const FAVOR_HOME_PREVIEW = 2;
  * as `query.data === undefined` — and they all collapse to `[]`, which the card renders as
  * nothing at all. That is deliberate and is NOT the #111 defect: `FavorNudgeCard` makes no claim
  * when it is silent, whereas the «Presto qui» it replaces asserted that a shipped feature did not
- * exist. `(modal)/favor.tsx:118-130` owns the error copy and the retry, for the member who went
- * looking.
+ * exist. the `query.isError` arm of `(modal)/favor.tsx` owns the error copy and the retry, for the
+ * member who went looking.
  */
 export function topOpenNeeds(
   pages: NeedsPage[] | undefined,

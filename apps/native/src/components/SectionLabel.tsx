@@ -19,8 +19,8 @@ import { cn, Text } from '@/tw';
  *
  * `heading` puts the label in the VoiceOver rotor (#635). OPT-IN, not the default, and that is a
  * finding rather than caution: many of this component's call sites are not headings at all. It is
- * the form-field label over a single input (`Field.tsx:10` documents that role), the category
- * badge beside a post (`feed/FeedPost.tsx:24`), the «oppure con email» divider between two rules
+ * the form-field label over a single input (`Field`'s docblock documents that role), the category
+ * badge beside a post (`feed/FeedPost.tsx`), the «oppure con email» divider between two rules
  * (`(auth)/welcome.tsx`), and the eyebrow above a display title that is the real heading.
  * Defaulting to `header` would have announced every one of those as a section.
  *

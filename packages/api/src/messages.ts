@@ -57,9 +57,9 @@ export async function getMessagesPage(
  * re-checks it; kind is pinned to 'user' by the insert policy). `mediaUrl` is a chat-media
  * storage KEY ({sender}/{conversation}/{id}.jpg) whose bytes must already be uploaded — the
  * client holds no UPDATE grant on messages, so there is no attach-after-insert. Pass `body`
- * only when it is non-blank; an image-only send omits it. Recording the message is the M6 +5
- * domain signal — this writes only `messages`, never aura (rule #1). TODO(M6): the engine
- * award at ≥10 msgs both sides.
+ * only when it is non-blank; an image-only send omits it. Recording the message is the +5
+ * domain signal — this writes only `messages`, never aura (rule #1). The award at ≥10 msgs both
+ * sides is minted by the `messages_aura_momento` trigger (migration 20260701124122, M6).
  */
 export async function sendMessage(
   client: AthanorClient,

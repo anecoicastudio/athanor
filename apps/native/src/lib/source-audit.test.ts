@@ -1425,8 +1425,8 @@ describe('the events tab has no posts source (#153)', () => {
  * Pressables deep inside a scrim and a sheet that declare no role; both were still `accessible`,
  * so iOS swallowed the descendant anyway — and `MediaSheet.tsx` had the same pair. The mechanism
  * is `accessible`, which `Pressable` sets for you, and #292's note
- * (`components/media/MomentTile.tsx:60`) says so in as many words: "anything `accessible` nested
- * inside it". Keying on the role would have made this guard agree with the bug.
+ * (its Pressable in `components/media/MomentTile.tsx`) says so in as many words: "anything
+ * `accessible` nested inside it". Keying on the role would have made this guard agree with the bug.
  *
  * Which is also why the walk reads `accessible={false}`: that attribute is what actually decides
  * whether an ancestor swallows, so it is what decides whether a nesting is a hit. The two media
@@ -1652,8 +1652,8 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * `onAccessibilityEscape` cannot stand in for the control, and the reason is not stylistic:
  * React Native fires the escape gesture only "when accessible is true"
- * (`ViewAccessibility.d.ts:300-303`), which is precisely the flag being turned off. So the exit
- * has to be a real element, and nothing checked that one existed.
+ * (`onAccessibilityEscape` in react-native's `ViewAccessibility.d.ts`), which is precisely the flag
+ * being turned off. So the exit has to be a real element, and nothing checked that one existed.
  *
  * ## What counts as an exit
  *
@@ -1672,7 +1672,7 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * ## Why the exit may not be gated on a busy flag
  *
- * `MediaSheet.tsx:222-227` argues this in place, and nothing enforced it: the cancel row is
+ * `MediaSheet.tsx`'s cancel `Row` argues this in place, and nothing enforced it: the cancel row is
  * deliberately `disabled={false}` while the three source rows are `disabled={busy}`, because
  * an exit that goes dead during an in-flight pick restores the dead end for exactly as long
  * as the sheet is working — which is when a user is most likely to want out. A guard that
@@ -1789,7 +1789,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * reached the screen by pushing, which is why it survived across 20 files.
  *
  * A `(modal)` screen is a stack root more often than the in-app push path suggests:
- * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:53`
+ * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx`); `[handle].tsx`
  * `replace`s EVERY `/@handle` link into `/(modal)/user/[id]`; the Android `intentFilters` in
  * `app.json` claim `/post`, `/event` and `/dream`, none of which has a top-level route
  * directory, so they resolve into `(modal)` too; and a modal→modal `replace` hands its
@@ -1804,7 +1804,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * `(modal)` screens and shared components both. A component does not know which screen mounts
  * it, so a `back()` inside `ModalHeader` is exactly as dead as one written in the screen —
  * that is where #577's bug lived. `(tabs)` and `(auth)` are out: a tab root has no back
- * affordance at all, and `(auth)/welcome.tsx:231` already renders its own conditionally.
+ * affordance at all, and `(auth)/welcome.tsx` already renders its own on `router.canGoBack()`.
  *
  * ## What it cannot see
  *
@@ -2530,7 +2530,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * «44» are 38.5pt where it counts. Eleven sites shipped that way — one of them under a comment
  * that claimed «a real 44pt tap target» — because `getBoundingClientRect` in the expo-web walk
  * returns 44 for every one of them. The arbitrary form `h-[44px]` is a literal on both
- * platforms, which is why `Input.tsx:153-161` reaches for `style={{ width: 44 }}` and says so.
+ * platforms, which is why `Input`'s eye toggle reaches for `style={{ width: 44 }}` and says so.
  *
  * The ban is on the CLASS, not on a measurement: eleven steps is only ever an attempt at the
  * floor, so there is no legitimate `h-11` to carve out. A genuine 38.5pt box would be written
@@ -2554,9 +2554,9 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * reaches exactly 44; it is CORRECT at that size and short only when the visual is smaller.
  * Deciding that statically means knowing what the child renders to, and a scan for «a small
  * `text-[Npx]` somewhere in the body» flags ~26 sites of which several are plainly fine
- * (`StoryRing.tsx:65` wraps a 60pt avatar, `DreamCard.tsx:128` a whole row) — a guard whose
- * allowlist would be longer than its findings is a pin on today's tree, not an invariant.
- * §28 makes the same call in as many words for the rest of #635.
+ * (`StoryRing`'s Pressable wraps a 60pt avatar, `DreamCard`'s add-milestone one a whole row) — a
+ * guard whose allowlist would be longer than its findings is a pin on today's tree, not an
+ * invariant. §28 makes the same call in as many words for the rest of #635.
  *
  * The two instances #638's sweep did fix by hand — `home/TodaySection.tsx` and
  * `(tabs)/costellazioni.tsx`, plus the `(tabs)/community.tsx` glyph — were found by reading,

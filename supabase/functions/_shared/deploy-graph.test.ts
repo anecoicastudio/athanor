@@ -5,8 +5,8 @@
 // `unstable: ["sloppy-imports"]`, which `supabase/functions/deno.json`, `score-engine/deno.json`
 // and `moderation-enforce/deno.json` all enable — so an extension-less specifier resolves
 // locally, typechecks locally, passes `deno check` locally, and boots as a 503 BOOT_ERROR on the
-// hosted project. `score-engine/index.ts:26-30` documents exactly this and carries three
-// hand-written side-effect pins as a belt-and-braces for the CLI's upload walker.
+// hosted project. The «Deploy-asset pins» comment in `score-engine/index.ts` documents exactly this
+// and carries three hand-written side-effect pins as a belt-and-braces for the CLI's upload walker.
 //
 // Nothing asserted any of it. The pins were a comment and three import lines: add a module to
 // `logic.ts`'s graph whose own imports are extension-less and every test here stays green, the
@@ -56,8 +56,8 @@ function importMap(dir: URL): { imports: Record<string, string>; base: URL } {
  *
  * `import type` / `export type` statements are dropped: the runtime never sees them, so they can
  * name an extension-less specifier safely and flagging one would be a false positive. The
- * exemption still has to be sound rather than convenient — `packages/core/src/score/stars.ts:1`
- * type-imports `@athanor/schemas` and `packages/core/src/score/display.ts:1` VALUE-imports it, so
+ * exemption still has to be sound rather than convenient — `packages/core/src/score/stars.ts`
+ * type-imports `@athanor/schemas` and `packages/core/src/score/display.ts` VALUE-imports it, so
  * were that alias to lead back into an extension-less graph, erasing the type-only form would be
  * hiding a live hazard rather than a false positive. #569 removed the exposure at its source —
  * every specifier under `packages/schemas/src` now carries `.ts` — and the ALIAS ROOTS at the

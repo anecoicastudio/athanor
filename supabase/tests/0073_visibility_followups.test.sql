@@ -97,7 +97,7 @@ select is(
 -- `p.seeking` raw. So C — whose tags are private — disappears from everyone
 -- else's deck (asserted above) yet still RECEIVES proposals scored against her
 -- own private tags. Supersedes the product note in migration
--- 20260807174758_m10_visibility_followups.sql:23-26 ("drops out of Momenti
+-- 20260807174758_m10_visibility_followups.sql ("drops out of Momenti
 -- matching entirely"), which overstates it; that migration is applied and
 -- append-only, so the accurate statement lives here beside the assertion.
 select is(

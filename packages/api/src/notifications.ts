@@ -9,8 +9,8 @@ import { keysetFilter, nextCursorOf } from './pagination';
 import { channelTopic } from './realtime';
 
 // Rows are written ONLY by the `notification-fan-out` edge fn (service role) — see
-// supabase/functions/notification-fan-out/. TODO(M9-fanout): that fn + its DB-trigger wiring from
-// source tables is deploy-deferred, so this list is empty (honest empty state) until producers land.
+// supabase/functions/notification-fan-out/, fed by DB-trigger producers
+// (`athanor.enqueue_notification`, migration 20260701160235 and later producer migrations).
 const PAGE = 20;
 
 export type NotifCursor = { createdAt: string; id: string };

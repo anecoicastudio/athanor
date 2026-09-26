@@ -41,7 +41,7 @@ import { useLocale } from '@/hooks/use-locale';
  *   nothing. An empty deck / no open need / no event today is a fact about today,
  *   not a missing feature, and silence asserts nothing. #177 settled that a short
  *   honest Home beats a full one made of promises. For Momenti the tab-bar ✦
- *   (`_layout.tsx:18-21`) is already the one-waits/none-waits signal; for the other
+ *   (`hasUnseen` in `(tabs)/_layout.tsx`) is already the one-waits/none-waits signal; for the other
  *   two the modal behind the slot keeps the copy and the retry.
  * - «La tua settimana» (#100) does NOT collapse: it names which of loading, error
  *   and a genuinely quiet week it is looking at, and offers a retry on the error.

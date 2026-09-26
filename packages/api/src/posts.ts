@@ -158,8 +158,8 @@ export async function getPostById(client: AthanorClient, id: string): Promise<Po
  * the RPC derives one from `auth.uid()` and assigns the other — so a row aimed at someone
  * else's post is unrepresentable rather than merely refused.
  *
- * Writing a post is the +6 domain event the M6 engine reads; this writes no Aura (rule #1).
- * TODO(M6): the score-engine (backend `07`) consumes the insert for the +6 award.
+ * Writes no Aura (rule #1), and writing a post earns none: the engine never rewards creating
+ * content (`ENGINE_WEIGHTS` in packages/core/src/score/weights.ts has no row for it).
  *
  * The converge is an UPDATE, never a delete-and-reinsert: `subscribeNewPosts` filters
  * `event: 'INSERT'`, so a retry does not re-fire the "Nuovi passi ›" banner for a post the feed

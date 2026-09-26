@@ -39,12 +39,13 @@ export type MyPayoutAccount = {
  * used to give. It claimed the flag "never becomes true on these accounts" because
  * create-payout-onboarding requests only the `transfers` capability; both staging connected
  * accounts report `charges_enabled: true` from Stripe, so that was simply wrong (see
- * `supabase/MIGRATIONS-ERRATA.md`, `20260906141227_ticket_split_payout_gate.sql:29-31`). The real
- * reason is narrower and still holds: nothing in the app should gate on it. A recipient account's
- * ability to take charges says nothing about an organiser's ability to be paid, which is what
- * every consumer here actually asks. It stays in the parse so a schema drift is still caught, and
- * out of the return type so nothing can accidentally gate on it. `release-fund-payout` does read
- * it, server-side, where the question is different.
+ * `supabase/MIGRATIONS-ERRATA.md`, the «payouts_enabled rather than charges_enabled» paragraph of
+ * `20260906141227_ticket_split_payout_gate.sql`). The real reason is narrower and still holds:
+ * nothing in the app should gate on it. A recipient account's ability to take charges says nothing
+ * about an organiser's ability to be paid, which is what every consumer here actually asks. It
+ * stays in the parse so a schema drift is still caught, and out of the return type so nothing can
+ * accidentally gate on it. `release-fund-payout` does read it, server-side, where the question is
+ * different.
  */
 export async function getMyPayoutAccount(client: AthanorClient): Promise<MyPayoutAccount> {
   const { data: userData, error: userErr } = await client.auth.getUser();
@@ -75,7 +76,8 @@ export async function getMyPayoutAccount(client: AthanorClient): Promise<MyPayou
  * Goes through `has_payouts_enabled`, not the table: `payout_accounts` is select-own, so a buyer's
  * direct read of the organiser's row returns nothing. The RPC is DEFINER, granted to
  * `authenticated`, and answers one boolean — no account id, no onboarding timestamp — with a
- * missing row coalesced to false (`20260906141227_ticket_split_payout_gate.sql:22-54`).
+ * missing row coalesced to false (`has_payouts_enabled` in
+ * `20260906141227_ticket_split_payout_gate.sql`).
  *
  * A COURTESY, never the authority (rules 6 and 8): it lets the ticket bar stop offering a button
  * that would fail, most usefully after `payouts_enabled` flips false on an event that passed the

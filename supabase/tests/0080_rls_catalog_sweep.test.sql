@@ -4,11 +4,11 @@
 -- This one asserts the RULES themselves, mechanically, across ALL tables and ALL policies at
 -- once -- so it fails on the NEXT bad policy, not just today's.
 --
--- PRD.md:417 -- "RLS: pgTAP suite -- every table, every role, including 'client cannot write
+-- PRD.md §10 -- "RLS: pgTAP suite -- every table, every role, including 'client cannot write
 -- score' assertion." A per-table file satisfies that for the tables that exist today; nothing
 -- forced the next table to get the same treatment. These sweeps do.
 --
--- Derived from CLAUDE.md rule 2 and .claude/rules/supabase.md L10-11:
+-- Derived from CLAUDE.md rule 2 and .claude/rules/supabase-db.md «Policies»:
 --   * RLS on every table, deny-by-default
 --   * policies use the wrapped form `(select auth.uid())`
 --   * always `TO authenticated`/`TO anon` + ownership predicate -- never PUBLIC
@@ -48,7 +48,7 @@ select is_empty(
   'rule 2: every table in public/athanor has row level security enabled'
 );
 
--- PRD.md:417 tripwire. Tables are created across supabase/migrations/ and each one has a
+-- PRD.md §10 tripwire. Tables are created across supabase/migrations/ and each one has a
 -- dedicated file in supabase/tests/. When this count changes, the new table needs its own
 -- pgTAP file before this number is bumped -- that is the whole point of the assertion.
 -- 47 -> 48: athanor.waitlist_throttle (issue #23), covered by 0083_waitlist_rate_limit.
@@ -136,7 +136,7 @@ select is_empty(
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
--- .claude/rules/supabase.md:10 -- never auth.role()
+-- .claude/rules/supabase-db.md «Policies» -- never auth.role()
 -- ─────────────────────────────────────────────────────────────────────────────────────
 
 -- auth.role() is deprecated, and `auth.role() = 'authenticated'` passes for anonymous
@@ -187,7 +187,7 @@ select is_empty(
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
--- .claude/rules/supabase.md:11 -- SECURITY DEFINER hygiene
+-- .claude/rules/supabase-db.md «Policies» -- SECURITY DEFINER hygiene
 -- ─────────────────────────────────────────────────────────────────────────────────────
 
 -- A SECURITY DEFINER function with an inherited search_path can be hijacked by a caller who
@@ -230,7 +230,7 @@ select is_empty(
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
--- Rule 1 -- Aura is never client-writable (PRD.md:417 "client cannot write score")
+-- Rule 1 -- Aura is never client-writable (PRD.md §10 "client cannot write score")
 -- ─────────────────────────────────────────────────────────────────────────────────────
 
 -- 0035 / 0036 prove the behaviour for today's policy set. This proves the SHAPE: no write

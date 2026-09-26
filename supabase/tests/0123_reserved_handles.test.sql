@@ -39,7 +39,7 @@ select is(
 -- for living in the database is that `authenticated` can write this column directly, so the
 -- claim belongs in a test rather than in a migration comment (MIGRATIONS-ERRATA.md,
 -- 20260818095917) — it should go red if the grant is ever narrowed, not merely mislead a reader.
--- Granted by name in 20260617225450_m7_candidacy.sql:16-18, 21-23.
+-- Granted by name in 20260617225450_m7_candidacy.sql.
 select ok(
   has_column_privilege('authenticated', 'public.profiles', 'handle', 'UPDATE'),
   'authenticated holds UPDATE on profiles.handle — a member can re-claim a handle (once per 30 days since #782, pgTAP 0154)'

@@ -6,7 +6,7 @@
 // only half the claim: the webhook writes ROWS, and a row can grant
 // Aura without the webhook knowing, because `20260701124122_m6_aura_award_triggers.sql` mints
 // the ledger from database triggers. So "Circle membership and fund contributions yield zero
-// points" (docs/PRD.md:191, "Enforced in engine, asserted in tests") is a statement about the
+// points" (docs/PRD.md §4.9, "Enforced in engine, asserted in tests") is a statement about the
 // TRIGGER SET, not about handlers.ts — and nothing asserted it.
 //
 // This file reads supabase/migrations and asserts the boundary from the other side.
@@ -81,13 +81,13 @@ Deno.test('the migration parser actually found the Aura award triggers', () => {
   );
 });
 
-// ── the boundary: docs/PRD.md:191, :220, :386, :387 ──────────────────────────
+// ── the boundary: docs/PRD.md §4.9, §4.12, §8 ────────────────────────────────
 
 Deno.test('NO Aura award trigger fires on a money table', () => {
-  // docs/PRD.md:191 — "Aura never purchasable. Athanor Circle membership and fund contributions
-  // yield **zero** points." docs/PRD.md:220 — Circle grants "never: score boost".
-  // These are the exact tables docs/PRD.md:385-387 tell the webhook to write. If an award
-  // trigger ever lands on one of them, paying becomes earning and nothing else in the repo
+  // docs/PRD.md §4.9 — "Aura never purchasable. Athanor Circle membership and fund contributions
+  // yield **zero** points." docs/PRD.md §4.12 — Circle grants "never: score boost".
+  // These are the exact tables docs/PRD.md §8 (the Stripe flow) tells the webhook to write. If an
+  // award trigger ever lands on one of them, paying becomes earning and nothing else in the repo
   // would notice.
   const MONEY_TABLES = [
     'event_tickets',
@@ -129,8 +129,8 @@ Deno.test('NO Aura award trigger fires on a money table', () => {
 });
 
 Deno.test('event Aura is earned at the door, not at the checkout', () => {
-  // docs/PRD.md:153 — "organizer scans attendee QR → attendance recorded → score event".
-  // docs/PRD.md:181 — "+15 Event attended (checked-in)". Buying and not showing up is worth 0,
+  // docs/PRD.md §4.6 — "organizer scans attendee QR → attendance recorded → score event".
+  // docs/PRD.md §4.9 — "+15 Event attended (checked-in)". Buying and not showing up is worth 0,
   // which is only true while the trigger sits on event_attendance and NOT on event_tickets.
   assert(
     (SCORE_TRIGGERS.get('event_attendance') ?? []).length > 0,
@@ -140,8 +140,8 @@ Deno.test('event Aura is earned at the door, not at the checkout', () => {
 });
 
 Deno.test('the identity +50 is wired to the flag the webhook flips', () => {
-  // docs/PRD.md:388 — "identity.verified → verifications → badge + score event".
-  // docs/PRD.md:180 — "+50, once". The webhook only flips profiles.identity_verified
+  // docs/PRD.md §8 — "identity.verified → verifications → badge + score event".
+  // docs/PRD.md §4.9 — "+50, once". The webhook only flips profiles.identity_verified
   // (spec-conformance.test.ts); this is the other end of that wire. Break either end and a
   // person completes a paid Identity check for nothing.
   const fns = SCORE_TRIGGERS.get('profiles') ?? [];
@@ -153,11 +153,12 @@ Deno.test('the identity +50 is wired to the flag the webhook flips', () => {
   );
 });
 
-// ── the Realtime leg of docs/PRD.md:386 ──────────────────────────────────────
+// ── the Realtime leg of docs/PRD.md §8 ───────────────────────────────────────
 
 Deno.test('the fund ticker the webhook recomputes is published to Realtime', () => {
-  // docs/PRD.md:386 — "checkout.completed(fund) → fund_contributions + edition totals →
-  // Realtime". docs/PRD.md:209 — "fund total, contributors count — realtime, visible app-wide".
+  // docs/PRD.md §8 — "checkout.completed(fund) → fund_contributions + cycle aggregate →
+  // Realtime". docs/PRD.md §4.11 — "total raised + contributor count, realtime, public, visible
+  // app-wide".
   // handleContribution's recompute lands in fund_aggregates (metadata-contract.test.ts asserts
   // the rpc + its edition arg); the "→ Realtime" arrow is this publication membership, and it
   // is the only part of the arrow that is not otherwise tested.
@@ -171,6 +172,6 @@ Deno.test('the fund ticker the webhook recomputes is published to Realtime', () 
       .join(', ')}`,
   );
   // raw contribution rows are NOT published: amounts are private, only the aggregate is public
-  // (docs/PRD.md:210 "Split fixed & displayed", not per-contributor amounts).
+  // (docs/PRD.md §4.11 publishes the per-cycle split, never per-contributor amounts).
   assertEquals(live.has('fund_contributions'), false);
 });

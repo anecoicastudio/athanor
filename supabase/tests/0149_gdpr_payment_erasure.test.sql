@@ -72,7 +72,7 @@ select has_function('public', 'gdpr_release_profile_references', array['uuid'],
 select has_function('public', 'gdpr_purge_waitlist_email', array['text'],
   'gdpr_purge_waitlist_email exists');
 
--- INVOKER, following gdpr_erase_fund_footprint (20260815131925:71) and the 20260821082216
+-- INVOKER, following gdpr_erase_fund_footprint (migration 20260815131925) and the 20260821082216
 -- correction: the only caller is the erasure-job's service-role client, which already holds
 -- every table these touch. A postgres-owned DEFINER that can null out money identities is a
 -- latent escalation surface, not a convenience.
@@ -522,8 +522,8 @@ select lives_ok(
 
 -- ── 6e. the waitlist purge matches ONE address, folded, with no pattern language ─────────
 -- The whole reason 20260908092809 exists. The match has to fold case, because
--- athanor.purge_email_waitlist does (20260620140149:111) and a row stored as `Ada@X.test` is the
--- same entry as the `ada@x.test` GoTrue returns. But it must not become a PATTERN match:
+-- athanor.purge_email_waitlist does (migration 20260620140149) and a row stored as `Ada@X.test` is
+-- the same entry as the `ada@x.test` GoTrue returns. But it must not become a PATTERN match:
 -- PostgREST rewrites `*` to `%` in an ilike value before Postgres sees it, with no escape at
 -- that layer, and `*` is legal unquoted in a local part (RFC 5322 atext). Probed against staging
 -- before the fix — `GET /email_waitlist?email=ilike.a*b@probe.test` returned `axb@probe.test`

@@ -7,9 +7,9 @@
  * down, and the same remedy: a claim about the data may only be made once a read has settled
  * into that claim.
  *
- * Extracted from the .tsx for the reason `momenti-home.ts:23-25` gives — this app's vitest
- * harness is `environment: 'node'` with an `src/**\/*.test.ts` glob, so a rule left inside a
- * component is structurally unassertable, and this is precisely the rule that broke.
+ * Extracted from the .tsx for the reason `momenti-home.ts`'s «Extracted from the .tsx» note gives —
+ * this app's vitest harness is `environment: 'node'` with an `src/**\/*.test.ts` glob, so a rule
+ * left inside a component is structurally unassertable, and this is precisely the rule that broke.
  *
  * Two claims, deliberately kept apart:
  *

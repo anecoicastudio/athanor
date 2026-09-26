@@ -55,10 +55,9 @@ export async function respondToHelp(
  * the help status accepted->completed AND the parent tappa -> done in ONE transaction (atomic —
  * the two states can never diverge). The RPC is SECURITY INVOKER, so the owner-only RLS + the
  * legal-edge guard still apply, and it derives the tappa from the help so no mismatched
- * milestone id is possible. This is the +40 (helper) / +10 (owner) domain event the M6 engine
- * reads. Writes NO aura_* (rule #1).
- * TODO(M6): score-engine (backend `07`) consumes status='completed' + milestone='done'
- * and awards +40 helper / +10 owner + star progress (service-role only).
+ * milestone id is possible. This is the +40 (helper) / +10 (owner) domain event. Writes NO aura_*
+ * (rule #1): the `milestone_helps_aura_help` and `dream_milestones_aura_own` triggers (migration
+ * 20260701124122, M6) enqueue both awards for the service-role score-engine.
  */
 export async function confirmHelpComplete(client: AthanorClient, helpId: string): Promise<void> {
   const { error } = await client.rpc('confirm_milestone_help', { p_help_id: helpId });

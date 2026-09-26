@@ -209,12 +209,13 @@ type ErasureClaim = { id: string; profile_id: string | null; claimed_at: string 
  * Write a request's terminal status, but ONLY while this pass still holds the lease it was
  * claimed under.
  *
- * The fence is `stripe-webhook`'s (`handlers.ts:933-938`) and it is not decoration. A pass can
- * outlive its lease — an unusually long cascade, or an operator releasing the lease by hand
- * (RELEASE-RUNBOOK §7.5) — and a later pass then re-claims the row and starts working it. Without
- * the guard this pass's 'done' or 'failed' lands on that row, taking it OUT of 'processing' while
- * the second pass is still inside the cascade, and neither side can tell. PostgREST answers a
- * no-op update with success, so the `.select()` is what makes the lost lease visible at all.
+ * The fence is `stripe-webhook`'s (the `claimed_at = ourClaim` guard in `handleWebhook`) and it is
+ * not decoration. A pass can outlive its lease — an unusually long cascade, or an operator
+ * releasing the lease by hand (RELEASE-RUNBOOK §7.5) — and a later pass then re-claims the row and
+ * starts working it. Without the guard this pass's 'done' or 'failed' lands on that row, taking it
+ * OUT of 'processing' while the second pass is still inside the cascade, and neither side can tell.
+ * PostgREST answers a no-op update with success, so the `.select()` is what makes the lost lease
+ * visible at all.
  */
 async function writeTerminalStatus(
   db: SupabaseClient,
@@ -764,14 +765,14 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         const email = authUser?.data?.user?.email ?? null;
         if (email) {
           // Through an RPC, not a PostgREST filter. The match has to fold case, because
-          // `athanor.purge_email_waitlist` does (20260620140149:111) and a row stored as
-          // `Ada@X.test` is the same entry as the `ada@x.test` GoTrue returns — so `.eq` walks
-          // past it. But `.ilike` cannot be made safe here: **PostgREST rewrites `*` to `%` in a
-          // pattern before Postgres sees it**, with no escape at that layer, and `*` is legal in
-          // a local part. Verified against staging — `ilike.a*b@probe.test` returned
-          // `axb@probe.test` too. Erasing one member would have deleted another member's row.
-          // `gdpr_purge_waitlist_email` (20260908092809) is an equality on `lower()` with no
-          // pattern language anywhere in it.
+          // `athanor.purge_email_waitlist` does (its `lower(u.email) = lower(w.email)`, migration
+          // 20260620140149) and a row stored as `Ada@X.test` is the same entry as the `ada@x.test`
+          // GoTrue returns — so `.eq` walks past it. But `.ilike` cannot be made safe here:
+          // **PostgREST rewrites `*` to `%` in a pattern before Postgres sees it**, with no escape
+          // at that layer, and `*` is legal in a local part. Verified against staging —
+          // `ilike.a*b@probe.test` returned `axb@probe.test` too. Erasing one member would have
+          // deleted another member's row. `gdpr_purge_waitlist_email` (20260908092809) is an
+          // equality on `lower()` with no pattern language anywhere in it.
           const { error: waitlistError } = await db.rpc('gdpr_purge_waitlist_email', {
             p_email: email,
           });

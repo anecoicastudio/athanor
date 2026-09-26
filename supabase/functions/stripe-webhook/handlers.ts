@@ -574,8 +574,9 @@ export async function handleSubscription(db: Db, sub: Stripe.Subscription): Prom
 /**
  * W9 — a Stripe Identity session verified. Cache the row (service role) and flip
  * profiles.identity_verified. Idempotent: upsert on stripe_session_id (UNIQUE). Does NOT write
- * aura_* (rule #1) — the +50 «Identity verified» is the M6 score-engine's job (07), wired when
- * the engine deploys (TODO(M6): engine reads this verified fact / a domain-event invocation).
+ * aura_* (rule #1) — the +50 «Identity verified» is minted from the flag this flips, by the
+ * `profiles_aura_identity` trigger (migration 20260701124122, M6); _shared/aura-boundary.test.ts
+ * asserts that wire.
  */
 export async function handleIdentityVerified(
   db: Db,
