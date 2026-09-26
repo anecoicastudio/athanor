@@ -2353,6 +2353,33 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
 // 28 — a toggle names itself, and a decorative mark is never spoken (#635)
 // ---------------------------------------------------------------------------------------
 
+/** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
+const openingTags = (src: string, tag: string): { line: number; attrs: string }[] => {
+  const found: { line: number; attrs: string }[] = [];
+  const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    let j = m.index + m[0].length;
+    let depth = 0;
+    let quote = '';
+    while (j < src.length) {
+      const c = src[j] as string;
+      if (quote) {
+        if (c === quote) quote = '';
+      } else if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '{') depth += 1;
+      else if (c === '}') depth -= 1;
+      else if (c === '>' && depth === 0) break;
+      j += 1;
+    }
+    found.push({
+      line: src.slice(0, m.index).split('\n').length,
+      attrs: src.slice(m.index + m[0].length, j),
+    });
+  }
+  return found;
+};
+
 /**
  * Two halves of the VoiceOver wave that a walk can actually see. The rest of #635 — a composed
  * label, a `checked` state, the peek card leaving the a11y tree — is per-site judgement no regex
@@ -2392,33 +2419,6 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     'app/(modal)/story-compose.tsx',
   ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
-
-  /** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
-  const openingTags = (src: string, tag: string): { line: number; attrs: string }[] => {
-    const found: { line: number; attrs: string }[] = [];
-    const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(src))) {
-      let j = m.index + m[0].length;
-      let depth = 0;
-      let quote = '';
-      while (j < src.length) {
-        const c = src[j] as string;
-        if (quote) {
-          if (c === quote) quote = '';
-        } else if (c === '"' || c === "'" || c === '`') quote = c;
-        else if (c === '{') depth += 1;
-        else if (c === '}') depth -= 1;
-        else if (c === '>' && depth === 0) break;
-        j += 1;
-      }
-      found.push({
-        line: src.slice(0, m.index).split('\n').length,
-        attrs: src.slice(m.index + m[0].length, j),
-      });
-    }
-    return found;
-  };
 
   it('finds the Switch sites it is walking', () => {
     const total = FILES.filter((p) => !isTest(p)).reduce(
@@ -2645,9 +2645,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:468':
+    'app/(modal)/chat.tsx:469':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:523':
+    'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
@@ -2660,7 +2660,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
-    'components/stories/StoryRing.tsx:121':
+    'components/stories/StoryRing.tsx:127':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
   };
@@ -4552,5 +4552,80 @@ describe('a tag label built from data goes through the shared fallback (#883)', 
       hits,
       "a tag key built from data and handed to t(): an off-list value renders as the raw key. Use tagLabel(kind, tag, locale) from '@athanor/i18n', which falls back to the stored value (#883).",
     ).toEqual([]);
+  });
+});
+
+/**
+ * An avatar inside a row that already names the member is decorative (#884). `Avatar` labels
+ * itself with the member's name, so inside an unlabelled row iOS joined that label with the name
+ * `Text` beside it — «Sole Marini, Sole Marini, 2g, …» — and on Android a focusable disc inside a
+ * focusable row was a second TalkBack stop saying the name again.
+ *
+ * Labelled stays `Avatar`'s default, because forgetting the flag costs a repeated name and the
+ * opposite default would cost a missing one. What this section adds is that no call site gets the
+ * default by accident: every file that renders an `<Avatar` is registered here with its decision,
+ * so the next row is written knowing the question exists. A `decorative` site must be one whose
+ * row speaks the name some other way — the row's own label, or the name as adjacent text.
+ */
+describe('an avatar in a row that names the member stays silent (#884)', () => {
+  const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
+    'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
+    'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
+    'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
+    'components/costellazioni/FavorRow.tsx': { decorative: true, why: 'row label' },
+    'components/profile/IncomingOfferRow.tsx': { decorative: true, why: 'row label' },
+    'components/live/AttendeeStack.tsx': { decorative: true, why: 'row label' },
+    'components/chat/Bubble.tsx': { decorative: true, why: 'the avatar button’s label' },
+    'components/stories/StoryRing.tsx': { decorative: true, why: 'row label' },
+    'components/search/ResultRow.tsx': { decorative: true, why: 'searchRowLabel says the name' },
+    'components/trust/BlockedRow.tsx': { decorative: true, why: 'name Text beside it' },
+    'app/(modal)/settings.tsx': { decorative: true, why: 'name Text beside it' },
+    'components/momenti/MomentoCard.tsx': { decorative: true, why: 'name Text beside it' },
+    'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
+    'components/profile/ProfileHero.tsx': { decorative: false, why: 'the profile’s own face' },
+    'components/profile/ProfileEditForm.tsx': { decorative: false, why: 'whose photo this is' },
+    // The row label is generic («Hai un Momento»), so the disc is the only thing naming them.
+    'components/home/MomentiCard.tsx': { decorative: false, why: 'generic row label' },
+    'components/home/FavorNudgeCard.tsx': { decorative: false, why: 'generic row label' },
+  };
+
+  const sites = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+    openingTags(stripComments(read(p)), 'Avatar').map(({ line, attrs }) => ({
+      file: rel(p).replace('apps/native/src/', ''),
+      line,
+      decorative: /(^|\s)decorative(?=[\s/=]|$)/.test(attrs),
+    })),
+  );
+
+  it('finds the Avatar sites it is walking', () => {
+    // A scanner that finds nothing passes every assertion below.
+    expect(sites.length, 'no <Avatar> found at all — the walk is broken').toBeGreaterThan(10);
+  });
+
+  it('every Avatar site made the decision its file registers', () => {
+    const wrong = sites
+      .filter((s) => s.file in AVATAR_SITES)
+      .filter((s) => s.decorative !== AVATAR_SITES[s.file]?.decorative)
+      .map(
+        (s) =>
+          `${s.file}:${s.line} (registered ${AVATAR_SITES[s.file]?.decorative ? 'decorative' : 'labelled'})`,
+      );
+    expect(
+      wrong,
+      `an <Avatar> that disagrees with its entry in AVATAR_SITES. If the row names the member, ` +
+        `pass \`decorative\`; if the disc is the only thing that says who this is, leave it ` +
+        `labelled — then update the register to match (#884).`,
+    ).toEqual([]);
+  });
+
+  it('the register is exactly the files that render an Avatar', () => {
+    const owners = [...new Set(sites.map((s) => s.file))].sort();
+    expect(
+      owners,
+      `a file renders <Avatar> without an AVATAR_SITES entry, or an entry no longer renders one. ` +
+        `A new row decides here whether its avatar is decorative (#884).`,
+    ).toEqual(Object.keys(AVATAR_SITES).sort());
   });
 });

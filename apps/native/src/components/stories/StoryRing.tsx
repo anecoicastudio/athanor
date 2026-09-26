@@ -72,7 +72,13 @@ export function StoryRing({
         className="items-center gap-1.5"
       >
         <View className={`rounded-full border-2 p-0.5 ${ring}`}>
-          <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={AVATAR} />
+          <Avatar
+            decorative
+            handle={handle}
+            displayName={displayName}
+            avatarPath={avatarPath}
+            size={AVATAR}
+          />
         </View>
         {/* Two lines (#639), and since #754 two TEXTS: the first word, then the rest, each on
             one line with a tail ellipsis. A single `numberOfLines={2}` broke a long word

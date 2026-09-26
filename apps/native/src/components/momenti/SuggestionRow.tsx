@@ -55,6 +55,7 @@ export function SuggestionRow({
       className="min-h-[56px] flex-row items-center gap-3 rounded-card border border-hair bg-raise px-4 py-3"
     >
       <Avatar
+        decorative
         handle={suggestion.handle}
         displayName={suggestion.displayName}
         avatarPath={suggestion.avatarPath}

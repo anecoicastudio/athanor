@@ -41,6 +41,7 @@ export function ConnectionRequestRow({
         onPress={() => router.push(`/(modal)/user/${item.peerId}`)}
       >
         <Avatar
+          decorative
           handle={item.peerHandle}
           displayName={item.peerDisplayName}
           avatarPath={item.peerAvatarPath}

@@ -114,6 +114,7 @@ export default function SettingsScreen() {
         {/* Account card */}
         <View className="flex-row items-center gap-4 rounded-card border border-hair bg-raise p-5">
           <Avatar
+            decorative
             handle={profile?.handle ?? null}
             displayName={profile?.display_name ?? null}
             avatarPath={profile?.avatar_path ?? null}

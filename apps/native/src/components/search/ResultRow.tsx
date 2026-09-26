@@ -2,6 +2,7 @@ import { highlightMatches } from '@athanor/core';
 import type { SearchResult } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { searchRowLabel } from '@/lib/search-row-label';
 
 /**
  * Search result row (M8 §3.3 / §4 `<ResultRow>`).
@@ -61,8 +62,17 @@ function EntityIcon({
 }) {
   if (entityType === 'person') {
     // `title` IS the handle on this arm — the search matched on it, and the result list keeps
-    // highlighting it, so the name enters through the avatar rather than replacing the label.
-    return <Avatar handle={title} displayName={displayName} avatarPath={avatarPath} size={40} />;
+    // highlighting it, so the name enters through the avatar rather than replacing the title.
+    // Decorative: `searchRowLabel` speaks the name on the row, so the disc does not (#884).
+    return (
+      <Avatar
+        decorative
+        handle={title}
+        displayName={displayName}
+        avatarPath={avatarPath}
+        size={40}
+      />
+    );
   }
 
   // project → ◈ (diamond with centre dot — closest esoteric-set approximation)
@@ -95,7 +105,7 @@ export function ResultRow({
       style={{ minHeight: 60 }}
       onPress={() => onPress(result)}
       accessibilityRole="button"
-      accessibilityLabel={`${result.title}, ${result.subtitle}`}
+      accessibilityLabel={searchRowLabel(result)}
     >
       {/* Leading icon */}
       <EntityIcon

@@ -26,6 +26,7 @@ export function ConnectionRow({
       onPress={onPress}
     >
       <Avatar
+        decorative
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}

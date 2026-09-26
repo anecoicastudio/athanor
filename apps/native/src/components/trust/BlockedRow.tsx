@@ -30,6 +30,7 @@ export function BlockedRow({
   return (
     <View className="flex-row items-center gap-3 py-3" style={{ opacity: mutating ? 0.5 : 1 }}>
       <Avatar
+        decorative
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}
