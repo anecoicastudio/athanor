@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { dreamPagePaths, type KvPurger, ogCardPaths } from '../_shared/kv-purge.ts';
+import { dreamPagePaths, eventPagePaths, type KvPurger, ogCardPaths } from '../_shared/kv-purge.ts';
 import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
@@ -165,6 +165,27 @@ export type ErasureCtx = {
  * therefore treated as a purge gap rather than as a complete read.
  */
 const DREAM_ID_READ_LIMIT = 500;
+
+/**
+ * How many of the subject's organised event ids one run derives KV keys for (#775). Bounded for
+ * the reason DREAM_ID_READ_LIMIT is, and a full page is a purge gap for the same reason.
+ */
+const EVENT_ID_READ_LIMIT = 500;
+
+/**
+ * Names the event ids a failed or unconfigured sweep left behind (#775).
+ *
+ * The one key input a re-drive cannot rebuild: (3d) hands the events to the tombstone whether
+ * or not the sweep ran, and nothing afterwards says who organised them. Holding (3d) back
+ * instead was rejected in review — it keeps the events LIVE, and every invite redeemable, until
+ * an operator re-drives a 'failed' row, which is a worse leak than a cached copy. So the ids go
+ * to the log, where RELEASE-RUNBOOK §7.4's single-key delete can use them; the §7.4 prefix
+ * sweep clears a stranded copy without them.
+ */
+function logUnpurgedEvents(requestId: string, eventIds: readonly string[]): void {
+  if (eventIds.length === 0) return;
+  console.error('erasure-job: event pages left unpurged', requestId, eventIds);
+}
 
 /**
  * How many requests one pass CONSIDERS.
@@ -388,27 +409,54 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     Since #107 that delete happens in this same pass, so the ordering is load-bearing
     //     rather than merely careful.
     //
-    //     One sweep, not two: purgePaths lists the whole namespace per call, so handing it the
-    //     handle paths and the dream paths together costs one listing instead of two.
-    const [{ data: profile, error: profileError }, { data: dreamRows, error: dreamsError }] =
-      await Promise.all([
-        db.from('profiles').select('handle').eq('id', profileId).maybeSingle(),
-        // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
-        // filters describe what the page serves TODAY, and this is about what KV cached
-        // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
-        // facet flip still has a stranded entry under a dead build prefix, holding the text
-        // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
-        db
-          .from('dreams')
-          .select('id')
-          .eq('profile_id', profileId)
-          // Ordered so the page is deterministic, bounded so a truncated one is detectable.
-          .order('id', { ascending: true })
-          .limit(DREAM_ID_READ_LIMIT),
-      ]);
+    //     Since #775 the organised events are a third key input, read here for the same reason
+    //     and with a tighter deadline: (3d) below disowns them — organizer_id goes to the
+    //     tombstone — long before (4b), and nothing records the original organiser afterwards.
+    //
+    //     The SWEEP, unlike the reads, runs after (3d): see (3e). Purging before the events are
+    //     soft-deleted would leave a window in which a request re-caches the page from a row
+    //     that still renders; after (3d) the route's own `deleted_at is null` read makes any
+    //     re-render a 404.
+    //
+    //     One sweep, not three: purgePaths lists the whole namespace per call, so handing it
+    //     every path together costs one listing instead of three. The sweep matches the hashed
+    //     path under EVERY build prefix (_shared/kv-purge.ts), so a copy stranded by a deploy
+    //     is reached too — for these paths. A page cached under a path this job does not derive
+    //     is still RELEASE-RUNBOOK §7.4's manual prefix sweep.
+    const [
+      { data: profile, error: profileError },
+      { data: dreamRows, error: dreamsError },
+      { data: eventRows, error: eventsError },
+    ] = await Promise.all([
+      db.from('profiles').select('handle').eq('id', profileId).maybeSingle(),
+      // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
+      // filters describe what the page serves TODAY, and this is about what KV cached
+      // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
+      // facet flip still has a stranded entry under a dead build prefix, holding the text
+      // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
+      db
+        .from('dreams')
+        .select('id')
+        .eq('profile_id', profileId)
+        // Ordered so the page is deterministic, bounded so a truncated one is detectable.
+        .order('id', { ascending: true })
+        .limit(DREAM_ID_READ_LIMIT),
+      // Unfiltered for the same reason: an event the organiser soft-deleted last month had a
+      // public page before that, and its cached copy did not go with the row.
+      db
+        .from('events')
+        .select('id')
+        .eq('organizer_id', profileId)
+        .order('id', { ascending: true })
+        .limit(EVENT_ID_READ_LIMIT),
+    ]);
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
     const dreamRowCount = ((dreamRows ?? []) as unknown[]).length;
     const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
+      .map((row) => row.id)
+      .filter((id): id is string => !!id);
+    const eventRowCount = ((eventRows ?? []) as unknown[]).length;
+    const eventIds = ((eventRows ?? []) as { id?: string | null }[])
       .map((row) => row.id)
       .filter((id): id is string => !!id);
 
@@ -420,7 +468,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // A key input we could not READ is not one that never existed: the subject's pages may well
     // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as
     // a failed purge, so each is counted and named as one rather than falling into the
-    // nothing-to-purge branch below and reporting a clean sweep.
+    // nothing-to-purge branch of (3e) and reporting a clean sweep.
     if (profileError) {
       degraded = true;
       kvFailed++;
@@ -457,38 +505,26 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         );
       }
     }
-
-    if (kvPaths.length > 0) {
-      if (!kv) {
-        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
-        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
-        // 'partial' claims the run did everything it could; with the member's card still
-        // servable from KV that claim is false, so this is a real 'failed'.
+    if (eventsError) {
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: organised events unreadable, KV purge of event pages skipped',
+        erasureReq.id,
+        eventsError,
+      );
+    } else {
+      kvPaths.push(...eventPagePaths(eventIds));
+      // Raw row count, as for dreams above.
+      if (eventRowCount >= EVENT_ID_READ_LIMIT) {
         degraded = true;
         kvFailed++;
         console.error(
-          'erasure-job: KV purge unconfigured, cached pages left in place',
+          'erasure-job: event id read hit its limit, some event pages may be unpurged',
           erasureReq.id,
         );
-      } else {
-        const purge = await kv
-          .purgePaths(kvPaths)
-          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
-        kvDeleted += purge.deleted;
-        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
-        // handles and dream pages prerender not at all, so most members never had a cached
-        // entry under any of these paths. Only a broken sweep counts.
-        if (purge.error) {
-          degraded = true;
-          kvFailed++;
-          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
-          // failing the whole batch here would mask a completed cascade behind a KV outage.
-          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
-        }
       }
     }
-    // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
-    // the member never had a public URL, so nothing was ever cached under one.
 
     if (!cascadeSafe) {
       // The fund reach failed, so nothing below may run. Skipping (3c)/(3d) is not tidiness:
@@ -657,6 +693,44 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         console.error('erasure-job: reference release failed', erasureReq.id, refError);
       }
     }
+
+    // (3e) the KV sweep over the paths (3b) derived — after (3d), before (4). The reads stayed
+    //     in (3b) because their inputs do not survive (3d)/(4b); the sweep moved here so an event
+    //     page cannot be re-cached from a row (3d) has not yet soft-deleted (#775). It runs on a
+    //     halted cascade too: a page already cached is purgeable whatever the money steps did.
+    if (kvPaths.length > 0) {
+      if (!kv) {
+        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
+        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
+        // 'partial' claims the run did everything it could; with the member's card still
+        // servable from KV that claim is false, so this is a real 'failed'.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: KV purge unconfigured, cached pages left in place',
+          erasureReq.id,
+        );
+        logUnpurgedEvents(erasureReq.id, eventIds);
+      } else {
+        const purge = await kv
+          .purgePaths(kvPaths)
+          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
+        kvDeleted += purge.deleted;
+        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
+        // handles and dream pages prerender not at all, so most members never had a cached
+        // entry under any of these paths. Only a broken sweep counts.
+        if (purge.error) {
+          degraded = true;
+          kvFailed++;
+          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
+          // failing the whole batch here would mask a completed cascade behind a KV outage.
+          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
+          logUnpurgedEvents(erasureReq.id, eventIds);
+        }
+      }
+    }
+    // The remaining case — every read succeeded, no handle, dreams or events — is genuinely clean:
+    // the member never had a public URL, so nothing was ever cached under one.
 
     // (4) runs only on a run with NOTHING left behind — `degraded` included, not just
     //     `cascadeSafe`. That is wider than it first looks and it is deliberate: the storage
