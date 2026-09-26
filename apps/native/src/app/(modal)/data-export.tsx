@@ -28,20 +28,23 @@ export default function DataExportScreen() {
   const locale = useLocale();
   const qc = useQueryClient();
   const { showToast } = useToast();
-  // The clock the expiry is read against: when the screen opened. Render must stay pure, and a
-  // screen held open across the moment a 7-day link expires is not a case worth a timer.
   const [openedAt] = useState(() => Date.now());
 
   // Re-read on entry and on every return to the foreground: the job turns ready on a nightly
   // pass while the member is away, and a cached «Stiamo preparando» must not outlive it (#879).
   const job = useExportJob();
+  // The clock the expiry is read against: the later of when the screen opened and when the row was
+  // last read. Render must stay pure, so no timer — but a screen held open for days and brought
+  // back to the foreground judges the fresh read by that read's time, not by a days-old open.
+  // `openedAt` stays the floor: a rehydrated row carries the time of its old fetch.
+  const readAt = Math.max(openedAt, job.dataUpdatedAt);
   const status = job.data?.status ?? null;
   const pending = status === 'requested' || status === 'processing';
   const expiresAt = job.data?.expires_at ? Date.parse(job.data.expires_at) : Number.NaN;
   // Past the window the row may still be there for a few hours until the nightly reap; it must not
   // read as ready. An unparseable expiry is treated as expired — the request button is the safe
   // side, a dead link is not.
-  const expired = status === 'ready' && !(expiresAt > openedAt);
+  const expired = status === 'ready' && !(expiresAt > readAt);
   const ready = status === 'ready' && !!job.data?.download_url && !expired;
   // Terminal (#721): the archive could not be produced or handed over. The retry is the ordinary
   // request button below, which files a NEW job — a failed one is never re-claimed.

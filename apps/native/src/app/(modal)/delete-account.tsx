@@ -59,12 +59,14 @@ export default function DeleteAccountScreen() {
   const exportCreated = exportJob.data ? Date.parse(exportJob.data.created_at) : Number.NaN;
   // A job the nightly pass has not served within two nights is retrying a failure
   // (gdpr-export-job sends transient errors back to 'requested' for up to ~23 days); holding
-  // an erasure request hostage to it is exactly what the gate must not do.
+  // an erasure request hostage to it is exactly what the gate must not do. The window is measured
+  // at the latest read, not the screen's open: a screen held open for days re-reads on return.
+  const readAt = Math.max(openedAt, exportJob.dataUpdatedAt);
   const exportPending =
     exportJob.isFetchedAfterMount &&
     !exportJob.isError &&
     (exportStatus === 'requested' || exportStatus === 'processing') &&
-    openedAt - exportCreated < EXPORT_GATE_MS;
+    readAt - exportCreated < EXPORT_GATE_MS;
 
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
