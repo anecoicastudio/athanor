@@ -403,8 +403,12 @@ describe('catalog quality', () => {
 
   // I-3: Athanor voice — no vanity/tech-speak in any value, either locale.
   // «Notifiche» (plural feature title) is fine; \bnotifica\b targets the singular vanity sense.
+  // The donation stem is banned by the 2026-09-19 fund ruling (#789): German and Italian
+  // public-collection rules keep «donare / donazione» out of the product, and a fund
+  // contribution is not a donation. Stem, not form: dona|donare|donazione|donato, dono|doni,
+  // EN donate|donation|donor. «donna» and «dondolo» do not match. No exceptions.
   test('no banned vanity/tech-speak terms in any value', () => {
-    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i];
+    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i, /\bdon(?:a|or|o\b|i)/i];
     const offenders: string[] = [];
     for (const cat of [it, en] as Record<string, string>[]) {
       for (const [key, value] of Object.entries(cat)) {

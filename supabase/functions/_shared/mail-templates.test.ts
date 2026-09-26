@@ -240,6 +240,9 @@ Deno.test('templates use the Athanor voice — no metrics vocabulary', () => {
         `template '${name}' contains the banned word "${word}" (rules/i18n.md)`,
       );
     }
+    // #789: the donation stem is ruled out of the product (German and Italian public-collection
+    // rules). A stem, not a word, so it sits outside the word list above.
+    assert(!/\bdon(?:a|or|o\b|i)/i.test(copy), `template '${name}' uses the donation stem (#789)`);
   }
 });
 

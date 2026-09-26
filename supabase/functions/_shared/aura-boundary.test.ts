@@ -171,6 +171,6 @@ Deno.test('the fund ticker the webhook recomputes is published to Realtime', () 
       .join(', ')}`,
   );
   // raw contribution rows are NOT published: amounts are private, only the aggregate is public
-  // (docs/PRD.md:210 "Split fixed & displayed", not per-donor amounts).
+  // (docs/PRD.md:210 "Split fixed & displayed", not per-contributor amounts).
   assertEquals(live.has('fund_contributions'), false);
 });

@@ -114,6 +114,12 @@ describe.each(docs)('%s', (_name, doc) => {
     expect(JSON.stringify(doc[loc])).not.toMatch(/\butent[ei]\b|engagement/i);
   });
 
+  it.each(['it', 'en'] as const)('%s never calls a contribution a donation', (loc) => {
+    // #789: «donare / donazione» are ruled out of the product by the German and Italian
+    // public-collection rules; the fund terms say «contributo». Same stem as the catalog test.
+    expect(JSON.stringify(doc[loc])).not.toMatch(/\bdon(?:a|or|o\b|i)/i);
+  });
+
   it('is genuinely translated, not IT text copied into the EN slot', () => {
     // The failure this catches is a placeholder EN doc that renders Italian to an English
     // reader. Headings are the shortest reliable signal; a handful may legitimately match
