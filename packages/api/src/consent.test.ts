@@ -58,12 +58,21 @@ describe('getConsents', () => {
     // A production row from before the purge migration, or any kind the schema lags. Throwing
     // here would leave Trust, SentryConsentGate and useLocationConsent all without an answer.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const retired = { ...CONSENT_ROW, id: '00000000-0000-0000-0000-0000000000a2', kind: 'comms' };
-    const { client } = selectStub([CONSENT_ROW, retired]);
-    await expect(getConsents(client)).resolves.toEqual([CONSENT_ROW]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain('00000000-0000-0000-0000-0000000000a2');
-    warn.mockRestore();
+    try {
+      const retired = { ...CONSENT_ROW, id: '00000000-0000-0000-0000-0000000000a2', kind: 'comms' };
+      const { client } = selectStub([CONSENT_ROW, retired]);
+      await expect(getConsents(client)).resolves.toEqual([CONSENT_ROW]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('1 row(s)');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('still throws on a malformed row of a known kind (a withheld refusal would fail open)', async () => {
+    const refusal = { ...CONSENT_ROW, kind: 'location_approx', granted: false, source: 'import' };
+    const { client } = selectStub([refusal]);
+    await expect(getConsents(client)).rejects.toThrow();
   });
 
   it('returns [] when data is null', async () => {

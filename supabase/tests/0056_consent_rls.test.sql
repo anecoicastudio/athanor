@@ -11,6 +11,10 @@ values
 select set_config('test.a', '11111111-1111-1111-1111-111111111111', false);
 select set_config('test.b', '22222222-2222-2222-2222-222222222222', false);
 
+-- rule #1 baseline: the global Aura count before any consent write (a delta, so the check holds
+-- on a seeded world as well as on CI's empty stack)
+select set_config('test.aura0', (select count(*) from public.aura_events)::text, false);
+
 select has_table('public', 'consent', 'table exists');
 
 -- Exhaustive (issue #271, was #138): consent is the GDPR record — exactly where a
@@ -91,7 +95,9 @@ select is(
   (select count(*)::int from public.consent),
   1, 'owner sees only own consent');
 
--- the purge, by value: no `comms` row exists anywhere, the old-build writes above included
+-- no `comms` row exists anywhere, the old-build writes above included. On CI's empty replay this
+-- proves the trigger, not the migration's DELETE (the table is empty when it runs); the DELETE
+-- was proven on staging, 24 seeded rows to 0.
 set local role service_role;
 select is(
   (select count(*)::int from public.consent where kind = 'comms'),
@@ -104,13 +110,11 @@ select throws_ok(
   $$ delete from public.consent where profile_id = current_setting('test.a')::uuid $$,
   '42501', null, 'client DELETE denied');
 
--- rule #1: consent writes zero Aura. Scoped to the fixture profiles, so the claim holds on a
--- seeded world too (staging), not only on CI's empty stack.
+-- rule #1: consent writes zero Aura, to anyone — the global count has not moved
 set local role service_role;
 select is(
-  (select count(*)::int from public.aura_events
-    where profile_id in (current_setting('test.a')::uuid, current_setting('test.b')::uuid)),
-  0, 'consent path writes zero Aura (rule #1)');
+  (select count(*)::int from public.aura_events),
+  current_setting('test.aura0')::int, 'consent path writes zero Aura (rule #1)');
 
 select * from finish();
 rollback;
