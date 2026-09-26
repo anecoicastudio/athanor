@@ -6,6 +6,7 @@ import type { ConnectionRequestListItem } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { stacksTrailing } from '@/lib/type-scale';
+import { wordLines } from '@/lib/word-lines';
 
 /**
  * One incoming request in the Richieste inbox: avatar + @handle and inline
@@ -45,7 +46,13 @@ export function ConnectionRequestRow({
           avatarPath={item.peerAvatarPath}
           size={48}
         />
-        <Text className="flex-1 text-[15px] font-semibold text-foreground">{name}</Text>
+        {/* A lone-word handle ellipsizes (DESIGN §10); `connection.a11y.open` keeps it whole. */}
+        <Text
+          className="flex-1 text-[15px] font-semibold text-foreground"
+          numberOfLines={wordLines(name)}
+        >
+          {name}
+        </Text>
       </Pressable>
       <View className="flex-row flex-wrap items-center gap-2">
         <Pressable
