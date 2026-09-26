@@ -322,6 +322,7 @@ export default function ChatScreen() {
           fallbackHref="/(modal)/messages"
           avatar={
             <Avatar
+              decorative
               handle={peer?.peerHandle ?? null}
               displayName={peer?.peerDisplayName ?? null}
               avatarPath={peer?.peerAvatarPath ?? null}

@@ -54,6 +54,7 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
       onPress={() => router.push(`/(modal)/user/${authorId}`)}
     >
       <Avatar
+        decorative
         handle={handle}
         displayName={profile?.display_name ?? null}
         avatarPath={profile?.avatar_path ?? null}

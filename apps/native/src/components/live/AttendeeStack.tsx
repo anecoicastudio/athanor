@@ -27,6 +27,7 @@ function AttendeeAvatar({
       className="rounded-full border border-background"
     >
       <Avatar
+        decorative
         handle={data?.handle ?? null}
         displayName={data?.display_name ?? null}
         avatarPath={data?.avatar_path ?? null}

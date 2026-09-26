@@ -28,6 +28,7 @@ export function ConversationRow({
       className="flex-row items-center gap-3 py-3 min-h-[56px]"
     >
       <Avatar
+        decorative
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}

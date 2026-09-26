@@ -196,6 +196,7 @@ export function Bubble({
             onPress={() => router.push(`/(modal)/user/${message.sender_id}`)}
           >
             <Avatar
+              decorative
               handle={peer?.handle ?? null}
               displayName={peer?.displayName ?? null}
               avatarPath={peer?.avatarPath ?? null}
