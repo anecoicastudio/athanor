@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
+import { useWindowDimensions } from 'react-native';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { Project } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
+import { stacksTrailing } from '@/lib/type-scale';
 
 /**
  * A Costellazioni board card — «Cerco videomaker / socio / investitore». Title +
@@ -24,6 +26,10 @@ import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
  */
 export function ProjectCard({ project, locale }: { project: Project; locale: Locale }) {
   const router = useRouter();
+  // At the accessibility sizes the category chip moves under the title (#847): beside it, the
+  // `flex-1` title was left narrower than one long word and broke it mid-word («photograph /
+  // er»). The title is a sentence, so it keeps every line — it just gets the card's width.
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
       <Pressable
@@ -31,8 +37,12 @@ export function ProjectCard({ project, locale }: { project: Project; locale: Loc
         accessibilityRole="button"
         onPress={() => router.push(`/(modal)/listing/${project.id}`)}
       >
-        <View className="flex-row items-start justify-between gap-3">
-          <Text className="flex-1 text-[16px] font-semibold text-foreground">{project.title}</Text>
+        <View
+          className={stacked ? 'items-start gap-2' : 'flex-row items-start justify-between gap-3'}
+        >
+          <Text className={`${stacked ? '' : 'flex-1 '}text-[16px] font-semibold text-foreground`}>
+            {project.title}
+          </Text>
           <View className="rounded-ctl border border-hair bg-background px-3 py-1">
             <Text className="text-[12px] text-faint">
               {t(`costellazioni.filter.${project.category}` as MessageKey, locale)}

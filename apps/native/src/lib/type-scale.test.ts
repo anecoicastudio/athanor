@@ -3,8 +3,10 @@ import {
   DECK_WELL_MAX,
   DECK_WELL_MIN,
   FONT_SCALE_CAP,
+  STACK_TRAILING_AT,
   deckWellHeight,
   scaledWellHeight,
+  stacksTrailing,
 } from './type-scale';
 
 describe('the Dynamic Type caps (#639)', () => {
@@ -115,5 +117,24 @@ describe('deckWellHeight (#751)', () => {
     expect(Number.isInteger(deckWellHeight({ ...SE, viewport: 598.5, fontScale: 1.35 }))).toBe(
       true,
     );
+  });
+});
+
+describe('stacksTrailing (#847)', () => {
+  it('keeps the trailing chip beside the text at every non-accessibility size', () => {
+    // iOS tops out at ~1.35 before the AX sizes; Android's steps below 1.5 are 1.15 and 1.3.
+    // A chip that dropped to its own line here would change the default-size layout.
+    for (const scale of [0.82, 1, 1.15, 1.3, 1.35]) expect(stacksTrailing(scale)).toBe(false);
+  });
+
+  it('drops it under the text from the first accessibility size up', () => {
+    // iOS AX1 ~1.65, AX5 ~3.1 (rendered at the 2x cap); Android 1.5, 1.8, 2.0.
+    for (const scale of [STACK_TRAILING_AT, 1.65, 1.8, 2, 3.12]) {
+      expect(stacksTrailing(scale)).toBe(true);
+    }
+  });
+
+  it('keeps the default layout when the scale is unknown', () => {
+    expect(stacksTrailing(Number.NaN)).toBe(false);
   });
 });

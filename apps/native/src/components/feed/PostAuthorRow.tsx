@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { Pressable, Text } from '@/tw';
+import { wordLines } from '@/lib/word-lines';
 import { Avatar } from '@/components/Avatar';
 import { useLocale } from '@/hooks/use-locale';
 import { useProfile } from '@/hooks/use-profile';
@@ -42,7 +43,10 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
   const nameClass = size === 'sm' ? 'text-[13px]' : 'text-[14px]';
   return (
     <Pressable
-      className="flex-row items-center gap-3"
+      // `shrink` on the row and the name (#847): a name wider than what its parent leaves it
+      // wraps by word instead of overflowing the card; a lone word ellipsizes (DESIGN §10) and
+      // the full name stays on this row's label.
+      className="shrink flex-row items-center gap-3"
       accessibilityRole="button"
       accessibilityLabel={
         profile?.removed || !label ? undefined : t('connection.a11y.open', locale, { name: label })
@@ -55,7 +59,14 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
         avatarPath={profile?.avatar_path ?? null}
         size={avatarSize}
       />
-      <Text className={`${nameClass} font-semibold text-foreground`}>{label ?? '·'}</Text>
+      <Text
+        className={`${nameClass} shrink font-semibold text-foreground`}
+        numberOfLines={wordLines(label)}
+        // The removed-author row has no label of its own, so the ellipsized name must carry one.
+        accessibilityLabel={label ?? undefined}
+      >
+        {label ?? '·'}
+      </Text>
     </Pressable>
   );
 }
