@@ -930,6 +930,170 @@ Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", 
   );
 });
 
+// ── #775: the pages of the events the subject organised ────────────────────────────────────
+//
+// apps/web/app/event/[id] renders «organised by @handle» with a link and puts the handle in its
+// JSON-LD, and the rest of the page is the member's own text. (3d) disowns and soft-deletes those
+// events, so the live copy 404s at its next revalidation — but a copy stranded under a dead build
+// prefix is never revalidated. The ids have to be read HERE, keyed on organizer_id, because (3d)
+// hands the rows to the tombstone and nothing remembers who organised them afterwards.
+
+const releaseRan = (db: FakeDb) =>
+  cascadeRpcs(db).some((k) => k.columns === 'gdpr_release_profile_references');
+
+Deno.test("purges the subject's organised event pages in the SAME sweep as the rest", async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    'dreams.select': [{ data: [{ id: 'dream-1' }] }],
+    'events.select': [{ data: [{ id: 'event-1' }, { id: 'event-2' }] }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [
+    [
+      '/@luna_dev',
+      '/@luna_dev/opengraph-image',
+      '/dream/dream-1',
+      '/event/event-1',
+      '/event/event-2',
+    ],
+  ]);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 0 }));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['done'],
+  );
+  // A clean purge leaves (3d) free to disown them: the keys are already gone.
+  assert(releaseRan(c.db));
+});
+
+Deno.test('the organised-events read is UNFILTERED, keyed on organizer_id, bounded', async () => {
+  // No `deleted_at is null`: an event the organiser deleted last month had a public page before
+  // that, and its cached copy did not go anywhere when the row was soft-deleted.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'events.select': [{ data: [{ id: 'event-1' }] }],
+  });
+  await processErasureRequests(c);
+
+  const read = c.db.calls.find((k) => k.table === 'events' && k.op === 'select');
+  assert(read);
+  assertEquals(read.columns, 'id');
+  assertEquals(read.filters, [['eq', 'organizer_id', 'user-1']]);
+  assertEquals(read.modifiers, [
+    ['order', 'id', { ascending: true }],
+    ['limit', 500],
+  ]);
+  // …and it happens BEFORE (3d), which is what takes organizer_id away.
+  const readAt = c.db.calls.indexOf(read);
+  const releaseAt = c.db.calls.findIndex((k) => k.columns === 'gdpr_release_profile_references');
+  assert(releaseAt > readAt);
+});
+
+Deno.test('a failed events read is a purge gap AND holds the reference release back', async () => {
+  // Releasing would disown the events, and the re-drive keys this read on organizer_id — so
+  // releasing after a failed read makes the gap permanent. Holding (3d) costs nothing: a
+  // degraded run skips (4) anyway, so the account is still here tomorrow.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    'events.select': [{ error: { message: 'db down' } }],
+  });
+  const res = await processErasureRequests(c);
+
+  // The other key inputs are still purged — a gap in one must not abandon the rest.
+  assertEquals(c.purged, [['/@luna_dev', '/@luna_dev/opengraph-image']]);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assert(!releaseRan(c.db));
+  // The money step is not an events step and still runs.
+  assert(cascadeRpcs(c.db).some((k) => k.columns === 'gdpr_erase_payment_footprint'));
+  assertEquals(c.deleted, []);
+});
+
+Deno.test('a FULL page of event ids is a purge gap and holds the release back', async () => {
+  // Raw page size, as for dreams: one id-less row must not let 499 pass for a complete read.
+  const ids = Array.from({ length: 500 }, (_, i) =>
+    i === 3 ? { id: null } : { id: `event-${i}` },
+  );
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'events.select': [{ data: ids }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged.length, 1);
+  assertEquals(c.purged[0].length, 499);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
+  assert(!releaseRan(c.db));
+});
+
+Deno.test('a failed sweep over event pages holds the release back for the re-drive', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'events.select': [{ data: [{ id: 'event-1' }] }],
+    },
+    { purge: { deleted: 0, scanned: 0, error: new Error('cf 503') } },
+  );
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [['/event/event-1']]);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 0, 1));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assert(!releaseRan(c.db));
+});
+
+Deno.test('unconfigured KV with organised events holds the release back too', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'events.select': [{ data: [{ id: 'event-1' }] }],
+    },
+    { purge: NO_KV },
+  );
+  const res = await processErasureRequests(c);
+
+  assertEquals(await res.json(), body(1, { configured: false, deleted: 0, failed: 1 }, 0, 1));
+  assert(!releaseRan(c.db));
+});
+
+Deno.test('a failed sweep for a member who organised NOTHING still releases', async () => {
+  // The hold is about the events' keys only. With no events there is nothing (3d) could make
+  // unfindable, and the handle and dream inputs stay keyed on the member until (4b).
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+      'events.select': [{ data: [] }],
+    },
+    { purge: { deleted: 0, scanned: 0, error: new Error('cf 503') } },
+  );
+  await processErasureRequests(c);
+  assert(releaseRan(c.db));
+});
+
 // ── #107: the payment reach, the reference release, and the account delete ────────────────
 //
 // The half that was commented out behind the legal gate. What these pin is less "the calls
