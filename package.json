@@ -17,6 +17,7 @@
     "apple:secret": "node scripts/apple-client-secret.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
     "i18n:check": "node scripts/check-i18n-hardcoded.mjs",
+    "comments:check": "node scripts/check-comment-rot.mjs",
     "staging:media": "node scripts/upload-staging-media.mjs",
     "staging:demo-media": "node scripts/upload-demo-media.mjs",
     "staging:refresh": "node scripts/staging-refresh.mjs",
