@@ -120,6 +120,40 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------------
+-- 0. The GDPR tombstone sentinel (#896). Not a person and not seeded content: the one
+--    row `gdpr_tombstone_profile_id()` names, which erasure hands an erased member's
+--    organised events, fund contributions, check-in scans and audit rows to. Migration
+--    20260815131925 inserts it, but a migration runs once — a hand-wipe of `auth.users`
+--    wider than the twelve seeded accounts takes it with it, and nothing puts it back.
+--    Staging lost it, most likely in the hand-wipe of 2026-09-19, and every erasure of an
+--    organiser then failed 23503 inside `gdpr_release_profile_references`.
+--
+--    So the seed re-asserts it, with the migration's own statements verbatim: the
+--    INSERT is `on conflict do nothing` (a live row is untouched), the profile comes
+--    from the `handle_new_user` trigger, and the UPDATE sets the one non-default column
+--    the migration sets. No email, no password, no identity row: nobody can sign in as
+--    it. `pnpm deploy:check` reports its count on both projects.
+-- ---------------------------------------------------------------------------------
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-4000-a000-000000000000',
+  'authenticated', 'authenticated',
+  null, '',
+  '', '', '', '',
+  '{}'::jsonb, '{}'::jsonb, now(), now()
+)
+on conflict (id) do nothing;
+
+update public.profiles
+   set visibility = '{"identity": "members"}'::jsonb
+ where id = '00000000-0000-4000-a000-000000000000';
+
+-- ---------------------------------------------------------------------------------
 -- 1. People. Twelve signable accounts, one password for all of them:
 --
 --        email: <handle>@staging.athanor.local     password: Athanor2026!
