@@ -101,6 +101,12 @@ describe.each([
     expect(pluginProps(config, LOCATION_PLUGIN)).toEqual({});
   });
 
+  it('keeps a system font-size change from recreating the Activity (#845)', () => {
+    // Without `fontScale` in MainActivity's configChanges, Android destroys and recreates the
+    // Activity on a font-size change, and every unsent draft held in component state goes with it.
+    expect(pluginProps(config, FONT_SCALE_PLUGIN)).toEqual({});
+  });
+
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
@@ -258,6 +264,76 @@ describe('without-location-task-service plugin (#776)', () => {
     expect(out.manifest.application[0]!.service).toEqual([
       { $: { 'android:name': plugin.LOCATION_TASK_SERVICE, 'tools:node': 'remove' } },
     ]);
+  });
+});
+
+const FONT_SCALE_PLUGIN = './plugins/with-font-scale-config-change.js';
+
+describe('with-font-scale-config-change plugin (#845)', () => {
+  type Activity = { $: Record<string, string> };
+  const plugin = createRequire(import.meta.url)(`../../${FONT_SCALE_PLUGIN.slice(2)}`) as {
+    addFontScaleConfigChange: (manifest: unknown) => {
+      manifest: { application: { activity: Activity[] }[] };
+    };
+  };
+  // The bare template's MainActivity list (expo 57 `template.tgz`), plus a second activity the
+  // transform must leave alone.
+  const TEMPLATE =
+    'keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths';
+  const MAIN_FILTER = {
+    action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+    category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }],
+  };
+  const OTHER: Activity = {
+    $: { 'android:name': 'com.other.Activity', 'android:configChanges': 'orientation' },
+  };
+  const manifest = (configChanges: string | undefined) => ({
+    manifest: {
+      $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      application: [
+        {
+          $: { 'android:name': '.MainApplication' },
+          activity: [
+            {
+              $: {
+                'android:name': '.MainActivity',
+                ...(configChanges === undefined ? {} : { 'android:configChanges': configChanges }),
+              },
+              'intent-filter': [MAIN_FILTER],
+            },
+            structuredClone(OTHER),
+          ],
+        },
+      ],
+    },
+  });
+  const changes = (out: ReturnType<typeof plugin.addFontScaleConfigChange>, i = 0) =>
+    out.manifest.application[0]!.activity[i]!.$['android:configChanges'];
+
+  it('adds fontScale to MainActivity and keeps every flag the template declares', () => {
+    expect(changes(plugin.addFontScaleConfigChange(manifest(TEMPLATE)))).toBe(
+      `${TEMPLATE}|fontScale`,
+    );
+  });
+
+  it('leaves every other activity untouched', () => {
+    expect(
+      plugin.addFontScaleConfigChange(manifest(TEMPLATE)).manifest.application[0]!.activity[1],
+    ).toEqual(OTHER);
+  });
+
+  it('is idempotent — a second run, or a list that already has it, adds nothing', () => {
+    const twice = plugin.addFontScaleConfigChange(
+      plugin.addFontScaleConfigChange(manifest(TEMPLATE)),
+    );
+    expect(changes(twice)).toBe(`${TEMPLATE}|fontScale`);
+    expect(changes(plugin.addFontScaleConfigChange(manifest('fontScale|orientation')))).toBe(
+      'fontScale|orientation',
+    );
+  });
+
+  it('writes the attribute when MainActivity declares no configChanges at all', () => {
+    expect(changes(plugin.addFontScaleConfigChange(manifest(undefined)))).toBe('fontScale');
   });
 });
 
