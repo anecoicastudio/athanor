@@ -1,4 +1,4 @@
-import { type Consent, type SetConsentInput, consentSchema } from '@athanor/schemas';
+import { CONSENT_KINDS, type Consent, type SetConsentInput, consentSchema } from '@athanor/schemas';
 import type { AthanorClient } from './client';
 
 // gdprKeys covers the GDPR surface query factory (consent records + export-job status).
@@ -12,13 +12,33 @@ export const gdprKeys = {
   erasure: () => [...gdprKeys.all, 'erasure'] as const,
 };
 
-/** All of the caller's consent records (RLS scopes to own). */
+/**
+ * All of the caller's consent records (RLS scopes to own).
+ *
+ * A row of a kind this build does not know is withheld, never thrown on (#841): this feeds Trust,
+ * SentryConsentGate and useLocationConsent, and a throw would leave the location gate `unknown`
+ * and diagnostics off over one retired `comms` row — the case between a build shipping the
+ * narrowed schema and production receiving the purge migration. Each reader looks up a kind it
+ * knows, so a row of another kind was never its answer; withholding it changes nothing they read.
+ *
+ * Only the kind is forgiven. A malformed row of a KNOWN kind still throws: withholding a
+ * `location_approx` row with `granted: false` would let useLocationConsent fall back to its ON
+ * default and read the position against the member's refusal, and failing closed (`unknown`) is
+ * the right failure there. The count is not returned, because the three readers share one
+ * persisted cache entry whose shape a wrapper would change under a rehydrating install; the
+ * warning carries it (rules/api.md), with no row content.
+ */
 export async function getConsents(client: AthanorClient): Promise<Consent[]> {
   const { data, error } = await client
     .from('consent')
     .select('id, profile_id, kind, granted, granted_at, source, created_at, updated_at');
   if (error) throw error;
-  return (data ?? []).map((r) => consentSchema.parse(r));
+  const rows = data ?? [];
+  const known = rows.filter((r) => (CONSENT_KINDS as readonly string[]).includes(r.kind));
+  if (known.length < rows.length) {
+    console.warn(`[api] consent: ${rows.length - known.length} row(s) of an unknown kind withheld`);
+  }
+  return known.map((r) => consentSchema.parse(r));
 }
 
 /**

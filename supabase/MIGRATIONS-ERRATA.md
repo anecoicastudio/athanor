@@ -2440,3 +2440,18 @@ replace` keeps the existing ACL, so restating them changes nothing — but the r
   function deployed ahead of the migration would have 500'd every delivery. The column comment is
   replaced in the catalog by `20260925194113`. pgTAP `0159` asserts the column is generated and
   derives from `payload`.
+
+## `20260620122139_m9_consent.sql` — `comms` retired, and the rows were never an audit trail
+
+- **«owner CRUD-MINUS-DELETE (rows persist as an audit trail)»** (`:2`). No history was ever kept:
+  `setConsent` (`packages/api/src/consent.ts`) upserts on `unique (profile_id, kind)`, so each
+  change overwrites `granted` / `granted_at` in place. What the missing DELETE grant preserves is
+  the member's latest answer per kind, not the sequence of them. The table comment is replaced in
+  the catalog by `20260926105116`.
+- **«Kinds: comms (marketing-email opt-in), …»** (`:3`) and the inline
+  `check (kind in ('comms','analytics','location_approx'))` (`:10`). Since `20260926105116`
+  (#841) `consent_kind_check` accepts only `analytics` and `location_approx`, every `comms` row
+  is deleted, and a BEFORE INSERT trigger (`athanor.consent_discard_retired_kind`) discards any
+  `comms` row an old build's switch still writes, so the upsert succeeds with nothing stored.
+  pgTAP `0056` asserts the constraint's accepted set, the discard on both insert and upsert, and
+  that no `comms` row exists.

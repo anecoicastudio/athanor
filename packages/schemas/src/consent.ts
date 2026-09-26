@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 // Mirrors supabase/migrations/20260620122139_m9_consent.sql (06 §2.13). One row per (profile_id, kind).
 // The «dati non venduti» guarantee is constitutional — it has NO row here (not a toggle).
-export const CONSENT_KINDS = ['comms', 'analytics', 'location_approx'] as const;
+// `comms` is retired (#841): its switch left with PR 840, and the purge migration deleted its rows
+// and narrowed consent_kind_check to these two.
+export const CONSENT_KINDS = ['analytics', 'location_approx'] as const;
 export const consentKind = z.enum(CONSENT_KINDS);
 export type ConsentKind = z.infer<typeof consentKind>;
 

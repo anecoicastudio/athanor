@@ -46,8 +46,8 @@ export default function TrustScreen() {
   const qc = useQueryClient();
   const { showToast } = useToast();
 
-  // Consent records (RLS-own). Absent row → default per kind (location ON, diagnostics OFF). A
-  // stored `comms` row from before #783 is still parsed and never read: the switch is gone.
+  // Consent records (RLS-own). Absent row → default per kind (location ON, diagnostics OFF). The
+  // `comms` kind is retired (#841): its rows are purged, and getConsents withholds any it meets.
   const consents = useQuery({
     queryKey: gdprKeys.consent(profile?.id ?? ''),
     queryFn: () => getConsents(supabase),
