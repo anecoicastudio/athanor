@@ -205,8 +205,9 @@ to date; Do Not Disturb; a `+review1`-style alias ready; demo password in hand; 
 5. Compose one short post → publish → it appears in Community. (Content creation.)
 6. Settings → sign out → sign in as the demo member (the login flow) → Home: dream and its three
    milestones → Community → Momenti: **show the deck, do not swipe** → Messages → the conversation
-   with Marco's account, send one line → Constellations tab → Community → Athanor Live (events) → create event: the ticket
-   row offers Free only and says paid events are not open yet, cancel → Settings → Circle: the iOS note that membership is not available on this
+   with Marco's account, send one line → Constellations tab → Community → the **Events** filter chip (Athanor Live sits
+   under it since #640; there is no separate button) → «Create the first event ›» → the ticket row
+   offers Free only and says paid events are not open yet, cancel → Settings → Circle: the iOS note that membership is not available on this
    device (that _is_ the paid-features leg: nothing is purchasable on iOS in this build) → Profile →
    Aura.
 7. Settings → sign out → sign in as the throwaway → Settings → Delete account → type DELETE →
@@ -237,8 +238,8 @@ to date; Do Not Disturb; a `+review1`-style alias ready; demo password in hand; 
 > address — no confirmation e-mail is sent — or with Sign in with Apple or Google; the birth date must
 > be 18+. Main features: Home (your dream and its milestones); Community (posts and stories);
 > Momenti (a few suggested people a day — a mutual yes opens a chat); Messages; Constellations
-> (projects looking for people); Athanor Live, from Community or Home (create and find free in-person
-> events; location is approximate); Profile → Aura. Report: the ⋯ menu on a profile, a post or a chat message, or
+> (projects looking for people); Athanor Live, under the Events filter in Community (create and find free
+> in-person events; location is approximate); Profile → Aura. Report: the ⋯ menu on a profile, a post or a chat message, or
 > Settings → "Report a behavior". Block: the ⋯ menu on a profile or a chat; the list is under
 > Settings → Blocked profiles. Delete account: Settings → "Delete account" → type DELETE → "Request
 > deletion".
