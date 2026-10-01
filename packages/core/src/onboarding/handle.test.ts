@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'vitest';
 import { RESERVED_HANDLES } from '@athanor/schemas';
-import { classifyHandle, normalizeHandleInput } from './handle';
+import { classifyHandle, normalizeHandleInput, suggestHandles } from './handle';
 
 /**
- * #782 — the @handle is chosen by the person and never derived from the email: no suggestion,
- * not even a prefilled one. What remains for core is to say, of what was typed, whether it can
- * be claimed and if not WHY — a refused handle always says why on screen (#769's lesson). Whether
- * it is already somebody's is a database question, answered by the caller.
+ * #782 — the @handle is chosen by the person and never derived from the email. What core says of
+ * typed text is whether it can be claimed and if not WHY — a refused handle always says why on
+ * screen (#769's lesson). Whether it is already somebody's is a database question, answered by the
+ * caller.
+ *
+ * #908 (Marco's ruling, 2026-10-01) relaxed one half: a handle may be SUGGESTED from the name the
+ * person already gave — Apple's, Google's, or the sign-up form's — and never from the email.
+ * `suggestHandles` is that half; its tests are at the bottom.
  */
 describe('normalizeHandleInput', () => {
   test('lowercases what was typed — the column holds lowercase only', () => {
@@ -117,5 +121,132 @@ describe('classifyHandle', () => {
     for (const reserved of RESERVED_HANDLES) {
       expect(classifyHandle(reserved), reserved).toBe('reserved');
     }
+  });
+});
+
+describe('suggestHandles', () => {
+  test('a first and last name give four candidates, most specific first', () => {
+    expect(suggestHandles('Elena Rossi')).toEqual([
+      'elena_rossi',
+      'elenarossi',
+      'elena_r',
+      'elena',
+    ]);
+  });
+
+  test('a single name gives that name once — the joined forms are the same word', () => {
+    expect(suggestHandles('Luna')).toEqual(['luna']);
+  });
+
+  test('folds diacritics to their base letter instead of dropping the letter', () => {
+    expect(suggestHandles('Niccolò Però')).toEqual([
+      'niccolo_pero',
+      'niccolopero',
+      'niccolo_p',
+      'niccolo',
+    ]);
+  });
+
+  test('anything outside a–z 0–9 separates words: apostrophes, hyphens, dots, symbols', () => {
+    expect(suggestHandles("Anna-Lisa D'Amico")).toEqual([
+      'anna_lisa_d_amico',
+      'annalisadamico',
+      'anna_a',
+      'anna',
+    ]);
+    expect(suggestHandles('Elena ✦ Rossi')).toEqual(suggestHandles('Elena Rossi'));
+    expect(suggestHandles('  Elena   Rossi  ')).toEqual(suggestHandles('Elena Rossi'));
+  });
+
+  test('the initial is the LAST word’s, and only exists with two words or more', () => {
+    expect(suggestHandles('Maria Luisa Bianchi')).toContain('maria_b');
+    expect(suggestHandles('Maria Luisa Bianchi')).not.toContain('maria_l');
+    expect(suggestHandles('Maria')).toEqual(['maria']);
+  });
+
+  test('keeps digits', () => {
+    expect(suggestHandles('Luna 99')).toEqual(['luna_99', 'luna99', 'luna_9', 'luna']);
+  });
+
+  test('a candidate too short for the column is left out, the others stay', () => {
+    expect(suggestHandles('Al Bo')).toEqual(['al_bo', 'albo', 'al_b']);
+    expect(suggestHandles('Al')).toEqual([]);
+  });
+
+  test('a candidate over 30 characters is cut to 30', () => {
+    const [first] = suggestHandles('Maria Antonietta Guglielmina Francesca');
+    expect(first).toBe('maria_antonietta_guglielmina_f');
+    expect(first).toHaveLength(30);
+  });
+
+  test('a cut that lands on an underscore drops it — a handle does not end on a separator', () => {
+    // 10 + 1 + 10 + 1 + 7 = 29 characters, so the 30th is the underscore before `dd`.
+    const [first] = suggestHandles('aaaaaaaaaa bbbbbbbbbb ccccccc dd');
+    expect(first).toBe('aaaaaaaaaa_bbbbbbbbbb_ccccccc');
+  });
+
+  test('every candidate is claimable as it stands', () => {
+    for (const name of ['Elena Rossi', 'Al Bo', "Anna-Lisa D'Amico", 'Luna 99', 'X Æ A-12']) {
+      for (const candidate of suggestHandles(name)) {
+        expect(classifyHandle(candidate), `${name} → ${candidate}`).toBe('claimable');
+      }
+    }
+  });
+
+  test('a reserved word is never suggested', () => {
+    expect(suggestHandles('Admin')).toEqual([]);
+    expect(suggestHandles('Admin Luna')).toEqual(['admin_luna', 'adminluna', 'admin_l']);
+  });
+
+  test('nothing built on the brand is suggested', () => {
+    expect(suggestHandles('Athanor Team')).toEqual([]);
+  });
+
+  test('never suggests the same handle twice', () => {
+    // One word: the joined shapes and the bare first word are all the same string.
+    const candidates = suggestHandles('Luna');
+    expect(new Set(candidates).size).toBe(candidates.length);
+    expect(candidates).toHaveLength(1);
+  });
+
+  // NFD decomposes an accent into letter + mark; these letters have no decomposition, so without
+  // a fold of their own they would SPLIT the word: «Søren» → `s_ren`, «Strauß» → `strau`.
+  test('folds the Latin letters that carry no separable accent', () => {
+    expect(suggestHandles('Søren Müller')).toEqual([
+      'soren_muller',
+      'sorenmuller',
+      'soren_m',
+      'soren',
+    ]);
+    expect(suggestHandles('Strauß')).toEqual(['strauss']);
+    expect(suggestHandles('Łukasz')).toEqual(['lukasz']);
+    expect(suggestHandles('Æsa Þór')).toEqual(['aesa_thor', 'aesathor', 'aesa_t', 'aesa']);
+    expect(suggestHandles('Œuvre Đorđe')).toEqual([
+      'oeuvre_dorde',
+      'oeuvredorde',
+      'oeuvre_d',
+      'oeuvre',
+    ]);
+    expect(suggestHandles('Işıl')).toEqual(['isil']);
+    expect(suggestHandles('Guðrún')).toEqual(['gudrun']);
+  });
+
+  test('no name, no suggestion', () => {
+    expect(suggestHandles(null)).toEqual([]);
+    expect(suggestHandles(undefined)).toEqual([]);
+    expect(suggestHandles('')).toEqual([]);
+    expect(suggestHandles('   ')).toEqual([]);
+  });
+
+  test('a name with no Latin letter or digit in it gives nothing rather than a guess', () => {
+    expect(suggestHandles('李雷')).toEqual([]);
+    expect(suggestHandles('✦✦✦')).toEqual([]);
+  });
+
+  // The email half of #782 stands. A provider can hand back an address where a name belongs, and
+  // a handle built from it would publish the local part — the leak the ruling exists to prevent.
+  test('a «name» that is an email address is never turned into a handle', () => {
+    expect(suggestHandles('elena.rossi@example.com')).toEqual([]);
+    expect(suggestHandles('Elena <elena@example.com>')).toEqual([]);
   });
 });

@@ -108,7 +108,7 @@ export function VicinoPanel({ locale, onOpen }: { locale: Locale; onOpen: (id: s
     } catch (e) {
       // Location services off, a fix that timed out, a prompt that never resolved — until #179
       // this rejection went unhandled and the panel sat blank with no way back. Say so, and
-      // reuse the denied state: its «Consenti la posizione» action is the retry.
+      // reuse the denied state: its «Usa la mia posizione» action is the retry.
       devWarn('[live] requestLocation', e);
       setRefusal('denied');
       showToast(t('live.map.locationError', locale));

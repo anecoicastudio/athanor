@@ -9,7 +9,8 @@
  *   instead, so the parent stays presented. RN still reports `onDismiss` for it, the JS side
  *   unmounts its content, and what is left is an empty full-screen controller that takes every
  *   touch and hides everything from accessibility, with nothing on screen to say so. That was
- *   #859: onboarding's photo sheet after a first permission grant through the primer.
+ *   #859: onboarding's photo sheet after a first permission grant through the primer that
+ *   `PermissionBlockedSheet` replaced (#908, 2026-10-01).
  * - Presenting from a controller that is mid-dismissal fails silently.
  *
  * So on iOS the next step (hide the parent, present a sibling) waits until the child's own

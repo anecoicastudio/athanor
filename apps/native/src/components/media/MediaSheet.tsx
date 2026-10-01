@@ -4,13 +4,11 @@ import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { AudioRecorderSheet } from '@/components/media/AudioRecorderSheet';
-import { PermissionPrimer } from '@/components/media/PermissionPrimer';
+import { PermissionBlockedSheet } from '@/components/media/PermissionBlockedSheet';
 import {
   ensureCameraPermission,
-  ensureLibraryPermission,
   ensureMicrophonePermission,
   peekCameraPermission,
-  peekLibraryPermission,
   peekMicrophonePermission,
   type PermStatus,
 } from '@/lib/media/permissions';
@@ -27,13 +25,24 @@ import { MODAL_A11Y } from '@/lib/a11y';
 
 /** Which source a row launches once its permission is granted. */
 type Source = 'photo' | 'video' | 'library' | 'audio';
+/** The sources that hold a permission at all — the library does not (see {@link MediaSheet}). */
+type GatedSource = Exclude<Source, 'library'>;
 
 /**
  * The `sheet-media` picker (frontend `01` §3.6 / backend 10). A bottom Modal with
  * up to four sources: take a photo, record a video (when `allowVideo`), record audio (when
- * `allowAudio`), or pick from the library. Each source primes the relevant permission via
- * {@link PermissionPrimer} BEFORE the OS prompt (skipped when already granted), then runs the
- * matching `pick.ts` function and hands the descriptor up to `onPick`.
+ * `allowAudio`), or pick from the library. A row tap asks the OS for the permission DIRECTLY —
+ * nothing of ours stands in front of the system dialog (#908, Marco's ruling 2026-10-01, after App
+ * Review's Guideline 5.1.1(iv) rejection of the «Consenti» / «Non ora» primer) — then runs the
+ * matching `pick.ts` function and hands the descriptor up to `onPick`. Only a permission the OS
+ * can no longer ask for gets a sheet of ours, {@link PermissionBlockedSheet}, with the Settings
+ * deep-link.
+ *
+ * **The library row asks for nothing.** `launchImageLibraryAsync` needs no photo permission on
+ * any OS this app runs on (expo-image-picker 57.0.20's typings, read 2026-10-01: «Requires
+ * `Permissions.MEDIA_LIBRARY` on iOS 10 only»): the system picker runs out of process and hands
+ * back only what was picked. Asking anyway put a dialog — and before #908 a primer — in front of
+ * a feature that works without either. `use-candidacy-upload.ts` has launched this way throughout.
  *
  * **`audio` is the one source that is not a picker** (#154). `expo-image-picker` has no audio
  * media type, so there is nothing to launch: the row opens {@link AudioRecorderSheet} as a
@@ -42,11 +51,12 @@ type Source = 'photo' | 'video' | 'library' | 'audio';
  * recorder is our own React tree.
  *
  * State machine:
- *   idle → (tap row) → peek granted? → close sheet → launch picker → onPick
- *                    → else primer(source)
- *   priming → (allow) → OS prompt → granted → close sheet → launch → onPick
- *                                 → blocked → primer stays, swaps to Settings CTA
- *   priming → (dismiss) → idle
+ *   idle → (tap library) → close sheet → launch picker → onPick
+ *   idle → (tap row) → OS prompt, if the OS can still ask
+ *                    → granted → close sheet → launch picker → onPick
+ *                    → denied (Android, one explicit «Don't allow») → idle; the next tap asks again
+ *                    → blocked → blocked sheet (Settings)
+ *   blocked → (dismiss, or back from Settings with the permission on) → idle
  *
  * iOS CRITICAL: the picker/camera view controller silently fails to present
  * while an RN Modal is still up (known Expo issue) — so on grant we CLOSE the
@@ -55,7 +65,7 @@ type Source = 'photo' | 'video' | 'library' | 'audio';
  * must keep this component mounted (visible={false}, not conditional render) or
  * the queued launch dies with the unmount.
  *
- * iOS CRITICAL, second half (#859): the primer and the recorder are Modals nested in this one,
+ * iOS CRITICAL, second half (#859): the blocked sheet and the recorder are Modals nested in this one,
  * i.e. controllers presented BY this sheet's. Hiding the sheet in the same batch that closes
  * one of them sends the sheet's dismissal to the child instead: the sheet stays presented, RN
  * still reports its `onDismiss`, its content unmounts, and an empty full-screen controller is
@@ -63,7 +73,9 @@ type Source = 'photo' | 'video' | 'library' | 'audio';
  * child closes first (kept mounted with `visible={false}`), and whatever comes next — hiding
  * this sheet, opening the recorder — runs from the child's own `onDismiss`, through
  * `nested-modal-gate.ts`. While a child is on its way out the rows ignore taps: presenting from
- * a controller mid-dismissal fails silently too.
+ * a controller mid-dismissal fails silently too. A grant no longer passes through a nested child
+ * (the OS dialog is not a Modal of ours), so only a DISMISSED blocked sheet and the recorder go
+ * through the gate now.
  *
  * No glow anywhere (rule #4): attaching media isn't itself a moment.
  */
@@ -103,24 +115,27 @@ export function MediaSheet({
    */
   allowAudio?: boolean;
 }) {
-  // The source the user tapped + the primer's permission status. `null` source
-  // means the primer is closed and the sheet rows are interactive.
-  // It outlives the primer being SHOWN: on iOS the primer stays mounted (`primerOpen` false)
+  // The source whose permission the OS will not ask for again. `null` means the blocked sheet
+  // is closed and the rows are interactive.
+  // It outlives the sheet being SHOWN: on iOS the sheet stays mounted (`blockedOpen` false)
   // until its dismissal completes, so its copy does not blank out during the fade (#859).
-  const [pending, setPending] = useState<{ source: Source; status: PermStatus } | null>(null);
-  const [primerOpen, setPrimerOpen] = useState(false);
+  const [blocked, setBlocked] = useState<GatedSource | null>(null);
+  const [blockedOpen, setBlockedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // The recorder is a nested sheet rather than a launch, so it needs its own visibility —
-  // mounted and shown separately, for the same reason as the primer.
+  // mounted and shown separately, for the same reason as the blocked sheet.
   const [recorderMounted, setRecorderMounted] = useState(false);
   const [recorderOpen, setRecorderOpen] = useState(false);
-  // Sequences the nested primer / recorder against this sheet (#859).
+  // Sequences the nested blocked sheet / recorder against this sheet (#859).
   const gate = useRef(createNestedModalGate(Platform.OS === 'ios'));
   // Source queued to launch after the Modal finishes dismissing (iOS path).
   const queuedLaunch = useRef<Source | null>(null);
   // Synchronous re-entry lock: `busy` state is async and lets a double-tap
   // race two picker launches (the second rejects → spurious onError).
   const launchLock = useRef(false);
+  // The same lock for the ASK: the OS dialog is up for as long as the member reads it, and a
+  // second row tapped behind it would queue a second request.
+  const asking = useRef(false);
 
   /**
    * The recorder's three endings, as STABLE references.
@@ -166,57 +181,46 @@ export function MediaSheet({
     [closeRecorder, onClose, onError],
   );
 
-  /** Close the primer; `then` runs once it is off screen (at once off iOS). */
-  function closePrimer(then?: () => void) {
-    setPrimerOpen(false);
-    if (gate.current.closeChild(then) === 'now') setPending(null);
-  }
+  /** Close the blocked sheet; its content unmounts once it is off screen (at once off iOS). */
+  const closeBlocked = useCallback(() => {
+    setBlockedOpen(false);
+    if (gate.current.closeChild() === 'now') setBlocked(null);
+  }, []);
 
-  function onPrimerGone() {
-    setPending(null);
+  function onBlockedGone() {
+    setBlocked(null);
     gate.current.childDismissed();
   }
 
   /**
-   * Re-read the primer's permission when the app comes back to the foreground (#749).
+   * Re-read the blocked permission when the app comes back to the foreground (#749).
    *
-   * `pending.status` is a snapshot taken when the row was tapped. A `blocked` primer offers «Apri
-   * Impostazioni», and a member who turns the camera on there and comes back found the primer
-   * still saying it was off — until they closed the panel and opened it again. Same shape as
-   * `notif-prefs.tsx`'s OS-permission peek: re-peek on `active`, never prompt, drop a stale
-   * answer. Keyed on the SOURCE rather than the object, so a status update does not re-subscribe.
-   * A `granted` result swaps the primer back to «Consenti», whose `run()` then launches without
-   * a dialog; it does not launch on its own, because coming back to the app is not a tap.
+   * The sheet offers «Apri Impostazioni», and a member who turns the camera on there and comes
+   * back found it still saying the camera was off — until they closed the panel and opened it
+   * again. Same shape as `notif-prefs.tsx`'s OS-permission peek: re-peek on `active`, never
+   * prompt, drop a stale answer. A `granted` result closes the sheet, because what it says is no
+   * longer true; the row then launches on its next tap without a dialog. It does not launch on
+   * its own, because coming back to the app is not a tap. Only while the sheet is SHOWN: one on
+   * its way out must not be closed a second time through the gate.
    */
-  const pendingSource = pending?.source ?? null;
   useEffect(() => {
-    if (pendingSource == null) return;
+    if (blocked == null || !blockedOpen) return;
     let cancelled = false;
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      peekPermission(pendingSource)
+      peekPermission(blocked)
         .then((status) => {
-          if (cancelled) return;
-          setPending((cur) =>
-            cur?.source === pendingSource ? { source: pendingSource, status } : cur,
-          );
+          if (!cancelled && status === 'granted') closeBlocked();
         })
         .catch(() => {
-          // The peek failed: keep the snapshot rather than claim a status we did not read.
+          // The peek failed: keep the sheet rather than claim a status we did not read.
         });
     });
     return () => {
       cancelled = true;
       sub.remove();
     };
-  }, [pendingSource]);
-
-  const primerKind =
-    pending?.source === 'library'
-      ? 'photos'
-      : pending?.source === 'audio'
-        ? 'microphone'
-        : 'camera';
+  }, [blocked, blockedOpen, closeBlocked]);
 
   async function doLaunch(source: Source) {
     setBusy(true);
@@ -240,59 +244,56 @@ export function MediaSheet({
   function closeThenLaunch(source: Source) {
     // The recorder is not a picker (#154): there is no view controller to present, so none of
     // the iOS deferral below applies. It opens as a nested Modal over this one, exactly as
-    // `PermissionPrimer` does, and this sheet stays mounted underneath it.
+    // `PermissionBlockedSheet` does, and this sheet stays mounted underneath it.
+    //
+    // No child can be up at this point: a launch starts from a row, and the rows are under the
+    // blocked sheet for as long as it is shown and ignore taps while it is on its way out.
     if (source === 'audio') {
-      const openRecorder = () => {
-        setRecorderMounted(true);
-        setRecorderOpen(true);
-      };
-      if (primerOpen) closePrimer(openRecorder);
-      else openRecorder();
+      setRecorderMounted(true);
+      setRecorderOpen(true);
       return;
     }
     launchLock.current = true;
-    const closeSheet = () => {
-      if (Platform.OS === 'ios') {
-        queuedLaunch.current = source;
-        onClose();
-        return;
-      }
+    if (Platform.OS === 'ios') {
+      queuedLaunch.current = source;
       onClose();
-      void doLaunch(source);
-    };
-    // With the primer up (a grant just happened) the sheet may hide only once the primer is
-    // gone — hiding both in one batch is #859. Already granted → no primer → close at once.
-    if (primerOpen) closePrimer(closeSheet);
-    else closeSheet();
+      return;
+    }
+    onClose();
+    void doLaunch(source);
   }
 
-  // Tap a row → peek (no OS prompt). Already granted → straight to the picker;
-  // otherwise open the primer («Consenti» fires the real request via run()).
-  async function openPrimer(source: Source) {
-    if (busy || launchLock.current || gate.current.isClosing()) return;
-    const status = await peekPermission(source);
-    if (status === 'granted') {
+  /**
+   * Tap a row. The library launches at once — it holds no permission. Every other source asks
+   * the OS first: `ensure*Permission` reads the status and fires the system dialog only when the
+   * OS can still ask, so an already-granted source launches without one and a blocked one never
+   * fires a dialog iOS would not show. Nothing of ours is rendered before that dialog (#908).
+   */
+  async function onRow(source: Source) {
+    if (busy || launchLock.current || asking.current || gate.current.isClosing()) return;
+    if (source === 'library') {
       closeThenLaunch(source);
       return;
     }
-    setPending({ source, status });
-    setPrimerOpen(true);
-  }
-
-  // Primer «Consenti»: request the permission (this may show the OS dialog), and
-  // on grant launch the matching picker. On block, keep the primer up so it can
-  // render the Settings deep-link; the user re-taps to retry after enabling.
-  async function run() {
-    if (!pending) return;
-    const { source } = pending;
-    const status = await ensurePermission(source);
-
-    if (status !== 'granted') {
-      setPending({ source, status }); // 'denied' closes via dismiss; 'blocked' shows Settings
-      return;
+    asking.current = true;
+    try {
+      const status = await ensurePermission(source);
+      if (status === 'granted') closeThenLaunch(source);
+      else if (status === 'blocked') {
+        setBlocked(source);
+        setBlockedOpen(true);
+      }
+      // `denied`: the member said no and the OS can ask again (Android, after one explicit
+      // «Don't allow»). Nothing to add to what they just chose — the rows are still there, and
+      // the next tap asks again.
+    } catch {
+      // The permission read or request itself threw. Same ending as a picker that threw: take
+      // the sheet down so the composer's sentence is not hidden behind it.
+      onClose();
+      onError?.('media.failed');
+    } finally {
+      asking.current = false;
     }
-
-    closeThenLaunch(source);
   }
 
   return (
@@ -303,9 +304,10 @@ export function MediaSheet({
       onRequestClose={onClose}
       onShow={() => {
         // Re-shown sheet must never fire a stale launch: if onDismiss was ever
-        // missed (iOS double-dismiss edge with the nested primer), reset here.
+        // missed (iOS double-dismiss edge with a nested child), reset here.
         queuedLaunch.current = null;
         launchLock.current = false;
+        asking.current = false;
         gate.current.reset();
       }}
       onDismiss={() => {
@@ -363,26 +365,26 @@ export function MediaSheet({
             <Row
               label={t('media.sheet.photo', locale)}
               disabled={busy}
-              onPress={() => void openPrimer('photo')}
+              onPress={() => void onRow('photo')}
             />
             {allowVideo ? (
               <Row
                 label={t('media.sheet.video', locale)}
                 disabled={busy}
-                onPress={() => void openPrimer('video')}
+                onPress={() => void onRow('video')}
               />
             ) : null}
             {allowAudio ? (
               <Row
                 label={t('media.sheet.audio', locale)}
                 disabled={busy}
-                onPress={() => void openPrimer('audio')}
+                onPress={() => void onRow('audio')}
               />
             ) : null}
             <Row
               label={t('media.sheet.library', locale)}
               disabled={busy}
-              onPress={() => void openPrimer('library')}
+              onPress={() => void onRow('library')}
             />
             {/*
              * The exit (#518 follow-up). Once the scrim above stops being an accessibility
@@ -414,16 +416,13 @@ export function MediaSheet({
         />
       ) : null}
 
-      {pending ? (
-        <PermissionPrimer
-          kind={primerKind}
-          stillsOnly={!allowVideo}
-          status={pending.status}
-          visible={primerOpen}
+      {blocked ? (
+        <PermissionBlockedSheet
+          kind={blocked === 'audio' ? 'microphone' : 'camera'}
+          visible={blockedOpen}
           locale={locale}
-          onAllow={() => void run()}
-          onDismiss={() => closePrimer()}
-          onDismissed={onPrimerGone}
+          onDismiss={closeBlocked}
+          onDismissed={onBlockedGone}
         />
       ) : null}
     </Modal>
@@ -457,22 +456,20 @@ function Row({
 /**
  * Which permission a row needs, read WITHOUT prompting.
  *
- * A function rather than the two-arm ternary this replaces: with a fourth source the ternary
- * would have had to nest, and the failure mode of getting it wrong is silent — a row that
- * peeks the camera before opening the recorder reports «granted» from the wrong permission and
- * skips the primer for one the member has never been asked about.
+ * One function per direction rather than a ternary at each call site: the failure mode of
+ * getting the mapping wrong is silent — a row that reads the camera before opening the recorder
+ * reports «granted» from the wrong permission and launches into one the member was never asked
+ * about.
  *
  * `audio` is never reached from a sheet without `allowAudio`, because no row renders.
  */
-function peekPermission(source: Source): Promise<PermStatus> {
-  if (source === 'library') return peekLibraryPermission();
+function peekPermission(source: GatedSource): Promise<PermStatus> {
   if (source === 'audio') return peekMicrophonePermission();
   return peekCameraPermission();
 }
 
 /** The same mapping for the request that may actually show the OS dialog. */
-function ensurePermission(source: Source): Promise<PermStatus> {
-  if (source === 'library') return ensureLibraryPermission();
+function ensurePermission(source: GatedSource): Promise<PermStatus> {
   if (source === 'audio') return ensureMicrophonePermission();
   return ensureCameraPermission();
 }

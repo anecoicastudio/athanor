@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { claimHandle, handleClaimRefusal } from '@athanor/api';
-import { classifyHandle } from '@athanor/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { claimHandle, handleClaimRefusal, isHandleTaken } from '@athanor/api';
+import { classifyHandle, suggestHandles } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -12,6 +12,7 @@ import { useHandleLookup } from '@/hooks/use-handle-lookup';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { handleRefusalMessage, handleStatus, isHandleClaimable } from '@/lib/handle-status';
+import { firstFreeHandle } from '@/lib/handle-suggestion';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -20,9 +21,18 @@ import { supabase } from '@/lib/supabase';
  * Marco's ruling (2026-09-19): the person chooses their handle; it is never the email's local
  * part, not even as a prefilled suggestion. It sits here rather than in the pre-auth funnel or on
  * the sign-up form because this is the one screen every sign-up path reaches — email and
- * password, Google (which skips the sign-up form and its name field), and a first sign-in on a
- * new device — and because with a session the availability check is an ordinary members read.
- * A funnel-time check would have needed a lookup anyone could call signed-out.
+ * password, Google and Apple (which skip the sign-up form and its name field), and a first
+ * sign-in on a new device — and because with a session the availability check is an ordinary
+ * members read. A funnel-time check would have needed a lookup anyone could call signed-out.
+ *
+ * Marco's ruling (2026-10-01, #908) relaxes one half of that, and only that half: the field may
+ * open on a handle SUGGESTED from the name the person already gave — `profiles.display_name`,
+ * which `handle_new_user()` fills from Apple's or Google's name or the sign-up form's. Never from
+ * the email; `suggestHandles` refuses anything carrying an `@`. App Review read the empty,
+ * mandatory field after Sign in with Apple as asking again for a name Apple had just provided
+ * (Guideline 4, submission `4cb70b1c`, 2026-10-01); with a suggestion the step is one tap, and
+ * the field is still the person's to change. No name, or no free shape of it → the empty field,
+ * as before. The branch is on the NAME, never on the provider.
  *
  * AuthGuard routes here whenever the funnel's answers have landed and `profiles.handle` is still
  * NULL (`nextOnboardingStep`), and away again once the claim lands — this screen never navigates
@@ -30,10 +40,36 @@ import { supabase } from '@/lib/supabase';
  * from NULL), so a mistype here is fixable from the profile at once.
  */
 export default function HandleStepScreen() {
-  const { session, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const locale = useLocale();
   const userId = session?.user.id ?? null;
   const [handle, setHandle] = useState('');
+  // The handle this screen offered, while it is still what the field holds.
+  const [suggested, setSuggested] = useState<string | null>(null);
+  // Set by the first keystroke: a suggestion that answers late never overwrites what was typed.
+  const typed = useRef(false);
+
+  const displayName = profile?.display_name ?? null;
+  const candidates = useMemo(() => suggestHandles(displayName), [displayName]);
+  useEffect(() => {
+    if (candidates.length === 0) return;
+    let cancelled = false;
+    void firstFreeHandle(candidates, (candidate) => isHandleTaken(supabase, candidate)).then(
+      (free) => {
+        if (cancelled || free === null || typed.current) return;
+        setSuggested(free);
+        setHandle(free);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
+
+  const onChangeHandle = (next: string) => {
+    typed.current = true;
+    setHandle(next);
+  };
   const [submitting, setSubmitting] = useState(false);
   // What the claim came back with, pinned to the candidate it was for: typing again clears it.
   const [refusal, setRefusal] = useState<{ candidate: string; message: string } | null>(null);
@@ -84,14 +120,23 @@ export default function HandleStepScreen() {
               >
                 {t('onboarding.handle.title', locale)}
               </Text>
-              <Text className="text-muted-foreground">{t('onboarding.handle.sub', locale)}</Text>
+              <Text className="text-muted-foreground">
+                {t(
+                  suggested !== null && suggested === handle
+                    ? 'onboarding.handle.subSuggested'
+                    : 'onboarding.handle.sub',
+                  locale,
+                )}
+              </Text>
               <HandleField
                 value={handle}
-                onChangeText={setHandle}
+                onChangeText={onChangeHandle}
                 status={status}
                 locale={locale}
                 refusal={refusalNow}
-                autoFocus
+                // With a name to suggest from, the keyboard stays down: the suggestion and the
+                // button are the screen, and the field is one tap away for whoever wants another.
+                autoFocus={candidates.length === 0}
                 onSubmitEditing={() => void submit()}
               />
             </View>

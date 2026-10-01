@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, AppState, Linking } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,7 +29,40 @@ export default function CheckinScreen() {
   const locale = useLocale();
 
   const qc = useQueryClient();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, readPermission] = useCameraPermissions();
+  // The camera is asked for on arrival, by the OS, with no screen of ours in front of it (#908,
+  // Marco's ruling 2026-10-01). This screen used to open on a gate of its own — «Consenti la
+  // fotocamera» and a back link that left without the system request ever being made — which is
+  // the shape App Review rejected under Guideline 5.1.1(iv) (submission `4cb70b1c`). Opening the
+  // scanner IS the request for the camera, so the dialog needs no introduction. Once per visit:
+  // a first «Don't allow» on Android leaves the permission askable, and re-asking from an effect
+  // would loop.
+  const asked = useRef(false);
+  // The arrival ask has come back, whatever it came back with. Until then the screen shows a
+  // spinner under the OS dialog; after it, a status that is STILL not granted gets the gate —
+  // including `undetermined`, which would otherwise spin with nothing to press. Two ways to get
+  // there: a request that threw, and on web a dismissed browser prompt (`handleGetUserMediaError`
+  // in expo-camera 57.0.6's `ExpoCameraManager.web.ts`, read 2026-10-01, maps «Permission
+  // dismissed» to UNDETERMINED).
+  const [answered, setAnswered] = useState(false);
+  const askable = permission != null && !permission.granted && permission.canAskAgain;
+  useEffect(() => {
+    if (!askable || asked.current) return;
+    asked.current = true;
+    requestPermission()
+      .catch((e: unknown) => devWarn('[checkin] camera request', e))
+      .finally(() => setAnswered(true));
+  }, [askable, requestPermission]);
+  // Back from Settings with the camera on: read again, never prompt (same shape as MediaSheet's
+  // re-peek, #749). Only while there is a refusal on screen to correct.
+  const refused = permission != null && !permission.granted;
+  useEffect(() => {
+    if (!refused) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void readPermission();
+    });
+    return () => sub.remove();
+  }, [refused, readPermission]);
   const [last, setLast] = useState<{ v: Verdict; name?: string } | null>(null);
   // Lock so the continuous camera stream submits one token at a time + a short cooldown after a result.
   const busy = useRef(false);
@@ -85,7 +118,8 @@ export default function CheckinScreen() {
     [id],
   );
 
-  if (!permission) {
+  // Not read yet, or the OS dialog is up over this screen: nothing of ours to say.
+  if (!permission || (askable && !answered)) {
     return (
       <Screen className="items-center justify-center">
         <ActivityIndicator color={semantic.aura} />
@@ -93,16 +127,22 @@ export default function CheckinScreen() {
     );
   }
 
+  // Only AFTER a refusal. Blocked → Settings is the one place left to turn it on; still askable
+  // (Android, after one explicit «Don't allow») → the retry fires the OS dialog again.
   if (!permission.granted) {
     return (
       <Screen className="items-center justify-center gap-5 pl-8 pr-8">
         <EmptyState>{t('ticket.scan.permission', locale)}</EmptyState>
         <Pressable
           className="rounded-full bg-aura px-6 py-3"
-          onPress={() => void requestPermission()}
+          onPress={() =>
+            permission.canAskAgain ? void requestPermission() : void Linking.openSettings()
+          }
           accessibilityRole="button"
         >
-          <Text className="text-[14px] text-on-aura">{t('ticket.scan.allow', locale)}</Text>
+          <Text className="text-[14px] text-on-aura">
+            {t(permission.canAskAgain ? 'common.retry' : 'permission.openSettings', locale)}
+          </Text>
         </Pressable>
         <Pressable onPress={leave} hitSlop={8}>
           <Text className="text-[13px] text-faint">{t('common.back', locale)}</Text>

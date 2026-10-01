@@ -850,3 +850,78 @@ describe('erasure after the tap (#735)', () => {
     expect(en['moderation.erasing.body']).not.toMatch(/night|today|within/i);
   });
 });
+
+describe('no copy of ours introduces an OS permission prompt (#908)', () => {
+  /**
+   * App Review rejected build 1.0 (2) under Guideline 5.1.1(iv) (submission `4cb70b1c`,
+   * 2026-10-01) for a sheet shown BEFORE the camera and photo prompts, with an «Consenti» button
+   * and a «Non ora» that skipped the system request. Marco's ruling the same day removed every
+   * such sheet: the OS prompt fires from the tap on the feature, and what the member reads there
+   * is the usage string (`permission.ios.*`), not a message of ours.
+   *
+   * So the `permission.` namespace is a closed set — what is said once the OS has refused for
+   * good, the Settings link, and the five usage strings. A key added to it is copy for a surface
+   * that should not exist; `apps/native/src/lib/source-audit.test.ts` §45 holds the code half.
+   */
+  const ALLOWED = [
+    'permission.blocked.body',
+    'permission.blocked.camera',
+    'permission.blocked.microphone',
+    'permission.ios.calendar',
+    'permission.ios.camera',
+    'permission.ios.location',
+    'permission.ios.microphone',
+    'permission.ios.photos',
+    'permission.openSettings',
+  ];
+
+  test('the permission namespace holds only post-refusal copy and the OS usage strings', () => {
+    const keys = Object.keys(it)
+      .filter((key) => key.startsWith('permission.'))
+      .sort();
+    expect(keys).toEqual(ALLOWED);
+  });
+
+  test('no label reads as an «Allow» button or a «Not now» dismissal', () => {
+    const offenders = (catalog: Record<string, string>, pattern: RegExp) =>
+      Object.entries(catalog)
+        .filter(([, value]) => pattern.test(value))
+        .map(([key]) => key);
+    expect(offenders(it, /^(consenti\b.*|non ora)$/i)).toEqual([]);
+    expect(offenders(en, /^(allow\b.*|not now)$/i)).toEqual([]);
+  });
+});
+
+describe('the handle step never asks for a name (#908)', () => {
+  /**
+   * Guideline 4, same submission: after Sign in with Apple the app must not ask again for the
+   * name Apple provided. The @handle step was the only mandatory field left, and its copy called
+   * the handle «il nome con cui compari» over a placeholder reading «il_tuo_nome» — a name
+   * prompt in everything but intent. The handle is an address; the copy says so, and the one
+   * place the word «nome» remains is the line that says the suggestion CAME from the name
+   * already given. The email half of #782 stays on screen.
+   */
+  test('the handle is never called a name, in either locale', () => {
+    for (const key of [
+      'onboarding.handle.title',
+      'onboarding.handle.sub',
+      'handle.label',
+      'handle.placeholder',
+      'handle.status.taken',
+      'handle.status.reserved',
+    ] as const) {
+      expect(it[key], key).not.toMatch(/nome/i);
+      expect(en[key], key).not.toMatch(/name/i);
+    }
+  });
+
+  test('the step still says the handle is not taken from the email', () => {
+    expect(it['onboarding.handle.sub']).toMatch(/email/i);
+    expect(en['onboarding.handle.sub']).toMatch(/email/i);
+  });
+
+  test('the suggested variant says where the suggestion came from', () => {
+    expect(it['onboarding.handle.subSuggested']).toMatch(/nome/i);
+    expect(en['onboarding.handle.subSuggested']).toMatch(/name/i);
+  });
+});

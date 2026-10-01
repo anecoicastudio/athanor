@@ -37,7 +37,7 @@ type AuthState = {
    *  supabase.auth.signOut(). */
   signOut: () => Promise<void>;
   /** Fetch + register the push token when the OS grant already exists (never prompts —
-   *  #561) and remember it so signOut can unregister it. PushPrimer calls this right
+   *  #561) and remember it so signOut can unregister it. PushPermissionAsk calls this right
    *  after its grant; the auth-event branch reuses it on boot/refresh. */
   registerPush: () => Promise<void>;
   /** A recovery link was just exchanged (PASSWORD_RECOVERY): the session is real but the
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Registration is read-only on the permission (#561): registerForPush no-ops until the
-  // grant exists, so this is safe to fire on every boot and again from PushPrimer the
+  // grant exists, so this is safe to fire on every boot and again from PushPermissionAsk the
   // moment its ask lands. The token has to land in pushTokenRef — signOut unregisters
   // whatever is here, and a token registered outside this ref would outlive the session.
   const registerPush = useCallback(async () => {

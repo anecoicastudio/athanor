@@ -22,11 +22,11 @@ describe('toPeekStatus — verdict from a read that never prompted', () => {
     expect(toPeekStatus({ granted: true, canAskAgain: false })).toBe('granted');
   });
 
-  it('still askable → undetermined, so the primer offers «Consenti»', () => {
+  it('still askable → undetermined, so the caller asks the OS', () => {
     expect(toPeekStatus({ granted: false, canAskAgain: true })).toBe('undetermined');
   });
 
-  it('not askable → blocked, so the primer deep-links to Settings', () => {
+  it('not askable → blocked, so the caller deep-links to Settings', () => {
     expect(toPeekStatus({ granted: false, canAskAgain: false })).toBe('blocked');
   });
 
