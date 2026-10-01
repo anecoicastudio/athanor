@@ -107,6 +107,12 @@ describe.each([
     expect(pluginProps(config, FONT_SCALE_PLUGIN)).toEqual({});
   });
 
+  it('retains a link that arrives before the app has loaded (#905)', () => {
+    // A link sent to a task whose process is dead reaches MainActivity.onNewIntent before any
+    // listener is allowed to see it; only an override in MainActivity itself can keep it.
+    expect(pluginProps(config, PRE_LOAD_INTENT_PLUGIN)).toEqual({});
+  });
+
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
@@ -334,6 +340,84 @@ describe('with-font-scale-config-change plugin (#845)', () => {
 
   it('writes the attribute when MainActivity declares no configChanges at all', () => {
     expect(changes(plugin.addFontScaleConfigChange(manifest(undefined)))).toBe('fontScale');
+  });
+});
+
+const PRE_LOAD_INTENT_PLUGIN = './plugins/with-pre-load-intent-retention.js';
+
+describe('with-pre-load-intent-retention plugin (#905)', () => {
+  const plugin = createRequire(import.meta.url)(`../../${PRE_LOAD_INTENT_PLUGIN.slice(2)}`) as {
+    addPreLoadIntentRetention: (contents: string) => string;
+    MARKER: string;
+  };
+  // The shape of the bare template's MainActivity.kt (expo 57 `template.tgz`), trimmed to the
+  // parts the transform touches: the import block and the class's closing brace.
+  const TEMPLATE = [
+    'package world.athanor.app',
+    '',
+    'import android.os.Build',
+    'import android.os.Bundle',
+    '',
+    'import com.facebook.react.ReactActivity',
+    '',
+    'class MainActivity : ReactActivity() {',
+    '  override fun onCreate(savedInstanceState: Bundle?) {',
+    '    setTheme(R.style.AppTheme);',
+    '    super.onCreate(null)',
+    '  }',
+    '',
+    '  override fun getMainComponentName(): String = "main"',
+    '}',
+    '',
+  ].join('\n');
+  const out = plugin.addPreLoadIntentRetention(TEMPLATE);
+
+  it('overrides onNewIntent inside the class, calling super', () => {
+    const body = out.slice(out.indexOf('class MainActivity'));
+    expect(body).toContain('override fun onNewIntent(intent: Intent) {');
+    expect(body).toContain('super.onNewIntent(intent)');
+    expect(out.trimEnd().endsWith('}')).toBe(true);
+    // Braces still balance, so the method landed inside the class rather than after it.
+    expect(out.split('{').length).toBe(out.split('}').length);
+    expect(out.indexOf('override fun onNewIntent')).toBeLessThan(out.lastIndexOf('}'));
+  });
+
+  it('retains the intent only while no React context exists', () => {
+    // With a context, React Native emits the `url` event itself; retaining then would make a
+    // later JS reload in the same process replay a link that was already handled.
+    expect(out).toMatch(
+      /if \(reactHost\?\.currentReactContext == null\) \{\s+setIntent\(intent\)\s+\}/,
+    );
+  });
+
+  it('never logs the intent — a recovery link carries a one-time code', () => {
+    expect(out).not.toMatch(/Log\.|println/);
+  });
+
+  it('imports android.content.Intent exactly once', () => {
+    expect(out.match(/^import android\.content\.Intent$/gm)).toHaveLength(1);
+    const already = plugin.addPreLoadIntentRetention(
+      TEMPLATE.replace('import android.os.Build', 'import android.content.Intent'),
+    );
+    expect(already.match(/^import android\.content\.Intent$/gm)).toHaveLength(1);
+  });
+
+  it('is idempotent — a second run changes nothing', () => {
+    expect(plugin.addPreLoadIntentRetention(out)).toBe(out);
+    expect(out.split(plugin.MARKER).length).toBe(2);
+  });
+
+  it('refuses a MainActivity that already overrides onNewIntent from somewhere else', () => {
+    // Two overrides do not compile, and silently skipping would ship without the retention.
+    const foreign = TEMPLATE.replace(
+      '  override fun getMainComponentName',
+      '  override fun onNewIntent(intent: Intent) { super.onNewIntent(intent) }\n\n  override fun getMainComponentName',
+    );
+    expect(() => plugin.addPreLoadIntentRetention(foreign)).toThrow(/onNewIntent/);
+  });
+
+  it('refuses a file it cannot anchor in', () => {
+    expect(() => plugin.addPreLoadIntentRetention('package x\n')).toThrow(/MainActivity/);
   });
 });
 

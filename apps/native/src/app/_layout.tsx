@@ -21,6 +21,7 @@ import * as Sentry from '@sentry/react-native';
 import { nextOnboardingStep } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { authGuardRedirect } from '@/lib/auth-guard-route';
 import { ToastProvider } from '@/components/ToastHost';
 import { FontScaleProvider } from '@/tw/font-scale';
 import { BrandSplash } from '@/components/boot/BrandSplash';
@@ -59,54 +60,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // Hold position during the initial session read and while the pre-auth
     // onboarding draft is being flushed (prevents a funnel flash post-OTP).
     if (loading || flushing) return;
-    // auth-callback counts as auth: it is where the signup-confirmation deep link
-    // lands, and it must be left mounted long enough to exchange its ?code (the
-    // unauth branch below would otherwise bounce it straight to the funnel). Once
-    // the exchange lands, the authed branches route it onward like any auth screen.
-    const inAuth = segments[0] === '(auth)' || segments[0] === 'auth-callback';
-    const inOnboarding = segments[0] === '(onboarding)';
-
-    if (!session) {
-      // Unauth: start in the onboarding funnel (prototype order — questions first).
-      // The funnel's final step, and its «Accedi» link, route on to (auth)/welcome.
-      if (!inAuth && !inOnboarding) router.replace('/(onboarding)');
-      return;
-    }
-    // Recovery-link session (#631): park the member on the new-password sheet before
-    // any profile-based routing — the sheet needs no profile, and a slow hydrate must
-    // not hold it hostage. Checked before the profile gate for exactly that reason.
-    // The latch clears on save or skip (auth-context.clearRecovery); until then a
-    // dismissed sheet is simply re-presented, which is what makes the auth-callback
-    // race (guard routes before that screen's .then runs) harmless.
-    if (recoveryPending) {
-      // `.at(1)`, not `[1]`: typed routes make `segments` a union of tuples, and the
-      // one-element members reject a literal index 1 (TS2493) while `.at` stays legal
-      // on every member and just returns undefined there.
-      if (segments[0] !== '(modal)' || segments.at(1) !== 'new-password') {
-        router.replace('/(modal)/new-password');
-      }
-      return;
-    }
-    if (!profile) return; // profile still hydrating
-
-    const next = nextOnboardingStep(profile);
-    // `.at(1)` for the same TS2493 reason as the recovery branch above.
-    const onHandleStep = inOnboarding && segments.at(1) === 'handle';
-    if (next === null) {
-      // Explicit group href: both (tabs)/index and (onboarding)/index resolve to '/',
-      // and onboarding wins the bare path — so a bare replace('/') lands back on the
-      // funnel (the loop). '/(tabs)' disambiguates to the Home tab.
-      if (inAuth || inOnboarding) router.replace('/(tabs)');
-    } else if (next === 'handle') {
-      // #782: the answers landed and only the @handle is missing — chosen on its own screen
-      // after sign-up, never derived from the email. Every sign-up path arrives here: email
-      // and password, Google, and a first sign-in on a new device.
-      if (!onHandleStep) router.replace('/(onboarding)/handle');
-    } else if (!inOnboarding || onHandleStep) {
-      // Authed but the funnel's answers are missing with no draft to flush (e.g. login on a
-      // new device). The handle step is not the place for that: the answers come first.
-      router.replace('/(onboarding)');
-    }
+    // Where to, if anywhere, is `authGuardRedirect` (`@/lib/auth-guard-route`) — pure, so the
+    // whole decision is tested from the node harness, including the hold on segments the
+    // navigator has not reported yet (#905).
+    const target = authGuardRedirect({
+      segments,
+      signedIn: !!session,
+      recoveryPending,
+      onboardingStep: profile ? nextOnboardingStep(profile) : undefined,
+    });
+    if (target) router.replace(target);
   }, [loading, flushing, session, profile, segments, router, recoveryPending]);
 
   if (loading) {

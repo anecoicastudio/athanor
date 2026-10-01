@@ -130,6 +130,7 @@
       ],
       "./plugins/without-location-task-service.js",
       "./plugins/with-font-scale-config-change.js",
+      "./plugins/with-pre-load-intent-retention.js",
       [
         "expo-calendar",
         {
