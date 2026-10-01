@@ -54,7 +54,7 @@ type GatedSource = Exclude<Source, 'library'>;
  *   idle → (tap library) → close sheet → launch picker → onPick
  *   idle → (tap row) → OS prompt, if the OS can still ask
  *                    → granted → close sheet → launch picker → onPick
- *                    → denied (the OS can ask again) → idle; the next tap asks again
+ *                    → denied (Android, one explicit «Don't allow») → idle; the next tap asks again
  *                    → blocked → blocked sheet (Settings)
  *   blocked → (dismiss, or back from Settings with the permission on) → idle
  *
@@ -283,8 +283,14 @@ export function MediaSheet({
         setBlocked(source);
         setBlockedOpen(true);
       }
-      // `denied`: the member said no and the OS can ask again (Android). Nothing to add to what
-      // they just chose — the rows are still there, and the next tap asks again.
+      // `denied`: the member said no and the OS can ask again (Android, after one explicit
+      // «Don't allow»). Nothing to add to what they just chose — the rows are still there, and
+      // the next tap asks again.
+    } catch {
+      // The permission read or request itself threw. Same ending as a picker that threw: take
+      // the sheet down so the composer's sentence is not hidden behind it.
+      onClose();
+      onError?.('media.failed');
     } finally {
       asking.current = false;
     }

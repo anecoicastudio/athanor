@@ -22,9 +22,13 @@ import { ensurePushPermission, peekPushPermission } from '@/lib/push';
  * other caller (#637), or in Settings: `registerForPush` is read-only on the permission and
  * registers silently on the next boot / token refresh.
  *
- * Mounted in `(tabs)/_layout`: only a signed-in, complete profile ever reaches it (auth and the
- * funnel sit outside the tabs group), so the dialog arrives once the person is inside the app
- * rather than over sign-in. `Device.isDevice` gates the whole effect — the simulator and expo-web
+ * Mounted in `(tabs)/_layout`, so the dialog arrives once the person is inside the app rather
+ * than over sign-in. The mount alone is not the gate, though: a custom-scheme link to a tabs
+ * route mounts this layout for a signed-out person for the instant before `AuthGuard` replaces
+ * the route, and a child effect runs before the guard's. `PushPrimer` survived that by only
+ * setting state on a component the redirect then unmounted; an effect that calls the OS has no
+ * such luck, so it asks only with a session and stops if it is unmounted before it gets there.
+ * `Device.isDevice` gates the whole effect — the simulator and expo-web
  * have no push token to ask for, so the ask is NOT REACHABLE on the expo-web QA surface by design.
  * Only an `undetermined` peek asks: `granted` needs nothing, and a `blocked` peek with no member
  * action is not a moment to send anybody to Settings.
@@ -35,19 +39,24 @@ import { ensurePushPermission, peekPushPermission } from '@/lib/push';
 const ASKED_KEY = 'athanor.push.primed';
 
 export function PushPermissionAsk() {
-  const { registerPush } = useAuth();
-  // One ask per mount, whatever re-runs the effect: a second `requestPermissionsAsync` queued
-  // behind an open dialog is the cold double-ask #561 removed.
-  const started = useRef(false);
+  const { session, registerPush } = useAuth();
+  const signedIn = session != null;
+  // One ask, whatever re-runs the effect: a second `requestPermissionsAsync` queued behind an
+  // open dialog is the cold double-ask #561 removed. Taken at the ask itself, not at the top of
+  // the effect — a run cancelled before it asked (StrictMode's first pass, a redirect) must not
+  // stop the next one.
+  const asking = useRef(false);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+    if (!signedIn) return;
+    let cancelled = false;
     void (async () => {
       try {
         if (!Device.isDevice) return;
         if ((await AsyncStorage.getItem(ASKED_KEY)) != null) return;
         if ((await peekPushPermission()) !== 'undetermined') return;
+        if (cancelled || asking.current) return;
+        asking.current = true;
         const answer = await ensurePushPermission();
         // Best-effort: an unwritable flag asks again next boot while the OS still can, nothing
         // breaks.
@@ -57,7 +66,10 @@ export function PushPermissionAsk() {
         devWarn('[push] ask', e); // best-effort: no ask, boot continues
       }
     })();
-  }, [registerPush]);
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, registerPush]);
 
   return null;
 }

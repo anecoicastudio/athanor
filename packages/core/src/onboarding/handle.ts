@@ -37,6 +37,23 @@ export function classifyHandle(candidate: string): HandleVerdict {
 const HANDLE_MAX_LENGTH = 30;
 
 /**
+ * Latin letters with no canonical decomposition: NFD leaves them whole, so stripping marks does
+ * not reach them and they would otherwise separate words («Søren» → `s_ren`). Lowercase only —
+ * the fold runs after `toLowerCase()`.
+ */
+const LATIN_FOLDS: readonly (readonly [string, string])[] = [
+  ['ß', 'ss'],
+  ['æ', 'ae'],
+  ['œ', 'oe'],
+  ['ø', 'o'],
+  ['ł', 'l'],
+  ['đ', 'd'],
+  ['ð', 'd'],
+  ['þ', 'th'],
+  ['ı', 'i'],
+];
+
+/**
  * Handles to OFFER for a name the person already gave — Apple's, Google's, or the sign-up form's
  * (#908, Marco's ruling 2026-10-01). Most specific first: `elena_rossi`, `elenarossi`, `elena_r`,
  * `elena`. The caller asks the database which is free and offers the first that is; the person
@@ -46,17 +63,15 @@ const HANDLE_MAX_LENGTH = 30;
  * provider can hand back an address where a name belongs, and its local part is exactly what the
  * ruling keeps off the public page.
  *
- * Diacritics fold to their base letter (`Niccolò` → `niccolo`); anything else outside a–z 0–9
- * separates words. Every candidate returned is `claimable` as it stands, so a name that reduces
+ * Diacritics fold to their base letter (`Niccolò` → `niccolo`, `Søren` → `soren`); anything
+ * else outside a–z 0–9 separates words. Every candidate returned is `claimable` as it stands, so a name that reduces
  * to nothing, to a reserved word, or to under three characters gives fewer candidates or none —
  * never a guess.
  */
 export function suggestHandles(displayName: string | null | undefined): string[] {
   if (!displayName || displayName.includes('@')) return [];
-  const words = displayName
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
+  const base = displayName.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  const words = LATIN_FOLDS.reduce((text, [letter, fold]) => text.replaceAll(letter, fold), base)
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length > 0);
   const first = words[0];

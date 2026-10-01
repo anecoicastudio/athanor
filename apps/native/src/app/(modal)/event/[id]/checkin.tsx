@@ -35,13 +35,21 @@ export default function CheckinScreen() {
   // fotocamera» and a back link that left without the system request ever being made — which is
   // the shape App Review rejected under Guideline 5.1.1(iv) (submission `4cb70b1c`). Opening the
   // scanner IS the request for the camera, so the dialog needs no introduction. Once per visit:
-  // an Android «no» leaves the permission askable, and re-asking from an effect would loop.
+  // a first «Don't allow» on Android leaves the permission askable, and re-asking from an effect
+  // would loop.
   const asked = useRef(false);
+  // The arrival ask has come back, whatever it came back with. Until then the screen shows a
+  // spinner under the OS dialog; after it, a status that is STILL not granted gets the gate —
+  // including `undetermined`, which a dismissed browser prompt or a request that threw leaves
+  // behind, and which would otherwise spin with nothing to press.
+  const [answered, setAnswered] = useState(false);
   const askable = permission != null && !permission.granted && permission.canAskAgain;
   useEffect(() => {
     if (!askable || asked.current) return;
     asked.current = true;
-    void requestPermission();
+    requestPermission()
+      .catch((e: unknown) => devWarn('[checkin] camera request', e))
+      .finally(() => setAnswered(true));
   }, [askable, requestPermission]);
   // Back from Settings with the camera on: read again, never prompt (same shape as MediaSheet's
   // re-peek, #749). Only while there is a refusal on screen to correct.
@@ -109,7 +117,7 @@ export default function CheckinScreen() {
   );
 
   // Not read yet, or the OS dialog is up over this screen: nothing of ours to say.
-  if (!permission || permission.status === 'undetermined') {
+  if (!permission || (askable && !answered)) {
     return (
       <Screen className="items-center justify-center">
         <ActivityIndicator color={semantic.aura} />
@@ -118,7 +126,7 @@ export default function CheckinScreen() {
   }
 
   // Only AFTER a refusal. Blocked → Settings is the one place left to turn it on; still askable
-  // (Android, after one «no») → the retry fires the OS dialog again.
+  // (Android, after one explicit «Don't allow») → the retry fires the OS dialog again.
   if (!permission.granted) {
     return (
       <Screen className="items-center justify-center gap-5 pl-8 pr-8">

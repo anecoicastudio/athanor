@@ -203,8 +203,32 @@ describe('suggestHandles', () => {
   });
 
   test('never suggests the same handle twice', () => {
-    const candidates = suggestHandles('Ab Ab');
+    // One word: the joined shapes and the bare first word are all the same string.
+    const candidates = suggestHandles('Luna');
     expect(new Set(candidates).size).toBe(candidates.length);
+    expect(candidates).toHaveLength(1);
+  });
+
+  // NFD decomposes an accent into letter + mark; these letters have no decomposition, so without
+  // a fold of their own they would SPLIT the word: «Søren» → `s_ren`, «Strauß» → `strau`.
+  test('folds the Latin letters that carry no separable accent', () => {
+    expect(suggestHandles('Søren Müller')).toEqual([
+      'soren_muller',
+      'sorenmuller',
+      'soren_m',
+      'soren',
+    ]);
+    expect(suggestHandles('Strauß')).toEqual(['strauss']);
+    expect(suggestHandles('Łukasz')).toEqual(['lukasz']);
+    expect(suggestHandles('Æsa Þór')).toEqual(['aesa_thor', 'aesathor', 'aesa_t', 'aesa']);
+    expect(suggestHandles('Œuvre Đorđe')).toEqual([
+      'oeuvre_dorde',
+      'oeuvredorde',
+      'oeuvre_d',
+      'oeuvre',
+    ]);
+    expect(suggestHandles('Işıl')).toEqual(['isil']);
+    expect(suggestHandles('Guðrún')).toEqual(['gudrun']);
   });
 
   test('no name, no suggestion', () => {

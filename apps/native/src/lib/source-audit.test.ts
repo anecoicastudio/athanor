@@ -4678,7 +4678,9 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
 
   it('the OS is asked from a closed list of files', () => {
     expect(
-      filesMatching(/\brequest[A-Za-z]*Permissions?Async\(|\brequestPermission\(/),
+      // By NAME, not by call: `onPress={requestPermission}` and a permission hook asked to
+      // request on mount (`{ request: true }`) fire the dialog with no `(` after the name.
+      filesMatching(/\brequest[A-Za-z]*Permissions?Async\b|\buse[A-Za-z]*Permissions\(/),
       'a file asks the OS for a permission and is not registered, or a registered one no longer ' +
         'does. A new ask fires from the tap on the feature it serves, with nothing of ours shown ' +
         'first — no explanatory sheet, no «Consenti», no «Non ora» (Guideline 5.1.1(iv), #908).',
@@ -4742,7 +4744,12 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
       rows.filter((t) => !/onPress=\{\(\) => void onRow\('/.test(t.raw)).map((t) => t.line),
       'a source row no longer goes through onRow, the one handler that asks the OS first',
     ).toEqual([]);
-    const handler = src.slice(src.indexOf('async function onRow('));
+    // Bounded to onRow's own body: sliced to the end of the file it would also hold the
+    // `ensurePermission` helper's declaration, and "onRow asks" could not fail.
+    const start = src.indexOf('async function onRow(');
+    const end = src.indexOf('\n  }\n', start);
+    expect(start, 'MediaSheet no longer declares onRow').toBeGreaterThan(-1);
+    const handler = src.slice(start, end);
     const ask = handler.indexOf('ensurePermission(');
     const show = handler.indexOf('setBlockedOpen(true)');
     expect(ask, 'onRow no longer asks the OS').toBeGreaterThan(-1);
