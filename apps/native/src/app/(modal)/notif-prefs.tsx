@@ -192,7 +192,7 @@ export default function NotifPrefsScreen() {
           if (resolved === 'granted') {
             write(true);
             // The grant is what registration was waiting for — take the token now, as
-            // PushPrimer does (#746). Otherwise the device holds no token row until the next
+            // PushPermissionAsk does (#746). Otherwise the device holds no token row until the next
             // boot or token refresh, and a push sent in between reaches nobody.
             void registerPush();
           }

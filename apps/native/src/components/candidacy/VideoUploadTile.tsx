@@ -164,8 +164,8 @@ export function VideoUploadTile({
           <Text className="mt-3 px-6 text-center text-[13px] text-error">{t(message, locale)}</Text>
         ) : null}
         {offersSettings ? (
-          // The OS will not prompt again, so «Consenti» would be a dead button. Same deep link
-          // the MediaSheet primer offers on a blocked grant (PermissionPrimer).
+          // The OS will not prompt again, so asking once more would do nothing. Same deep link
+          // MediaSheet offers on a blocked grant (PermissionBlockedSheet).
           <Pressable
             onPress={() => void Linking.openSettings()}
             className="mt-3 rounded-ctl border border-hair px-4 py-2"

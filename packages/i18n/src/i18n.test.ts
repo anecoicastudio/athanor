@@ -850,3 +850,44 @@ describe('erasure after the tap (#735)', () => {
     expect(en['moderation.erasing.body']).not.toMatch(/night|today|within/i);
   });
 });
+
+describe('no copy of ours introduces an OS permission prompt (#908)', () => {
+  /**
+   * App Review rejected build 1.0 (2) under Guideline 5.1.1(iv) (submission `4cb70b1c`,
+   * 2026-10-01) for a sheet shown BEFORE the camera and photo prompts, with an «Consenti» button
+   * and a «Non ora» that skipped the system request. Marco's ruling the same day removed every
+   * such sheet: the OS prompt fires from the tap on the feature, and what the member reads there
+   * is the usage string (`permission.ios.*`), not a message of ours.
+   *
+   * So the `permission.` namespace is a closed set — what is said once the OS has refused for
+   * good, the Settings link, and the five usage strings. A key added to it is copy for a surface
+   * that should not exist; `apps/native/src/lib/source-audit.test.ts` §45 holds the code half.
+   */
+  const ALLOWED = [
+    'permission.blocked.body',
+    'permission.blocked.camera',
+    'permission.blocked.microphone',
+    'permission.ios.calendar',
+    'permission.ios.camera',
+    'permission.ios.location',
+    'permission.ios.microphone',
+    'permission.ios.photos',
+    'permission.openSettings',
+  ];
+
+  test('the permission namespace holds only post-refusal copy and the OS usage strings', () => {
+    const keys = Object.keys(it)
+      .filter((key) => key.startsWith('permission.'))
+      .sort();
+    expect(keys).toEqual(ALLOWED);
+  });
+
+  test('no label reads as an «Allow» button or a «Not now» dismissal', () => {
+    const offenders = (catalog: Record<string, string>, pattern: RegExp) =>
+      Object.entries(catalog)
+        .filter(([, value]) => pattern.test(value))
+        .map(([key]) => key);
+    expect(offenders(it, /^(consenti\b.*|non ora)$/i)).toEqual([]);
+    expect(offenders(en, /^(allow\b.*|not now)$/i)).toEqual([]);
+  });
+});

@@ -1421,7 +1421,8 @@ describe('the events tab has no posts source (#153)', () => {
  * ## Why this keys on `Pressable` and not on `accessibilityRole`
  *
  * The obvious guard — "no `accessibilityRole="button"` inside another" — under-detects, and did
- * pass over two real instances. `PermissionPrimer.tsx` nested a LABELLED «Non ora» button two
+ * pass over two real instances. `PermissionPrimer.tsx` (`PermissionBlockedSheet.tsx` since #908,
+ * 2026-10-01) nested a LABELLED «Non ora» button two
  * Pressables deep inside a scrim and a sheet that declare no role; both were still `accessible`,
  * so iOS swallowed the descendant anyway — and `MediaSheet.tsx` had the same pair. The mechanism
  * is `accessible`, which `Pressable` sets for you, and #292's note
@@ -1438,7 +1439,8 @@ describe('the events tab has no posts source (#153)', () => {
  *
  * ## The register below is EMPTY, and that is the goal state
  *
- * It held `PermissionPrimer.tsx` and `MediaSheet.tsx` — real instances deferred with an
+ * It held `PermissionPrimer.tsx` (now `PermissionBlockedSheet.tsx`) and `MediaSheet.tsx` — real
+ * instances deferred with an
  * argument, not excused. They are fixed now: `accessible={false}` on each scrim and sheet, plus
  * an «Annulla» row in `MediaSheet`, which had no close control of its own and would otherwise
  * have gained focusable rows and no way out.
@@ -1658,10 +1660,10 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  * ## What counts as an exit
  *
  * The close callback is whatever a silenced `Pressable` passes as `onPress` — `onClose` in
- * `MediaSheet`, `onDismiss` in `PermissionPrimer`. An exit is any element that is NOT itself
+ * `MediaSheet`, `onDismiss` in `PermissionBlockedSheet`. An exit is any element that is NOT itself
  * silenced and fires that same callback. Keyed on the callback rather than on
  * `accessibilityRole="button"` because the two live sheets spell their exit differently and
- * both are correct: `PermissionPrimer` uses a bare `Pressable` with the role on it, while
+ * both are correct: `PermissionBlockedSheet` uses a bare `Pressable` with the role on it, while
  * `MediaSheet` passes `<Row onPress={onClose} />` and the role lives inside `Row`. A guard
  * keyed on the role would demand the call site carry an attribute one of them legitimately
  * does not — and §21's fourth assertion already owns the role-on-a-silenced-element question.
@@ -1739,7 +1741,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
   it('finds the silenced sheets it is walking', () => {
     // Without this the section is vacuous by default: a walk that resolved no callback at all
     // would report no offenders and read exactly like a clean tree. Two today —
-    // components/media/MediaSheet.tsx and components/media/PermissionPrimer.tsx.
+    // components/media/MediaSheet.tsx and components/media/PermissionBlockedSheet.tsx.
     // A FLOOR, not the count. An exact 2 would go red the day a third silenced sheet lands —
     // correct work tripping the guard, which is how a guard gets weakened instead of obeyed.
     expect(
@@ -1757,7 +1759,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
       `a sheet a screen-reader user cannot leave. accessible={false} takes the scrim out of ` +
         `the accessibility tree, so tap-outside-to-close stops existing for VoiceOver and the ` +
         `sheet needs a real control — an «Annulla» row (the components/media/MediaSheet.tsx ` +
-        `shape) or an accessible dismiss (components/media/PermissionPrimer.tsx). ` +
+        `shape) or an accessible dismiss (components/media/PermissionBlockedSheet.tsx). ` +
         `onAccessibilityEscape does not count: RN fires it only while accessible is true.`,
     ).toEqual([]);
   });
@@ -4628,5 +4630,121 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
       `a file renders <Avatar> without an AVATAR_SITES entry, or an entry no longer renders one. ` +
         `A new row decides here whether its avatar is decorative (#884).`,
     ).toEqual(Object.keys(AVATAR_SITES).sort());
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 45 — nothing of ours stands in front of an OS permission prompt (#908)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * App Review rejected build 1.0 (2) under Guideline 5.1.1(iv) (submission `4cb70b1c`,
+ * 2026-10-01): a sheet of ours came before the camera and photo prompts, its button said
+ * «Consenti», and «Non ora» closed it without the system request ever being made. Marco's ruling
+ * the same day removed the pattern rather than rewording it: a tap on the feature fires the OS
+ * prompt DIRECTLY, and custom UI appears only after a refusal the OS can no longer re-ask, where
+ * it offers Settings.
+ *
+ * That is a rule about what is NOT rendered, which no render test can hold, so it is held by
+ * where a prompt can be fired from:
+ *
+ *   1. the functions that call the OS (`request…PermissionsAsync`, a `requestPermission()` from
+ *      a permission hook) live in a closed list of files. A new ask cannot land without being
+ *      added here, which is the moment to check it is fired from the feature's own tap.
+ *   2. the `ensure…Permission` wrappers have a closed list of callers, for the same reason.
+ *   3. the one sheet the permission path still owns offers Settings and a way out, and nothing
+ *      that could start a request — so it cannot grow back into a primer by gaining a button.
+ *   4. `MediaSheet`'s rows reach the OS through one handler, which asks BEFORE it shows anything.
+ *
+ * The retired copy is pinned out of the catalogs in `packages/i18n/src/i18n.test.ts`.
+ *
+ * ## What it cannot see
+ *
+ * A screen that renders its own explanation and then calls an `ensure…` wrapper it is registered
+ * for. `checkin.tsx` was that shape. The registries make every asking file a named decision; they
+ * do not read the JSX around the call. A reviewer does.
+ */
+describe('nothing of ours stands in front of an OS permission prompt (#908)', () => {
+  const inApp = (p: string) => p.startsWith(SRC) && !p.endsWith('.test.ts');
+  const filesMatching = (pattern: RegExp) =>
+    FILES.filter(inApp)
+      .filter((p) => pattern.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+
+  it('the OS is asked from a closed list of files', () => {
+    expect(
+      filesMatching(/\brequest[A-Za-z]*Permissions?Async\(|\brequestPermission\(/),
+      'a file asks the OS for a permission and is not registered, or a registered one no longer ' +
+        'does. A new ask fires from the tap on the feature it serves, with nothing of ours shown ' +
+        'first — no explanatory sheet, no «Consenti», no «Non ora» (Guideline 5.1.1(iv), #908).',
+    ).toEqual(
+      [
+        'app/(modal)/event-create.tsx',
+        'app/(modal)/event/[id]/checkin.tsx',
+        'components/live/VicinoPanel.tsx',
+        'lib/calendar.ts',
+        'lib/media/permissions.ts',
+        'lib/push.ts',
+      ].sort(),
+    );
+  });
+
+  it('the ensure wrappers are called from a closed list of files', () => {
+    const callers = filesMatching(/\bensure(Camera|Microphone|Push)Permission\(/).filter(
+      // The two files that DEFINE them match their own declarations.
+      (p) => p !== 'lib/media/permissions.ts' && p !== 'lib/push.ts',
+    );
+    expect(
+      callers,
+      'an ensure…Permission wrapper gained or lost a caller. Each one fires the OS dialog, so ' +
+        'each caller is the tap on a feature — never a sheet that introduces the dialog (#908).',
+    ).toEqual(
+      [
+        'app/(modal)/notif-prefs.tsx',
+        'components/boot/PushPermissionAsk.tsx',
+        'components/media/MediaSheet.tsx',
+        'lib/media/use-candidacy-upload.ts',
+      ].sort(),
+    );
+  });
+
+  it('the blocked sheet offers Settings and a way out, and cannot start a request', () => {
+    const file = `${SRC}components/media/PermissionBlockedSheet.tsx`;
+    expect(
+      FILES,
+      'the blocked sheet moved — this assertion is vacuous until the path is fixed',
+    ).toContain(file);
+    const src = stripComments(read(file));
+    expect(src, 'the blocked sheet no longer deep-links to Settings').toContain(
+      'Linking.openSettings()',
+    );
+    expect(
+      /\b(ensure|request|peek)[A-Za-z]*Permission/.test(src) || /\bonAllow\b/.test(src),
+      'the blocked sheet reads or requests a permission, or takes an allow handler. It is shown ' +
+        'only AFTER the OS has refused for good; a button on it that starts a request makes it ' +
+        'the primer App Review rejected (#908).',
+    ).toBe(false);
+  });
+
+  it('a MediaSheet row asks the OS before it shows anything of its own', () => {
+    const src = stripComments(read(`${SRC}components/media/MediaSheet.tsx`));
+    const rows = jsxOpeningTags(src).filter((t) => t.base === 'Row' && !t.raw.includes('onClose'));
+    expect(
+      rows.length,
+      'MediaSheet renders no source row — the walk found nothing',
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      rows.filter((t) => !/onPress=\{\(\) => void onRow\('/.test(t.raw)).map((t) => t.line),
+      'a source row no longer goes through onRow, the one handler that asks the OS first',
+    ).toEqual([]);
+    const handler = src.slice(src.indexOf('async function onRow('));
+    const ask = handler.indexOf('ensurePermission(');
+    const show = handler.indexOf('setBlockedOpen(true)');
+    expect(ask, 'onRow no longer asks the OS').toBeGreaterThan(-1);
+    expect(
+      show,
+      'onRow shows the blocked sheet before it has asked the OS — that order is a primer (#908)',
+    ).toBeGreaterThan(ask);
   });
 });
