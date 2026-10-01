@@ -350,8 +350,9 @@ describe('with-pre-load-intent-retention plugin (#905)', () => {
     addPreLoadIntentRetention: (contents: string) => string;
     MARKER: string;
   };
-  // The shape of the bare template's MainActivity.kt (expo 57 `template.tgz`), trimmed to the
-  // parts the transform touches: the import block and the class's closing brace.
+  // The shape of the bare template's MainActivity.kt (expo@57.0.26 `template.tgz`, read
+  // 2026-10-01), trimmed to the parts the transform touches: the import block and the class's
+  // closing brace.
   const TEMPLATE = [
     'package world.athanor.app',
     '',
