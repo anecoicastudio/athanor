@@ -64,9 +64,9 @@ const LATIN_FOLDS: readonly (readonly [string, string])[] = [
  * ruling keeps off the public page.
  *
  * Diacritics fold to their base letter (`Niccolò` → `niccolo`, `Søren` → `soren`); anything
- * else outside a–z 0–9 separates words. Every candidate returned is `claimable` as it stands, so a name that reduces
- * to nothing, to a reserved word, or to under three characters gives fewer candidates or none —
- * never a guess.
+ * else outside a–z 0–9 separates words. Every candidate returned is `claimable` as it stands, so
+ * a name that reduces to nothing, to a reserved word, or to under three characters gives fewer
+ * candidates or none — never a guess.
  */
 export function suggestHandles(displayName: string | null | undefined): string[] {
   if (!displayName || displayName.includes('@')) return [];

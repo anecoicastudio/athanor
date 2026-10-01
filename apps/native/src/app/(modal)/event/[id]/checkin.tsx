@@ -40,8 +40,10 @@ export default function CheckinScreen() {
   const asked = useRef(false);
   // The arrival ask has come back, whatever it came back with. Until then the screen shows a
   // spinner under the OS dialog; after it, a status that is STILL not granted gets the gate —
-  // including `undetermined`, which a dismissed browser prompt or a request that threw leaves
-  // behind, and which would otherwise spin with nothing to press.
+  // including `undetermined`, which would otherwise spin with nothing to press. Two ways to get
+  // there: a request that threw, and on web a dismissed browser prompt (`handleGetUserMediaError`
+  // in expo-camera 57.0.6's `ExpoCameraManager.web.ts`, read 2026-10-01, maps «Permission
+  // dismissed» to UNDETERMINED).
   const [answered, setAnswered] = useState(false);
   const askable = permission != null && !permission.granted && permission.canAskAgain;
   useEffect(() => {
