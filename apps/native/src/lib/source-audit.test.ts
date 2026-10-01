@@ -3627,6 +3627,9 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     { file: `${SRC}app/(auth)/welcome.tsx`, keys: ['name', 'email', 'password'] },
     { file: `${SRC}app/(auth)/forgot-password.tsx`, keys: ['email'] },
     { file: `${SRC}app/(modal)/new-password.tsx`, keys: ['password'] },
+    // #908 (2026-10-01): App Review could not finish the deletion flow. One field, but it is the
+    // last thing above the CTA on a long column — the form shape, not the composer shape.
+    { file: `${SRC}app/(modal)/delete-account.tsx`, keys: ['confirm'] },
     {
       file: `${SRC}app/(modal)/event-create.tsx`,
       keys: ['name', 'desc', 'streamUrl', 'venue', 'city', 'capacity', 'price'],
@@ -3647,6 +3650,7 @@ describe('a focused field is revealed, not merely uncovered (#689)', () => {
     `${SRC}app/(auth)/welcome.tsx`,
     `${SRC}app/(auth)/forgot-password.tsx`,
     `${SRC}app/(modal)/new-password.tsx`,
+    `${SRC}app/(modal)/delete-account.tsx`,
     `${SRC}app/(modal)/event-create.tsx`,
     `${SRC}app/(onboarding)/index.tsx`,
   ];

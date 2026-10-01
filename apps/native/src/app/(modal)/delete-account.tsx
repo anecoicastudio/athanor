@@ -6,10 +6,12 @@ import { requestErasure } from '@athanor/api';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { useExportJob } from '@/hooks/use-export-job';
 import { useLocale } from '@/hooks/use-locale';
+import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
@@ -43,6 +45,7 @@ export default function DeleteAccountScreen() {
   const locale = useLocale();
   const [confirm, setConfirm] = useState('');
   const { showToast } = useToast();
+  const reveal = useRevealOnFocus();
 
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
@@ -84,61 +87,81 @@ export default function DeleteAccountScreen() {
     onError: () => showToast(t('profile.error', locale)),
   });
 
+  // #908 (2026-10-01): App Review did not get through this flow (Guideline 5.1.1(v), submission
+  // `4cb70b1c`). The confirm field sits right above the CTA at the foot of a long column, and
+  // nothing lifted either: with the keyboard up the CTA was under it, and the first tap on it
+  // only put the keyboard away. Now the same recipe as every form screen (`source-audit.test.ts`
+  // §36): the wrapper lifts, the reveal brings the field AND the CTA up together, and the list
+  // lets the first tap land. The return key does not submit — an irreversible request is pressed,
+  // never entered.
   return (
-    <Screen {...MODAL_A11Y}>
-      <ModalHeader title={t('account.delete.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
-        <Text className="text-[15px] leading-relaxed text-muted-foreground">
-          {t('account.delete.body', locale)}
-        </Text>
-
-        {/* #515 — what the job does NOT do at the tap. The account cascade runs on the nightly
-            erasure job (#107, 03:47 UTC), not here, so the original copy («cancelleremo il tuo
-            profilo… definitivamente») promised at the tap a completion that arrives later. Kept
-            as its own line rather than folded into the body: the two halves say different things
-            — one is irreversible and immediate, the other is irreversible and not. */}
-        <Text className="text-[14px] leading-relaxed text-muted-foreground">
-          {t('account.delete.deferred', locale)}
-        </Text>
-
-        {/* honesty line — export before delete (routes to the export sheet) */}
-        <Pressable
-          onPress={() => router.replace('/(modal)/data-export')}
-          accessibilityRole="button"
-          className="min-h-[44px] justify-center"
-        >
-          <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
-        </Pressable>
-
-        {exportPending ? (
-          <View className="rounded-card border border-hair bg-raise p-5">
-            <Text className="text-[14px] leading-relaxed text-muted-foreground">
-              {t('account.delete.exportPending', locale)}
-            </Text>
-          </View>
-        ) : null}
-
-        <View className="gap-2">
-          <Text className="text-[13px] text-muted-foreground">
-            {t('account.delete.confirmField', locale)}
-          </Text>
-          <Input
-            value={confirm}
-            onChangeText={setConfirm}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            placeholder={word}
-            accessibilityLabel={t('account.delete.confirmField', locale)}
-          />
-        </View>
-
-        <Button
-          variant="danger"
-          label={t('account.delete.cta', locale)}
-          disabled={!matched || exportPending || erase.isPending || erase.isSuccess}
-          onPress={() => erase.mutate()}
+    <KeyboardAvoiding>
+      <Screen {...MODAL_A11Y}>
+        <ModalHeader
+          title={t('account.delete.title', locale)}
+          backLabel={t('common.back', locale)}
         />
-      </ScrollView>
-    </Screen>
+        <ScrollView
+          {...reveal.scrollProps}
+          className="flex-1"
+          contentContainerClassName="gap-6 px-5 pb-12"
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text className="text-[15px] leading-relaxed text-muted-foreground">
+            {t('account.delete.body', locale)}
+          </Text>
+
+          {/* #515 — what the job does NOT do at the tap. The account cascade runs on the nightly
+              erasure job (#107, 03:47 UTC), not here, so the original copy («cancelleremo il tuo
+              profilo… definitivamente») promised at the tap a completion that arrives later. Kept
+              as its own line rather than folded into the body: the two halves say different things
+              — one is irreversible and immediate, the other is irreversible and not. */}
+          <Text className="text-[14px] leading-relaxed text-muted-foreground">
+            {t('account.delete.deferred', locale)}
+          </Text>
+
+          {/* honesty line — export before delete (routes to the export sheet) */}
+          <Pressable
+            onPress={() => router.replace('/(modal)/data-export')}
+            accessibilityRole="button"
+            className="min-h-[44px] justify-center"
+          >
+            <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
+          </Pressable>
+
+          {exportPending ? (
+            <View className="rounded-card border border-hair bg-raise p-5">
+              <Text className="text-[14px] leading-relaxed text-muted-foreground">
+                {t('account.delete.exportPending', locale)}
+              </Text>
+            </View>
+          ) : null}
+
+          <View className="gap-2" ref={reveal.rowRef('confirm')}>
+            <Text className="text-[13px] text-muted-foreground">
+              {t('account.delete.confirmField', locale)}
+            </Text>
+            <Input
+              value={confirm}
+              onChangeText={setConfirm}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder={word}
+              accessibilityLabel={t('account.delete.confirmField', locale)}
+              {...reveal.fieldProps('confirm')}
+            />
+          </View>
+
+          <View ref={reveal.submitRef()}>
+            <Button
+              variant="danger"
+              label={t('account.delete.cta', locale)}
+              disabled={!matched || exportPending || erase.isPending || erase.isSuccess}
+              onPress={() => erase.mutate()}
+            />
+          </View>
+        </ScrollView>
+      </Screen>
+    </KeyboardAvoiding>
   );
 }
