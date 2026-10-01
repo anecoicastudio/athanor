@@ -36,7 +36,7 @@ async function writableCalendarId(): Promise<string | null> {
  * with the same title at the same instant already exists, it returns 'added' without a
  * second write (#560). Pure device I/O — no DB, no Aura (frontend §6 B12).
  *
- * The denied/blocked split is `toStatus`, the same mapper the media primer uses: `canAskAgain`
+ * The denied/blocked split is `toStatus`, the same mapper the media sheet uses: `canAskAgain`
  * is the whole difference, and reading it is what the old code skipped. Write-only access
  * arrives here as blocked, which is the honest answer — the grant cannot be widened from
  * inside the app.

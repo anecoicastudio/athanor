@@ -99,7 +99,7 @@ export default function SettingsScreen() {
   const doSignOut = () => {
     setSigningOut(true);
     showToast(t('settings.logout.toast', locale), 'moment');
-    // Brief farewell, then end the session — AuthGuard routes to (auth)/welcome.
+    // Brief farewell, then end the session — AuthGuard routes a null session to (onboarding).
     setTimeout(() => {
       endSession().catch(() => setSigningOut(false));
     }, 700);

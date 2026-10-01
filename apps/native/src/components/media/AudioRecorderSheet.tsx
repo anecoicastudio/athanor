@@ -34,7 +34,7 @@ const POLL_MS = 250;
  * with no way to produce a single row. `expo-image-picker` has no audio media type, so a
  * recorder is the only door there can be, and this is it.
  *
- * Rendered as a nested Modal from `MediaSheet`, the way `PermissionPrimer` is. It does NOT use
+ * Rendered as a nested Modal from `MediaSheet`, the way `PermissionBlockedSheet` is. It does NOT use
  * that component's close-then-launch dance, and the difference is the point: that dance exists
  * because a native picker view controller silently fails to present while an RN Modal is up.
  * There is no view controller here — the recorder is our own React tree — so it opens on top.

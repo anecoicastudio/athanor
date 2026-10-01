@@ -19,7 +19,7 @@ import {
  * every per-category opt-out and the whole push investment were unreachable from the surface
  * members actually tap: a banner opened the app wherever it last was.
  *
- * ## Why it mounts in `(tabs)/_layout`, beside PushPrimer
+ * ## Why it mounts in `(tabs)/_layout`, beside PushPermissionAsk
  *
  * The response has to be consumed AFTER routing has settled, not before. `AuthGuard` fires a
  * `router.replace` when the session and profile settle, and React runs child effects before

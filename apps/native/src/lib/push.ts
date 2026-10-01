@@ -53,7 +53,7 @@ async function ensureAndroidChannel(): Promise<void> {
   }
 }
 
-/** Current notification-permission status WITHOUT prompting — seeds the primer (#561). */
+/** Current notification-permission status WITHOUT prompting (#561). */
 export async function peekPushPermission(): Promise<PermStatus> {
   return toPeekStatus(await Notifications.getPermissionsAsync());
 }
@@ -61,11 +61,11 @@ export async function peekPushPermission(): Promise<PermStatus> {
 /**
  * Resolve the notification permission. Reads the current status first; only fires the OS
  * prompt while it can still show (`canAskAgain`) — the same read-then-request-once shape as
- * `ensureCameraPermission`. Two callers, and both are intent gestures rather than cold asks:
- * PushPrimer primes before calling it (#561), and the notification-preferences screen calls it
- * when a member switches a notification ON while the OS permission is missing (#637) — the
- * switch itself is the priming there. iOS grants exactly ONE ask per install, so a third caller
- * needs the same justification before it lands.
+ * `ensureCameraPermission`. Two callers: `PushPermissionAsk` makes the one ask per install on
+ * first arrival in the tabs (#561; no sheet in front of it since #908, 2026-10-01 — App Review
+ * Guideline 5.1.1(iv)), and the notification-preferences screen calls it when a member switches
+ * a notification ON while the OS permission is missing (#637). iOS grants exactly ONE ask per
+ * install, so a third caller needs a justification of its own before it lands.
  */
 export async function ensurePushPermission(): Promise<PermStatus> {
   // Before the prompt: on Android 13+ the grant is per app, but a push that arrives between the
@@ -83,7 +83,7 @@ export async function ensurePushPermission(): Promise<PermStatus> {
  * Acquire the Expo push token and register it. NEVER prompts (#561): the cold
  * `requestPermissionsAsync` this made on every signed-in boot was the fourth
  * canAskAgain-blind site — it burned the one iOS ask unprimed, and read only `.status`, so
- * denied and blocked collapsed. The ask lives with PushPrimer (`ensurePushPermission`); this
+ * denied and blocked collapsed. The ask lives with PushPermissionAsk (`ensurePushPermission`); this
  * registers only when the grant already exists, and degrades to a logged no-op when it can't
  * (Expo Go since SDK 53, simulator, permission absent) — returns the token on success, else
  * null.

@@ -126,7 +126,7 @@ describe('the Android notification channel', () => {
     expect(capturePushFailure).not.toHaveBeenCalled();
   });
 
-  it('is created before the OS prompt the primer fires', async () => {
+  it('is created before the OS prompt fires', async () => {
     h.perm = { granted: false, canAskAgain: true, status: 'undetermined' };
 
     await ensurePushPermission();
@@ -142,7 +142,7 @@ describe('the Android notification channel', () => {
     expect(capturePushFailure).toHaveBeenCalledWith('channel', error);
     expect(api.registerPushToken).toHaveBeenCalledTimes(1);
 
-    // The primer path swallows it the same way: the prompt still fires.
+    // The ask path swallows it the same way: the prompt still fires.
     await expect(ensurePushPermission()).resolves.toBe('granted');
   });
 

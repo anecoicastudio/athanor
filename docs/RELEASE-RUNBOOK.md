@@ -141,7 +141,9 @@ Google sign-in and is never used; the Photos row already covers the category.
 
 > Athanor is an Italian community app. The demo account is set to English; Settings → Language switches it to Italian. Once signed in, every screen follows the language chosen there, not the device's.
 >
-> **Sign-in.** Use the demo email and password above. Sign in with Apple and Google are also offered on the welcome screen. A new account can be created with any email address — no confirmation email is needed — and members must be 18 or older.
+> **Sign-in.** Use the demo email and password above. Sign in with Apple and Google are also offered on the welcome screen. A new account can be created with any email address — no confirmation email is needed — and members must be 18 or older. After Sign in with Apple the app does not ask for a name or an email address. The last step of sign-up chooses a public @handle — a unique username, the address of the member's page — and it is pre-filled with a suggestion built from the name Apple provided; one tap accepts it.
+>
+> **Permissions.** The app shows no message of its own before a system permission request. Camera, microphone and notifications are requested by the system prompt directly, at the moment the member uses the feature; choosing a photo from the library uses the system picker and requests no permission. If access was denied earlier, the app says so and links to Settings.
 >
 > **Circle (membership) on iOS.** There is no subscribe or manage button on iOS. Members on iOS see a note that membership isn't available on this device, with no link to any external purchase. Circle is not on sale yet; when it opens, it is sold on Android only.
 >
@@ -151,7 +153,7 @@ Google sign-in and is never used; the Photos row already covers the category.
 >
 > **Reputation.** The "Aura" score is earned only through actions and cannot be bought; nothing purchasable in the app changes it.
 >
-> **Account deletion.** Settings → "Delete account" → type DELETE (ELIMINA when the app is set to Italian) → "Request deletion". The session on that device ends immediately and sign-in is refused from that moment; a session open on another device ends when its access token expires, within an hour; the account, its content and its media are erased by a job that runs every night at 03:47 UTC, and the app tells the member both things.
+> **Account deletion.** Profile tab (the last tab in the tab bar) → the gear icon at the top right → Settings → "Privacy & security" → "Delete account" → type DELETE (ELIMINA when the app is set to Italian) → "Request deletion". The app confirms with the message "We've received your deletion request" and returns, signed out, to its first screen. The deletion is permanent — it is not a deactivation, and it cannot be undone or cancelled from the app. The session on that device ends immediately and sign-in is refused from that moment; a session open on another device ends when its access token expires, within an hour; the account, its content and its media are erased by a job that runs every night at 03:47 UTC, and the app tells the member both things.
 >
 > **Moderation.** Members can report a profile, a post, a chat, a message they received or a behavior, and can block other members; reports are reviewed by the team. Location is approximate (rounded to a grid a few kilometres across) and used for events only — finding nearby ones and placing a new one.
 
@@ -210,8 +212,10 @@ to date; Do Not Disturb; a `+review1`-style alias ready; demo password in hand; 
    offers Free only and says paid events are not open yet, cancel → Settings → Circle: the iOS note that membership is not available on this
    device (that _is_ the paid-features leg: nothing is purchasable on iOS in this build) → Profile →
    Aura.
-7. Settings → sign out → sign in as the throwaway → Settings → Delete account → type DELETE →
-   Request deletion → the closing screen. Stop recording. (Deletion; the throwaway's post and rows
+7. Settings → sign out → sign in as the throwaway → Profile tab → the gear → Settings → Privacy &
+   security → Delete account → type DELETE → Request deletion → the «We've received your deletion
+   request» message, then the app's first screen, signed out (there is no closing screen; this line
+   said there was until 2026-10-01, #908). Stop recording. (Deletion; the throwaway's post and rows
    go with the nightly erasure at 03:47 UTC.)
 8. AirDrop to the Mac; attach to the reply on the App Review page. Item 1 of the reply text names
    the iPhone model, the iOS version and the build.
@@ -293,12 +297,82 @@ against the tree (a paid rail opening, a new provider, a third language, a new t
 change a sentence), and keeps the Notes field in step with it — Apple asked for the Notes copy
 precisely so the next reviewer does not have to ask again.
 
+### App Review — rejection of 2026-10-01: Guidelines 5.1.1(iv), 4 and 5.1.1(v) (#908)
+
+Apple rejected submission `4cb70b1c` (1.0 (2), reviewed 2026-10-01 on an iPad Air 11-inch (M3)) on
+three guidelines. What each finding was, read against the code, and what changed:
+
+- **5.1.1(iv) — a custom message before the camera and photo prompts**, with an "Allow" button and
+  a "Not Now" that skipped the system request. True as described: `PermissionPrimer` did that for
+  camera, photos and microphone, `PushPrimer` for notifications, and the check-in scanner had the
+  same two traits inline. Ruled by Marco: the pattern is removed, not reworded. The system prompt
+  fires from the tap on the feature; the photo library requests nothing; the only sheet left
+  (`PermissionBlockedSheet`) appears after a refusal the OS will not re-ask and links to Settings.
+- **4 — name and/or email requested after Sign in with Apple.** The app never asked for either.
+  The one mandatory field after a provider sign-in was the @handle step, empty, with copy that
+  called the handle a name. That this is what the reviewer meant is an inference: a read-only
+  production query on 2026-10-01 found one Apple-identity account, created that day, holding both
+  a display name (so Apple delivered one) and a handle (so the step was walked). Ruled by Marco:
+  the step opens on a handle suggested from the name already given and never calls it a name.
+- **5.1.1(v) — no account deletion.** It has been in the app since 1.0 (1) and is a real deletion
+  (S-13). The reviewer notes said `Settings → "Delete account"` without saying that Settings is
+  the gear on the Profile tab, and on the delete screen the confirm button sat under the keyboard
+  with nothing lifting it. Both fixed; the notes above now carry the full path.
+
+`supportsTablet` is unset, so the build ran on the iPad in iPhone compatibility mode. Unchanged.
+
+#### The recording Apple asks for (Marco, a physical iPhone, the new TestFlight build, production)
+
+A **throwaway** e-mail account, the app in English, signed out. One take:
+
+1. Start recording, launch Athanor, sign up with the throwaway e-mail and password, finish
+   onboarding (the @handle step is the last one).
+2. Profile tab (the last tab) → the gear at the top right → Settings → Privacy & security → Delete
+   account.
+3. Type DELETE → Request deletion → the "We've received your deletion request" message → the app
+   returns to its first screen, signed out.
+4. Try to sign in again with the same e-mail and password: sign-in is refused. Stop recording.
+
+Two short extra takes are worth attaching to the same reply, because they show the other two
+fixes rather than describe them: Sign in with Apple through to the @handle step with the
+suggestion already in the field; and a tap on «Take a photo» going straight to the iOS camera
+prompt with nothing in front of it.
+
+Guideline 5.1.1(v) also asks that the recording be put in App Review Information → Notes for
+future submissions: paste a link to it under the reviewer notes above.
+
+#### Reply text (English; paste on the App Review page, attach the recordings)
+
+> Thank you for the review. All three points are addressed in build 1.0 ([build number]).
+>
+> **Guideline 5.1.1(iv).** We removed every custom message that appeared before a system
+> permission request. The camera, microphone and notification prompts are now shown by iOS
+> directly, at the moment the user chooses the feature; there is no "Allow" or "Not Now" button
+> of ours anywhere in the app. Choosing a photo from the library uses the system photo picker and
+> requests no permission. If the user previously denied access, the app shows a short notice with
+> a link to the Settings app.
+>
+> **Guideline 4.** The app does not ask for a name or an email address after Sign in with Apple.
+> The remaining step lets the user choose a public @handle — a unique username that is the
+> address of their page, not their personal name. It is now pre-filled with a suggestion built
+> from the name provided by Sign in with Apple, so the user can continue with a single tap, and
+> its wording no longer refers to a name.
+>
+> **Guideline 5.1.1(v).** Account deletion is available in the app: Profile tab (the last tab) →
+> the gear icon at the top right → Settings → "Privacy & security" → "Delete account" → type
+> DELETE → "Request deletion". The account is signed out and sign-in is blocked immediately, and
+> the account, its content and its media are permanently erased by a job that runs every night;
+> this is a deletion, not a deactivation, and it needs no website, e-mail or phone call. The
+> attached screen recording, made on an iPhone [model] running iOS [version], shows account
+> creation, the path to the option and the complete flow. We have also made the path explicit in
+> the App Review notes and fixed the confirmation button, which the keyboard could cover.
+
 ### App Review Information — demo member on production (procedure)
 
 Seeded **through the app**, never by SQL: production carries no seed, `seed-staging.sql` is a twelve-person world guarded twice against running anywhere but staging, and a hand-written `aura_scores` row would be the exact claim the product denies (rule 1). Two accounts are needed — a match, a conversation and a Momento all have two sides — and Marco's own production account is the second.
 
 1. **Mailbox.** A Google Workspace alias on `anecoica.net` that Marco receives — **never an address on `athanor.world`**, which has no MX records, so nothing sent there arrives (`dig MX athanor.world` answers empty, checked 2026-09-19, #793). The alias is not written in this file — the repository is public — and lives in the password manager beside the credentials. Production's Auth settings, queried 2026-09-19 and again 2026-09-24: `mailer_autoconfirm = true`, so sign-up needs no confirmation mail today. Re-query before relying on it: the setting can change. Since 2026-09-24 production sends through custom SMTP (Resend) at 100 mails an hour, not the built-in 2 (§4.5, #825).
-2. **Sign up** in the production build with email + password. Onboarding: handle, display name, city, an adult birth date, bio, `identity_tags` / `seeking` from the in-app lists (an off-list key renders as the raw key string), avatar **uploaded from the device** (a browser upload writes a corrupt object at HTTP 200). Pick **English** on the first onboarding step, which defaults to the phone's language, or switch in Settings → Language afterwards: the reviewer notes say the demo account is English.
+2. **Sign up** in the production build with email + password; the form's optional name field is the display name. Onboarding then asks, in this order: `identity_tags` from the in-app list (an off-list key renders as the raw key string), an adult birth date, `seeking`, the dream, an avatar **uploaded from the device** (a browser upload writes a corrupt object at HTTP 200), and last the @handle. City and bio are not onboarding steps: set them from the profile editor afterwards (corrected 2026-10-01, #908 — this line listed them, and the handle first). Pick **English** on the first onboarding step, which defaults to the phone's language, or switch in Settings → Language afterwards: the reviewer notes say the demo account is English.
 3. **A dream** with two or three milestones (`(modal)/dream-editor.tsx`), and one post. **Marco's account needs an active dream too**, and the two profiles' `identity_tags` / `seeking` must overlap: the matcher pairs only profiles that are not banned, both carry an active, non-deleted dream, and reach the affinity threshold of 2 (`athanor.momento_affinity_constants()`, `20260817165404_momento_terms_once.sql`; the matcher is in `20260823145024_momento_suggestions_reasons_recomputed.sql`). Below it the pair gets no affinity card; a member left with nothing pending gets at most one «new dream» card a night instead, for whoever holds the most recent active dream, which need not be Marco's account.
 4. **From Marco's account**: «Offer help» on each of the dream's open milestones first (the collaboration request), then «Connect» on the demo member's profile, then «Accept» on the demo member's side — New conversation lists connections only. The order is forced: while any milestone is still helpable, the profile's pinned action is «Make this dream happen» in place of «Connect» (`(modal)/user/[id].tsx`, #640 item 1; whether that should stay is #862). Then open a conversation with the demo member (`(modal)/new-message.tsx`) and exchange a few messages. Connect through the profile, not by accepting the Momento on both sides: an accepted Momento is never proposed again, and step 5 needs one still waiting in the demo member's deck.
 5. **Momenti.** The deck is filled by `momenti-matcher-nightly` at 03:11 UTC (`20260616044148`) under the preconditions in step 3. Finish steps 2–4 at least one night before `eas submit`, then confirm the demo member sees a Momento. A waiting Momento lives seven days: each night the matcher first deletes pending cards older than that (`expire_momento_proposals`, `20260812145446`), then proposes the pair again in the same run while both dreams stay active and the pair still scores the affinity threshold. So a waiting card renews itself, but one the demo member answers never comes back, pass or accept: the answered row stays, and the unique index on (`user_id`, `candidate_id`) refuses a second proposal.
