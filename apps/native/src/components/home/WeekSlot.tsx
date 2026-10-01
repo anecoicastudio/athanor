@@ -23,28 +23,30 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * reputation the message landed exactly wrong: a member who had a quiet week was told the
  * scoreboard did not exist rather than that they had not lit it yet.
  *
- * `(modal)/recap.tsx:53-118` already held the correct four-state shape for the same query; this
+ * `(modal)/recap.tsx` already held the correct four-state shape for the same query; this
  * is that shape moved into the slot. It has since been lifted, as that note anticipated: the
  * branch rule is `listState` (`lib/list-state.ts`) and the arms are `ListState`, both #111.
  * `weekSlotState` is gone; `weekRecapIsEmpty` survives it as the `isEmpty` argument, because
  * what counts as a quiet week was never a question about queries.
  *
- * `staleWins: false` is this slot's half of that shared rule. `MomentiCard.tsx:41-44` decides
+ * `staleWins: false` is this slot's half of that shared rule. `MomentiCard`'s error note decides
  * the OPPOSITE for the deck and states the line: a stale Aura number is a claim about a
  * person's worth, a stale proposal costs one wasted tap. This is the first kind — the query
  * client persists to AsyncStorage with a 24h `gcTime` and Aura decays, so a stale week
  * presented as this week is the false confidence `aura-display.ts` refused for the score.
  *
- * THE EYEBROW IS FAINT, NOT `tone="aura"`, even though `WeekCard.tsx:36` renders the data state's
- * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: `SectionLabel.tsx:11-12`
- * warns that a second cyan eyebrow on one scroll costs the first its rank, Home already has two
- * (`WeekCard` and `MomentiCard.tsx:79`), and `WeekCard.tsx:30-34` says the fold-to-11px fix is a
- * visual decision that does not belong in a drive-by. A third would make it worse, so the three
- * non-data states keep exactly the header `ComingSoonSection` was rendering yesterday.
+ * THE EYEBROW IS FAINT, NOT `tone="aura"`, even though `WeekCard` renders the data state's
+ * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: `SectionLabel`'s
+ * docblock warns that a second cyan eyebrow on one scroll costs the first its rank, Home already
+ * has two (`WeekCard` and `MomentiCard`), and `WeekCard`'s «Section label row» comment says the
+ * fold-to-11px fix is a visual decision that does not belong in a drive-by. A third would make it
+ * worse, so the three non-data states keep exactly the header `ComingSoonSection` was rendering
+ * yesterday.
  *
- * NO `staleTime` — same key, same queryFn, no options, the discipline `MomentiCard.tsx:34-39`
- * documents. `AnalyticsLiteCard.tsx:34-39` already sets `staleTime: 60_000` on `auraKeys.recap`
- * while this screen and the sheet set none; that divergence predates this change and belongs with
+ * NO `staleTime` — same key, same queryFn, no options, the discipline `MomentiCard`
+ * documents. `AnalyticsLiteCard`'s `recapQuery` already sets `staleTime: 60_000` on
+ * `auraKeys.recap` while this screen and the sheet set none; that divergence predates this change
+ * and belongs with
  * #111. Adding a fourth setting on one key would only deepen it.
  *
  * The retry is `Button variant="ghost"`, NOT a `border-aura-line bg-aura-soft` pill. Rule #4
@@ -105,7 +107,8 @@ export function WeekSlot({ locale }: { locale: Locale }) {
           locale={locale}
           errorLabel={t('aura.error', locale)}
           // A real quiet week. Same sentence the sheet says about the same seven days
-          // (`recap.tsx:116`) — one week, one claim, and no new key for copy that exists.
+          // (`recap.tsx`'s `recap.emptyWeek`) — one week, one claim, and no new key for copy that
+          // exists.
           emptyLabel={t('recap.emptyWeek', locale)}
           onRetry={() => void recapQuery.refetch()}
           // Empty, not omitted: `Card` already owns the padding, and the default `px-8 pt-24`
@@ -113,9 +116,9 @@ export function WeekSlot({ locale }: { locale: Locale }) {
           className=""
           loading={
             // `bg-raise-2` ghosts, NOT `ShimmerBar` — that component is `bg-raise` and so is
-            // `Card`, so a bar inside a card is invisible. `recap.tsx:109-113` gets away with
-            // ShimmerBar because its bars sit on `bg-background`; `FeedSkeleton.tsx:9-11` is the
-            // in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
+            // `Card`, so a bar inside a card is invisible. `recap.tsx`'s loading arm gets away
+            // with ShimmerBar because its bars sit on `bg-background`; `feed/FeedSkeleton.tsx` is
+            // the in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
             // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
             // double inside Home's own `px-5` ScrollView.) Static, so reduced-motion safe.
             //

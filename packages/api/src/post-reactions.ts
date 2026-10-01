@@ -18,9 +18,9 @@ export async function getViewerReaction(client: AthanorClient, postId: string): 
 /**
  * Toggle the ✦ (light/unlit). One per (post, person); insert/delete own row.
  * `personId` is the caller's auth uid — RLS WITH CHECK re-verifies it, and the
- * insert policy blocks ✦ on your own post. Inserting a ✦ is the M6 domain event
- * the score-engine reads — this writes only `post_reactions`, never aura (rule #1).
- * Returns the new lit state. TODO(M6): the engine awards the reaction points.
+ * insert policy blocks ✦ on your own post. Inserting a ✦ is the domain event the
+ * `post_reactions_aura_starred` trigger (migration 20260701124122, M6) turns into the author's
+ * award — this writes only `post_reactions`, never aura (rule #1). Returns the new lit state.
  */
 export async function togglePostReaction(
   client: AthanorClient,

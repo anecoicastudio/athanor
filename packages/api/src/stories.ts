@@ -90,8 +90,9 @@ export async function getPersonStory(
 
 /**
  * Create a story segment (owner-only via RLS; expires_at defaults to now()+24h server-side).
- * Writes ONLY story_segments — never any Aura/score event (rule #1). TODO(M6): the engine
- * awards points from this domain event.
+ * Writes ONLY story_segments — never any Aura/score event (rule #1), and a story earns none:
+ * the engine never rewards creating content (`ENGINE_WEIGHTS` in
+ * packages/core/src/score/weights.ts).
  *
  * Callers MUST write row-first, then bytes (#272 / #31): the storage SELECT policy hides an
  * object until its descriptor row exists, and storage-api's insert returns the object row, so
@@ -160,8 +161,8 @@ export async function getViewerStoryReaction(
 
 /**
  * Toggle the ✦ celebration (insert/delete own row). `personId` is the caller's auth uid — RLS
- * WITH CHECK re-verifies it. Inserting is the M6 domain event (+4); writes only story_reactions,
- * never aura (rule #1). Returns the new lit state. TODO(M6): the engine awards the points.
+ * WITH CHECK re-verifies it. Writes only story_reactions, never aura (rule #1), and earns none —
+ * only a POST ✦ has an award trigger. Returns the new lit state.
  */
 export async function toggleStoryReaction(
   client: AthanorClient,

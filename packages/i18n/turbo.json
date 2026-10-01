@@ -3,7 +3,11 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/scripts/check-i18n-hardcoded.mjs"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/check-i18n-hardcoded.mjs",
+        "$TURBO_ROOT$/scripts/check-comment-rot.mjs"
+      ]
     }
   }
 }

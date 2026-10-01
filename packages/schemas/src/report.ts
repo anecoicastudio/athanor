@@ -48,8 +48,8 @@ export type Report = z.infer<typeof reportSchema>;
 // RLS WITH CHECK pins reporter_id=auth.uid() and status='open'.
 //
 // targetId (#611): required for 'person' | 'post' | 'message', optional for 'behavior' — the
-// column was declared nullable "for 'behavior' (no specific subject)" (20260620011307:11) and
-// for no other reason, and reports_target_required_unless_behavior (20260904152300) now holds
+// column was declared nullable "for 'behavior' (no specific subject)" (migration 20260620011307)
+// and for no other reason, and reports_target_required_unless_behavior (20260904152300) now holds
 // that line in the database. The rule is one-directional: a 'behavior' report MAY still carry a
 // target (the staging seed files one), the other three MUST. For 'message' it is a
 // `public.messages` id with no FK, so an erased message leaves the report pointing at nothing

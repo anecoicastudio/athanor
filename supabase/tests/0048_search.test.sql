@@ -206,7 +206,7 @@ select is(
 
 reset role;
 
--- ── assertion 8: blocked members are invisible to search (closes the stale TODO(M9)) ─────────────
+-- ── assertion 8: blocked members are invisible to search (closes the stale M9 TODO) ──────────────
 --
 -- The TODO that stood here said "when blocks + is_visible_to_me land, assert a blocked user's
 -- rows are absent". M9 landed — 20260619222420_m9_blocks_and_not_blocked.sql composed

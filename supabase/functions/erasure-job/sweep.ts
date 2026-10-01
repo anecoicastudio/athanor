@@ -39,9 +39,10 @@ export const REMOVE_BATCH = 1000;
  * carry no per-day cap in this tree, so a long-lived heavy chat user could in principle exceed it.
  * That direction of failure is the safe one and is why the budget exists at all: the sweep reports
  * `exhausted: false`, the request lands on `'failed'`, and an operator sees an erasure that did
- * not finish. Nothing re-queues a terminal request until #107 lands (logic.ts says so at the
- * status write), so the alternative — a silent clean report over bytes still in the bucket — is
- * the one outcome this must never produce.
+ * not finish. Nothing re-queues a terminal 'failed' request automatically — #107 shipped without
+ * that, and an operator re-drives one by hand (RELEASE-RUNBOOK §7.5; logic.ts says so at the
+ * `billingLive` flag) — so the alternative — a silent clean report over bytes still in the bucket —
+ * is the one outcome this must never produce.
  *
  * Deliberately NOT sized against a pg_net window, unlike story-segment-reaper's: nothing schedules
  * this function (no migration names it in a `cron.schedule`; index.ts and

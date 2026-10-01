@@ -3,7 +3,7 @@ import { nonBlankString, trimmedNonBlank } from './primitives.ts';
 
 /**
  * The published expense vocabulary (#234, FUND-29) — doc §20 «principali categorie di spesa;
- * eventuali compensi o costi di gestione previsti», PRD.md:256.
+ * eventuali compensi o costi di gestione previsti», PRD.md §4.11 «Transparency».
  *
  * This array and the `fund_cycle_expenses_category_check` CHECK are the same list, and the
  * CHECK is the authority: the database refuses a value that is not here, so a drift shows up

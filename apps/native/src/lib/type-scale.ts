@@ -42,6 +42,25 @@ export const FONT_SCALE_CAP = {
 } as const;
 
 /**
+ * The text size from which a row's TRAILING element — a category chip, a state label, the
+ * «Aiuta» chip — leaves the row and sits under the text instead (#847).
+ *
+ * Beside a chip, a `flex-1` title gets what the chip leaves it, and at the accessibility sizes
+ * that is narrower than one long word: «photograph / er», «actuall / y». Those titles are
+ * sentences, so the §10 lone-word ellipsis would cut the sentence; giving the text the full
+ * width is the fix, and at the 2x cap a long word fits that width on an iPhone SE.
+ *
+ * 1.5 sits above every non-accessibility size — iOS stops near 1.35 before AX1 (~1.65), and
+ * Android's steps are 1.15 / 1.3 / 1.5 / 1.8 / 2 — so the default layout never moves.
+ */
+export const STACK_TRAILING_AT = 1.5;
+
+/** Whether a text row drops its trailing element onto its own line; see `STACK_TRAILING_AT`. */
+export function stacksTrailing(fontScale: number): boolean {
+  return fontScale >= STACK_TRAILING_AT;
+}
+
+/**
  * Height for a well whose children are absolutely positioned, so their own text can never
  * grow it (the Momenti swipe deck: `SwipeDeck` stacks `absolute inset-0` cards, so the
  * parent's fixed height is the only height there is).

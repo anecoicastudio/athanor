@@ -8,8 +8,9 @@
 --   2. The cusp table, all 24 boundary days plus the leap day and NULL — the same 24 that
 --      packages/core/src/profile/zodiac.test.ts pins in TypeScript. One table, two mirrors.
 --   3. Privileges, asserted as privileges (supabase-db.md): no client role can SELECT birth_date;
---      anon CAN select zodiac_sign and authenticated CANNOT — the asymmetry the migration header
---      explains (PG17 + 0073); nobody can write zodiac_sign; the owner role can write birth_date.
+--      authenticated CANNOT select zodiac_sign — the asymmetry the migration header explains
+--      (PG17 + 0073) — and since #790 anon cannot either (it reads public_zodiac_sign, 0157);
+--      nobody can write zodiac_sign; the owner role can write birth_date.
 --   4. Behaviour: the owner's UPDATE recomputes the sign under the CLIENT role (proves the
 --      generation expression is executable by authenticated), get_own_profile carries both, the
 --      18-year floor (#778; it was 14 under #694) refuses at 23514 on the exact boundary, the
@@ -119,8 +120,8 @@ select ok(not has_column_privilege('anon', 'public.profiles', 'birth_date', 'SEL
   'anon holds no SELECT on birth_date');
 select ok(not has_column_privilege('authenticated', 'public.profiles', 'birth_date', 'SELECT'),
   'authenticated holds no SELECT on birth_date — the only read path is get_own_profile');
-select ok(has_column_privilege('anon', 'public.profiles', 'zodiac_sign', 'SELECT'),
-  'anon holds SELECT on zodiac_sign — apps/web /@handle reads it off the table');
+select ok(not has_column_privilege('anon', 'public.profiles', 'zodiac_sign', 'SELECT'),
+  'anon holds no SELECT on zodiac_sign since #790 — a column grant cannot follow the per-member zodiac key; anon reads public_zodiac_sign (0157)');
 select ok(not has_column_privilege('authenticated', 'public.profiles', 'zodiac_sign', 'SELECT'),
   'authenticated holds NO SELECT on zodiac_sign: PG17 cannot publish a generated column and 0073 pins publication == grant; members read it via the DEFINER RPCs');
 select ok(not has_column_privilege('authenticated', 'public.profiles', 'zodiac_sign', 'UPDATE'),
@@ -185,21 +186,21 @@ select throws_ok(
   '42501', null, 'another member cannot select birth_date directly (column grant)');
 select is(
   (select zodiac_sign from public.get_person_profile('a1460000-0000-4000-8000-000000000001')),
-  'leone', 'get_person_profile projects the sign, unmasked');
+  'leone', 'get_person_profile projects the sign at the default zodiac facet («Membri», #790)');
 select throws_ok(
   $$ select birth_date from public.get_person_profile('a1460000-0000-4000-8000-000000000001') $$,
   '42703', null, 'get_person_profile has no birth_date column at all');
 reset role;
 
--- ── 4c. anon: the sign off the table, the date never ───────────────────────────────────
+-- ── 4c. anon: neither the date nor the raw sign (#790 — public_zodiac_sign, 0157) ───────
 set local role anon;
 set local request.jwt.claims = '';
 select throws_ok(
   $$ select birth_date from public.profiles where id = 'a1460000-0000-4000-8000-000000000001' $$,
   '42501', null, 'anon cannot select birth_date');
-select is(
-  (select zodiac_sign from public.profiles where id = 'a1460000-0000-4000-8000-000000000001'),
-  'leone', 'anon reads zodiac_sign on the default public shell');
+select throws_ok(
+  $$ select zodiac_sign from public.profiles where id = 'a1460000-0000-4000-8000-000000000001' $$,
+  '42501', null, 'anon cannot select zodiac_sign, even on a public shell (#790)');
 reset role;
 
 -- ── 4d. a tombstone wears no sign ──────────────────────────────────────────────────────

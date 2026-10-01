@@ -14,10 +14,16 @@
 //       member's photos, chat images, avatar and their own exported archives all survived,
 //   (3b) purge the subject's cached public web pages from Cloudflare KV — apps/web's OpenNext
 //       incremental cache outlives the rows it renders and a deploy strands rather than
-//       replaces its entries, so erasure sweeps every build prefix (#515, ./kv.ts). Runs after
-//       (3) and before (4) because it needs the handle, which (4) cascades away,
+//       replaces its entries, so erasure sweeps every build prefix (#515, _shared/kv-purge.ts).
+//       Keys: the handle, the dream ids and — since #775 — the ids of the events the subject
+//       organised, all READ before (3d) disowns the events and (4) cascades the rest away; the
+//       sweep itself runs as (3e), after (3d), so an event page cannot be re-cached from a row
+//       not yet soft-deleted,
 //   (3b-bis) CANCEL the Circle subscription at Stripe (#107) — before (3c) hides who was being
 //       billed. Pseudonymising the row stops us knowing; it does not stop Stripe charging,
+//   (3b-ter) UNTAG the membership row's Stripe Customer (#763) — clear `metadata.profile_id`,
+//       which the checkout/portal lookup matches on (#759), so an erasure withdrawn after (3c)
+//       cannot hand that Customer back to a new checkout (./untag.ts),
 //   (3c) PSEUDONYMIZE event_tickets + circle_memberships (#107, the controller's 2026-09-07
 //       ruling in #184): identity nulled, erased_at stamped, money columns and Stripe ids kept.
 //       Both identity columns are ON DELETE CASCADE, so this MUST precede (4b) — otherwise the
@@ -29,15 +35,16 @@
 // deliberate skip of (4) when (3c)/(3d) did not succeed; 'partial' is historical and this job no
 // longer writes it.
 // Transport shell only — the loop lives in ./logic.ts (unit-tested); this file wires auth, the
-// service-role client, and the three ports. The step-(1) wiring itself lives in ./revoke.ts, not
+// service-role client, and the ports. The step-(1) wiring itself lives in ./revoke.ts, not
 // inline here: nothing in the suite ever executes this file, so an inline port is a contract no
 // test can reach (#542).
 import { requireServiceRole } from '../_shared/auth.ts';
 import { stripeClient, stripeConfigured } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { cloudflareKvFromEnv } from './kv.ts';
+import { cloudflareKvFromEnv } from '../_shared/kv-purge.ts';
 import { processErasureRequests } from './logic.ts';
 import { sessionRevoker } from './revoke.ts';
+import { customerUntagger } from './untag.ts';
 
 Deno.serve((req) => {
   // Caller gate: service-role only (see _shared/auth.ts).
@@ -86,6 +93,13 @@ Deno.serve((req) => {
               .subscriptions.retrieve(id)
               .then((s) => (s as { status?: string | null }).status ?? null),
           cancelSubscription: (id: string) => stripeClient().subscriptions.cancel(id),
+          // #763 — the tag-still-ours check and the error classification live in ./untag.ts where
+          // a test reaches them; this is only the two SDK calls.
+          untagCustomer: customerUntagger({
+            retrieveCustomer: (id) => stripeClient().customers.retrieve(id),
+            clearProfileTag: (id) =>
+              stripeClient().customers.update(id, { metadata: { profile_id: '' } }),
+          }),
         }
       : null,
   });

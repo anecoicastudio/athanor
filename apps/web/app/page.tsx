@@ -1,4 +1,11 @@
+import type { Metadata } from 'next';
 import { LandingClient } from '@/components/landing-client';
+import { SITE_URL } from '@/lib/site';
+
+// Self-canonical (#792); title, description and the OG card come from the root layout.
+export const metadata: Metadata = {
+  alternates: { canonical: `${SITE_URL}/` },
+};
 
 /**
  * The landing route — a Server Component (#335). The page module ships no JS of its own,

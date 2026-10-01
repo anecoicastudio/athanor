@@ -18,7 +18,7 @@
 // loop's use of it.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { makeFakeDb, type FakeDb, type FakeResult } from '../_shared/fake-db.ts';
-import type { KvPurgeResult } from './kv.ts';
+import type { KvPurgeResult } from '../_shared/kv-purge.ts';
 import { type ErasureCtx, type ErasureStripe, processErasureRequests } from './logic.ts';
 import { MAX_ROUNDS, REMOVE_BATCH } from './sweep.ts';
 
@@ -37,6 +37,8 @@ type Ctx = ErasureCtx & {
   cancelled: string[];
   /** subscription ids whose status the loop READ before cancelling (#717, step 3b-bis) */
   statusRead: string[];
+  /** [profile id, the membership row's customer id] handed to the untag port (#763, 3b-ter) */
+  untagged: [string, string][];
 };
 
 /** No CF_KV_* trio configured — the case #515 forbids treating as a silent skip. */
@@ -58,6 +60,8 @@ const ctx = (
     cancelSubscription?: ErasureStripe['cancelSubscription'] | typeof NO_STRIPE;
     /** a status implementation; the default reports a live subscription, so the cancel runs */
     getSubscriptionStatus?: ErasureStripe['getSubscriptionStatus'];
+    /** an untag implementation; the default resolves, so the cascade carries on (#763) */
+    untagCustomer?: ErasureStripe['untagCustomer'];
   } = {},
 ): Ctx => {
   const db = makeFakeDb(script);
@@ -68,6 +72,7 @@ const ctx = (
   const deleted: string[] = [];
   const cancelled: string[] = [];
   const statusRead: string[] = [];
+  const untagged: [string, string][] = [];
   return {
     db,
     auth: {
@@ -129,6 +134,12 @@ const ctx = (
                 cancelled.push(id);
                 return Promise.resolve({});
               }),
+            untagCustomer:
+              overrides.untagCustomer ??
+              ((profileId: string, customerId: string) => {
+                untagged.push([profileId, customerId]);
+                return Promise.resolve(true);
+              }),
           },
     revoked,
     removed,
@@ -137,6 +148,7 @@ const ctx = (
     deleted,
     cancelled,
     statusRead,
+    untagged,
   } as unknown as Ctx;
 };
 
@@ -153,10 +165,12 @@ const body = (
   kvPurge: Record<string, unknown>,
   storageRemoved = 0,
   retained = 0,
+  billingRetained = 0,
 ) => ({
   seen,
   kvPurge,
   retained,
+  billingRetained,
   storageRemoved,
 });
 
@@ -597,7 +611,7 @@ Deno.test(
 // ── #515 item 3: the Cloudflare KV purge of the subject's cached public pages ────────────
 // apps/web caches the profile page and its OG card in KV, and a deploy strands rather than
 // replaces those entries, so they outlive every row erased above (RELEASE-RUNBOOK §7.4).
-// What is pinned here is the loop's contract with ./kv.ts — which paths it asks for, when a
+// What is pinned here is the loop's contract with _shared/kv-purge.ts — which paths it asks for, when a
 // purge outcome may flip 'done' to 'failed', and that a KV outage never masks the DB work.
 
 Deno.test("purges BOTH public paths for the erased handle, and stays on 'done'", async () => {
@@ -914,6 +928,241 @@ Deno.test("a failed handle read is counted as a purge gap, not as 'no handle'", 
     statusUpdates(c.db).map((u) => u.values.status),
     ['failed'],
   );
+});
+
+// ── #775: the pages of the events the subject organised ────────────────────────────────────
+//
+// apps/web/app/event/[id] renders «organised by @handle» with a link and puts the handle in its
+// JSON-LD, and the rest of the page is the member's own text. (3d) disowns and soft-deletes those
+// events, so the live copy 404s at its next revalidation — but a copy stranded under a dead build
+// prefix is never revalidated. The ids have to be READ before (3d), keyed on organizer_id, because
+// (3d) hands the rows to the tombstone and nothing remembers who organised them afterwards. The
+// SWEEP runs after (3d), as (3e), so nothing can re-cache the page from a row still rendering.
+
+const releaseRan = (db: FakeDb) =>
+  cascadeRpcs(db).some((k) => k.columns === 'gdpr_release_profile_references');
+
+/** Captures console.error for the duration of `fn` — the unpurged-ids line is the operator's map. */
+async function captureErrors(fn: () => Promise<unknown>): Promise<unknown[][]> {
+  const lines: unknown[][] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => void lines.push(args);
+  try {
+    await fn();
+  } finally {
+    console.error = original;
+  }
+  return lines;
+}
+
+Deno.test("purges the subject's organised event pages in the SAME sweep as the rest", async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    'dreams.select': [{ data: [{ id: 'dream-1' }] }],
+    'events.select': [{ data: [{ id: 'event-1' }, { id: 'event-2' }] }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged, [
+    [
+      '/@luna_dev',
+      '/@luna_dev/opengraph-image',
+      '/dream/dream-1',
+      '/event/event-1',
+      '/event/event-2',
+    ],
+  ]);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 0 }));
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['done'],
+  );
+  assert(releaseRan(c.db));
+});
+
+Deno.test('the organised-events read is UNFILTERED, keyed on organizer_id, bounded', async () => {
+  // No `deleted_at is null`: an event the organiser deleted last month had a public page before
+  // that, and its cached copy did not go anywhere when the row was soft-deleted.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'events.select': [{ data: [{ id: 'event-1' }] }],
+  });
+  await processErasureRequests(c);
+
+  const read = c.db.calls.find((k) => k.table === 'events' && k.op === 'select');
+  assert(read);
+  assertEquals(read.columns, 'id');
+  assertEquals(read.filters, [['eq', 'organizer_id', 'user-1']]);
+  assertEquals(read.modifiers, [
+    ['order', 'id', { ascending: true }],
+    ['limit', 500],
+  ]);
+  // …and it happens BEFORE (3d), which is what takes organizer_id away.
+  const readAt = c.db.calls.indexOf(read);
+  const releaseAt = c.db.calls.findIndex((k) => k.columns === 'gdpr_release_profile_references');
+  assert(releaseAt > readAt);
+});
+
+Deno.test('the sweep runs AFTER the reference release, and before the account delete', async () => {
+  // Purging before (3d) leaves a window in which a crawler re-caches /event/<id> from a row that
+  // still renders; (3d) then disowns it and no later pass can derive that key again.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'events.select': [{ data: [{ id: 'event-1' }] }],
+  });
+  let releasedBeforeSweep: boolean | null = null;
+  let deletedBeforeSweep: number | null = null;
+  c.kv = {
+    purgePaths: (paths) => {
+      c.purged.push(paths);
+      releasedBeforeSweep = releaseRan(c.db);
+      deletedBeforeSweep = c.deleted.length;
+      return Promise.resolve({ deleted: 1, scanned: 3 });
+    },
+  };
+  await processErasureRequests(c);
+
+  assertEquals(c.purged, [['/event/event-1']]);
+  assertEquals(releasedBeforeSweep, true);
+  assertEquals(deletedBeforeSweep, 0);
+  assertEquals(c.deleted, ['user-1']);
+});
+
+Deno.test(
+  'a halted cascade still sweeps — a cached page is purgeable whatever money did',
+  async () => {
+    const c = ctx({
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'rpc.gdpr_erase_fund_footprint': [{ error: { message: 'fund down' } }],
+      'events.select': [{ data: [{ id: 'event-1' }] }],
+    });
+    await processErasureRequests(c);
+
+    assertEquals(c.purged, [['/event/event-1']]);
+    assert(!releaseRan(c.db));
+  },
+);
+
+Deno.test(
+  "a failed events read is counted as a purge gap, not as 'organised nothing'",
+  async () => {
+    const c = ctx({
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+      'events.select': [{ error: { message: 'db down' } }],
+    });
+    const res = await processErasureRequests(c);
+
+    // The other key inputs are still purged — a gap in one must not abandon the rest.
+    assertEquals(c.purged, [['/@luna_dev', '/@luna_dev/opengraph-image']]);
+    assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['failed'],
+    );
+    assertEquals(c.deleted, []);
+  },
+);
+
+Deno.test('a FULL page of event ids is a purge gap — a truncated read raises nothing', async () => {
+  // Raw page size, as for dreams: one id-less row must not let 499 pass for a complete read.
+  const ids = Array.from({ length: 500 }, (_, i) =>
+    i === 3 ? { id: null } : { id: `event-${i}` },
+  );
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'events.select': [{ data: ids }],
+  });
+  const res = await processErasureRequests(c);
+
+  assertEquals(c.purged.length, 1);
+  assertEquals(c.purged[0].length, 499);
+  assertEquals(await res.json(), body(1, { configured: true, deleted: 2, failed: 1 }, 0, 1));
+});
+
+Deno.test(
+  'a failed sweep does NOT hold the release back, and names the event ids it left',
+  async () => {
+    // Holding (3d) until the sweep succeeds was tried and rejected: it keeps the events LIVE and
+    // the invites redeemable until an operator re-drives a 'failed' row — a worse leak than a
+    // cached copy. So (3d) runs, and the ids go to the log for RELEASE-RUNBOOK §7.4.
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'events.select': [{ data: [{ id: 'event-1' }, { id: 'event-2' }] }],
+      },
+      { purge: { deleted: 0, scanned: 0, error: new Error('cf 503') } },
+    );
+    let res: Response | undefined;
+    const lines = await captureErrors(async () => {
+      res = await processErasureRequests(c);
+    });
+
+    assert(releaseRan(c.db));
+    assertEquals(await res!.json(), body(1, { configured: true, deleted: 0, failed: 1 }, 0, 1));
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['failed'],
+    );
+    assertEquals(c.deleted, []);
+    assert(
+      lines.some(
+        (l) =>
+          l[0] === 'erasure-job: event pages left unpurged' &&
+          l[1] === 'req-1' &&
+          JSON.stringify(l[2]) === JSON.stringify(['event-1', 'event-2']),
+      ),
+    );
+  },
+);
+
+Deno.test('unconfigured KV names the event ids too, and still releases', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'events.select': [{ data: [{ id: 'event-1' }] }],
+    },
+    { purge: NO_KV },
+  );
+  let res: Response | undefined;
+  const lines = await captureErrors(async () => {
+    res = await processErasureRequests(c);
+  });
+
+  assertEquals(await res!.json(), body(1, { configured: false, deleted: 0, failed: 1 }, 0, 1));
+  assert(releaseRan(c.db));
+  assert(lines.some((l) => l[0] === 'erasure-job: event pages left unpurged'));
+});
+
+Deno.test('a failed sweep for a member who organised nothing logs no event line', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'profiles.select': [{ data: { handle: 'luna_dev' } }],
+    },
+    { purge: { deleted: 0, scanned: 0, error: new Error('cf 503') } },
+  );
+  const lines = await captureErrors(() => processErasureRequests(c));
+  assert(!lines.some((l) => l[0] === 'erasure-job: event pages left unpurged'));
 });
 
 // ── #107: the payment reach, the reference release, and the account delete ────────────────
@@ -1246,6 +1495,7 @@ Deno.test('the subscription is cancelled at Stripe BEFORE the row is pseudonymis
   const rpcsAtCancel: string[] = [];
   c.stripe = {
     getSubscriptionStatus: () => Promise.resolve('active'),
+    untagCustomer: () => Promise.resolve(true),
     cancelSubscription: (id: string) => {
       rpcsAtCancel.push(...cascadeRpcs(c.db).map((k) => k.columns as string));
       c.cancelled.push(id);
@@ -1305,7 +1555,7 @@ Deno.test('an unconfigured Stripe blocks the erasure of a subscribed member', as
   );
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['failed'],
+    ['retained'],
   );
 });
 
@@ -1324,7 +1574,7 @@ Deno.test('a Stripe cancel that rejects stops the cascade where it stands', asyn
   assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
   assertEquals(
     statusUpdates(c.db).map((u) => u.values.status),
-    ['failed'],
+    ['retained'],
   );
 });
 
@@ -1449,7 +1699,7 @@ Deno.test(
     assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
     assertEquals(
       statusUpdates(c.db).map((u) => u.values.status),
-      ['failed'],
+      ['retained'],
     );
   },
 );
@@ -1515,4 +1765,310 @@ Deno.test('the waitlist address goes to the RPC verbatim — no pattern language
     [{ p_email: 'a*b_c%d@x.test' }],
   );
   assert(!c.db.calls.some((k) => k.op === 'delete'), 'no PostgREST filter touches the waitlist');
+});
+
+// ── #735: a Stripe-blocked erasure is 'retained', never a forgotten 'failed' ──────────────
+// 'failed' is terminal and the claim never re-takes it; 'retained' is re-claimed next night
+// (20260925175902). The four Stripe-blocked tests above assert the status; these pin the
+// precedence and the boundary.
+
+Deno.test(
+  "#735: 'retained' wins over another step's failure — the whole pass re-runs next night",
+  async () => {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+      },
+      {
+        revokeSessions: () => Promise.resolve({ error: new Error('revoke down') }),
+        cancelSubscription: () => Promise.reject(new Error('stripe down')),
+      },
+    );
+    await processErasureRequests(c);
+    assertEquals(c.deleted, []);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['retained'],
+    );
+  },
+);
+
+Deno.test("#735: a failure with no subscription in play stays 'failed'", async () => {
+  // Retained is for an obligation held OUTSIDE the database. A failed reference release has no
+  // one to wait on; re-driving it nightly would repeat the error with nobody told.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [{ data: null }],
+    'rpc.gdpr_release_profile_references': [{ error: { message: 'fk' } }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+});
+
+Deno.test(
+  "#735: a Stripe id no key can reach is 'failed' — retrying resource_missing loops for ever",
+  async () => {
+    for (const code of ['resource_missing', 'livemode_mismatch']) {
+      const c = ctx(
+        {
+          'rpc.claim_erasure_requests': [
+            { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+          ],
+          'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_ghost' } }],
+        },
+        {
+          getSubscriptionStatus: () =>
+            Promise.reject(Object.assign(new Error('No such subscription'), { code })),
+        },
+      );
+      await processErasureRequests(c);
+      assertEquals(c.deleted, [], code);
+      assertEquals(
+        statusUpdates(c.db).map((u) => u.values.status),
+        ['failed'],
+        code,
+      );
+    }
+  },
+);
+
+Deno.test(
+  '#735: a permanent code on the CANCEL is failed too; a transient one is retained',
+  async () => {
+    const run = async (err: unknown) => {
+      const c = ctx(
+        {
+          'rpc.claim_erasure_requests': [
+            { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+          ],
+          'circle_memberships.select': [{ data: { stripe_subscription_id: 'sub_erased' } }],
+        },
+        { cancelSubscription: () => Promise.reject(err) },
+      );
+      const res = await processErasureRequests(c);
+      return {
+        status: statusUpdates(c.db).map((u) => u.values.status),
+        body: await res.json(),
+      };
+    };
+    const permanent = await run(Object.assign(new Error('gone'), { code: 'resource_missing' }));
+    assertEquals(permanent.status, ['failed']);
+    assertEquals(permanent.body.billingRetained, 0);
+    const transient = await run(Object.assign(new Error('slow down'), { code: 'rate_limit' }));
+    assertEquals(transient.status, ['retained']);
+    // `retained` keeps counting every kept account; `billingRetained` names the ones re-claimed.
+    assertEquals(transient.body.retained, 1);
+    assertEquals(transient.body.billingRetained, 1);
+  },
+);
+
+// ── #763: the Customer keeps the member's tag ─────────────────────────────────────────────
+//
+// `create-circle-checkout` / `create-circle-portal` find a member's Customer by its
+// `metadata.profile_id` tag when no membership row names one (#759). (3c) nulls the row's
+// `profile_id`, so an erasure withdrawn after (3c) left the account with no row and a tag that
+// still pointed at the old Customer: a subscription minted there lands on the pseudonymised row.
+// The tag is cleared BEFORE (3c), and a failure to clear it halts the cascade where it stands.
+
+Deno.test(
+  'the Customer tag is cleared after the cancel and BEFORE the row is pseudonymised',
+  async () => {
+    const c = ctx({
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    });
+    const order: string[] = [];
+    const cancel = c.stripe!.cancelSubscription;
+    c.stripe!.cancelSubscription = (id) => {
+      order.push('cancel');
+      return cancel(id);
+    };
+    c.stripe!.untagCustomer = (profileId, customerId) => {
+      order.push('untag', ...cascadeRpcs(c.db).map((k) => k.columns as string));
+      c.untagged.push([profileId, customerId]);
+      return Promise.resolve(1);
+    };
+
+    await processErasureRequests(c);
+    assertEquals(c.untagged, [['user-1', 'cus_erased']]);
+    assertEquals(order.slice(0, 2), ['cancel', 'untag']);
+    assert(
+      !order.includes('gdpr_erase_payment_footprint'),
+      'untagging after (3c) would leave a window where the row is gone and the tag is not',
+    );
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['done'],
+    );
+  },
+);
+
+Deno.test('the membership read asks for the Customer id as well as the subscription', async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+  });
+  await processErasureRequests(c);
+  const read = c.db.calls.find((k) => k.table === 'circle_memberships' && k.op === 'select');
+  assert(read?.columns?.includes('stripe_customer_id'), `read ${read?.columns}`);
+});
+
+Deno.test('a member with no membership row makes no Stripe call at all', async () => {
+  // Stripe's availability must be no condition of erasing someone who never reached Circle.
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [{ data: null }],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.untagged, []);
+  assertEquals(c.cancelled, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['done'],
+  );
+});
+
+Deno.test('a Customer with no subscription is untagged too', async () => {
+  const c = ctx({
+    'rpc.claim_erasure_requests': [
+      { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+    ],
+    'circle_memberships.select': [
+      { data: { stripe_subscription_id: null, stripe_customer_id: 'cus_lapsed' } },
+    ],
+  });
+  await processErasureRequests(c);
+  assertEquals(c.cancelled, []);
+  assertEquals(c.untagged, [['user-1', 'cus_lapsed']]);
+});
+
+Deno.test('an untag that rejects halts the cascade before (3c): failed, not retained', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    },
+    { untagCustomer: () => Promise.reject(new Error('stripe 503')) },
+  );
+  const res = await processErasureRequests(c);
+  assertEquals(c.cancelled, ['sub_erased']);
+  assert(
+    !c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'),
+    'the row must not be pseudonymised while the tag still points at its Customer',
+  );
+  assertEquals(c.deleted, []);
+  // The billing IS stopped, so this is not the nightly-retried 'retained' state.
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assertEquals((await res.json()).billingRetained, 0);
+});
+
+Deno.test('the untag is not attempted when the cancel already halted the cascade', async () => {
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+      ],
+    },
+    { cancelSubscription: () => Promise.reject(new Error('stripe down')) },
+  );
+  await processErasureRequests(c);
+  assertEquals(c.untagged, []);
+});
+
+Deno.test('an unconfigured Stripe blocks the erasure of a member with a Customer', async () => {
+  // No subscription to stop, but a tag to clear and no key to clear it with. Same doctrine as
+  // the KV trio: unconfigured is REPORTED, never skipped past.
+  const c = ctx(
+    {
+      'rpc.claim_erasure_requests': [
+        { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+      ],
+      'circle_memberships.select': [
+        { data: { stripe_subscription_id: null, stripe_customer_id: 'cus_lapsed' } },
+      ],
+    },
+    { cancelSubscription: NO_STRIPE },
+  );
+  const res = await processErasureRequests(c);
+  assert(!c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'));
+  assertEquals(c.deleted, []);
+  assertEquals(
+    statusUpdates(c.db).map((u) => u.values.status),
+    ['failed'],
+  );
+  assertEquals((await res.json()).billingRetained, 0);
+});
+
+Deno.test(
+  'an unconfigured Stripe and no membership row: nothing known to untag, erasure completes',
+  async () => {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [{ data: null }],
+      },
+      { cancelSubscription: NO_STRIPE },
+    );
+    await processErasureRequests(c);
+    assertEquals(c.deleted, ['user-1']);
+    assertEquals(
+      statusUpdates(c.db).map((u) => u.values.status),
+      ['done'],
+    );
+  },
+);
+
+Deno.test('a Stripe port rejecting with a falsy reason is still a failure', async () => {
+  // `.catch((e) => e)` read `Promise.reject(undefined)` as success; the cascade then pseudonymised
+  // over a subscription it had not cancelled. Decided by the rejection, not by its value.
+  for (const which of ['cancel', 'untag'] as const) {
+    const c = ctx(
+      {
+        'rpc.claim_erasure_requests': [
+          { data: [{ id: 'req-1', profile_id: 'user-1', claimed_at: 'lease-req-1' }] },
+        ],
+        'circle_memberships.select': [
+          { data: { stripe_subscription_id: 'sub_erased', stripe_customer_id: 'cus_erased' } },
+        ],
+      },
+      which === 'cancel'
+        ? { cancelSubscription: () => Promise.reject(undefined) }
+        : { untagCustomer: () => Promise.reject('') },
+    );
+    await processErasureRequests(c);
+    assert(
+      !c.db.calls.some((k) => k.columns === 'gdpr_erase_payment_footprint'),
+      `${which}: a falsy rejection must not let (3c) run`,
+    );
+    assertEquals(c.deleted, [], which);
+  }
 });

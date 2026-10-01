@@ -54,6 +54,27 @@ describe('getConsents', () => {
     await expect(getConsents(client)).resolves.toEqual([CONSENT_ROW]);
   });
 
+  it('withholds a row whose kind it does not know, without throwing (#841)', async () => {
+    // A production row from before the purge migration, or any kind the schema lags. Throwing
+    // here would leave Trust, SentryConsentGate and useLocationConsent all without an answer.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const retired = { ...CONSENT_ROW, id: '00000000-0000-0000-0000-0000000000a2', kind: 'comms' };
+      const { client } = selectStub([CONSENT_ROW, retired]);
+      await expect(getConsents(client)).resolves.toEqual([CONSENT_ROW]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('1 row(s)');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('still throws on a malformed row of a known kind (a withheld refusal would fail open)', async () => {
+    const refusal = { ...CONSENT_ROW, kind: 'location_approx', granted: false, source: 'import' };
+    const { client } = selectStub([refusal]);
+    await expect(getConsents(client)).rejects.toThrow();
+  });
+
   it('returns [] when data is null', async () => {
     const { client } = selectStub(null);
     await expect(getConsents(client)).resolves.toEqual([]);
@@ -76,12 +97,12 @@ describe('setConsent', () => {
 
   it('upserts the session profile_id + input with a fresh ISO granted_at, onConflict (profile_id,kind)', async () => {
     const { client, upsert } = upsertStub();
-    await setConsent(client, { kind: 'comms', granted: false, source: 'signup' });
+    await setConsent(client, { kind: 'analytics', granted: false, source: 'signup' });
     expect(upsert).toHaveBeenCalledTimes(1);
     const [values, options] = upsert.mock.calls[0] as [Record<string, unknown>, unknown];
     expect(values).toEqual({
       profile_id: ME,
-      kind: 'comms',
+      kind: 'analytics',
       granted: false,
       source: 'signup',
       granted_at: expect.any(String),

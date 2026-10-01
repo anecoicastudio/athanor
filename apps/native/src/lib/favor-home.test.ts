@@ -47,9 +47,9 @@ describe('topOpenNeeds', () => {
     expect(topOpenNeeds([page(first), page(second)])).toEqual(first);
   });
 
-  // The order is the view's `(need_created_at, need_milestone_id)` keyset (`favors.ts:34-35`).
-  // A client-side sort here would disagree with the sheet dealing from the same cache entry, so
-  // the need you tapped would not be the need you got.
+  // The order is the view's `(need_created_at, need_milestone_id)` keyset (`listOpenNeeds` in
+  // `favors.ts`). A client-side sort here would disagree with the sheet dealing from the same cache
+  // entry, so the need you tapped would not be the need you got.
   it('never re-ranks — the server order survives', () => {
     const older = { ...need('a', 'bea_foto'), need_created_at: '2026-08-01T10:00:00Z' };
     const newer = { ...need('b', 'ele_yoga'), need_created_at: '2026-08-11T10:00:00Z' };

@@ -10,8 +10,9 @@ import { STRIPE_FEE_BPS, STRIPE_FEE_FIXED_CENTS, feeCoverage } from './fees';
  * both constants AND of the gross-up formula, and that the copy is the AUTHORITY — the server
  * recomputes, the client's figure is display only. Both sides said "change one, change both"
  * and both sides enforced it by pinning the same literals in their OWN suite
- * (`fees.test.ts:23-24`, `logic.test.ts:244-245`), which is two independent claims about one
- * number and not a comparison of anything. Nothing read across the boundary.
+ * (`fees.test.ts`'s «1,5% + €0,25» case, `logic.test.ts`'s «the Stripe rate constants match»),
+ * which is two independent claims about one number and not a comparison of anything. Nothing read
+ * across the boundary.
  *
  * The failure that shape allows is the worst-lit one in the product: the disclosure screen
  * quotes a payer one figure, the server charges another, and the difference is real money
@@ -19,9 +20,10 @@ import { STRIPE_FEE_BPS, STRIPE_FEE_FIXED_CENTS, feeCoverage } from './fees';
  * suite still agrees with itself.
  *
  * `MIN_CONTRIBUTION_CENTS` is a fourth copy of the same shape and is guarded here too: it is
- * DECLARED in `@athanor/schemas` (re-exported by `./amount`), duplicated at `logic.ts:53`, and
- * the DB CHECK in `20260618153032_m7_contributions.sql` is the third copy — pinned by pgTAP
- * `0118_fund_fee_coverage`, which this file cannot reach and does not try to.
+ * DECLARED in `@athanor/schemas` (re-exported by `./amount`), duplicated as
+ * `MIN_CONTRIBUTION_CENTS` in `logic.ts`, and the DB CHECK in `20260618153032_m7_contributions.sql`
+ * is the third copy — pinned by pgTAP `0118_fund_fee_coverage`, which this file cannot reach and
+ * does not try to.
  *
  * ## Compared as text, because the mirror cannot be imported
  *
@@ -29,14 +31,14 @@ import { STRIPE_FEE_BPS, STRIPE_FEE_FIXED_CENTS, feeCoverage } from './fees';
  * workspace — so vitest cannot load it. `version.mirror.test.ts` closes the same class of claim
  * for the force-update gate; `notification-templates.mirror.test.ts` was the first to read a
  * Deno file as text rather than leave the pair to review. The Deno suite already cross-reads
- * `packages/schemas/src/fund.ts` (`logic.test.ts:159`), so the machinery is precedent on both
- * sides of the boundary; what neither side had was a read of the FEE constants.
+ * `packages/schemas/src/fund.ts` (`SCHEMA_SOURCE` in `logic.test.ts`), so the machinery is
+ * precedent on both sides of the boundary; what neither side had was a read of the FEE constants.
  *
  * ## One deliberate divergence, scoped rather than ignored
  *
  * The two `feeCoverage` bodies are NOT identical and must not be asserted so: the core copy
  * throws `RangeError` below the €1 floor, the Deno copy deliberately does not validate
- * (`logic.ts:90`: "Callers must have passed isValidContributionAmount first"). So the
+ * (`feeCoverage`'s docblock: "Callers must have passed isValidContributionAmount first"). So the
  * comparison is scoped to the arithmetic — the three statements that decide what the card is
  * charged — and the safety that makes the Deno omission sound (validate, THEN gross up) is
  * asserted separately, at its call site.

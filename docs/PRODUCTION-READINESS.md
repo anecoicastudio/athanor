@@ -80,9 +80,11 @@ Two auth gaps are **deliberately shipped**, not outstanding work. Both were deci
 
   It was not a switch we declined to flip. There is **no SMTP provider on either project** (`[auth.email.smtp]` commented out in `supabase/config.toml`, `smtp_host` null on both hosted projects), so every confirmation mail would go through Supabase's built-in mailer at **2 per hour**, documented as not for production. Free SMTP tiers are ample but require DKIM/SPF records on a domain you control — possible since `athanor.world` (#471, 2026-09-03), a Cloudflare zone that can carry them; not yet done.
 
+  **Update 2026-09-24 (#825): the first three reversal steps are done.** `athanor.world` is verified in Resend (DKIM TXT `resend._domainkey`, SPF through the `send` CNAME, DMARC `p=none`), both hosted projects send through custom SMTP (`smtp.resend.com`, sender `noreply@athanor.world`), and `rate_limit_email_sent` is 100 on both. Setup and key rotation are recorded in `RELEASE-RUNBOOK.md` §4.5. What remains of the reversal is `mailer_autoconfirm` false and the `generate_link` check. That decision is unchanged by this update and still open.
+
   Note the asymmetry between environments: **staging has confirmations ON** (`mailer_autoconfirm = false`), so the flow stays exercisable there without changing production.
 
-  Reversal, in this order — flipping first is the failure mode that tests clean and breaks at the third real signup: a domain you control with DKIM/SPF verified → custom SMTP on the hosted project → `rate_limit_email_sent` raised off 2 → `mailer_autoconfirm` false → re-run the `generate_link` check. Pin the untested duplicate-email branch at `apps/native/src/app/(auth)/welcome.tsx:151` **before** flipping: with confirmations ON, a signup for an existing address returns 200 with an obfuscated user rather than 422, and an empty `identities` array is the only tell.
+  Reversal, in this order — flipping first is the failure mode that tests clean and breaks at the third real signup: a domain you control with DKIM/SPF verified → custom SMTP on the hosted project → `rate_limit_email_sent` raised off 2 → `mailer_autoconfirm` false → re-run the `generate_link` check. Pin the untested duplicate-email branch at `apps/native/src/app/(auth)/welcome.tsx:246` **before** flipping: with confirmations ON, a signup for an existing address returns 200 with an obfuscated user rather than 422, and an empty `identities` array is the only tell.
 
 **#72 was ruled on 2026-08-30** (it closes with the PR that lands this correction): TOTP had been enabled on both projects with no client enrol or verify surface, so the flags were turned back off (Management API, readback-verified) and `supabase/config.toml [auth.mfa.totp]` reverted to match. An MFA surface (enrol + verify + `aal2` gating) is post-launch work; until it ships, auth hardening = password policy only.
 
@@ -338,7 +340,7 @@ The last three are the `production` environment only — `development` and `prev
 
 ## Appendix B — P1.5 store submission `[manual-you]`
 
-- **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (12+) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
+- **App Store Connect:** create app record → bundle ID (from P1.2) → upload build (`eas submit`) → Screenshots (IT+EN per device class) → App Privacy → Data Types (email, profile content, approximate location, Stripe payments-not-stored; **no tracking, no sale**) → Age Rating (**18+**, ruled 2026-09-19 on #84 to match `MIN_MEMBER_AGE`, #778) → Export Compliance (standard HTTPS, exempt — declare) → Support/Marketing/Privacy URLs → paste `store.*` copy (RUNBOOK §2 table).
 - **Play Console:** internal testing track → upload AAB → Store listing (IT+EN) → Data Safety form (match iOS) → Content rating (Teen) → paste `store.*` copy.
 - Pre-submit: `pnpm exec expo-doctor` clean · R-1 bundle grep (above) · deep-link cold-start + push entitlement on a release build.
 

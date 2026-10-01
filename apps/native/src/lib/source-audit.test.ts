@@ -309,17 +309,17 @@ describe('@stripe/stripe-react-native stays absent', () => {
  *
  * ## The one exempt file (#539)
  *
- * `components/provider-marks.tsx` carries four literal hex values and is allowed to. They are
- * Google's brand colours, not ours: DESIGN §6's third-party carve-out requires a vendor's mark
+ * `components/provider-marks.tsx` carries literal hex values and is allowed to. They are
+ * Google's and Apple's brand colours, not ours: DESIGN §6's third-party carve-out requires a vendor's mark
  * to ship in its mandated form — full colour, unmodified — and explicitly forbids recolouring
- * it to `currentColor` or to anything else. Routing those four through `@athanor/config` would
+ * it to `currentColor` or to anything else. Routing them through `@athanor/config` would
  * not satisfy rule #4 either; it would only hide a vendor's colour inside our token table,
  * which `tokens-mirror.test.ts` would then have to mirror into `global.css` as if it were a
  * brand colour of ours.
  *
- * The exemption is by PATH and it is bounded on the other side: one file against four literals,
- * and `provider-marks-mirror.test.ts` asserts that the file's hex set equals the vendor asset's
- * hex set exactly — so the carve-out cannot become a place to park a colour. A second exempt
+ * The exemption is by PATH and it is bounded on the other side: one file against the vendors'
+ * literals, and `provider-marks-mirror.test.ts` asserts that every hex in the file is in a vendor
+ * asset — so the carve-out cannot become a place to park a colour. A second exempt
  * path is not a thing to add; a second vendor mark is transcribed into this same file.
  */
 const VENDOR_MARKS = `${SRC}components/provider-marks.tsx`;
@@ -338,7 +338,7 @@ describe('no literal hex colours in app code', () => {
 
   it('the one exempt path still names a file', () => {
     // A rename would turn the exemption into a filter that matches nothing. That direction is
-    // loud (the renamed file's four vendor hexes fail the assertion above), but the message
+    // loud (the renamed file's vendor hexes fail the assertion above), but the message
     // would send the next reader hunting for a rule violation instead of a stale path.
     expect(
       FILES.includes(VENDOR_MARKS),
@@ -1425,8 +1425,8 @@ describe('the events tab has no posts source (#153)', () => {
  * Pressables deep inside a scrim and a sheet that declare no role; both were still `accessible`,
  * so iOS swallowed the descendant anyway — and `MediaSheet.tsx` had the same pair. The mechanism
  * is `accessible`, which `Pressable` sets for you, and #292's note
- * (`components/media/MomentTile.tsx:60`) says so in as many words: "anything `accessible` nested
- * inside it". Keying on the role would have made this guard agree with the bug.
+ * (its Pressable in `components/media/MomentTile.tsx`) says so in as many words: "anything
+ * `accessible` nested inside it". Keying on the role would have made this guard agree with the bug.
  *
  * Which is also why the walk reads `accessible={false}`: that attribute is what actually decides
  * whether an ancestor swallows, so it is what decides whether a nesting is a hit. The two media
@@ -1652,8 +1652,8 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * `onAccessibilityEscape` cannot stand in for the control, and the reason is not stylistic:
  * React Native fires the escape gesture only "when accessible is true"
- * (`ViewAccessibility.d.ts:300-303`), which is precisely the flag being turned off. So the exit
- * has to be a real element, and nothing checked that one existed.
+ * (`onAccessibilityEscape` in react-native's `ViewAccessibility.d.ts`), which is precisely the flag
+ * being turned off. So the exit has to be a real element, and nothing checked that one existed.
  *
  * ## What counts as an exit
  *
@@ -1672,7 +1672,7 @@ describe('no Pressable is mounted inside another Pressable (#518)', () => {
  *
  * ## Why the exit may not be gated on a busy flag
  *
- * `MediaSheet.tsx:222-227` argues this in place, and nothing enforced it: the cancel row is
+ * `MediaSheet.tsx`'s cancel `Row` argues this in place, and nothing enforced it: the cancel row is
  * deliberately `disabled={false}` while the three source rows are `disabled={busy}`, because
  * an exit that goes dead during an in-flight pick restores the dead end for exactly as long
  * as the sheet is working — which is when a user is most likely to want out. A guard that
@@ -1789,7 +1789,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * reached the screen by pushing, which is why it survived across 20 files.
  *
  * A `(modal)` screen is a stack root more often than the in-app push path suggests:
- * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx:62,71,74`); `[handle].tsx:53`
+ * `AuthGuard` only ever `replace`s (`src/app/_layout.tsx`); `[handle].tsx`
  * `replace`s EVERY `/@handle` link into `/(modal)/user/[id]`; the Android `intentFilters` in
  * `app.json` claim `/post`, `/event` and `/dream`, none of which has a top-level route
  * directory, so they resolve into `(modal)` too; and a modal→modal `replace` hands its
@@ -1804,7 +1804,7 @@ describe('a VoiceOver-silenced sheet still exposes a way out (#551)', () => {
  * `(modal)` screens and shared components both. A component does not know which screen mounts
  * it, so a `back()` inside `ModalHeader` is exactly as dead as one written in the screen —
  * that is where #577's bug lived. `(tabs)` and `(auth)` are out: a tab root has no back
- * affordance at all, and `(auth)/welcome.tsx:231` already renders its own conditionally.
+ * affordance at all, and `(auth)/welcome.tsx` already renders its own on `router.canGoBack()`.
  *
  * ## What it cannot see
  *
@@ -2353,6 +2353,33 @@ describe('date/time formatting always goes through localeTag() (#502)', () => {
 // 28 — a toggle names itself, and a decorative mark is never spoken (#635)
 // ---------------------------------------------------------------------------------------
 
+/** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
+const openingTags = (src: string, tag: string): { line: number; attrs: string }[] => {
+  const found: { line: number; attrs: string }[] = [];
+  const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    let j = m.index + m[0].length;
+    let depth = 0;
+    let quote = '';
+    while (j < src.length) {
+      const c = src[j] as string;
+      if (quote) {
+        if (c === quote) quote = '';
+      } else if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '{') depth += 1;
+      else if (c === '}') depth -= 1;
+      else if (c === '>' && depth === 0) break;
+      j += 1;
+    }
+    found.push({
+      line: src.slice(0, m.index).split('\n').length,
+      attrs: src.slice(m.index + m[0].length, j),
+    });
+  }
+  return found;
+};
+
 /**
  * Two halves of the VoiceOver wave that a walk can actually see. The rest of #635 — a composed
  * label, a `checked` state, the peek card leaving the a11y tree — is per-site judgement no regex
@@ -2392,33 +2419,6 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     'app/(modal)/story-compose.tsx',
   ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
-
-  /** Opening tags for `tag`, each with its raw attribute text, brace- and quote-aware. */
-  const openingTags = (src: string, tag: string): { line: number; attrs: string }[] => {
-    const found: { line: number; attrs: string }[] = [];
-    const re = new RegExp(`<${tag}(?=[\\s/>])`, 'g');
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(src))) {
-      let j = m.index + m[0].length;
-      let depth = 0;
-      let quote = '';
-      while (j < src.length) {
-        const c = src[j] as string;
-        if (quote) {
-          if (c === quote) quote = '';
-        } else if (c === '"' || c === "'" || c === '`') quote = c;
-        else if (c === '{') depth += 1;
-        else if (c === '}') depth -= 1;
-        else if (c === '>' && depth === 0) break;
-        j += 1;
-      }
-      found.push({
-        line: src.slice(0, m.index).split('\n').length,
-        attrs: src.slice(m.index + m[0].length, j),
-      });
-    }
-    return found;
-  };
 
   it('finds the Switch sites it is walking', () => {
     const total = FILES.filter((p) => !isTest(p)).reduce(
@@ -2530,7 +2530,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * «44» are 38.5pt where it counts. Eleven sites shipped that way — one of them under a comment
  * that claimed «a real 44pt tap target» — because `getBoundingClientRect` in the expo-web walk
  * returns 44 for every one of them. The arbitrary form `h-[44px]` is a literal on both
- * platforms, which is why `Input.tsx:153-161` reaches for `style={{ width: 44 }}` and says so.
+ * platforms, which is why `Input`'s eye toggle reaches for `style={{ width: 44 }}` and says so.
  *
  * The ban is on the CLASS, not on a measurement: eleven steps is only ever an attempt at the
  * floor, so there is no legitimate `h-11` to carve out. A genuine 38.5pt box would be written
@@ -2554,9 +2554,9 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * reaches exactly 44; it is CORRECT at that size and short only when the visual is smaller.
  * Deciding that statically means knowing what the child renders to, and a scan for «a small
  * `text-[Npx]` somewhere in the body» flags ~26 sites of which several are plainly fine
- * (`StoryRing.tsx:65` wraps a 60pt avatar, `DreamCard.tsx:128` a whole row) — a guard whose
- * allowlist would be longer than its findings is a pin on today's tree, not an invariant.
- * §28 makes the same call in as many words for the rest of #635.
+ * (`StoryRing`'s Pressable wraps a 60pt avatar, `DreamCard`'s add-milestone one a whole row) — a
+ * guard whose allowlist would be longer than its findings is a pin on today's tree, not an
+ * invariant. §28 makes the same call in as many words for the rest of #635.
  *
  * The two instances #638's sweep did fix by hand — `home/TodaySection.tsx` and
  * `(tabs)/costellazioni.tsx`, plus the `(tabs)/community.tsx` glyph — were found by reading,
@@ -2645,22 +2645,22 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:468':
+    'app/(modal)/chat.tsx:469':
       'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:523':
+    'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:468',
-    'app/(onboarding)/index.tsx:469':
+    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
     'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:523',
-    'components/stories/StoryRing.tsx:121':
+    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
+    'components/stories/StoryRing.tsx:127':
       'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
       'to `ornament`',
   };
@@ -4528,5 +4528,105 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
         'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
         '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 44 — a tag label built from data goes through the shared fallback (#883)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A tag key is DATA — `profiles.profession`, `skills`, `identity_tags`, `seeking` are text
+ * columns the database does not constrain to the curated lists — so it cannot be typed as a
+ * MessageKey. Cast it anyway and `t()` echoes an unknown key back: tino_chef's profile read
+ * «tag.profession.Chef» (#883). `tagLabel` in `@athanor/i18n` is the one helper that falls back
+ * to the stored value instead, so a template `tag.${…}` key and a local `tagLabel` that
+ * shadows the shared one are both the same bug waiting for an off-list value.
+ */
+describe('a tag label built from data goes through the shared fallback (#883)', () => {
+  it('no screen builds a `tag.` key from data or defines its own tagLabel', () => {
+    const hits = codeLines()
+      .filter(([, t]) => /`tag\.\$\{|`tag\.[a-z]+\.\$\{|\b(?:const|function)\s+tagLabel\b/.test(t))
+      .map(([at]) => at.replace('apps/native/src/', ''));
+    expect(
+      hits,
+      "a tag key built from data and handed to t(): an off-list value renders as the raw key. Use tagLabel(kind, tag, locale) from '@athanor/i18n', which falls back to the stored value (#883).",
+    ).toEqual([]);
+  });
+});
+
+/**
+ * An avatar inside a row that already names the member is decorative (#884). `Avatar` labels
+ * itself with the member's name, so inside an unlabelled row iOS joined that label with the name
+ * `Text` beside it — «Sole Marini, Sole Marini, 2g, …» — and on Android a focusable disc inside a
+ * focusable row was a second TalkBack stop saying the name again.
+ *
+ * Labelled stays `Avatar`'s default, because forgetting the flag costs a repeated name and the
+ * opposite default would cost a missing one. What this section adds is that no call site gets the
+ * default by accident: every file that renders an `<Avatar` is registered here with its decision,
+ * so the next row is written knowing the question exists. A `decorative` site must be one whose
+ * row speaks the name some other way — the row's own label, or the name as adjacent text.
+ */
+describe('an avatar in a row that names the member stays silent (#884)', () => {
+  const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
+    'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
+    'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
+    'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
+    'components/costellazioni/FavorRow.tsx': { decorative: true, why: 'row label' },
+    'components/profile/IncomingOfferRow.tsx': { decorative: true, why: 'row label' },
+    'components/live/AttendeeStack.tsx': { decorative: true, why: 'row label' },
+    'components/chat/Bubble.tsx': { decorative: true, why: 'the avatar button’s label' },
+    'components/stories/StoryRing.tsx': { decorative: true, why: 'row label' },
+    'components/search/ResultRow.tsx': { decorative: true, why: 'searchRowLabel says the name' },
+    'components/trust/BlockedRow.tsx': { decorative: true, why: 'name Text beside it' },
+    'app/(modal)/settings.tsx': { decorative: true, why: 'name Text beside it' },
+    'components/momenti/MomentoCard.tsx': { decorative: true, why: 'name Text beside it' },
+    'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
+    'components/profile/ProfileHero.tsx': { decorative: false, why: 'the profile’s own face' },
+    'components/profile/ProfileEditForm.tsx': { decorative: false, why: 'whose photo this is' },
+    // The row label is generic («Hai un Momento»), so the disc is the only thing naming them.
+    'components/home/MomentiCard.tsx': { decorative: false, why: 'generic row label' },
+    'components/home/FavorNudgeCard.tsx': { decorative: false, why: 'generic row label' },
+  };
+
+  const sites = FILES.filter((p) => !isTest(p)).flatMap((p) =>
+    openingTags(stripComments(read(p)), 'Avatar').map(({ line, attrs }) => ({
+      file: rel(p).replace('apps/native/src/', ''),
+      line,
+      // Bare or `={true}` only: `decorative={false}` is a labelled site written out.
+      decorative: /(^|\s)decorative(?=[\s/>]|$|=\{true\})/.test(attrs),
+    })),
+  );
+
+  it('finds the Avatar sites it is walking', () => {
+    // A scanner that finds nothing passes every assertion below.
+    expect(sites.length, 'no <Avatar> found at all — the walk is broken').toBeGreaterThan(10);
+  });
+
+  it('every Avatar site made the decision its file registers', () => {
+    const wrong = sites
+      .filter((s) => s.file in AVATAR_SITES)
+      .filter((s) => s.decorative !== AVATAR_SITES[s.file]?.decorative)
+      .map(
+        (s) =>
+          `${s.file}:${s.line} (registered ${AVATAR_SITES[s.file]?.decorative ? 'decorative' : 'labelled'})`,
+      );
+    expect(
+      wrong,
+      `an <Avatar> that disagrees with its entry in AVATAR_SITES. If the row names the member, ` +
+        `pass \`decorative\`; if the disc is the only thing that says who this is, leave it ` +
+        `labelled — then update the register to match (#884).`,
+    ).toEqual([]);
+  });
+
+  it('the register is exactly the files that render an Avatar', () => {
+    const owners = [...new Set(sites.map((s) => s.file))].sort();
+    expect(
+      owners,
+      `a file renders <Avatar> without an AVATAR_SITES entry, or an entry no longer renders one. ` +
+        `A new row decides here whether its avatar is decorative (#884).`,
+    ).toEqual(Object.keys(AVATAR_SITES).sort());
   });
 });

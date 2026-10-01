@@ -8,6 +8,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
+import { useExportJob } from '@/hooks/use-export-job';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +27,16 @@ import { Screen } from '@/components/Screen';
  * later. Since #107 «later» is a night rather than never, and since #733 the tap also bans
  * sign-in in the same transaction as the request; the copy says both. The split is still the
  * point: what the tap does at once (session, sign-in) versus what the job does at night.
+ *
+ * #735: while the member's own export is requested or processing the CTA is held. The erasure
+ * sweeps the `exports` bucket and cascades the job row (MIGRATIONS-ERRATA, 20260908071807 — the
+ * archive dies with the account, on purpose), and the tap signs this device out and bans sign-in,
+ * so an archive still being built when they tap is one they can never reach. A READY archive is
+ * not held: it is downloadable right now, and `exportFirst` says it goes with the account.
  */
+/** How long a pending export holds the delete CTA: one nightly pass, plus a night's slack. */
+const EXPORT_GATE_MS = 48 * 60 * 60 * 1000;
+
 export default function DeleteAccountScreen() {
   const router = useRouter();
   const { signOut: endSession } = useAuth();
@@ -36,6 +46,27 @@ export default function DeleteAccountScreen() {
 
   const word = t('account.delete.confirmWord', locale);
   const matched = confirm.trim().toUpperCase() === word.toUpperCase();
+
+  // Same query as the export screen (`useExportJob`), so a request filed there reads here without
+  // a second fetch, and a job that finishes while the app is away releases the gate on return.
+  // The gate is a courtesy, never a way to keep somebody from leaving, so it holds only on an
+  // answer read NOW: `isFetchedAfterMount` because the cache is persisted for 24 h and a stale
+  // row must not decide; `!isError` because TanStack keeps the last good data through a failed
+  // refetch. A fetch still in flight does not hold the CTA either — a hung request would.
+  const [openedAt] = useState(() => Date.now());
+  const exportJob = useExportJob();
+  const exportStatus = exportJob.data?.status ?? null;
+  const exportCreated = exportJob.data ? Date.parse(exportJob.data.created_at) : Number.NaN;
+  // A job the nightly pass has not served within two nights is retrying a failure
+  // (gdpr-export-job sends transient errors back to 'requested' for up to ~23 days); holding
+  // an erasure request hostage to it is exactly what the gate must not do. The window is measured
+  // at the latest read, not the screen's open: a screen held open for days re-reads on return.
+  const readAt = Math.max(openedAt, exportJob.dataUpdatedAt);
+  const exportPending =
+    exportJob.isFetchedAfterMount &&
+    !exportJob.isError &&
+    (exportStatus === 'requested' || exportStatus === 'processing') &&
+    readAt - exportCreated < EXPORT_GATE_MS;
 
   const erase = useMutation({
     mutationFn: () => requestErasure(supabase),
@@ -79,6 +110,14 @@ export default function DeleteAccountScreen() {
           <Text className="text-[14px] text-aura">{t('account.delete.exportFirst', locale)}</Text>
         </Pressable>
 
+        {exportPending ? (
+          <View className="rounded-card border border-hair bg-raise p-5">
+            <Text className="text-[14px] leading-relaxed text-muted-foreground">
+              {t('account.delete.exportPending', locale)}
+            </Text>
+          </View>
+        ) : null}
+
         <View className="gap-2">
           <Text className="text-[13px] text-muted-foreground">
             {t('account.delete.confirmField', locale)}
@@ -96,7 +135,7 @@ export default function DeleteAccountScreen() {
         <Button
           variant="danger"
           label={t('account.delete.cta', locale)}
-          disabled={!matched || erase.isPending || erase.isSuccess}
+          disabled={!matched || exportPending || erase.isPending || erase.isSuccess}
           onPress={() => erase.mutate()}
         />
       </ScrollView>

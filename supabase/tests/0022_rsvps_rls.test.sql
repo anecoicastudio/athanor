@@ -16,7 +16,7 @@ values
 select has_table('public','rsvps','rsvps table exists');
 select ok((select relrowsecurity from pg_class where oid='public.rsvps'::regclass), 'RLS enabled on rsvps');
 select policies_are('public','rsvps',
-  array['rsvps_select_authenticated','rsvps_insert_own','rsvps_update_own',
+  array['rsvps_select_own_or_attendee','rsvps_insert_own','rsvps_update_own',
         'active_write_insert', 'active_write_update', 'active_write_delete'],
   'exactly the expected policies on rsvps');
 
@@ -60,12 +60,14 @@ select lives_ok($$
 $$, 'owner can cancel own RSVP (status flip)');
 reset role;
 
--- A (member) can read B's RSVP — attendee count is allowed (not a vanity metric)
+-- A is the ORGANISER, and B cancelled above. Since #790 the organiser and the attendees read
+-- who is GOING, not who changed their mind, so B's cancelled row is B's alone. The going side,
+-- and the non-attending member who sees only the count, are asserted in 0157.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select results_eq($$
   select count(*)::int from public.rsvps where event_id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-$$, $$ values (1) $$, 'members can read RSVPs (attendee count)');
+$$, $$ values (0) $$, 'the organiser does not read a cancelled RSVP on their event (#790)');
 
 -- A cannot update B's RSVP → 0 rows
 select results_eq($$

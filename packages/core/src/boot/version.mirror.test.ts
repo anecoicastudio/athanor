@@ -20,9 +20,9 @@ import { isVersionBelow } from './version';
  *
  * ## Compared as text, because the mirror cannot be imported
  *
- * `version-gate.ts:1-2` imports `npm:@supabase/supabase-js@2` and `./respond.ts`, so vitest
- * cannot load it — which is exactly why the two copies were left to review in the first place.
- * The reverse direction is open (`version.ts` has zero imports) but would only prove the two
+ * `version-gate.ts`'s first two lines import `npm:@supabase/supabase-js@2` and `./respond.ts`, so
+ * vitest cannot load it — which is exactly why the two copies were left to review in the first
+ * place. The reverse direction is open (`version.ts` has zero imports) but would only prove the two
  * agree on the cases someone thought to write down; comparing the source proves they agree on
  * every case, including the ones nobody enumerated.
  *

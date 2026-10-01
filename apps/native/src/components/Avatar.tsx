@@ -18,6 +18,12 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
  * `avatarPath` is a storage key in the private `avatars` bucket, never a URL. Signing happens
  * here, per leaf, and `useAvatarUrl` coalesces a list's worth of leaves into one request — see
  * `lib/media/signed-url-batch.ts`. The oro evolutionary-story ring is still deferred to M3.
+ *
+ * On its own the avatar names the member to a screen reader. Inside a row that already says the
+ * name — a label on the row, or the name as text beside the disc — pass `decorative`: the disc
+ * leaves the accessibility tree on both platforms, so the name is read once (#884). Labelled is
+ * the default because a forgotten flag costs a repeated name, and the opposite default would cost
+ * a missing one. `source-audit.test.ts` makes every call site choose on purpose.
  */
 export function Avatar({
   handle,
@@ -25,6 +31,7 @@ export function Avatar({
   displayName = null,
   avatarPath = null,
   previewUri = null,
+  decorative = false,
 }: {
   handle: string | null;
   size?: number;
@@ -42,6 +49,13 @@ export function Avatar({
    * avatar before they had agreed to the change.
    */
   previewUri?: string | null;
+  /**
+   * The name is already spoken by the surrounding row, so the avatar is hidden from assistive
+   * tech: `accessibilityElementsHidden` for iOS, which also keeps it out of the label iOS composes
+   * for an unlabelled parent, and `importantForAccessibility` for Android, where a focusable child
+   * of a focusable row is otherwise a second TalkBack stop.
+   */
+  decorative?: boolean;
 }) {
   const signed = useAvatarUrl(avatarPath);
   // The staged pick wins: it is what the member just chose, and it is not stored yet.
@@ -59,10 +73,13 @@ export function Avatar({
     <View
       className="items-center justify-center overflow-hidden rounded-full bg-surface-muted"
       style={{ width: size, height: size }}
-      // The label names the person either way, so a screen reader reads the same thing whether
-      // or not the photo resolved.
-      accessible
-      accessibilityLabel={memberLabel(displayName, handle) ?? undefined}
+      // Labelled, it names the person either way, so a screen reader reads the same thing
+      // whether or not the photo resolved. Decorative, it carries no label at all: a label on a
+      // hidden view is one nobody can reach.
+      accessible={!decorative}
+      accessibilityLabel={decorative ? undefined : (memberLabel(displayName, handle) ?? undefined)}
+      accessibilityElementsHidden={decorative}
+      importantForAccessibility={decorative ? 'no-hide-descendants' : 'auto'}
     >
       {url && !failed ? (
         <Image
@@ -81,8 +98,8 @@ export function Avatar({
       ) : (
         // `ornament` (#639): the disc is sized by the `size` prop — a layout constant every
         // row and rail measures against — so the initial cannot grow without leaving it. It
-        // loses nothing: the View above is `accessible` and labelled with the member's name,
-        // so a screen reader never reads this letter in the first place.
+        // loses nothing: the View above is either `accessible` and labelled with the member's
+        // name or hidden outright, so a screen reader never reads this letter in the first place.
         <Text
           className="font-semibold text-foreground"
           maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}

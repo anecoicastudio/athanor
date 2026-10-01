@@ -20,7 +20,8 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
  * Uses the RN core `Animated` API + `AccessibilityInfo` (the codebase pattern, see
  * BrandSplash) rather than reanimated worklets — simpler and stable.
  *
- * TODO(M3): the richer Foundation `burst` host (Sheet/burst) replaces this inline flash.
+ * The richer Foundation `burst` host M3 once planned was never built, and no open issue revives
+ * it (as of 2026-09-26), so this inline flash is the implementation, not a stand-in.
  * Never animates an Aura number — there is none in M2 (rule #1).
  */
 export function MomentFlash({ flash, locale }: { flash: string | null; locale: Locale }) {

@@ -37,6 +37,7 @@ export function MomentoCard({ card, locale }: { card: MomentoDeckCard; locale: L
       <View className="flex-1 rounded-card border border-aura-line bg-raise p-5">
         <View className="flex-row items-center gap-3">
           <Avatar
+            decorative
             handle={card.handle}
             displayName={card.displayName}
             avatarPath={card.avatarPath}

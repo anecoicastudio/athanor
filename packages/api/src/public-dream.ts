@@ -27,7 +27,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * both are a 404, not an error.
  *
  * What "no row resolves" covers is wider here than elsewhere, and every case is a 404 on
- * purpose: `dreams_select_anon_public` (20260614144747:24) returns the row only while it is
+ * purpose: `dreams_select_anon_public` (migration 20260614144747) returns the row only while it is
  * undeleted, `status = 'active'`, and its owner keeps `visibility.dream = 'public'` — and
  * 20260818114947 cascades a ban through the same EXISTS. So archiving a dream, soft-deleting
  * it, flipping the facet back to 'members' or being banned all un-publish the page through

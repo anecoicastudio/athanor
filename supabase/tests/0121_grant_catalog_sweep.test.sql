@@ -51,7 +51,7 @@ insert into expected_grants (obj, anon_privs, auth_privs) values
   -- ── identity ────────────────────────────────────────────────────────────────────────
   ('profiles',                    '',       ''),                            -- column-scoped
   ('verifications',               '',       'SELECT'),
-  ('consent',                     '',       'SELECT,INSERT,UPDATE'),        -- no DELETE: withdrawal is a new row
+  ('consent',                     '',       'SELECT,INSERT,UPDATE'),        -- no DELETE: withdrawal is an upsert
   ('invites',                     '',       'SELECT'),
   ('blocks',                      '',       'SELECT,INSERT,DELETE'),
   ('connections',                 '',       'SELECT'),                      -- written by respond_to_connection

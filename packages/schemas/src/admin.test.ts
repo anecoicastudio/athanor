@@ -164,7 +164,7 @@ describe('auditLogRow', () => {
 
   // #392 — the literal list, spelled out rather than looped over the constant: a loop
   // asserts only that the array equals itself, so deleting a member leaves it green.
-  // The order is audit_log_action_check's own (20260816110227_fund_tranche_gate.sql:43-48);
+  // The order is audit_log_action_check's own (20260816110227_fund_tranche_gate.sql);
   // audit-log-actions.mirror.test.ts holds this against the migration itself.
   it('admits exactly the actions audit_log_action_check admits', () => {
     expect(AUDIT_LOG_ACTIONS).toEqual([

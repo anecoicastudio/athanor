@@ -58,6 +58,18 @@ test. Neither is boot-fatal: a missing one costs only its own scope's events (40
 written), and the function warns once per cold start naming what is unset. Creating the
 second endpoint and setting its secret is per project, and per mode.
 
+**`STRIPE_WEBHOOK_REQUIRE_LIVEMODE` — production only, set at the live swap (#802).**
+The signing secret is the only thing separating test mode from live mode, and production
+runs a test-mode rehearsal before the swap. Unset (the default, and always on staging)
+`stripe-webhook` accepts test-mode events. Set, it acks (200) and ignores any event whose
+`livemode` is not `true`, before writing the ledger — acks, because Stripe also sends
+connected accounts' test-mode events to the live Connect endpoint, and failing them would
+retry for days against that endpoint. Every value except unset, blank, `false` and `0`
+turns it on — a typo fails closed, not open. Read per request through
+`functions/_shared/stripe.ts` (`webhookRequiresLivemode`). Every ledger row's mode is
+queryable as `stripe_webhook_events.livemode`, generated from `payload`, either way.
+RELEASE-RUNBOOK.md §4.2 step 3.
+
 **No `STRIPE_API_VERSION` env var.** The version is a code constant
 (`functions/_shared/stripe.ts` — `2026-05-27.dahlia`) and the webhook endpoint must be
 created at that same version. Splitting it across code and env is how payload shapes

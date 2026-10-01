@@ -1,6 +1,6 @@
 -- #231 — the tranche release gate: no verification, no money.
 -- FUND-53 («il denaro raccolto dovrà essere utilizzato secondo il progetto approvato»),
--- FUND-24 (fund side) · docs/FUND-SPEC.md:197 · ruling on #244 · divergence D-14/D-15.
+-- FUND-24 (fund side) · docs/FUND-SPEC.md §Realization · ruling on #244 · divergence D-14/D-15.
 --
 -- 0114 owns #228's shape (the tables, the binds-winner trigger, the payable ceiling, the
 -- ledger linkage and its two coherence refusals). 0115 owns #229's write path (who drafts,

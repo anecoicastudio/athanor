@@ -2,11 +2,12 @@
 //
 // SPEC-FIRST round-trip tests across the two halves of every money flow.
 //
-// docs/PRD.md:382-388 describes ONE pipeline: an edge function mints the Checkout/Billing
-// session, Stripe hands it back to stripe-webhook, and the webhook routes it by its metadata.
-// Today each half is tested against a hand-written literal — create-ticket-checkout asserts it
-// emits `{kind, event_id, profile_id}` (create-ticket-checkout/logic.test.ts:154) and
-// handlers.test.ts asserts it reads a literal of the same shape (handlers.test.ts:43). Nothing
+// docs/PRD.md §8 (the Stripe flow) describes ONE pipeline: an edge function mints the
+// Checkout/Billing session, Stripe hands it back to stripe-webhook, and the webhook routes it by
+// its metadata. Today each half is tested against a hand-written literal — create-ticket-checkout
+// asserts it emits `{kind, event_id, profile_id}` (create-ticket-checkout/logic.test.ts, the
+// `buildTicketSessionParams is pure` test) and handlers.test.ts asserts it reads a literal of
+// the same shape (its `ticketSession` fixture). Nothing
 // binds them. Rename a key on the producer side and both suites stay green while every real
 // payment lands as money-received-nothing-delivered.
 //
@@ -53,7 +54,7 @@ const sessionFrom = (metadata: unknown, over: Record<string, unknown> = {}) =>
     ...over,
   }) as unknown as Stripe.Checkout.Session;
 
-// ── W1 ticket: docs/PRD.md:385 "checkout.completed(ticket) → event_tickets + QR" ──
+// ── W1 ticket: docs/PRD.md §8 "checkout.completed(ticket) → event_tickets + QR" ──
 
 Deno.test(
   'ticket metadata minted by create-ticket-checkout is readable by the webhook',
@@ -67,12 +68,13 @@ Deno.test(
     );
     const db = makeFakeDb({ 'event_tickets.upsert': [{ count: 1 }] });
     // If the producer ever renames a metadata key, handleTicketPaid throws 'missing metadata'
-    // (handlers.test.ts:89) and this line fails — which is the whole point of the test.
+    // (handlers.test.ts, `handleTicketPaid throws on missing metadata`) and this line fails — which
+    // is the whole point of the test.
     await handleTicketPaid(asDb(db), SECRET, sessionFrom(params.metadata));
 
     const values = db.calls[0].values as Record<string, unknown>;
     // The QR is signed over the ids the producer put in metadata: proving the token matches
-    // proves both keys survived the round trip (docs/PRD.md:385 "+ QR").
+    // proves both keys survived the round trip (docs/PRD.md §8 "+ QR").
     assertEquals(
       values.qr_token,
       await signQrToken({ eid: 'evt-9', uid: PROFILE, iat: CREATED }, SECRET),
@@ -81,7 +83,7 @@ Deno.test(
   },
 );
 
-// ── W3 fund: docs/PRD.md:386 "checkout.completed(fund) → fund_contributions + edition totals" ──
+// ── W3 fund: docs/PRD.md §8 "checkout.completed(fund) → fund_contributions + cycle aggregate" ──
 
 Deno.test(
   'fund metadata minted by create-contribution-session is readable by the webhook',
@@ -114,14 +116,14 @@ Deno.test(
     await handleContribution(asDb(db), sessionFrom(created[0].metadata, { amount_total: 2500 }));
 
     // The edition id must survive end to end, or the public ticker recomputes the wrong edition
-    // (or none) while the money is already in (docs/PRD.md:386, docs/PRD.md:209).
+    // (or none) while the money is already in (docs/PRD.md §8, and §4.11 «Counter»).
     const rpc = db.calls.find((c) => c.op === 'rpc');
     assert(rpc, 'the fund branch must recompute the edition aggregate');
     assertEquals(rpc.values, { p_edition_id: 'ed-9' });
   },
 );
 
-// ── W5/W11 circle: docs/PRD.md:387 "subscription.* → circle_memberships cache" ──
+// ── W5/W11 circle: docs/PRD.md §8 "subscription.* → circle_memberships cache" ──
 
 Deno.test(
   'circle metadata minted by create-circle-checkout is readable by both webhook paths',
@@ -206,7 +208,7 @@ Deno.test(
 
     // Path B (W5/W6/W7): subscription_data.metadata rides the Subscription object itself and is
     // the ONLY carrier of profile_id on renewals — handleSubscription throws without it
-    // (handlers.test.ts:323).
+    // (handlers.test.ts, `handleSubscription throws without profile_id metadata`).
     const dbB = makeFakeDb();
     await handleSubscription(asDb(dbB), {
       id: 'sub_1',
@@ -226,7 +228,7 @@ Deno.test(
   },
 );
 
-// ── W9 identity: docs/PRD.md:388 "identity.verified → verifications → badge + score event" ──
+// ── W9 identity: docs/PRD.md §8 "identity.verified → verifications → badge + score event" ──
 
 Deno.test(
   'identity metadata minted by create-verification-session is readable by the webhook',
@@ -238,7 +240,7 @@ Deno.test(
       metadata: params.metadata,
     } as unknown as Stripe.Identity.VerificationSession);
 
-    // docs/PRD.md:225 — verification grants the verified badge. If the metadata key drifts, the
+    // docs/PRD.md §4.13 — verification grants the verified badge. If the metadata key drifts, the
     // person pays for and completes an Identity check that silently badges nobody.
     const profileUpdate = db.calls.find((c) => c.table === 'profiles');
     assert(profileUpdate, 'the verified badge must be applied to a profile');

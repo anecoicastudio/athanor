@@ -3,9 +3,11 @@ import { t } from '@athanor/i18n';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
 import { LegalDocClient } from '@/components/legal-doc-client';
 import { terms } from '@/lib/legal-content';
+import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: `${terms[DEFAULT_LOCALE].title} — ${t('app.name', DEFAULT_LOCALE)}`,
+  alternates: { canonical: `${SITE_URL}/terms` },
 };
 
 export default function TermsPage() {

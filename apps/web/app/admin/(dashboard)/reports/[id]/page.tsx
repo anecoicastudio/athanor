@@ -28,8 +28,9 @@ export default async function ReportDetail({ params }: { params: Promise<{ id: s
   // MINTED, not when it is used, so an hour-long link outlives the verdict that justified it
   // and keeps working after the report is resolved. The page is `force-dynamic`, so it re-signs
   // on every view and nothing is lost by the shorter life. (`signMediaUrls` asks callers to pass
-  // `expiresIn` only to go SHORTER — packages/api/src/storage.ts:94 — but the parameter is an
-  // unclamped number, so that is a convention this call keeps, not one it is held to.)
+  // `expiresIn` only to go SHORTER — `signMediaUrls` in packages/api/src/storage.ts — but the
+  // parameter is an unclamped number, so that is a convention this call keeps, not one it is held
+  // to.)
   const mediaKey = report.reportedMessage?.media_url ?? null;
   const signed: Record<string, string> = mediaKey
     ? // A signing failure must not take the verdict page down: the report, its note and its

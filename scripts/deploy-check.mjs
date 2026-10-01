@@ -23,8 +23,9 @@
 // `stripe-webhook` ten days stale and silently failing to issue paid tickets. Both directions,
 // hence a symmetric report.
 //
-// WHAT IT GATES, AND WHAT IT ONLY REPORTS. Exit is non-zero for exactly one thing: a repo
-// function that is missing from staging or production (#472 acceptance 2). Everything else —
+// WHAT IT GATES, AND WHAT IT ONLY REPORTS. Exit is non-zero for exactly two things: a repo
+// function that is missing from staging or production (#472 acceptance 2), and a project whose
+// GDPR tombstone sentinel is missing (#896 — see TOMBSTONE_PROFILE_ID). Everything else —
 // deploy age, an orphan slug deployed with no repo directory, a `verify_jwt` that disagrees
 // with `config.toml`, a Vault-name difference — is PRINTED for a human to judge. Staleness has
 // no honest threshold: `announce-cycle` legitimately has not changed in months, while ten days
@@ -173,6 +174,34 @@ export function formatAge(updatedAt, nowMs) {
   return `${Math.floor(hours / 24)}d`;
 }
 
+/**
+ * The GDPR tombstone sentinel: the one row `gdpr_tombstone_profile_id()` returns, which erasure
+ * hands an erased member's organised events, fund contributions, check-in scans and audit rows
+ * to (migrations 20260815131925, 20260908084858). Migration 20260815131925 inserts it once. A
+ * hand-wipe of `auth.users` (most likely 2026-09-19) removed it from staging, and every organiser
+ * erasure there then failed 23503; pgTAP 0104 asserts the row on a from-zero replay, which is exactly
+ * the case where it cannot be missing. So this counts it on the hosted projects.
+ *
+ * It gates on a count of 0 and passes on 1 — it is a primary key, so there is no third answer.
+ * An unreadable count is reported as unknown, never as missing, for the reason the Vault
+ * section is non-fatal: a failed query must not look like a deleted row.
+ */
+export const TOMBSTONE_PROFILE_ID = '00000000-0000-4000-a000-000000000000';
+export const TOMBSTONE_QUERY =
+  `select (select count(*) from auth.users where id = '${TOMBSTONE_PROFILE_ID}')::int as users, ` +
+  `(select count(*) from public.profiles where id = '${TOMBSTONE_PROFILE_ID}')::int as profiles;`;
+
+export function tombstoneVerdict(row) {
+  const count = (v) => {
+    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+    return Number.isInteger(n) ? n : null;
+  };
+  const users = count(row?.users);
+  const profiles = count(row?.profiles);
+  if (users === null || profiles === null) return { ok: null, users: null, profiles: null };
+  return { ok: users === 1 && profiles === 1, users, profiles };
+}
+
 // ─── everything below reaches the network ────────────────────────────────────────────────────
 
 const die = (msg) => {
@@ -236,6 +265,16 @@ async function fetchSecretNames(ref, token) {
   });
   const list = Array.isArray(rows) ? rows : (rows.result ?? rows.rows ?? []);
   return list.map((r) => r.name).filter(Boolean);
+}
+
+/** The tombstone counts for one project, read-only. */
+async function fetchTombstone(ref, token) {
+  const rows = await api(`/projects/${ref}/database/query`, token, {
+    method: 'POST',
+    body: JSON.stringify({ query: TOMBSTONE_QUERY, read_only: true }),
+  });
+  const list = Array.isArray(rows) ? rows : (rows.result ?? rows.rows ?? []);
+  return list[0] ?? null;
 }
 
 async function main() {
@@ -336,19 +375,46 @@ async function main() {
       );
   }
 
-  // The one gate. Absence only — see the header.
+  // Read per project so one failed query leaves the other's answer standing.
+  const tombstone = await Promise.all(
+    [
+      ['staging', STAGING_REF],
+      ['production', PRODUCTION_REF],
+    ].map(async ([project, ref]) => {
+      try {
+        return { project, ...tombstoneVerdict(await fetchTombstone(ref, token)) };
+      } catch (e) {
+        return { project, ok: null, users: null, profiles: null, error: e.message };
+      }
+    }),
+  );
+  console.log(`\nGDPR tombstone sentinel   (${TOMBSTONE_PROFILE_ID}, must be 1 / 1)\n`);
+  for (const t of tombstone) {
+    const counts = t.ok === null ? 'unknown' : `auth.users ${t.users} · profiles ${t.profiles}`;
+    const mark = t.ok === true ? '✓' : t.ok === false ? '✗' : '⚠';
+    console.log(`  ${mark} ${t.project.padEnd(11)} ${counts}${t.error ? ` — ${t.error}` : ''}`);
+  }
+
+  // The two gates — see the header.
   const failures = [
     ['staging', missingFromStaging],
     ['production', missingFromProduction],
   ].filter(([, slugs]) => slugs.length);
-  if (failures.length) {
+  const tombstoneMissing = tombstone.filter((t) => t.ok === false);
+  if (failures.length || tombstoneMissing.length) {
     console.error('');
     for (const [project, slugs] of failures)
       console.error(`✗ not deployed to ${project}: ${slugs.join(', ')}`);
+    for (const t of tombstoneMissing)
+      console.error(
+        `✗ GDPR tombstone sentinel missing on ${t.project} — every erasure of an organiser or a fund contributor fails 23503 there. Restore it by running migration 20260815131925's sentinel INSERT and UPDATE against that project by hand (copied verbatim in supabase/staging-seed/seed-staging.sql §0) — never the seed itself on production.`,
+      );
     console.error('');
     process.exit(1);
   }
-  console.log('\n✓ every repo function is deployed to both projects.\n');
+  console.log(
+    '\n✓ every repo function is deployed to both projects, and both carry the tombstone.\n',
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

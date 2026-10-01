@@ -85,7 +85,8 @@ select is(
 -- For a SECURITY DEFINER function the OWNER is the borrowed right, so it is the one attribute
 -- that must not drift: `postgres` is the role that holds DELETE on auth.sessions and carries
 -- BYPASSRLS past its zero-policy RLS. Owned by anyone else, this function is a 42501 or a
--- silent zero-row delete, and the migration's whole rationale (20260825074614:32) evaporates.
+-- silent zero-row delete, and the migration's whole rationale (its header, 20260825074614)
+-- evaporates.
 select is(
   (select proowner::regrole::text
      from pg_proc where oid = 'public.gdpr_revoke_sessions(uuid)'::regprocedure),
@@ -160,7 +161,7 @@ select is(
 );
 
 -- Idempotent: every step of the erasure loop has to be, because nothing re-queues a failed
--- request and re-driving one is a manual act until #107 lands.
+-- request and re-driving one is a manual act (RELEASE-RUNBOOK §7.5).
 select is(
   public.gdpr_revoke_sessions('91340000-0000-0000-0000-000000000001'::uuid),
   0,

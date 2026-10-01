@@ -36,6 +36,7 @@ export function FavorRow({
         onPress={() => router.push(`/(modal)/user/${need.target_id}`)}
       >
         <Avatar
+          decorative
           handle={need.target_handle}
           displayName={need.target_display_name}
           avatarPath={need.target_avatar_path}

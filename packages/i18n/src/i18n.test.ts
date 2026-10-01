@@ -3,6 +3,7 @@ import { NOTIFICATION_TEMPLATE_KEYS } from '@athanor/schemas';
 import en from './catalogs/en.json';
 import it from './catalogs/it.json';
 import { t, tagLabel, tn, type MessageKey } from './t';
+import { DONATION_STEM } from './voice';
 
 describe('catalog parity', () => {
   test('EN mirrors every IT key (IT is canonical)', () => {
@@ -25,6 +26,9 @@ describe('tagLabel', () => {
   test('falls back to the raw key rather than rendering "undefined"', () => {
     // A tag added to the DB before the catalogs must degrade to something legible.
     expect(tagLabel('identity', 'astronauta', 'it')).toBe('astronauta');
+    // A profession outside the curated list reads as itself, never «tag.profession.Chef» (#883).
+    expect(tagLabel('profession', 'Chef', 'it')).toBe('Chef');
+    expect(tagLabel('profession', 'Chef', 'en')).toBe('Chef');
   });
 });
 
@@ -403,8 +407,9 @@ describe('catalog quality', () => {
 
   // I-3: Athanor voice — no vanity/tech-speak in any value, either locale.
   // «Notifiche» (plural feature title) is fine; \bnotifica\b targets the singular vanity sense.
+  // DONATION_STEM (#789, voice.ts) holds the fund ruling; no catalog value is excepted.
   test('no banned vanity/tech-speak terms in any value', () => {
-    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i];
+    const banned = [/\bengagement\b/i, /\butenti\b/i, /\bnotifica\b/i, DONATION_STEM];
     const offenders: string[] = [];
     for (const cat of [it, en] as Record<string, string>[]) {
       for (const [key, value] of Object.entries(cat)) {
@@ -412,6 +417,27 @@ describe('catalog quality', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  // The stem is only as good as its forms: pin what it must catch and what it must leave alone.
+  test('DONATION_STEM catches every form of the word and nothing near it', () => {
+    const caught = [
+      'Si dona per i sogni',
+      'una donazione',
+      'Donare è bello',
+      'ha donato',
+      'si donerà',
+      'donerebbe',
+      'Marta donò 10€',
+      'un dono',
+      'che tu doni',
+      'donate now',
+      'a Donation',
+      'every donor',
+    ];
+    const spared = ['una donna', 'il dondolo', 'done', 'condono', 'Madonna', 'abbandona'];
+    expect(caught.filter((s) => !DONATION_STEM.test(s))).toEqual([]);
+    expect(spared.filter((s) => DONATION_STEM.test(s))).toEqual([]);
   });
 });
 
@@ -617,6 +643,16 @@ describe('delete-account copy says what the job defers (#515, #107)', () => {
     expect(en['account.delete.body']).toMatch(/block sign-in/i);
   });
 
+  test('the body bounds the other devices by the token lifetime, not «right away» (#861)', () => {
+    // Signing out ends only this device's session. Elsewhere an access token already issued
+    // keeps reading until it expires — jwt_exp is 3600 s on both hosted projects, and PostgREST
+    // never looks up auth.sessions — so «subito su ogni dispositivo» was a promise nothing kept.
+    expect(it['account.delete.body']).toMatch(/entro un'ora/i);
+    expect(en['account.delete.body']).toMatch(/within an hour/i);
+    expect(it['account.delete.body']).not.toMatch(/ogni dispositivo/i);
+    expect(en['account.delete.body']).not.toMatch(/every device/i);
+  });
+
   test('the deferred line names the wait, in both locales', () => {
     // The one thing this line exists to say: the erasure does not happen at the tap. If a
     // rewrite drops that, the screen is back to promising a completion the job cannot deliver.
@@ -681,10 +717,10 @@ describe('calendar blocked copy diverges from the shared permission body (#552)'
    * states share the one key) and chose divergence, on two load-bearing axes:
    *
    * 1. AGENCY. The shared body opens «L'hai disattivato» — the member turned it off. Calendar
-   *    `blocked` is reachable with nobody having turned anything off (calendar.ts:5-16): iOS
-   *    17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go grant belongs
-   *    to Expo Go, shared by every project ever run on the phone. On those, the shared body
-   *    would be false — and this product's copy does not say false things to be tidy.
+   *    `blocked` is reachable with nobody having turned anything off (the `blocked` docblock in
+   * calendar.ts): iOS 17's «Add Events Only» maps to denied + canAskAgain:false, and an Expo Go
+   * grant belongs to Expo Go, shared by every project ever run on the phone. On those, the shared
+   * body would be false — and this product's copy does not say false things to be tidy.
    * 2. RECOVERY. The RSVP bar does not re-launch the add after the Settings round trip, so the
    *    copy must instruct the retry («riprova»); the shared body's «quando vuoi» is written
    *    for primers whose surface re-runs on its own.
@@ -782,5 +818,35 @@ describe('no emoji-capable character in a catalog value (#753)', () => {
     for (const key of Object.keys(CATALOG_EMOJI_OK) as MessageKey[]) {
       expect([...it[key]].some(emojiCapable), `${key} no longer needs its exemption`).toBe(true);
     }
+  });
+});
+
+describe('erasure after the tap (#735)', () => {
+  test('exportFirst says an undownloaded archive goes with the account, in both locales', () => {
+    // The erasure sweeps the exports bucket and cascades the job row (MIGRATIONS-ERRATA,
+    // 20260908071807): an archive not yet downloaded at the tap is gone by morning, and the tap
+    // has already signed the member out. The line that sends them to the export screen is the
+    // one place that can say so before it is too late.
+    expect(it['account.delete.exportFirst']).toMatch(/cancellato insieme all'account/i);
+    expect(en['account.delete.exportFirst']).toMatch(/deleted along with your account/i);
+  });
+
+  test('the held CTA says why, and the second device says what is happening', () => {
+    for (const key of [
+      'account.delete.exportPending',
+      'moderation.erasing.title',
+      'moderation.erasing.body',
+    ] as const) {
+      expect(it[key].trim().length, `it.${key}`).toBeGreaterThan(0);
+      expect(en[key].trim().length, `en.${key}`).toBeGreaterThan(0);
+    }
+    expect(it['account.delete.exportPending']).toMatch(/in preparazione/i);
+    // Not the permanent-suspension copy: the member was not sanctioned, they left.
+    expect(it['moderation.erasing.title']).not.toMatch(/sospeso/i);
+    expect(en['moderation.erasing.title']).not.toMatch(/suspended/i);
+    // No completion time: the notice shows for every open status, and a 'failed' or 'retained'
+    // row may wait on an operator or on Stripe for many nights.
+    expect(it['moderation.erasing.body']).not.toMatch(/notte|oggi|entro/i);
+    expect(en['moderation.erasing.body']).not.toMatch(/night|today|within/i);
   });
 });

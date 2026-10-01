@@ -194,9 +194,9 @@ async function releaseOne(
   // ── #231's gate, before any Stripe call ───────────────────────────────────────────────
   // Read in one shot with the plan so a phase from another cycle and an unpublished plan
   // are both answerable here. The identical rules exist in the database (the ledger's
-  // within-basis trigger, 20260816073905:366-385) and will refuse the WEBHOOK's write if
-  // this layer is wrong — but a trigger refusing after the money moved leaves a stuck event
-  // and a transfer with no ledger row, so this is the gate that must actually hold.
+  // `fund_payout_ledger_within_basis` trigger, migration 20260816073905) and will refuse the
+  // WEBHOOK's write if this layer is wrong — but a trigger refusing after the money moved leaves a
+  // stuck event and a transfer with no ledger row, so this is the gate that must actually hold.
   const { data: phaseData, error: phErr } = await admin
     .from('realization_plan_phases')
     .select('amount_cents,verified_at,realization_plans!inner(edition_id,published_at)')
@@ -344,7 +344,8 @@ type DuePhaseRow = {
 /**
  * #248's sweep, live since #231. Enumerates every VERIFIED phase of a PUBLISHED plan and
  * asks the ladder above about each; the ladder decides whether anything moves, exactly the
- * division of labour the cron wrapper's header states (20260816071602:5-10).
+ * division of labour the cron wrapper's header states (migration 20260816071602,
+ * `fund_settle_sweep`).
  *
  * The enumeration is deliberately loose — verified + published, nothing else. Cycle phase,
  * account readiness, both caps and settlement are re-checked per candidate by releaseOne,

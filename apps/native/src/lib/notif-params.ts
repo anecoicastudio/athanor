@@ -20,7 +20,12 @@ export function displayParams(
   n: Pick<Notification, 'template_key' | 'params'>,
   locale: Locale,
 ): Record<string, string | number> {
-  const params = n.params as Record<string, string | number>;
+  let params = n.params as Record<string, string | number>;
+  // #800: an empty name is an actor the reader cannot name — blocked, banned or erased
+  // (listNotifications empties it rather than show the handle a block hides), or without a
+  // handle yet (#782). t() would render « vuole connettersi con te.»; the push mirror already
+  // says Qualcuno/Someone for its own missing name (_shared/notif-templates.ts).
+  if (params.name === '') params = { ...params, name: t('notif.someone', locale) };
   // #127: a fund broadcast reaches EVERY member at once, so a row that arrives without its
   // numeric param would show «Il fondo ha superato il {pct} % dell'obiettivo.» to all of them —
   // t() leaves an unmatched placeholder in place by design (#113: degrade, never throw). The

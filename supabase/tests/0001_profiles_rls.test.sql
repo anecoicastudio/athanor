@@ -39,16 +39,16 @@ select is(
   'locale propagated from signup metadata'
 );
 
--- anon: since 20260814151601 (#251) the visibility DEFAULT carries identity:'public', so a
--- plain handle_new_user signup is anon-reachable — the default public shell. Both fixtures
--- inherit it. Inserts still denied. The full shell matrix (explicit opt-out, column reach,
--- storage) lives in 0101_public_handle_shell.
+-- anon: since 20260925143552 (#790) the visibility DEFAULT carries identity:'members', so a
+-- plain handle_new_user signup is anon-dark until the member opts into «Tutti» (it was the
+-- other way round under #251, 20260814151601). Both fixtures inherit it. Inserts still denied.
+-- The full shell matrix (explicit opt-in, column reach, storage) lives in 0101_public_handle_shell.
 set local role anon;
 set local request.jwt.claims = '';
 select results_eq(
   $$ select count(*)::int from public.profiles $$,
-  $$ values (2) $$,
-  'anon reads default-signup profiles (identity facet defaults to public — #251 shell)'
+  $$ values (0) $$,
+  'anon reads no default-signup profile (identity facet defaults to members — #790)'
 );
 select throws_ok(
   $$ insert into public.profiles (id) values (gen_random_uuid()) $$,

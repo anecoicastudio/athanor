@@ -191,7 +191,7 @@ export default function PostDetailScreen() {
   if (postQuery.isLoading) {
     return (
       <Screen className="items-center justify-center">
-        {/* Decorative spinner-glyph — hidden, like `(tabs)/profile.tsx:41-47`. Unhidden it is a
+        {/* Decorative spinner-glyph — hidden, like `(tabs)/profile.tsx`'s loading ✦. Unhidden it is a
             focusable element whose whole name is «✦» (#635). */}
         <Text
           className="text-2xl text-faint"

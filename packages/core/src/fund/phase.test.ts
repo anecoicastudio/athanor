@@ -94,7 +94,7 @@ describe('ballotState', () => {
   });
 
   // cast_vote is `now() >= starts and now() <= ends` — a CLOSED interval on both ends
-  // (20260815090015_cast_vote_window.sql:34-35). Both boundary milliseconds vote.
+  // (`cast_vote` in 20260815090015_cast_vote_window.sql). Both boundary milliseconds vote.
   it('is open at the first millisecond of the window', () => {
     expect(ballotState(ballot(), STARTS_MS)).toBe('open');
   });
@@ -251,8 +251,9 @@ describe('declareState', () => {
   });
 
   // declare_winner refuses on `now() <= voting_ends_at`
-  // (20260815094157_declare_winner_window_fail_closed.sql:35), so the final millisecond of
-  // the window still votes and still cannot be declared. The two rules meet, never overlap.
+  // (`declare_winner` in 20260815094157_declare_winner_window_fail_closed.sql), so the final
+  // millisecond of the window still votes and still cannot be declared. The two rules meet, never
+  // overlap.
   it('is ballotOpen at the last millisecond of the window', () => {
     expect(declareState(declarable(), ENDS_MS)).toBe('ballotOpen');
     expect(isBallotOpen(ballot(), ENDS_MS)).toBe(true);

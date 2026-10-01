@@ -51,6 +51,7 @@ export function IncomingOfferRow({
           onPress={() => router.push(`/(modal)/user/${help.helper_id}`)}
         >
           <Avatar
+            decorative
             handle={helper?.handle ?? null}
             displayName={helper?.displayName ?? null}
             avatarPath={helper?.avatarPath ?? null}

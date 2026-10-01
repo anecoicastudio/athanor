@@ -107,18 +107,19 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: "Nell'app: il tuo account",
         body: [
-          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google: in quel caso Google ci passa indirizzo email, nome e foto del tuo account; il nome diventa quello che mostri, e puoi cambiarlo nel profilo, mentre la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
-          `Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. La tua @handle, il nome con cui compari, la scegli tu dopo l'iscrizione: non la ricaviamo dal tuo indirizzo email. Puoi cambiarla dal profilo una volta ogni ${HANDLE_RENAME_COOLDOWN_DAYS} giorni; il nome di prima torna subito libero, e i link al tuo profilo che lo contengono non portano più a te: se qualcun altro lo sceglie, porteranno alla sua pagina. La pagina già pronta può restare per un breve periodo nella cache della rete, e l'immagine di anteprima che accompagnava quei link resta raggiungibile finché non pubblichiamo una nuova versione del sito.`,
-          "La data di nascita serve a verificare che tu abbia l'età minima e a calcolare il tuo segno zodiacale. La data la vedi solo tu; il segno compare sul tuo profilo.",
+          "Per iscriverti ti chiediamo un indirizzo email e una password, oppure puoi accedere con Google o con Apple. Google ci passa indirizzo email, nome e foto del tuo account. Apple ci passa il tuo indirizzo email, oppure, se scegli di nasconderlo, un indirizzo di inoltro creato da Apple che gira i messaggi alla tua casella, e il nome solo al primo accesso. Il nome diventa quello che mostri, e puoi cambiarlo nel profilo; la foto non la usiamo. La password non la conserviamo in chiaro: il servizio di accesso ne tiene solo un'impronta crittografica (hash), da cui non si può risalire alla password.",
+          `Se ti iscrivi con l'email ti chiediamo il nome da mostrare; in ogni caso ti chiediamo la data di nascita. La tua @handle, il nome con cui compari, la scegli tu dopo l'iscrizione: non la ricaviamo dal tuo indirizzo email. Puoi cambiarla dal profilo una volta ogni ${HANDLE_RENAME_COOLDOWN_DAYS} giorni; il nome di prima torna subito libero, e i link al tuo profilo che lo contengono non portano più a te: se qualcun altro lo sceglie, porteranno alla sua pagina. La pagina già pronta e l'immagine di anteprima che accompagnava quei link possono restare per un breve periodo nella cache della rete: quando cambi nome le togliamo.`,
+          "La data di nascita serve a verificare che tu abbia l'età minima e a calcolare il tuo segno zodiacale. La data la vedi solo tu; chi vede il segno lo scegli tu, come per le altre parti del profilo.",
           'Conserviamo anche la lingua che usi e, se ti ha invitato qualcuno, il collegamento con quella persona.',
         ],
       },
       {
         heading: "Nell'app: il profilo e chi lo vede",
         body: [
-          `Nel profilo puoi aggiungere una bio, la tua missione, la professione, le competenze, la città, le parole che ti descrivono, ciò che cerchi e il tuo sogno con le sue tappe. Per ciascuna di queste parti scegli tu «${tIt('profile.visibility.label')}»: «${tIt('visibility.public')}», «${tIt('visibility.members')}» o «${tIt('visibility.private')}». Se non scegli, vale «${tIt('visibility.members')}». Ciò che imposti su «${tIt('visibility.private')}» lo vedi solo tu.`,
-          `Nome, foto e @handle li vedono tutte le persone iscritte. Per questi scegli tra «${tIt('visibility.public')}» e «${tIt('visibility.members')}», e all'inizio è «${tIt('visibility.public')}»: vuol dire che hai una pagina pubblica su questo sito, visibile a chiunque e ai motori di ricerca, con @handle, nome, foto e segno zodiacale, e con il tuo sogno e le sue tappe se li hai resi visibili a «${tIt('visibility.public')}». Se scegli «${tIt('visibility.members')}», la pagina non viene più mostrata; la versione già pronta può restare per un breve periodo nella cache della rete. L'immagine di anteprima che accompagna il link alla pagina (nome, foto, @handle e, se era visibile a «${tIt('visibility.public')}», il tuo sogno) si aggiorna invece solo quando pubblichiamo una nuova versione del sito: fino ad allora resta raggiungibile.`,
-          'Il tuo punteggio Aura e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche il dettaglio del punteggio per tipo di azione, il massimo che hai raggiunto e la data della tua ultima azione che conta, se hai verificato la tua identità, a quali eventi partecipi, anche con un biglietto, e quanti eventi e aiuti hai completato.',
+          `Nel profilo puoi aggiungere una bio, la tua missione, la professione, le competenze, la città, le parole che ti descrivono, ciò che cerchi e il tuo sogno con le sue tappe. Per ciascuna di queste parti, e per il tuo segno zodiacale, scegli tu «${tIt('profile.visibility.label')}»: «${tIt('visibility.public')}», «${tIt('visibility.members')}» o «${tIt('visibility.private')}». Se non scegli, vale «${tIt('visibility.members')}». Ciò che imposti su «${tIt('visibility.private')}» lo vedi solo tu.`,
+          `Nome, foto e @handle li vedono tutte le persone iscritte. Per questi scegli tra «${tIt('visibility.public')}» e «${tIt('visibility.members')}», e all'inizio è «${tIt('visibility.members')}»: non hai una pagina pubblica. In passato all'inizio era «${tIt('visibility.public')}»: chi si è iscritto allora lo mantiene finché non lo cambia. Con «${tIt('visibility.public')}» hai una pagina pubblica su questo sito, visibile a chiunque e ai motori di ricerca, con @handle, nome e foto, con il tuo segno zodiacale se l'hai reso visibile a «${tIt('visibility.public')}», e con il tuo sogno e le sue tappe se li hai resi visibili a «${tIt('visibility.public')}». Il link alla pagina porta con sé un'immagine di anteprima con nome, foto, @handle e, se è visibile a «${tIt('visibility.public')}», il tuo sogno. Quando cambi chi vede la pagina, il sogno o il segno, togliamo la pagina e l'immagine dalla cache della rete, dove possono restare per un breve periodo; fino alla versione successiva del sito, il link mostra l'anteprima generale di ${tIt('store.name')} al posto della tua.`,
+          'Il tuo punteggio Aura e le stelle che hai ottenuto sono pubblici. Le altre persone iscritte vedono anche il dettaglio del punteggio per tipo di azione, il massimo che hai raggiunto e la data della tua ultima azione che conta, se hai verificato la tua identità e quanti eventi e aiuti hai completato.',
+          "A quali eventi partecipi, anche con un biglietto, lo vedono solo chi organizza l'evento e le altre persone che vi partecipano. Tutte le altre persone iscritte vedono solo quante persone partecipano.",
         ],
       },
       {
@@ -215,11 +216,13 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'A chi arrivano i tuoi dati',
         body: [
           `Alle altre persone, come descritto sopra e secondo le scelte che fai. Per il resto, solo ai fornitori che ci servono per far funzionare ${tIt('store.name')}, ciascuno per ciò che gli serve.`,
-          "Supabase ospita il database, l'accesso, i file e le funzioni server dell'app, e invia le email di accesso, come quella per reimpostare la password. I dati sono nell'Unione Europea, a Francoforte.",
+          "Supabase ospita il database, l'accesso, i file e le funzioni server dell'app, e prepara le email di accesso, come quella per reimpostare la password. I dati sono nell'Unione Europea, a Francoforte.",
+          'Resend le recapita: riceve il tuo indirizzo e il testo del messaggio.',
           'Cloudflare serve questo sito dalla sua rete globale: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo della lista d’attesa, e le pagine pubbliche di profili, sogni ed eventi, la cui versione già composta resta per un breve periodo nella cache della rete.',
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
-          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google, se lo scegli, gestisce anche l’accesso con il tuo account Google.',
+          'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google e Apple, se li scegli, gestiscono anche l’accesso con il tuo account Google o Apple.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
+          'Mapbox suggerisce il nome della città mentre lo digiti nel profilo: riceve le lettere che scrivi e la lingua dell’app, non la tua posizione.',
           `Alla polizia e alle linee di segnalazione nazionali, il materiale che appare come abuso sessuale su minori, come spiega la pagina «${tIt('legal.childSafety')}» di questo sito.`,
           `Alcuni di questi fornitori hanno sede negli Stati Uniti o possono trattare dati fuori dall’Unione Europea. In quei casi il trasferimento si fonda sulle clausole contrattuali tipo approvate dalla Commissione europea, incluse nei loro accordi sul trattamento dei dati (per Cloudflare: cloudflare.com/cloudflare-customer-dpa), o sull’adesione al Data Privacy Framework UE-USA, come per Cloudflare. Puoi chiederne copia scrivendo a ${EMAIL}.`,
         ],
@@ -241,7 +244,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.it,
           ...ERASURE_KEEPS.it,
           'Le segnalazioni che riguardano te o i tuoi contenuti, con le decisioni prese, restano anche dopo; le cancelliamo quando chi le ha fatte elimina il proprio account. Quelle che hai fatto tu le cancelliamo con il tuo account.',
-          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo finché hai l'account; il collegamento per scaricarlo vale 72 ore.`,
+          `L'archivio che prepariamo con «${tIt('settings.export.title')}» lo conserviamo 7 giorni, per tutto il tempo in cui vale il collegamento per scaricarlo; poi lo cancelliamo, e puoi chiederne uno nuovo quando vuoi. Se elimini l'account prima di averlo scaricato, l'archivio viene cancellato insieme all'account.`,
         ],
       },
       {
@@ -254,7 +257,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'I tuoi diritti',
         body: [
           `In base al GDPR puoi chiedere in qualsiasi momento l’accesso, la rettifica, la cancellazione, la limitazione e la portabilità dei dati che ti riguardano, opporti al trattamento e revocare un consenso che ci hai dato. La revoca non pregiudica i trattamenti svolti prima. Per esercitare questi diritti scrivi a ${EMAIL}.`,
-          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account e ciò che hai scritto e pubblicato, ma non i file di foto, video e note vocali: se ti servono, scrivici. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
+          `Molte cose le fai da te nell'app: correggi il profilo e scegli chi vede cosa; in «${tIt('settings.title')}», sezione «${tIt('settings.section.privacy')}», trovi «${tIt('settings.export.title')}» per avere una copia dei tuoi dati ed «${tIt('account.delete.row')}» per chiedere la cancellazione. L'archivio contiene i dati del tuo account, compresa l'email, ciò che hai scritto e pubblicato, e i file di foto, video e note vocali che hai caricato tu. Contiene anche le tue conversazioni per intero, con i messaggi che hai ricevuto: l'altra persona compare solo con la sua @handle, e delle foto che ti ha inviato trovi il nome del file, non la foto, perché sono dati suoi. Come eliminare l'account anche senza l'app lo trovi nella pagina «${tIt('account.delete.title')}» di questo sito.`,
           'Hai inoltre il diritto di presentare un reclamo a un’autorità di controllo. Per il nostro titolare l’autorità competente è il Garante di Berlino (Berliner Beauftragte für Datenschutz und Informationsfreiheit), ma puoi rivolgerti anche all’autorità del tuo Paese di residenza — in Italia, il Garante per la protezione dei dati personali.',
         ],
       },
@@ -278,18 +281,19 @@ export const privacy: Record<Locale, LegalDoc> = {
       {
         heading: 'In the app: your account',
         body: [
-          "To join, we ask for an email address and a password, or you can sign in with Google: in that case Google passes us your Google account's email address, name and photo; the name becomes the one you show, and you can change it in your profile, while the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
-          `If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. You choose your @handle, the name you appear under, after signing up: we do not derive it from your email address. You can change it from your profile once every ${HANDLE_RENAME_COOLDOWN_DAYS} days; the old name becomes free at once, and links to your profile that use it no longer lead to you: if someone else takes it, they will lead to their page. The page already rendered may stay in the network's cache for a short time, and the preview image that went with those links stays reachable until we release a new version of the site.`,
-          'Your date of birth is used to check that you meet the minimum age and to work out your zodiac sign. Only you see the date; the sign appears on your profile.',
+          "To join, we ask for an email address and a password, or you can sign in with Google or with Apple. Google passes us your Google account's email address, name and photo. Apple passes us your email address, or, if you choose to hide it, a relay address Apple creates that forwards messages to your inbox, and your name on the first sign-in only. The name becomes the one you show, and you can change it in your profile; the photo we do not use. We never store your password in plain text: the sign-in service keeps only a one-way cryptographic fingerprint of it (a hash), from which the password cannot be recovered.",
+          `If you sign up with email we ask for the name you want to show; either way we ask for your date of birth. You choose your @handle, the name you appear under, after signing up: we do not derive it from your email address. You can change it from your profile once every ${HANDLE_RENAME_COOLDOWN_DAYS} days; the old name becomes free at once, and links to your profile that use it no longer lead to you: if someone else takes it, they will lead to their page. The page already rendered and the preview image that went with those links may stay in the network's cache for a short time: when you change the name, we remove them.`,
+          'Your date of birth is used to check that you meet the minimum age and to work out your zodiac sign. Only you see the date; you choose who sees the sign, as with the other parts of your profile.',
           'We also keep the language you use and, if someone invited you, the link to that person.',
         ],
       },
       {
         heading: 'In the app: your profile and who sees it',
         body: [
-          `In your profile you can add a bio, your mission, your profession, your skills, your city, the words that describe you, what you are looking for, and your dream with its milestones. For each of these you choose “${tEn('profile.visibility.label')}”: “${tEn('visibility.public')}”, “${tEn('visibility.members')}” or “${tEn('visibility.private')}”. If you don't choose, “${tEn('visibility.members')}” applies. What you set to “${tEn('visibility.private')}” is seen by you alone.`,
-          `Your name, photo and @handle are seen by every member. For these you choose between “${tEn('visibility.public')}” and “${tEn('visibility.members')}”, and it starts as “${tEn('visibility.public')}”: this means you have a public page on this site, visible to anyone and to search engines, with your @handle, name, photo and zodiac sign, and with your dream and its milestones if you made them visible to “${tEn('visibility.public')}”. If you choose “${tEn('visibility.members')}”, the page is no longer shown; the version already rendered may stay in the network's cache for a short time. The preview image that goes with a link to the page (name, photo, @handle and, if it was visible to “${tEn('visibility.public')}”, your dream) only updates when we release a new version of the site: until then it stays reachable.`,
-          'Your Aura score and the stars you have earned are public. Other members can also see the score’s breakdown by kind of action, the highest it has reached and the date of your last action that counted, whether you have verified your identity, which events you are attending, including with a ticket, and how many events and helps you have completed.',
+          `In your profile you can add a bio, your mission, your profession, your skills, your city, the words that describe you, what you are looking for, and your dream with its milestones. For each of these, and for your zodiac sign, you choose “${tEn('profile.visibility.label')}”: “${tEn('visibility.public')}”, “${tEn('visibility.members')}” or “${tEn('visibility.private')}”. If you don't choose, “${tEn('visibility.members')}” applies. What you set to “${tEn('visibility.private')}” is seen by you alone.`,
+          `Your name, photo and @handle are seen by every member. For these you choose between “${tEn('visibility.public')}” and “${tEn('visibility.members')}”, and it starts as “${tEn('visibility.members')}”: you have no public page. It used to start as “${tEn('visibility.public')}”: members who joined then keep it until they change it. With “${tEn('visibility.public')}” you have a public page on this site, visible to anyone and to search engines, with your @handle, name and photo, with your zodiac sign if you made it visible to “${tEn('visibility.public')}”, and with your dream and its milestones if you made them visible to “${tEn('visibility.public')}”. A link to the page carries a preview image with your name, photo, @handle and, if it is visible to “${tEn('visibility.public')}”, your dream. When you change who sees the page, the dream or the sign, we remove the page and the image from the network's cache, where they may stay for a short time; until the next version of the site, the link shows the general ${tEn('store.name')} preview instead of yours.`,
+          'Your Aura score and the stars you have earned are public. Other members can also see the score’s breakdown by kind of action, the highest it has reached and the date of your last action that counted, whether you have verified your identity, and how many events and helps you have completed.',
+          "Which events you are attending, including with a ticket, is seen only by the event's organiser and the other people attending it. Every other member sees only how many people are attending.",
         ],
       },
       {
@@ -386,11 +390,13 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Who receives your data',
         body: [
           `Other people, as described above and according to the choices you make. Beyond that, only the providers we need to run ${tEn('store.name')}, each for what it needs.`,
-          'Supabase hosts the app’s database, sign-in, files and server functions, and sends sign-in emails such as the one to reset your password. The data is in the European Union, in Frankfurt.',
+          'Supabase hosts the app’s database, sign-in, files and server functions, and composes the sign-in emails, such as the one to reset your password. The data is in the European Union, in Frankfurt.',
+          'Resend delivers them: it receives your address and the text of the message.',
           'Cloudflare serves this site from its global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), waitlist form submissions, and the public pages of profiles, dreams and events, whose rendered version stays briefly in the network’s cache.',
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
-          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google, if you choose it, also handles sign-in with your Google account.',
+          'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google and Apple, if you choose them, also handle sign-in with your Google or Apple account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
+          'Mapbox suggests the city name as you type it in your profile: it receives the letters you type and the app language, not your location.',
           `The police and national hotlines receive what appears to be child sexual abuse material, as this site's “${tEn('legal.childSafety')}” page explains.`,
           `Some of these providers are based in the United States or may process data outside the European Union. In those cases the transfer relies on the standard contractual clauses approved by the European Commission and incorporated in their data processing agreements (for Cloudflare: cloudflare.com/cloudflare-customer-dpa), or on their certification under the EU–US Data Privacy Framework, as for Cloudflare. You can request a copy by writing to ${EMAIL}.`,
         ],
@@ -412,7 +418,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           ...ERASURE_DELETES.en,
           ...ERASURE_KEEPS.en,
           'Reports concerning you or your content, with the decisions taken on them, remain afterwards; we delete them when the person who made them deletes their own account. Reports you made are deleted with your account.',
-          `The archive we prepare with “${tEn('settings.export.title')}” is kept as long as you have the account; the link to download it is valid for 72 hours.`,
+          `The archive we prepare with “${tEn('settings.export.title')}” is kept for 7 days, as long as the link to download it works; then we delete it, and you can ask for a new one whenever you like. If you delete your account before downloading it, the archive is deleted along with your account.`,
         ],
       },
       {
@@ -425,7 +431,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Your rights',
         body: [
           `Under the GDPR you can at any time request access to, rectification, erasure, restriction and portability of your data, object to its processing, and withdraw any consent you gave us. Withdrawal does not affect processing carried out beforehand. To exercise these rights, write to ${EMAIL}.`,
-          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data and what you wrote and published, but not the photo, video and voice-note files themselves: if you need them, write to us. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
+          `You can do much of this yourself in the app: edit your profile and choose who sees what; in “${tEn('settings.title')}”, section “${tEn('settings.section.privacy')}”, you will find “${tEn('settings.export.title')}” to get a copy of your data and “${tEn('account.delete.row')}” to request deletion. The archive contains your account data, including your email, what you wrote and published, and the photo, video and voice-note files you uploaded yourself. It also contains your conversations in full, including the messages you received: the other person appears only by their @handle, and for photos they sent you, you get the file name rather than the photo, because those are their data. How to delete your account without the app is on this site's “${tEn('account.delete.title')}” page.`,
           'You also have the right to lodge a complaint with a supervisory authority. For our controller the competent one is the Berlin authority (Berliner Beauftragte für Datenschutz und Informationsfreiheit), but you may also contact the authority in your country of residence.',
         ],
       },
@@ -699,7 +705,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: "Dall'app",
         body: [
-          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}».`,
+          `Prima di eliminare puoi scaricare una copia dei tuoi dati: nella sezione «${tIt('settings.section.privacy')}» delle impostazioni trovi «${tIt('settings.export.title')}». Scaricala prima di chiedere la cancellazione: mentre l'archivio è in preparazione l'app ti chiede di aspettare, e un archivio non ancora scaricato viene cancellato insieme all'account.`,
           `1. Apri la scheda «${tIt('tabs.profile')}» e tocca la piccola ruota delle impostazioni («${tIt('settings.title')}»).`,
           `2. Nella sezione «${tIt('settings.section.privacy')}» tocca «${tIt('account.delete.row')}».`,
           `3. Scrivi ${tIt('account.delete.confirmWord')} nel campo di conferma (${tEn('account.delete.confirmWord')}, se usi l'app in inglese) e tocca «${tIt('account.delete.cta')}».`,
@@ -710,6 +716,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: "Senza l'app",
         body: [
           `Non serve reinstallare l'app. Scrivi a ${EMAIL} dall'indirizzo email con cui accedi ad ${tIt('store.name')} e chiedi di eliminare il tuo account.`,
+          `Se accedi con Apple e hai scelto di nascondere la tua email, scrivici da qualsiasi indirizzo e dicci la tua @handle: mandiamo un codice all'indirizzo di inoltro, che Apple gira alla tua casella, e registriamo la richiesta quando ci rispondi con quel codice.`,
           "Verifichiamo che la richiesta venga da te e la registriamo al posto tuo: da quel momento l'accesso è bloccato e vale tutto ciò che trovi qui sotto. Ti rispondiamo entro un mese, come prevede il GDPR.",
         ],
       },
@@ -738,7 +745,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
       {
         heading: 'From the app',
         body: [
-          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”.`,
+          `Before you delete, you can download a copy of your data: the “${tEn('settings.section.privacy')}” section of your settings has “${tEn('settings.export.title')}”. Download it before you request deletion: while the archive is being prepared the app asks you to wait, and an archive you haven't downloaded yet is deleted along with your account.`,
           `1. Open the “${tEn('tabs.profile')}” tab and tap the small settings wheel (“${tEn('settings.title')}”).`,
           `2. In the “${tEn('settings.section.privacy')}” section, tap “${tEn('account.delete.row')}”.`,
           `3. Type ${tEn('account.delete.confirmWord')} in the confirmation field (${tIt('account.delete.confirmWord')} if you use the app in Italian) and tap “${tEn('account.delete.cta')}”.`,
@@ -749,6 +756,7 @@ export const deleteAccount: Record<Locale, LegalDoc> = {
         heading: 'Without the app',
         body: [
           `You don't need to reinstall the app. Write to ${EMAIL} from the email address you use to sign in to ${tEn('store.name')} and ask us to delete your account.`,
+          `If you sign in with Apple and chose to hide your email, write to us from any address and tell us your @handle: we send a code to your relay address, which Apple forwards to your inbox, and we record the request when you reply with that code.`,
           'We check that the request comes from you and record it on your behalf: from then on sign-in is blocked and everything below applies. We reply within one month, as the GDPR requires.',
         ],
       },

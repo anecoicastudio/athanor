@@ -65,8 +65,8 @@ export async function listOpenNeeds(
  * Writes ONLY favor_offers — never Aura (rule #1).
  * The score-engine does NOT read favor_offers today (its .from() set carries no such table),
  * so a favor currently lights no star and earns no points — which is why the favor copy makes
- * no such promise (#634). TODO(M6): when the engine grows a confirmed-help reader, it awards
- * the Collaboratore star service-role-side; the copy earns its clause back then.
+ * no such promise (#634). No open issue plans a favor award (as of 2026-09-26); if the engine
+ * ever reads favor_offers, the copy can earn its clause back in the same change.
  *
  * The self-target guard lives here, not in favorInsertSchema: that schema deliberately
  * omits actor_id (it comes from auth.uid via RLS), so it cannot express the migration's

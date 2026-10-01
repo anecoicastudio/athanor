@@ -178,7 +178,7 @@ select is_empty(
 -- ── READ POLICIES CARRY AN OWNERSHIP / VISIBILITY PREDICATE ──────────────────────────
 -- Both buckets shipped as `using (bucket_id = '<bucket>')` and nothing else, with the note
 -- "members read (visibility/not_blocked predicates deferred to M9)"
--- (20260614204500_storage_media_buckets.sql:2-3). M9 landed athanor.not_blocked in
+-- (the header of 20260614204500_storage_media_buckets.sql). M9 landed athanor.not_blocked in
 -- 20260619222420 and composed it into the posts / story_segments TABLE policies; the storage
 -- side stayed open until 20260808151808_storage_not_blocked_predicate.sql closed it.
 -- Rule 2 requires "TO authenticated + ownership predicate" -- a bucket name is not one.

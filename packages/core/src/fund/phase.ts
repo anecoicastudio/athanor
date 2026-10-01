@@ -92,7 +92,7 @@ function instant(iso: string | null): number | null {
  * `[voting_starts_at, voting_ends_at]` — a CLOSED interval on both ends, so the first and last
  * millisecond both vote.
  *
- * The gate was written in `20260815090015_cast_vote_window.sql:31-38`; the LIVE body is
+ * The gate was written in `cast_vote`, `20260815090015_cast_vote_window.sql`; the LIVE body is
  * `20260815164035_is_on_ballot.sql`, which replaced the candidacy predicate and carries the
  * window clause verbatim. Read the later one — following the earlier ref alone lands on a
  * superseded function.
@@ -156,7 +156,7 @@ export type DeclareEdition = Pick<FundEdition, 'phase' | 'voting_ends_at' | 'win
 
 /**
  * The edition-local half of `declare_winner`'s gates
- * (`20260815094157_declare_winner_window_fail_closed.sql:28-37`), in the SQL's own order:
+ * (`20260815094157_declare_winner_window_fail_closed.sql`), in the SQL's own order:
  * an existing winner, then the phase, then the closed ballot.
  *
  * The window arm is `voting_ends_at is null or now() <= voting_ends_at` → refuse, which means

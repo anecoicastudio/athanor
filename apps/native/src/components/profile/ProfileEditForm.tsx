@@ -11,7 +11,7 @@ import {
   classifyHandle,
   handleRenameOpensAt,
 } from '@athanor/core';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
@@ -228,11 +228,6 @@ export function ProfileEditForm({
     }
   };
 
-  const tagLabel = (
-    prefix: 'tag.identity' | 'tag.seeking' | 'tag.profession' | 'tag.skill',
-    key: string,
-  ) => t(`${prefix}.${key}` as MessageKey, locale);
-
   const toggleSkill = (key: string) =>
     setSkills((prev) => {
       if (prev.includes(key)) return prev.filter((x) => x !== key);
@@ -334,8 +329,8 @@ export function ProfileEditForm({
 
         {/* Identità — name + photo (#76). Still not inside a <Section>: the block-level control
             below writes the ONE identity facet (#251) for both fields together, not a per-field
-            eye. 'public' (the default) keeps the /@handle link resolving for anyone; 'members'
-            kills the public shell — a knowingly dead link. 'private' is deliberately not offered:
+            eye. 'public' keeps the /@handle link resolving for anyone; 'members' — where a new
+            member starts since #790 — means no public page at all. 'private' is deliberately not offered:
             members always see name and photo (the facet gates anon only, profile.ts docblock),
             so a «Solo io» chip here would promise a setting that does not exist. */}
         <View className="gap-3">
@@ -419,9 +414,10 @@ export function ProfileEditForm({
           ) : null}
 
           {/* The identity facet (#251): one control for the whole block, same visual grammar as
-              Section's chip row. An absent key means the DEFAULT — public — never 'members'
-              (the row policy coalesces the same way), and a stray 'private' value normalises to
-              the members chip: anon-dark either way. */}
+              Section's chip row. An absent key reads as public, never 'members', because the row
+              policy coalesces the same way: a new member's row carries 'members' explicitly
+              (#790), so an absent key only survives on an older map, which was public. A stray
+              'private' value normalises to the members chip: anon-dark either way. */}
           <View className="flex-row items-center justify-between gap-3">
             <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
             <View
@@ -447,6 +443,25 @@ export function ProfileEditForm({
             {t('profile.shell.hint', locale)}
           </Text>
         </View>
+
+        {/* Segno zodiacale — its own three-way key since #790 (absent = members, like every
+            Section). Only when there is a sign to show: the date is set in the funnel and never
+            here, so a member without one would get a control that governs nothing. The sign
+            is text here, not the glyph — DESIGN §6 keeps the glyph to the profile header. */}
+        {profile.zodiac_sign ? (
+          <Section
+            label={t('profile.zodiac.label', locale)}
+            field="zodiac"
+            editing
+            visibility={visibility}
+            setVis={setVis}
+            locale={locale}
+          >
+            <Text className="text-[15px] text-ink-2">
+              {t(`zodiac.${profile.zodiac_sign}` as MessageKey, locale)}
+            </Text>
+          </Section>
+        ) : null}
 
         {/* Bio */}
         <Section
@@ -497,7 +512,7 @@ export function ProfileEditForm({
             {IDENTITY_TAGS.map((tag) => (
               <Chip
                 key={tag}
-                label={tagLabel('tag.identity', tag)}
+                label={tagLabel('identity', tag, locale)}
                 selected={identity.includes(tag)}
                 onPress={() => setIdentity(toggleTag(identity, tag))}
               />
@@ -518,7 +533,7 @@ export function ProfileEditForm({
             {SEEKING_TAGS.map((tag) => (
               <Chip
                 key={tag}
-                label={tagLabel('tag.seeking', tag)}
+                label={tagLabel('seeking', tag, locale)}
                 selected={seeking.includes(tag)}
                 onPress={() => setSeeking(toggleTag(seeking, tag))}
               />
@@ -569,7 +584,7 @@ export function ProfileEditForm({
             {PROFESSIONS.map((key) => (
               <Chip
                 key={key}
-                label={tagLabel('tag.profession', key)}
+                label={tagLabel('profession', key, locale)}
                 selected={profession === key}
                 onPress={() => setProfession(profession === key ? null : key)}
               />
@@ -590,7 +605,7 @@ export function ProfileEditForm({
             {SKILLS.map((key) => (
               <Chip
                 key={key}
-                label={tagLabel('tag.skill', key)}
+                label={tagLabel('skill', key, locale)}
                 selected={skills.includes(key)}
                 onPress={() => toggleSkill(key)}
               />

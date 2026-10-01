@@ -110,6 +110,14 @@ The flip side: **editing a body and re-running does not update the row**. Delete
 first, or change the key. To start over completely, delete the twelve `auth.users`
 rows — everything else cascades — and run the file again.
 
+⚠ **Never delete the GDPR tombstone sentinel** (`00000000-0000-4000-a000-000000000000`)
+when you wipe. It is not one of the twelve: migration `20260815131925` created it, and
+erasure hands an erased member's events, fund contributions, check-in scans and audit rows
+to it. Without it, erasing an organiser or a contributor fails with a foreign-key error
+(`23503`). The seed re-inserts it (§0, a no-op when the row exists), but if you wiped more
+than the twelve accounts, check it afterwards — `pnpm deploy:check` prints its count on
+both projects, and it must be 1.
+
 ⚠ **Storage objects do NOT cascade.** Deleting the twelve users leaves every uploaded
 photo and video orphaned in its bucket, and the re-seeded rows point at fresh keys, so
 the old objects are unreachable dead weight. Empty the six buckets in the same pass.

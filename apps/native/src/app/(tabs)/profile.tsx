@@ -103,7 +103,13 @@ function ProfileEditor({
   // render so the ✦ can be withheld when there is nothing to share: handle is nullable and
   // the signup trigger does not set it, so a session can reach this screen without one.
   // Tracked-referral attribution is a later milestone.
-  const shareMessage = profileShareMessage(profile.handle, t('app.name', locale));
+  // The /@handle link only when the page exists (#790): an absent identity key reads as public,
+  // exactly as the anon row policy reads it.
+  const shareMessage = profileShareMessage(
+    profile.handle,
+    t('app.name', locale),
+    ((profile.visibility as Record<string, string>).identity ?? 'public') === 'public',
+  );
 
   const shareProfile = async () => {
     if (!shareMessage) return;

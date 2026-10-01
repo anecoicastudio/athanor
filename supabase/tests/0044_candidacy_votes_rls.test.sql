@@ -296,7 +296,7 @@ select has_trigger(
   'the weight trigger is still bound after the equal-vote replacements'
 );
 
--- ...and it is INVOKER now. The DEFINER rationale (20260618131250:50) was "reads aura_scores
+-- ...and it is INVOKER now. The DEFINER rationale (migration 20260618131250) was "reads aura_scores
 -- cross-RLS"; the body reads nothing, so definer would be an unneeded privilege. Pinned so a
 -- future replace cannot quietly restore it.
 select is(

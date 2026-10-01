@@ -19,7 +19,8 @@
       "bundleIdentifier": "world.athanor.app",
       "associatedDomains": ["applinks:www.athanor.world"],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true
       }
     },
     "android": {
@@ -128,6 +129,7 @@
         }
       ],
       "./plugins/without-location-task-service.js",
+      "./plugins/with-font-scale-config-change.js",
       [
         "expo-calendar",
         {

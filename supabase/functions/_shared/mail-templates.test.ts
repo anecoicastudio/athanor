@@ -13,16 +13,16 @@
 // exchangeCodeForSession) needs a link and the product has no field to type a code into.
 // A required-variable assertion is what would have caught it.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { DONATION_STEM } from '../../../packages/i18n/src/voice.ts';
 
 /**
  * Every mail template this project declares, and the GoTrue variable its flow cannot work
  * without. Adding a `[auth.email.template.<name>]` block to config.toml means adding it
  * here; the parity test fails until you do.
  *
- * Only reachable flows belong here. `recovery` (resetPasswordForEmail), `email_change`
- * (updateUser({email})), `invite` (inviteUserByEmail) and `reauthentication`
- * (secure_password_change = false) have zero call sites in this repo — a template for a
- * mail nothing can send is a file that rots unread.
+ * Only reachable flows belong here. `email_change` (updateUser({email})), `invite`
+ * (inviteUserByEmail) and `reauthentication` (secure_password_change = false) have zero call
+ * sites in this repo — a template for a mail nothing can send is a file that rots unread.
  */
 const DECLARED: Record<string, { subject: string; requires: readonly string[] }> = {
   // signUp() in apps/native/src/app/(auth)/welcome.tsx; the link lands on
@@ -34,6 +34,9 @@ const DECLARED: Record<string, { subject: string; requires: readonly string[] }>
   // signInWithOtp() in apps/web/app/admin/login/page.tsx; the link lands on
   // apps/web/app/admin/auth/callback/route.ts, which exchanges the PKCE code.
   magic_link: { subject: 'Il tuo varco per Athanor', requires: ['ConfirmationURL'] },
+  // resetPasswordForEmail() in apps/native/src/app/(auth)/forgot-password.tsx; the link lands
+  // on src/app/auth-callback.tsx, whose PKCE exchange fires PASSWORD_RECOVERY (#825).
+  recovery: { subject: 'Il varco per la tua nuova password', requires: ['ConfirmationURL'] },
 };
 
 /**
@@ -238,6 +241,9 @@ Deno.test('templates use the Athanor voice — no metrics vocabulary', () => {
         `template '${name}' contains the banned word "${word}" (rules/i18n.md)`,
       );
     }
+    // #789: the donation stem is ruled out of the product. A stem, not a word, so it sits
+    // outside the word list above; one definition in packages/i18n/src/voice.ts.
+    assert(!DONATION_STEM.test(copy), `template '${name}' uses the donation stem (#789)`);
   }
 });
 

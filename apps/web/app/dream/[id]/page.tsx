@@ -85,12 +85,12 @@ export async function generateMetadata({
     title: `${title} — ${t('app.name', DEFAULT_LOCALE)}`,
     description,
     /*
-     * Self-canonical, and the only page here that declares one. This is the single surface
-     * that republishes content already indexed at another URL: `/@handle` renders the same
-     * dream text and the same tappe (packages/api public-profile.ts). The two are not the
-     * same page — that one is the member, this one is the dream — so neither should point at
-     * the other, but saying so explicitly is what keeps a crawler from picking one at random
-     * and consolidating the wrong way.
+     * Self-canonical, like every indexable page (#792) — but here it carries more weight than
+     * elsewhere. This is the single surface that republishes content already indexed at
+     * another URL: `/@handle` renders the same dream text and the same tappe (packages/api
+     * public-profile.ts). The two are not the same page — that one is the member, this one is
+     * the dream — so neither should point at the other, but saying so explicitly is what keeps
+     * a crawler from picking one at random and consolidating the wrong way.
      */
     alternates: { canonical: `${SITE_URL}/dream/${dream.id}` },
     // Name the site-wide card explicitly. Next replaces `openGraph` rather than merging it,

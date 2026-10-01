@@ -308,7 +308,7 @@ describe('profile derived shapes', () => {
     ]);
   });
 
-  it('personProfileSchema projects exactly the third-person columns plus the removed flag', () => {
+  it('personProfileSchema projects exactly the third-person columns plus removed and has_public_page', () => {
     expect(Object.keys(personProfileSchema.shape).sort()).toEqual([
       'avatar_path',
       'bio',
@@ -316,6 +316,7 @@ describe('profile derived shapes', () => {
       'display_name',
       'founding_member',
       'handle',
+      'has_public_page',
       'id',
       'identity_tags',
       'identity_verified',

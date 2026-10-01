@@ -72,7 +72,13 @@ export function StoryRing({
         className="items-center gap-1.5"
       >
         <View className={`rounded-full border-2 p-0.5 ${ring}`}>
-          <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={AVATAR} />
+          <Avatar
+            decorative
+            handle={handle}
+            displayName={displayName}
+            avatarPath={avatarPath}
+            size={AVATAR}
+          />
         </View>
         {/* Two lines (#639), and since #754 two TEXTS: the first word, then the rest, each on
             one line with a tail ellipsis. A single `numberOfLines={2}` broke a long word
@@ -112,7 +118,7 @@ export function StoryRing({
           //
           // NOT a two-platform guarantee, and this is the honest limit: the badge sits at
           // `right-[6px]` in a 76pt wrapper, so 6 of the 12pt right slop falls outside the
-          // parent — the region `Input.tsx:157-159` records Android as declining to
+          // parent — the region `Input`'s eye-toggle note records Android as declining to
           // deliver. Android is therefore ~38 wide, iOS 44. The previous HIT_SLOP overran
           // the same edge, so this is not a regression; closing it needs the wrapper to
           // widen, which moves a position the docblock above measured against a build.

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { dreamPagePaths, type ErasureKv, ogCardPaths } from './kv.ts';
+import { dreamPagePaths, eventPagePaths, type KvPurger, ogCardPaths } from '../_shared/kv-purge.ts';
 import { sweepMemberStorage, type SweepStorage } from './sweep.ts';
 
 // Erasure loop extracted from index.ts so the status transitions are unit-testable
@@ -75,6 +75,12 @@ export type ErasureStripe = {
   getSubscriptionStatus: (subscriptionId: string) => Promise<string | null>;
   /** Cancel immediately. Stripe emits `customer.subscription.deleted`, which the webhook records. */
   cancelSubscription: (subscriptionId: string) => Promise<unknown>;
+  /**
+   * Clear `metadata.profile_id` off the Stripe Customer the membership row names (#763,
+   * ./untag.ts has why only that one). Rejects on any failure, and the loop halts before (3c) on
+   * it. Idempotent: a Customer whose tag is already gone is not written.
+   */
+  untagCustomer: (profileId: string, customerId: string) => Promise<unknown>;
 };
 
 /**
@@ -85,6 +91,39 @@ export type ErasureStripe = {
  * charge, and those must be cancelled.
  */
 const SETTLED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired']);
+
+/**
+ * Stripe error codes that no retry can clear (#735). Per https://docs.stripe.com/error-codes:
+ * `resource_missing` — «the ID provided is not valid: either the resource doesn't exist, or an ID
+ * for a different resource has been provided»; `livemode_mismatch` — test and live keys, requests
+ * and objects are only available within their own mode. Either one means the stored
+ * `stripe_subscription_id` names nothing this key can cancel, so a nightly retry would repeat the
+ * same error for ever and the hand cancel in RELEASE-RUNBOOK §7.5 has nothing to act on. Such a
+ * request ends 'failed' — an operator's — never 'retained'. Every other error (network, rate
+ * limit, an expired or revoked key) is one an outage or a rotation can clear, and is retried.
+ */
+const PERMANENT_STRIPE_CODES = new Set(['resource_missing', 'livemode_mismatch']);
+
+export function isPermanentStripeError(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && PERMANENT_STRIPE_CODES.has(code);
+}
+
+/**
+ * Settle a port call into «did it reject», decided by the rejection itself rather than by the
+ * truthiness of what it rejected with. `.catch((e) => e)` reads a rejection with `undefined`, `''`
+ * or `0` as success — and on the Stripe steps a false success is a pseudonymisation over a live
+ * subscription or a surviving tag.
+ */
+async function attempt<T>(
+  p: Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> {
+  try {
+    return { ok: true, value: await p };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
 
 /**
  * The Storage surface the job needs. BUCKET-AWARE since #573: `remove()` is bucket-scoped, and
@@ -105,7 +144,7 @@ export type ErasureCtx = {
    * unconfigured deployment leaves the erased member's card and page readable by key, which
    * is the one thing #468/#492 say must never be a silent skip.
    */
-  kv: ErasureKv | null;
+  kv: KvPurger | null;
   /**
    * Cancels the erased member's Circle subscription, or **null when STRIPE_SECRET_KEY is absent
    * from this deployment's env**. Null is carried rather than resolved in the loop for the same
@@ -126,6 +165,27 @@ export type ErasureCtx = {
  * therefore treated as a purge gap rather than as a complete read.
  */
 const DREAM_ID_READ_LIMIT = 500;
+
+/**
+ * How many of the subject's organised event ids one run derives KV keys for (#775). Bounded for
+ * the reason DREAM_ID_READ_LIMIT is, and a full page is a purge gap for the same reason.
+ */
+const EVENT_ID_READ_LIMIT = 500;
+
+/**
+ * Names the event ids a failed or unconfigured sweep left behind (#775).
+ *
+ * The one key input a re-drive cannot rebuild: (3d) hands the events to the tombstone whether
+ * or not the sweep ran, and nothing afterwards says who organised them. Holding (3d) back
+ * instead was rejected in review — it keeps the events LIVE, and every invite redeemable, until
+ * an operator re-drives a 'failed' row, which is a worse leak than a cached copy. So the ids go
+ * to the log, where RELEASE-RUNBOOK §7.4's single-key delete can use them; the §7.4 prefix
+ * sweep clears a stranded copy without them.
+ */
+function logUnpurgedEvents(requestId: string, eventIds: readonly string[]): void {
+  if (eventIds.length === 0) return;
+  console.error('erasure-job: event pages left unpurged', requestId, eventIds);
+}
 
 /**
  * How many requests one pass CONSIDERS.
@@ -149,18 +209,19 @@ type ErasureClaim = { id: string; profile_id: string | null; claimed_at: string 
  * Write a request's terminal status, but ONLY while this pass still holds the lease it was
  * claimed under.
  *
- * The fence is `stripe-webhook`'s (`handlers.ts:933-938`) and it is not decoration. A pass can
- * outlive its lease — an unusually long cascade, or an operator releasing the lease by hand
- * (RELEASE-RUNBOOK §7.5) — and a later pass then re-claims the row and starts working it. Without
- * the guard this pass's 'done' or 'failed' lands on that row, taking it OUT of 'processing' while
- * the second pass is still inside the cascade, and neither side can tell. PostgREST answers a
- * no-op update with success, so the `.select()` is what makes the lost lease visible at all.
+ * The fence is `stripe-webhook`'s (the `claimed_at = ourClaim` guard in `handleWebhook`) and it is
+ * not decoration. A pass can outlive its lease — an unusually long cascade, or an operator
+ * releasing the lease by hand (RELEASE-RUNBOOK §7.5) — and a later pass then re-claims the row and
+ * starts working it. Without the guard this pass's 'done' or 'failed' lands on that row, taking it
+ * OUT of 'processing' while the second pass is still inside the cascade, and neither side can tell.
+ * PostgREST answers a no-op update with success, so the `.select()` is what makes the lost lease
+ * visible at all.
  */
 async function writeTerminalStatus(
   db: SupabaseClient,
   requestId: string,
   claimedAt: string,
-  status: 'done' | 'failed',
+  status: 'done' | 'failed' | 'retained',
 ): Promise<void> {
   const { data, error } = await db
     .from('gdpr_erasure_requests')
@@ -196,6 +257,12 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
    * nobody, and R-8's flip condition is «a 200» — this is the number that makes it checkable.
    */
   let retained = 0;
+  /**
+   * #735 — the subset of `retained` that ended in the STATUS 'retained': kept because Stripe
+   * could not stop the billing, and re-claimed next night. `retained` above keeps its meaning
+   * (every account kept, 'failed' included) because RELEASE-RUNBOOK R-8's smoke reads it.
+   */
+  let billingRetained = 0;
 
   // ATOMIC LEASE CLAIM (#717) — one statement, in the database, flips the rows to 'processing'
   // and stamps `claimed_at`. What it replaced was a SELECT on `status = 'requested'` followed by
@@ -252,6 +319,15 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // re-signable account whose tickets no longer scan and whose Circle subscription is still
     // billing, which is worse than either finishing or stopping.
     let cascadeSafe = true;
+    // #735 — a THIRD flag, narrower than both: the member's Circle subscription may still be
+    // taking money. Set only by (3b-bis), and it decides the terminal status alone — 'retained',
+    // which the next nightly claim re-takes, instead of the terminal 'failed' nobody re-drives.
+    // Stripe is outside the database and outside our control: its outage is a reason to wait,
+    // not a verdict on the request.
+    let billingLive = false;
+    // ^ Only for a failure Stripe itself might clear. The membership READ failing is a database
+    //   error with nobody outside to wait on, and a permanent Stripe code (above) names an id no
+    //   retry can reach: both stay 'failed'.
 
     // (1) revoke sessions before deleting — deleting a user does not invalidate live tokens [SKILL].
     //     Both failure shapes count: a rejection, and the resolved { error } the RPC returns for
@@ -325,7 +401,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     to dreams by #159). apps/web caches the prerendered profile page, its OG card and —
     //     since #159 — every `/dream/{id}` page it has served, and a deploy strands rather than
     //     replaces them, so those bytes outlive every row erased above
-    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). ./kv.ts
+    //     (docs/RELEASE-RUNBOOK.md §7.4 — "has to sweep the namespace by prefix"). _shared/kv-purge.ts
     //     does the sweep; this decides what its outcome means for the record.
     //
     //     Ordering: BOTH key inputs are read HERE, before (4b) below. The keys are hashes of
@@ -334,27 +410,54 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //     Since #107 that delete happens in this same pass, so the ordering is load-bearing
     //     rather than merely careful.
     //
-    //     One sweep, not two: purgePaths lists the whole namespace per call, so handing it the
-    //     handle paths and the dream paths together costs one listing instead of two.
-    const [{ data: profile, error: profileError }, { data: dreamRows, error: dreamsError }] =
-      await Promise.all([
-        db.from('profiles').select('handle').eq('id', profileId).maybeSingle(),
-        // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
-        // filters describe what the page serves TODAY, and this is about what KV cached
-        // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
-        // facet flip still has a stranded entry under a dead build prefix, holding the text
-        // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
-        db
-          .from('dreams')
-          .select('id')
-          .eq('profile_id', profileId)
-          // Ordered so the page is deterministic, bounded so a truncated one is detectable.
-          .order('id', { ascending: true })
-          .limit(DREAM_ID_READ_LIMIT),
-      ]);
+    //     Since #775 the organised events are a third key input, read here for the same reason
+    //     and with a tighter deadline: (3d) below disowns them — organizer_id goes to the
+    //     tombstone — long before (4b), and nothing records the original organiser afterwards.
+    //
+    //     The SWEEP, unlike the reads, runs after (3d): see (3e). Purging before the events are
+    //     soft-deleted would leave a window in which a request re-caches the page from a row
+    //     that still renders; after (3d) the route's own `deleted_at is null` read makes any
+    //     re-render a 404.
+    //
+    //     One sweep, not three: purgePaths lists the whole namespace per call, so handing it
+    //     every path together costs one listing instead of three. The sweep matches the hashed
+    //     path under EVERY build prefix (_shared/kv-purge.ts), so a copy stranded by a deploy
+    //     is reached too — for these paths. A page cached under a path this job does not derive
+    //     is still RELEASE-RUNBOOK §7.4's manual prefix sweep.
+    const [
+      { data: profile, error: profileError },
+      { data: dreamRows, error: dreamsError },
+      { data: eventRows, error: eventsError },
+    ] = await Promise.all([
+      db.from('profiles').select('handle').eq('id', profileId).maybeSingle(),
+      // Deliberately unfiltered: NOT `status = 'active'`, NOT `deleted_at is null`. Those
+      // filters describe what the page serves TODAY, and this is about what KV cached
+      // YESTERDAY. A dream that was public and is now archived, soft-deleted or hidden by a
+      // facet flip still has a stranded entry under a dead build prefix, holding the text
+      // verbatim — un-publishing a page has never deleted its cached copy (rules/web.md).
+      db
+        .from('dreams')
+        .select('id')
+        .eq('profile_id', profileId)
+        // Ordered so the page is deterministic, bounded so a truncated one is detectable.
+        .order('id', { ascending: true })
+        .limit(DREAM_ID_READ_LIMIT),
+      // Unfiltered for the same reason: an event the organiser soft-deleted last month had a
+      // public page before that, and its cached copy did not go with the row.
+      db
+        .from('events')
+        .select('id')
+        .eq('organizer_id', profileId)
+        .order('id', { ascending: true })
+        .limit(EVENT_ID_READ_LIMIT),
+    ]);
     const handle = (profile as { handle?: string | null } | null)?.handle ?? null;
     const dreamRowCount = ((dreamRows ?? []) as unknown[]).length;
     const dreamIds = ((dreamRows ?? []) as { id?: string | null }[])
+      .map((row) => row.id)
+      .filter((id): id is string => !!id);
+    const eventRowCount = ((eventRows ?? []) as unknown[]).length;
+    const eventIds = ((eventRows ?? []) as { id?: string | null }[])
       .map((row) => row.id)
       .filter((id): id is string => !!id);
 
@@ -366,7 +469,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     // A key input we could not READ is not one that never existed: the subject's pages may well
     // be sitting in KV, and without the handle or the ids there is no key to derive. Same gap as
     // a failed purge, so each is counted and named as one rather than falling into the
-    // nothing-to-purge branch below and reporting a clean sweep.
+    // nothing-to-purge branch of (3e) and reporting a clean sweep.
     if (profileError) {
       degraded = true;
       kvFailed++;
@@ -403,38 +506,26 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         );
       }
     }
-
-    if (kvPaths.length > 0) {
-      if (!kv) {
-        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
-        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
-        // 'partial' claims the run did everything it could; with the member's card still
-        // servable from KV that claim is false, so this is a real 'failed'.
+    if (eventsError) {
+      degraded = true;
+      kvFailed++;
+      console.error(
+        'erasure-job: organised events unreadable, KV purge of event pages skipped',
+        erasureReq.id,
+        eventsError,
+      );
+    } else {
+      kvPaths.push(...eventPagePaths(eventIds));
+      // Raw row count, as for dreams above.
+      if (eventRowCount >= EVENT_ID_READ_LIMIT) {
         degraded = true;
         kvFailed++;
         console.error(
-          'erasure-job: KV purge unconfigured, cached pages left in place',
+          'erasure-job: event id read hit its limit, some event pages may be unpurged',
           erasureReq.id,
         );
-      } else {
-        const purge = await kv
-          .purgePaths(kvPaths)
-          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
-        kvDeleted += purge.deleted;
-        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
-        // handles and dream pages prerender not at all, so most members never had a cached
-        // entry under any of these paths. Only a broken sweep counts.
-        if (purge.error) {
-          degraded = true;
-          kvFailed++;
-          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
-          // failing the whole batch here would mask a completed cascade behind a KV outage.
-          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
-        }
       }
     }
-    // The remaining case — both reads succeeded, no handle and no dreams — is genuinely clean:
-    // the member never had a public URL, so nothing was ever cached under one.
 
     if (!cascadeSafe) {
       // The fund reach failed, so nothing below may run. Skipping (3c)/(3d) is not tidiness:
@@ -456,12 +547,15 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       //     the id we were given, and if it is absent there is nothing to cancel.
       const { data: subRow, error: subReadError } = await db
         .from('circle_memberships')
-        .select('stripe_subscription_id')
+        .select('stripe_subscription_id, stripe_customer_id')
         .eq('profile_id', profileId)
         .maybeSingle();
-      const subscriptionId =
-        (subRow as { stripe_subscription_id?: string | null } | null)?.stripe_subscription_id ??
-        null;
+      const membership = subRow as {
+        stripe_subscription_id?: string | null;
+        stripe_customer_id?: string | null;
+      } | null;
+      const subscriptionId = membership?.stripe_subscription_id ?? null;
+      const customerId = membership?.stripe_customer_id ?? null;
       if (subReadError) {
         // Unread is not «no subscription». Carrying on would pseudonymise the row and lose the
         // only pointer to the thing still taking the member's money.
@@ -475,6 +569,7 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
           // the erasure anyway would leave a charge nobody can trace or refund.
           degraded = true;
           cascadeSafe = false;
+          billingLive = true;
           console.error(
             'erasure-job: Stripe unconfigured, subscription not cancelled',
             erasureReq.id,
@@ -492,35 +587,67 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
           // A status we could not READ is not «already cancelled»: it is treated exactly like a
           // failed cancel, because carrying on would pseudonymise the row and lose the only
           // pointer to the thing still taking the member's money.
-          const status = await stripe
-            .getSubscriptionStatus(subscriptionId)
-            .then((s) => ({ status: s, error: null as unknown }))
-            .catch((e: unknown) => ({ status: null, error: e ?? new Error('status read failed') }));
-          if (status.error) {
+          const status = await attempt(stripe.getSubscriptionStatus(subscriptionId));
+          if (!status.ok) {
             degraded = true;
             cascadeSafe = false;
+            billingLive = !isPermanentStripeError(status.error);
             console.error(
               'erasure-job: subscription status unreadable, billing not stopped',
               erasureReq.id,
               status.error,
             );
-          } else if (status.status !== null && SETTLED_SUBSCRIPTION_STATUSES.has(status.status)) {
+          } else if (status.value !== null && SETTLED_SUBSCRIPTION_STATUSES.has(status.value)) {
             // Already stopped — by an earlier pass of this same request, by the member through
             // the portal, or by Stripe itself when the first invoice never settled. Nothing to
             // do, and NOT a degradation: the obligation this step exists for is met.
           } else {
-            // `status.status === null` lands here too, and deliberately: Stripe not knowing the
+            // `status.value === null` lands here too, and deliberately: Stripe not knowing the
             // id is a state we have never observed, and attempting the cancel makes it visible
             // as an error on the row rather than passing silently for «already gone».
-            const cancelled = await stripe
-              .cancelSubscription(subscriptionId)
-              .then(() => null)
-              .catch((e: unknown) => e);
-            if (cancelled) {
+            const cancelled = await attempt(stripe.cancelSubscription(subscriptionId));
+            if (!cancelled.ok) {
               degraded = true;
               cascadeSafe = false;
-              console.error('erasure-job: subscription cancel failed', erasureReq.id, cancelled);
+              billingLive = !isPermanentStripeError(cancelled.error);
+              console.error(
+                'erasure-job: subscription cancel failed',
+                erasureReq.id,
+                cancelled.error,
+              );
             }
+          }
+        }
+      }
+
+      // (3b-ter) UNTAG THE CUSTOMER (#763), after the billing is stopped and before (3c).
+      //     `create-circle-checkout` tags every Customer with `metadata.profile_id`, and the
+      //     checkout and portal find a member's Customer BY THAT TAG whenever no membership row
+      //     names one (#759). (3c) takes the row's `profile_id` away; if the tag survived it, an
+      //     erasure withdrawn after (3c) — RELEASE-RUNBOOK §7.5, an operator act on a 'failed'
+      //     row — would leave an account whose next checkout lands on the row's Customer, and the
+      //     webhook would cache that subscription onto the pseudonymised row: billed, and not a
+      //     member in the app. Hence BEFORE (3c), and a failure halts where it stands.
+      //
+      //     Only when the row names a Customer: a member who never reached Circle makes no Stripe
+      //     call here, so Stripe's availability is no condition of erasing them (./untag.ts).
+      //
+      //     A metadata write, not a Stripe state transition (rules/supabase-functions.md, Money):
+      //     it charges, refunds and cancels nothing. It is NOT `billingLive` either — the billing
+      //     is already stopped by now, so a failure here ends 'failed' for an operator rather
+      //     than 'retained' for the nightly retry; the re-drive is safe (RELEASE-RUNBOOK §7.5).
+      if (cascadeSafe && customerId) {
+        if (!stripe) {
+          // Unconfigured is reported, never skipped past — as for the subscription above.
+          degraded = true;
+          cascadeSafe = false;
+          console.error('erasure-job: Stripe unconfigured, Customer not untagged', erasureReq.id);
+        } else {
+          const untagged = await attempt(stripe.untagCustomer(profileId, customerId));
+          if (!untagged.ok) {
+            degraded = true;
+            cascadeSafe = false;
+            console.error('erasure-job: Customer untag failed', erasureReq.id, untagged.error);
           }
         }
       }
@@ -568,6 +695,44 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
+    // (3e) the KV sweep over the paths (3b) derived — after (3d), before (4). The reads stayed
+    //     in (3b) because their inputs do not survive (3d)/(4b); the sweep moved here so an event
+    //     page cannot be re-cached from a row (3d) has not yet soft-deleted (#775). It runs on a
+    //     halted cascade too: a page already cached is purgeable whatever the money steps did.
+    if (kvPaths.length > 0) {
+      if (!kv) {
+        // #468/#492: unconfigured is a state to report, not a step to skip. The trio is
+        // CF_KV_PURGE_TOKEN / CF_KV_ACCOUNT_ID / CF_KV_NAMESPACE_ID in edge-function env.
+        // 'partial' claims the run did everything it could; with the member's card still
+        // servable from KV that claim is false, so this is a real 'failed'.
+        degraded = true;
+        kvFailed++;
+        console.error(
+          'erasure-job: KV purge unconfigured, cached pages left in place',
+          erasureReq.id,
+        );
+        logUnpurgedEvents(erasureReq.id, eventIds);
+      } else {
+        const purge = await kv
+          .purgePaths(kvPaths)
+          .catch((e) => ({ deleted: 0, scanned: 0, error: e }));
+        kvDeleted += purge.deleted;
+        // deleted === 0 is NOT a failure: #335 caps prerendering to PRERENDER_HANDLE_LIMIT
+        // handles and dream pages prerender not at all, so most members never had a cached
+        // entry under any of these paths. Only a broken sweep counts.
+        if (purge.error) {
+          degraded = true;
+          kvFailed++;
+          // Recorded, not rethrown: the DB erasure above already ran and is irreversible, so
+          // failing the whole batch here would mask a completed cascade behind a KV outage.
+          console.error('erasure-job: KV purge failed', erasureReq.id, purge.error);
+          logUnpurgedEvents(erasureReq.id, eventIds);
+        }
+      }
+    }
+    // The remaining case — every read succeeded, no handle, dreams or events — is genuinely clean:
+    // the member never had a public URL, so nothing was ever cached under one.
+
     // (4) runs only on a run with NOTHING left behind — `degraded` included, not just
     //     `cascadeSafe`. That is wider than it first looks and it is deliberate: the storage
     //     sweep and the KV purge both key on the member's uid, and (4b) SET NULLs the uid off
@@ -600,14 +765,14 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
         const email = authUser?.data?.user?.email ?? null;
         if (email) {
           // Through an RPC, not a PostgREST filter. The match has to fold case, because
-          // `athanor.purge_email_waitlist` does (20260620140149:111) and a row stored as
-          // `Ada@X.test` is the same entry as the `ada@x.test` GoTrue returns — so `.eq` walks
-          // past it. But `.ilike` cannot be made safe here: **PostgREST rewrites `*` to `%` in a
-          // pattern before Postgres sees it**, with no escape at that layer, and `*` is legal in
-          // a local part. Verified against staging — `ilike.a*b@probe.test` returned
-          // `axb@probe.test` too. Erasing one member would have deleted another member's row.
-          // `gdpr_purge_waitlist_email` (20260908092809) is an equality on `lower()` with no
-          // pattern language anywhere in it.
+          // `athanor.purge_email_waitlist` does (its `lower(u.email) = lower(w.email)`, migration
+          // 20260620140149) and a row stored as `Ada@X.test` is the same entry as the `ada@x.test`
+          // GoTrue returns — so `.eq` walks past it. But `.ilike` cannot be made safe here:
+          // **PostgREST rewrites `*` to `%` in a pattern before Postgres sees it**, with no escape
+          // at that layer, and `*` is legal in a local part. Verified against staging —
+          // `ilike.a*b@probe.test` returned `axb@probe.test` too. Erasing one member would have
+          // deleted another member's row. `gdpr_purge_waitlist_email` (20260908092809) is an
+          // equality on `lower()` with no pattern language anywhere in it.
           const { error: waitlistError } = await db.rpc('gdpr_purge_waitlist_email', {
             p_email: email,
           });
@@ -632,7 +797,17 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       }
     }
 
-    await writeTerminalStatus(db, erasureReq.id, claimed, degraded ? 'failed' : 'done');
+    if (billingLive) billingRetained++;
+    await writeTerminalStatus(
+      db,
+      erasureReq.id,
+      claimed,
+      billingLive ? 'retained' : degraded ? 'failed' : 'done',
+    );
+    // ^ 'retained' first (#735): while the subscription may still be live the account is kept on
+    //   purpose and the claim re-takes the row next night (20260925175902), so an erasure never
+    //   ends in a state that forgets a card still being charged. It wins over 'failed' even when
+    //   another step also failed — the whole pass re-runs, and every step is idempotent.
     // ^ 'done' since #107: a clean pass revokes the sessions, pseudonymises the retained money
     //   rows, deletes the bytes, purges the cache and deletes the account, which is the whole of
     //   what Article 17 asks. 'failed' means a step actually failed (#515) — including a
@@ -642,8 +817,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
     //   'partial' stays in the CHECK and is no longer written by this job. It was the honest
     //   label while the cascade stopped at a legal gate that no longer exists; the rows that
     //   carry it are historical and are re-driven by the R-8 procedure, not by this loop. Note
-    //   what no terminal status buys: the claim predicate reaches 'requested' and stale
-    //   'processing' and nothing else, so a TERMINAL row is still never re-queued on its own —
+    //   what no terminal status buys: the claim predicate reaches 'requested', 'retained' and
+    //   stale 'processing' and nothing else, so a TERMINAL row is still never re-queued on its own —
     //   what #717's lease added is the recovery of a row torn down mid-cascade, not of one this
     //   loop decided about. Re-driving a terminal row by hand — flip it back to 'requested' —
     //   still finishes cleanly: the DB reach is idempotent by construction, the account delete
@@ -660,6 +835,8 @@ export async function processErasureRequests(ctx: ErasureCtx): Promise<Response>
       // #107 — non-zero means at least one member is still here on purpose. On a healthy
       // project this is 0 and `seen` is the number erased.
       retained,
+      // #735 — of those, the ones waiting on Stripe and re-claimed next night.
+      billingRetained,
       // #573 — bytes, across every declared bucket. A run that erased members and reports
       // `removed: 0` is the shape of the bug this replaced: the sweep found nothing where the
       // member's photos should have been.

@@ -44,6 +44,10 @@ export function StarCell({
   // Others' unearned stars are hidden (rule #3); others' unknown never gets here.
   if (state !== 'lit' && !viewerIsOwner) return null;
 
+  // A star's name is one word in a third of the row, so at AX sizes «Collaboratore» and
+  // «Ambasciatore» broke mid-word (#847). It takes one line with a tail ellipsis instead
+  // (DESIGN §10); every branch below already carries the full name on its own label.
+  //
   // `accessible` + hidden descendants on both non-pressable branches: a bare RN View is NOT an
   // accessibility element just because it carries a role and a label, so VoiceOver would walk
   // past the composed «{name}, {state}» and read the children instead. For `unknown` that means
@@ -65,7 +69,9 @@ export function StarCell({
         >
           <Text className="text-2xl text-aura">{starGlyph(state)}</Text>
         </View>
-        <Text className="text-[11px] tracking-wide text-aura">{name}</Text>
+        <Text className="text-[11px] tracking-wide text-aura" numberOfLines={1}>
+          {name}
+        </Text>
       </View>
     );
   }
@@ -87,7 +93,9 @@ export function StarCell({
         >
           <Text className="text-2xl text-faint">{starGlyph(state)}</Text>
         </View>
-        <Text className="text-[11px] tracking-wide text-faint">{name}</Text>
+        <Text className="text-[11px] tracking-wide text-faint" numberOfLines={1}>
+          {name}
+        </Text>
       </View>
     );
   }
@@ -103,7 +111,9 @@ export function StarCell({
       <View className="items-center justify-center rounded-full bg-raise p-2">
         <Text className="text-2xl text-faint">{STAR.unlit}</Text>
       </View>
-      <Text className="text-[11px] tracking-wide text-faint">{name}</Text>
+      <Text className="text-[11px] tracking-wide text-faint" numberOfLines={1}>
+        {name}
+      </Text>
     </Pressable>
   );
 }

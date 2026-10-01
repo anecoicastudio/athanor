@@ -10,7 +10,7 @@ import {
   isAtLeastAge,
   zodiacSignFromBirthDate,
 } from '@athanor/core';
-import { localeTag, t, type MessageKey } from '@athanor/i18n';
+import { localeTag, t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { birthDateSchema, type Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -194,9 +194,6 @@ export default function OnboardingScreen() {
 
   const goLogin = () => router.push({ pathname: '/(auth)/welcome', params: { mode: 'login' } });
 
-  const tagLabel = (prefix: 'tag.identity' | 'tag.seeking', key: string) =>
-    t(`${prefix}.${key}` as MessageKey, locale);
-
   return (
     // #614 beyond-the-issue: that issue's out-of-scope note read this screen as a
     // top-anchored search field, which it is not. The dream field is centred, so the keyboard lands squarely on it,
@@ -292,7 +289,7 @@ export default function OnboardingScreen() {
                     {IDENTITY_TAGS.map((tag) => (
                       <Chip
                         key={tag}
-                        label={tagLabel('tag.identity', tag)}
+                        label={tagLabel('identity', tag, locale)}
                         selected={identity.includes(tag)}
                         onPress={() => setIdentity(toggleTag(identity, tag))}
                       />
@@ -419,7 +416,7 @@ export default function OnboardingScreen() {
                     {SEEKING_TAGS.map((tag) => (
                       <Chip
                         key={tag}
-                        label={tagLabel('tag.seeking', tag)}
+                        label={tagLabel('seeking', tag, locale)}
                         selected={seeking.includes(tag)}
                         onPress={() => setSeeking(toggleTag(seeking, tag))}
                       />

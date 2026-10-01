@@ -2,6 +2,7 @@ import {
   cryptoProvider,
   stripeClient,
   verifyWithAnySecret,
+  webhookRequiresLivemode,
   webhookSigningSecrets,
 } from '../_shared/stripe.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
@@ -62,6 +63,10 @@ Deno.serve((req) =>
           [whsec.platform, whsec.connect],
         ),
       retrieveSubscription: (id) => stripe.subscriptions.retrieve(id),
+      // #802 — read per request, not at boot: the flag is flipped once, at the live swap, and a
+      // warm isolate that had resolved it at cold start would keep accepting test-mode events
+      // until it was recycled. An env read per delivery costs nothing.
+      requireLivemode: webhookRequiresLivemode(),
     },
     req,
   ),

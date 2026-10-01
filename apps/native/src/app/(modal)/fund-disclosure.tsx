@@ -60,7 +60,7 @@ export default function FundDisclosureScreen() {
   // #236 — the optional fee coverage. UNTICKED, always: CRD 2011/83/EU Art. 22 requires
   // express consent for any payment additional to the main obligation and expressly excludes
   // pre-ticked boxes. There is deliberately no «remember my choice» — a remembered tick is a
-  // pre-ticked box wearing a different name, and whether Art. 22 even reaches a donation's
+  // pre-ticked box wearing a different name, and whether Art. 22 even reaches a contribution's
   // optional coverage is still counsel's question (#250).
   const [coverFees, setCoverFees] = useState(false);
 

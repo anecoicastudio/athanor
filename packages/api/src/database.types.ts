@@ -2411,6 +2411,7 @@ export type Database = {
           locale: string
           mission: string | null
           profession: string | null
+          public_zodiac_sign: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
@@ -2438,6 +2439,7 @@ export type Database = {
           locale?: string
           mission?: string | null
           profession?: string | null
+          public_zodiac_sign?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
@@ -2465,6 +2467,7 @@ export type Database = {
           locale?: string
           mission?: string | null
           profession?: string | null
+          public_zodiac_sign?: string | null
           push_enabled?: boolean
           referral_code?: string | null
           seeking?: string[]
@@ -3101,6 +3104,7 @@ export type Database = {
         Row: {
           claimed_at: string | null
           event_id: string
+          livemode: boolean | null
           payload: Json
           processed_at: string | null
           received_at: string
@@ -3109,6 +3113,7 @@ export type Database = {
         Insert: {
           claimed_at?: string | null
           event_id: string
+          livemode?: boolean | null
           payload: Json
           processed_at?: string | null
           received_at?: string
@@ -3117,6 +3122,7 @@ export type Database = {
         Update: {
           claimed_at?: string | null
           event_id?: string
+          livemode?: boolean | null
           payload?: Json
           processed_at?: string | null
           received_at?: string
@@ -3450,6 +3456,7 @@ export type Database = {
           voters: number
         }[]
       }
+      event_going_count: { Args: { p_event_id: string }; Returns: number }
       event_reminder_sweep: { Args: never; Returns: undefined }
       event_seats_taken: { Args: { p_event_id: string }; Returns: number }
       events_nearby: {
@@ -3510,6 +3517,28 @@ export type Database = {
         Args: { p_profile_id: string }
         Returns: undefined
       }
+      gdpr_export_media: {
+        Args: {
+          p_after_bucket?: string
+          p_after_name?: string
+          p_limit?: number
+          p_profile_id: string
+        }
+        Returns: {
+          bucket_id: string
+          created_at: string
+          mimetype: string
+          name: string
+          size: number
+        }[]
+      }
+      gdpr_export_reap_candidates: {
+        Args: { p_grace?: string; p_limit?: number }
+        Returns: {
+          name: string
+        }[]
+      }
+      gdpr_export_reap_jobs: { Args: never; Returns: number }
       gdpr_purge_waitlist_email: { Args: { p_email: string }; Returns: number }
       gdpr_redact_stripe_identity: { Args: { p_payload: Json }; Returns: Json }
       gdpr_release_profile_references: {
@@ -3585,6 +3614,7 @@ export type Database = {
           locale: string
           mission: string | null
           profession: string | null
+          public_zodiac_sign: string | null
           push_enabled: boolean
           referral_code: string | null
           seeking: string[]
@@ -3610,6 +3640,7 @@ export type Database = {
           display_name: string
           founding_member: boolean
           handle: string
+          has_public_page: boolean
           id: string
           identity_tags: string[]
           identity_verified: boolean

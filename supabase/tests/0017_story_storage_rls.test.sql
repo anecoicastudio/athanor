@@ -175,8 +175,8 @@ select is_empty(
 
 -- ── THE READ POLICY CARRIES AN OWNERSHIP / VISIBILITY PREDICATE ──────────────────────
 -- `story-segments_select_member` shipped as `using (bucket_id = 'story-segments')` and nothing
--- else (20260614230533_story_storage_bucket.sql:2-3, "visibility/not_blocked deferred to M9").
--- That deferral named two consequences:
+-- else (the header of 20260614230533_story_storage_bucket.sql, "visibility/not_blocked deferred to
+-- M9"). That deferral named two consequences:
 --
 --   1. Stories expire. `story_segments.expires_at` gates the TABLE policy; the storage row has
 --      no expiry predicate, so an expired segment's FILE stays readable via a signed URL.

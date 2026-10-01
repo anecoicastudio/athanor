@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { t } from '@athanor/i18n';
-import { authErrorKey, oauthErrorKey } from './auth-errors';
+import { authErrorKey, callbackFailureKind, oauthErrorKey } from './auth-errors';
 
 describe('authErrorKey', () => {
   it('invalid_credentials → one message for both wrong password and unknown email', () => {
@@ -25,6 +25,12 @@ describe('authErrorKey', () => {
   it('rate limiting is caught by code OR by bare HTTP 429', () => {
     expect(authErrorKey({ code: 'over_request_rate_limit' })).toBe('auth.error.rateLimit');
     expect(authErrorKey({ status: 429 })).toBe('auth.error.rateLimit');
+  });
+
+  it("the mailer's own throttle is a rate limit too (#863)", () => {
+    // A one-tap resend is the path most likely to meet it: GoTrue refuses a second recovery
+    // mail inside max_frequency with this code, and the generic copy would invite a retry loop.
+    expect(authErrorKey({ code: 'over_email_send_rate_limit' })).toBe('auth.error.rateLimit');
   });
 
   it('an unmapped code falls through to the generic message', () => {
@@ -90,11 +96,44 @@ describe('oauthErrorKey', () => {
     expect(oauthErrorKey('')).toBe('auth.error.oauthFailed');
   });
 
-  it('both branches resolve to real copy in both locales', () => {
-    for (const message of ['provider is not enabled', 'network down']) {
+  it('an expired OAuth state reads as expired, not as a generic failure (#855)', () => {
+    // oauth.ts's own marker for a sheet dismissed past GoTrue's flow-state lifetime, and the
+    // two descriptions GoTrue itself sends with error_code=bad_oauth_state.
+    expect(oauthErrorKey('oauth_state_expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('OAuth state has expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('OAuth state not found or expired')).toBe('auth.error.oauthExpired');
+    expect(oauthErrorKey('bad_oauth_state')).toBe('auth.error.oauthExpired');
+  });
+
+  it('every branch resolves to real copy in both locales', () => {
+    for (const message of ['provider is not enabled', 'network down', 'oauth_state_expired']) {
       const key = oauthErrorKey(message);
       expect(t(key, 'it')).not.toBe(key);
       expect(t(key, 'en')).not.toBe(key);
+    }
+  });
+});
+
+describe('callbackFailureKind (#863)', () => {
+  it("a transport failure or the screen's own timeout names the network", () => {
+    expect(callbackFailureKind({ status: 0 })).toBe('network');
+  });
+
+  it('only a flow state past its lifetime is «expired» — the five-minute copy is true there alone', () => {
+    expect(callbackFailureKind({ code: 'flow_state_expired', status: 422 })).toBe('expired');
+    expect(callbackFailureKind({ code: 'flow_state_not_found', status: 404 })).toBe('expired');
+  });
+
+  it('every other refusal is a dead link, with no claim about why', () => {
+    // A mail older than mailer_otp_exp or opened twice (otp_expired on the redirect), a link
+    // from another device (no verifier), anything GoTrue has not named.
+    for (const err of [
+      { code: 'bad_code_verifier', status: 400 },
+      { code: 'pkce_code_verifier_not_found', status: 400 },
+      { code: 'otp_expired' },
+      {},
+    ]) {
+      expect(callbackFailureKind(err)).toBe('dead');
     }
   });
 });

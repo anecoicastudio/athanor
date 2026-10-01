@@ -47,7 +47,7 @@ export const fundEditionSchema = z.object({
   cost_fee_statement: z.string().min(1),
   equity_declared: z.string().min(1),
   // Failure states (#216) — closure reason exactly when closed; the FUND-42 announcement
-  // snapshot, null until #220 writes it; the FUND-45 carry-forward, 0 = nothing carried.
+  // snapshot, null until the announcement (#220); the FUND-45 carry-forward, 0 = nothing carried.
   closure_reason: fundClosureReasonSchema.nullable(),
   confirmed_pool_cents: z.number().int().nonnegative().nullable(),
   carried_in_cents: z.number().int().nonnegative(),

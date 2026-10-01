@@ -272,7 +272,9 @@ export async function getEventsByOrganizer(client: AthanorClient, uid: string): 
  * Publish an event via the create_event RPC (the server builds the geography point
  * from lat/long; RLS enforces organizer = auth.uid()). Returns the new event row.
  * NEVER writes money or Aura (rule #1) — price_cents is set, but the ticket/Stripe
- * flow is the tickets-qr slice; the +30 organize award is M6 (TODO(M6)).
+ * flow is the tickets-qr slice; the +30 organize award is minted once, when
+ * the event reaches ≥5 check-ins, by the `event_attendance_aura` trigger (migration
+ * 20260701124122, M6) — not here.
  */
 export async function createEvent(client: AthanorClient, input: EventCreate): Promise<Event> {
   const v = eventCreateSchema.parse(input);
@@ -340,7 +342,8 @@ export async function registerAthanorDaysInterest(
  * Upsert the viewer's RSVP for a free event. Idempotent: the unique (user_id, event_id)
  * conflict flips status — a second "Partecipo" tap is a no-op, a cancel sets
  * status='cancelled' (we keep the row, never delete — backend §2.2). NEVER writes Aura
- * (rule #1): the +15 attend award is the M6 score-engine (TODO(M6)).
+ * (rule #1): the +15 attend award is minted at check-in by the `event_attendance_aura`
+ * trigger (migration 20260701124122, M6), and an RSVP is not a check-in.
  *
  * No longer the table's only writer: stripe-webhook mirrors a settled ticket as a going row
  * (#522). Nothing here has to know that — the mirror is an ordinary row, and the capacity gate
@@ -381,9 +384,13 @@ export async function getMyRsvp(
 /**
  * Attendee preview for the stack: a head-count of 'going' + up to `previewLimit` earliest
  * user_ids. Since #522 that count is the whole audience on a paid event too — the webhook
- * mirrors each settled ticket as a going RSVP, so «N partecipano» stopped reading zero there
- * without this query changing. The preview ids follow: a paid event's attendees are as visible
- * as a free one's, which is the same rule the product already applies to attendance.
+ * mirrors each settled ticket as a going RSVP.
+ *
+ * The two halves have different audiences since #790. The count is for every signed-in
+ * member, so it comes from the `event_going_count` DEFINER RPC. The ids are for the organiser
+ * and the event's attendees only: RLS returns the other members' rows to them and to nobody
+ * else, so for anyone else `userIds` is empty while `count` is not. Counting rows as the client
+ * would read 0 for exactly those members and make a full free event look open.
  */
 export type AttendeePreview = { count: number; userIds: string[] };
 export async function getEventAttendees(
@@ -391,20 +398,18 @@ export async function getEventAttendees(
   eventId: string,
   previewLimit = 4, // 4 = the avatar-stack size on the event detail
 ): Promise<AttendeePreview> {
-  const { count, error: countErr } = await client
-    .from('rsvps')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('status', 'going');
+  // Independent reads — one round trip, not two.
+  const [{ data: count, error: countErr }, { data, error }] = await Promise.all([
+    client.rpc('event_going_count', { p_event_id: eventId }),
+    client
+      .from('rsvps')
+      .select('user_id')
+      .eq('event_id', eventId)
+      .eq('status', 'going')
+      .order('created_at', { ascending: true })
+      .limit(previewLimit),
+  ]);
   if (countErr) throw countErr;
-
-  const { data, error } = await client
-    .from('rsvps')
-    .select('user_id')
-    .eq('event_id', eventId)
-    .eq('status', 'going')
-    .order('created_at', { ascending: true })
-    .limit(previewLimit);
   if (error) throw error;
 
   return {

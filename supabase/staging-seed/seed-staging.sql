@@ -120,6 +120,40 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------------
+-- 0. The GDPR tombstone sentinel (#896). Not a person and not seeded content: the one
+--    row `gdpr_tombstone_profile_id()` names, which erasure hands an erased member's
+--    organised events, fund contributions, check-in scans and audit rows to. Migration
+--    20260815131925 inserts it, but a migration runs once — a hand-wipe of `auth.users`
+--    wider than the twelve seeded accounts takes it with it, and nothing puts it back.
+--    Staging lost it, most likely in the hand-wipe of 2026-09-19, and every erasure of an
+--    organiser then failed 23503 inside `gdpr_release_profile_references`.
+--
+--    So the seed re-asserts it, with the migration's own statements verbatim: the
+--    INSERT is `on conflict do nothing` (a live row is untouched), the profile comes
+--    from the `handle_new_user` trigger, and the UPDATE sets the one non-default column
+--    the migration sets. No email, no password, no identity row: nobody can sign in as
+--    it. `pnpm deploy:check` reports its count on both projects.
+-- ---------------------------------------------------------------------------------
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-4000-a000-000000000000',
+  'authenticated', 'authenticated',
+  null, '',
+  '', '', '', '',
+  '{}'::jsonb, '{}'::jsonb, now(), now()
+)
+on conflict (id) do nothing;
+
+update public.profiles
+   set visibility = '{"identity": "members"}'::jsonb
+ where id = '00000000-0000-4000-a000-000000000000';
+
+-- ---------------------------------------------------------------------------------
 -- 1. People. Twelve signable accounts, one password for all of them:
 --
 --        email: <handle>@staging.athanor.local     password: Athanor2026!
@@ -243,7 +277,7 @@ where pr.id = md5('user:' || p.handle)::uuid;
 insert into public.consent (id, profile_id, kind, granted, granted_at, source)
 select md5('consent:' || pr.handle || ':' || k.kind)::uuid, pr.id, k.kind, k.granted, now(), 'signup'
 from public.profiles pr
-cross join (values ('comms', true), ('analytics', false), ('location_approx', true)) as k(kind, granted)
+cross join (values ('analytics', false), ('location_approx', true)) as k(kind, granted)
 where pr.id = md5('user:' || pr.handle)::uuid
 on conflict do nothing;
 
@@ -932,14 +966,14 @@ on conflict do nothing;
 -- `video_url` is misnamed: it holds a STORAGE KEY in the candidacy-videos bucket, not a URL.
 -- candidacy/[id].tsx feeds it straight to signMediaUrls, and candidacy.tsx writes
 -- candidacyVideoPath(uid, candidacyId) into it — `{uid}/{candidacy_id}.mp4`
--- (packages/api/src/candidacy.ts:26). The old 'https://example.invalid/video/<handle>' could
--- never sign, so the candidacy detail has always shown an empty player.
--- `thumb_path` is set here too, from the same two ids, so a fresh seed is correct on its own —
--- the standalone UPDATE further up only exists to backfill rows inserted before this column did.
--- budget_cents / min_viable_cents are NOT NULL with no default (#225): the seed CHOOSES the
--- same fake-world values 20260815080109 backfilled the pre-existing rows with. category uses
--- the project_category enum as-is (the old 'craft'/'wellbeing' values fail its CHECK);
--- skills_needed keys come from @athanor/core SKILLS.
+-- (`candidacyVideoPath` in packages/api/src/candidacy.ts). The old
+-- 'https://example.invalid/video/<handle>' could never sign, so the candidacy detail has always
+-- shown an empty player. `thumb_path` is set here too, from the same two ids, so a fresh seed is
+-- correct on its own — the standalone UPDATE further up only exists to backfill rows inserted
+-- before this column did. budget_cents / min_viable_cents are NOT NULL with no default (#225): the
+-- seed CHOOSES the same fake-world values 20260815080109 backfilled the pre-existing rows with.
+-- category uses the project_category enum as-is (the old 'craft'/'wellbeing' values fail its
+-- CHECK); skills_needed keys come from @athanor/core SKILLS.
 -- ele_yoga is 'shortlisted' rather than 'submitted' since #227. Not a taste change: #218
 -- narrowed public.is_on_ballot to ('shortlisted','winner') (20260815164809), so the two
 -- 'submitted' rows stopped being visible on the ballot at all and staging's fake ballot became

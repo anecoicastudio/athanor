@@ -25,7 +25,7 @@ describe('weekRecapIsEmpty', () => {
     expect(weekRecapIsEmpty(recap({ sogniAiutati: 1 }))).toBe(false);
   });
 
-  // The reason `sogniAiutati` is in the predicate at all. `display.ts:86` counts a
+  // The reason `sogniAiutati` is in the predicate at all. `summarizeWeek` in `display.ts` counts a
   // `milestone_help` without checking its sign, so a capped award (`withinCap === false` → 0
   // points) records a helped dream that contributes nothing to `auraWeek` or `contributi`. The
   // old two-field test swallowed it and told the member their week was blank.
@@ -34,10 +34,10 @@ describe('weekRecapIsEmpty', () => {
   });
 
   // #100 asks for `streakDays` in the predicate on the grounds that a 7–8-day-old event leaves a
-  // real streak behind. It does not: `display.ts:90-95` walks back from TODAY and breaks at the
-  // first quiet day, so a streak cannot outlive the window that feeds `auraWeek`. This asserts
-  // the shape that claim would need — a streak with no Aura — is not reachable from the engine,
-  // and so is correctly read as empty if it were ever hand-built.
+  // real streak behind. It does not: the `streakDays` loop in `display.ts` walks back from TODAY
+  // and breaks at the first quiet day, so a streak cannot outlive the window that feeds `auraWeek`.
+  // This asserts the shape that claim would need — a streak with no Aura — is not reachable from
+  // the engine, and so is correctly read as empty if it were ever hand-built.
   it('ignores streakDays, which cannot be positive while auraWeek is zero', () => {
     expect(weekRecapIsEmpty(recap({ streakDays: 3 }))).toBe(true);
   });

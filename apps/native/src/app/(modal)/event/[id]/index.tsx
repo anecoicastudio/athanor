@@ -205,8 +205,8 @@ export default function EventDetailScreen() {
         // literal is invisible to the i18n checker and to a grep for orphans.
         // `calendarBlocked` deliberately does NOT consolidate into the shared
         // `permission.blocked.body` (#552): blocked is reachable here with no member action
-        // (calendar.ts:5-16), and this bar needs the «riprova» instruction. Pinned in
-        // packages/i18n/src/i18n.test.ts.
+        // (the `blocked` docblock in lib/calendar.ts), and this bar needs the «riprova»
+        // instruction. Pinned in packages/i18n/src/i18n.test.ts.
         calendarNotice === 'blocked'
           ? t('event.rsvp.calendarBlocked', locale)
           : calendarNotice === 'denied'
@@ -246,7 +246,10 @@ export default function EventDetailScreen() {
           <View className="gap-5 px-5">
             <EventCover event={event} locale={locale} />
 
-            {count > 0 ? (
+            {/* Faces only for the organiser and the attendees (#790): RLS hands everyone
+                else no ids, and a stack of nothing but «+N» would be a count dressed as a
+                list. The count itself stays in the meta row below for every member. */}
+            {count > 0 && (attendees.data?.userIds.length ?? 0) > 0 ? (
               <AttendeeStack
                 userIds={attendees.data?.userIds ?? []}
                 count={count}

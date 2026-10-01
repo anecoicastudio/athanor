@@ -32,7 +32,7 @@ insert into public.reports (id, reporter_id, target_type, target_id, category) v
   -- a post report whose target does not resolve (no FK; the id names no row) — the warn
   -- producer finds no author, so it still "names no subject". Was 'post', null before #611
   -- made a targetless post report unrepresentable; still a POST target, which is what
-  -- 20260831153524:23 cites for the ban → 22023 assertion below.
+  -- migration 20260831153524 cites for the ban → 22023 assertion below.
   ('dddddddd-0000-0000-0000-000000000004','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','post','aaaaaaaa-0000-0000-0000-0000000000ff','spam'),
   -- a post report whose target survives — the warn producer resolves the AUTHOR (#313)
   ('dddddddd-0000-0000-0000-000000000005','cccccccc-cccc-cccc-cccc-cccccccccccc','post','aaaaaaaa-0000-0000-0000-000000000001','spam');

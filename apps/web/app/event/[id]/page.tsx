@@ -76,6 +76,8 @@ export async function generateMetadata({
   return {
     title: `${event.title} — ${t('app.name', DEFAULT_LOCALE)}`,
     description,
+    // Self-canonical (#792) — the same URL the sitemap and the JSON-LD below name.
+    alternates: { canonical: `${SITE_URL}/event/${event.id}` },
     // Name the site-wide card explicitly. Next replaces `openGraph` rather than merging
     // it, so declaring this object at all drops the parent's image — and the layout's
     // `summary_large_image` would then promise a card with no picture. Per-event Satori

@@ -5,6 +5,7 @@
     "test": {
       "inputs": [
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/apple-client-secret.mjs",
         "$TURBO_ROOT$/scripts/deploy-check.mjs",
         "$TURBO_ROOT$/supabase/config.toml",
         "$TURBO_ROOT$/supabase/functions/*/index.ts"

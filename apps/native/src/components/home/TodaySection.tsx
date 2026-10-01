@@ -29,11 +29,12 @@ const LIVE_HREF = '/(modal)/live' as const;
  * programma», and only the third was ever true.
  *
  * THE SLOT COLLAPSES rather than naming the three, and that is the deliberate half of #111's
- * sort — the same call `FavorNudgeCard.tsx:19-30` and `MomentiCard.tsx:20-27` already made on
- * the blocks either side of it. The rule: a false «you have nothing» is a claim about the
- * member and has to be named; an ABSENT block asserts nothing. Nobody is misinformed by a Home
- * preview that is not there, and `(modal)/live` owns the copy and the retry for whoever goes
- * looking. #177 settled that a short honest Home beats a full one made of promises.
+ * sort — the same call `FavorNudgeCard`'s «NO PLACEHOLDER» note and `MomentiCard`'s «NO `fallback`
+ * PROP» note already made on the blocks either side of it. The rule: a false «you have nothing» is
+ * a claim about the member and has to be named; an ABSENT block asserts nothing. Nobody is
+ * misinformed by a Home preview that is not there, and `(modal)/live` owns the copy and the retry
+ * for whoever goes looking. #177 settled that a short honest Home beats a full one made of
+ * promises.
  *
  * Collapsing swallows a failed read too, which is the considered trade, not the defect. The
  * block that must NOT collapse is `WeekSlot` beside it: that one reports the member's own Aura,

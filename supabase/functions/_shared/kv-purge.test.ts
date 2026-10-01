@@ -1,4 +1,4 @@
-// deno test supabase/functions/erasure-job/ — runs in CI (edge job) and locally.
+// deno test supabase/functions/_shared/kv-purge.test.ts — runs in CI (edge job) and locally.
 // Needs --allow-env (cloudflareKvFromEnv reads the CF_* trio); deliberately NOT --allow-net,
 // which CI does not grant: every HTTP call here goes through an injected fetch.
 //
@@ -9,11 +9,12 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 import {
   cloudflareKvFromEnv,
   dreamPagePaths,
+  eventPagePaths,
   KV_CACHE_PREFIX,
   makeCloudflareKv,
   ogCardPaths,
   sha256Hex,
-} from './kv.ts';
+} from './kv-purge.ts';
 
 const CFG = { token: 'test-token', accountId: 'acct-1', namespaceId: 'ns-1' };
 const BASE = `https://api.cloudflare.com/client/v4/accounts/acct-1/storage/kv/namespaces/ns-1`;
@@ -73,6 +74,16 @@ Deno.test('dreamPagePaths derives one path per dream — the page, and no card',
 
 Deno.test('dreamPagePaths on a member with no dreams asks for nothing', () => {
   assertEquals(dreamPagePaths([]), []);
+});
+
+Deno.test('eventPagePaths derives one path per organised event — the page, and no card', () => {
+  // apps/web/app/event/[id]/ has no opengraph-image sibling either: the page names the
+  // site-wide /opengraph-image, which belongs to no member and must never be purged (#775).
+  assertEquals(eventPagePaths(['e1', 'e2']), ['/event/e1', '/event/e2']);
+});
+
+Deno.test('eventPagePaths on a member who organised nothing asks for nothing', () => {
+  assertEquals(eventPagePaths([]), []);
 });
 
 Deno.test('a dream page key is swept under every build prefix, like the profile ones', async () => {

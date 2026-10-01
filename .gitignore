@@ -16,6 +16,11 @@ playwright-report/
 .env.*
 !.env.example
 
+# signing keys — Apple's Sign in with Apple .p8 (#79) and any PEM. Keep them OUTSIDE the
+# repo; this is the backstop, since the repo is public and EAS uploads what git keeps.
+*.p8
+*.pem
+
 # supabase local
 supabase/.temp/
 supabase/.branches/

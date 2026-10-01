@@ -68,6 +68,13 @@ interface DeployCheck {
     deployed: boolean;
   }[];
   formatAge: (updatedAtMs: unknown, nowMs: number) => string;
+  TOMBSTONE_PROFILE_ID: string;
+  TOMBSTONE_QUERY: string;
+  tombstoneVerdict: (row: unknown) => {
+    ok: boolean | null;
+    users: number | null;
+    profiles: number | null;
+  };
 }
 
 const {
@@ -80,6 +87,9 @@ const {
   diffSecrets,
   postureDrift,
   formatAge,
+  TOMBSTONE_PROFILE_ID,
+  TOMBSTONE_QUERY,
+  tombstoneVerdict,
 } = (await import(pathToFileURL(SCRIPT).href)) as DeployCheck;
 
 describe('project refs', () => {
@@ -308,5 +318,42 @@ describe('formatAge', () => {
     expect(formatAge(now - threeDays, now)).toBe('3d');
     expect(formatAge((now - threeDays) / 1000, now)).toBe('3d');
     expect(formatAge(new Date(now - threeDays).toISOString(), now)).toBe('3d');
+  });
+});
+
+describe('tombstone sentinel (#896)', () => {
+  // Erasure hands an erased member's events, contributions, scans and audit rows to this one
+  // row. A migration inserted it once; a hand-wipe on staging removed it and every organiser
+  // erasure then failed 23503. Hosted drift CI cannot see (pgTAP replays from zero), so the
+  // script counts it on both projects.
+  it('is the id gdpr_tombstone_profile_id() returns, and the query reads only that row', () => {
+    expect(TOMBSTONE_PROFILE_ID).toBe('00000000-0000-4000-a000-000000000000');
+    expect(TOMBSTONE_QUERY).toContain(`auth.users where id = '${TOMBSTONE_PROFILE_ID}'`);
+    expect(TOMBSTONE_QUERY).toContain(`public.profiles where id = '${TOMBSTONE_PROFILE_ID}'`);
+    expect(TOMBSTONE_QUERY).toMatch(/^select /);
+  });
+
+  it('passes on exactly one auth user and one profile', () => {
+    expect(tombstoneVerdict({ users: 1, profiles: 1 })).toEqual({
+      ok: true,
+      users: 1,
+      profiles: 1,
+    });
+  });
+
+  it('fails on a missing row — either half', () => {
+    expect(tombstoneVerdict({ users: 0, profiles: 0 }).ok).toBe(false);
+    expect(tombstoneVerdict({ users: 1, profiles: 0 }).ok).toBe(false);
+    expect(tombstoneVerdict({ users: 0, profiles: 1 }).ok).toBe(false);
+  });
+
+  it('reads counts the API returns as strings', () => {
+    expect(tombstoneVerdict({ users: '1', profiles: '1' }).ok).toBe(true);
+    expect(tombstoneVerdict({ users: '0', profiles: '0' }).ok).toBe(false);
+  });
+
+  it('says unknown, not missing, when the row could not be read', () => {
+    expect(tombstoneVerdict(null)).toEqual({ ok: null, users: null, profiles: null });
+    expect(tombstoneVerdict({ users: 'x' }).ok).toBeNull();
   });
 });

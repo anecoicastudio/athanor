@@ -135,7 +135,7 @@ Bio, mission, skills (tags), city (approximate), badges, Aura with breakdown, ev
 - Public web version at `www.athanor.world/@handle` (SSR, SEO, OG image with dream quote) — only fields marked public. (The domain is `https://www.athanor.world` (#471, 2026-09-03; `athanor.app` was on the aftermarket): `apps/web/lib/site.ts:13` holds the canonical origin, and `apps/web/lib/site.test.ts:32-41` asserts it equals the host `apps/native/app.json` associates with, so the two cannot drift. Deep links only work on that host — AASA, `assetlinks` and `app.json` move together with it or not at all.)
 - Personal media gallery (grid) on the profile. The backing table is `moments`, which collides with the Momenti matching pillar (whose table is `momento_proposals`) — known naming debt, rename deferred (#148).
 - `profiles.founding_member` renders the Prime Stelle cosmetic card/badge — granted to the founding cohort at launch (concept ch. 21). Cosmetic only; never touches score (§4.9).
-- A fully-private profile still renders a minimal public shell at `/@handle` (handle + whatever is public) rather than a 404 (#251). The per-handle OG image with dream quote is spec; currently regressed to the generic site card (#157).
+- The public page at `/@handle` exists only while the member's identity facet is «Tutti» (#251); new members start at «Membri» and have none until they opt in (#790). Members from before #790 keep the «Tutti» they started with. The per-handle OG image with dream quote is spec; currently regressed to the generic site card (#157).
 - Acceptance: profile renders identically (data parity) on mobile and web; visibility flags enforced by RLS, verified by tests.
 
 ### 4.3 Il Sogno + Dream Milestones

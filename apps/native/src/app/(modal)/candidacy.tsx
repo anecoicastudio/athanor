@@ -12,7 +12,7 @@ import {
 import { MAX_SKILLS, SKILLS, canSubmitCandidacy } from '@athanor/core';
 import { semantic } from '@athanor/config';
 import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@athanor/schemas';
-import { t, type MessageKey } from '@athanor/i18n';
+import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
@@ -503,7 +503,7 @@ function WizardForm({
                   {SKILLS.map((key) => (
                     <Chip
                       key={key}
-                      label={t(`tag.skill.${key}` as MessageKey, locale)}
+                      label={tagLabel('skill', key, locale)}
                       selected={values.skills.includes(key)}
                       onPress={() => toggleSkill(key)}
                     />

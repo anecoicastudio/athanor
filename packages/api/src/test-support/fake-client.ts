@@ -194,9 +194,10 @@ export function makeFakeClient(script: Record<string, FakeResult[]> = {}) {
     calls,
     channels,
     from: (table: string) => builder({ table }),
-    // Chainable, because callers do `client.rpc(...).maybeSingle()` (profiles.ts:25,39,81,
-    // notificationPreferences.ts:42). Returning a bare Promise forced those tests to hand-roll
-    // a stub that hardcoded `error: null` — the exact defect this fake exists to remove.
+    // Chainable, because callers do `client.rpc(...).maybeSingle()` (profiles.ts `getOwnProfile`,
+    // `getProfileById`, `getProfileStatCounts`; notificationPreferences.ts). Returning a bare
+    // Promise forced those tests to hand-roll a stub that hardcoded `error: null` — the exact
+    // defect this fake exists to remove.
     rpc: (name: string, args?: unknown) =>
       builder({ table: 'rpc', op: 'rpc', values: args, columns: name }, `rpc.${name}`),
     auth: {

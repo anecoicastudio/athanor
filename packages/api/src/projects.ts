@@ -70,9 +70,9 @@ export async function getProject(client: AthanorClient, id: string): Promise<Pro
 }
 
 /**
- * Publish a project. RLS enforces author = (select auth.uid()). Creating a project
- * is the +4 domain event the M6 engine reads — this writes only `projects`, never
- * Aura (rule #1). TODO(M6): the score-engine (backend `07`) consumes this insert.
+ * Publish a project. RLS enforces author = (select auth.uid()). Writes only `projects`,
+ * never Aura (rule #1) — and creating a project earns none: the engine never rewards creating
+ * content (`ENGINE_WEIGHTS` in packages/core/src/score/weights.ts has no row for it).
  */
 export async function createProject(
   client: AthanorClient,

@@ -97,7 +97,7 @@ describe('listState', () => {
 
 // `staleWins` is the ONE axis the two callers disagreed on before `weekSlotState` folded in
 // here (#279 wrote it as `isError` first; the lists wrote it as content first). Both were
-// deliberate. `MomentiCard.tsx:41-44` states the dividing line: a stale Aura number is a claim
+// deliberate. `MomentiCard`'s error note states the dividing line: a stale Aura number is a claim
 // about a person's worth, a stale proposal costs one wasted tap.
 describe('listState — stale content versus a failed refetch', () => {
   it('keeps rows on screen when staleWins, so a list never blanks under a bad refresh', () => {

@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { MEDIA_LIMITS } from '@athanor/core';
 
 /**
- * Source audit, same idiom as `candidacy-video-status.test.ts:272` — `environment: 'node'`
- * cannot drive a picker, and `pick.ts` imports `expo-image-picker` at the top level, so the
- * options that must reach the native picker are pinned by reading the source.
+ * Source audit, same idiom as `candidacy-video-status.test.ts`'s tile and screen audits —
+ * `environment: 'node'` cannot drive a picker, and `pick.ts` imports `expo-image-picker` at the top
+ * level, so the options that must reach the native picker are pinned by reading the source.
  *
  * These assertions exist because the defect they guard against was an *absence* (#449): the
  * picker was called with no compression option at all, so iOS handed back a 4K original and

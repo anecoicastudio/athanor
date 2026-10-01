@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, useWindowDimensions } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale, MilestoneStatus } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
 import { isHelpableStatus, type HelpState } from '@/lib/help-picker';
+import { stacksTrailing } from '@/lib/type-scale';
 
 const STATE_KEY = {
   open: 'milestone.state.open',
@@ -77,6 +78,11 @@ export function MilestoneRow({
   // filters on the very same rule (#660, *Beyond the issue*).
   const offerable = helpState === 'available' && isHelpableStatus(status) && Boolean(onHelp);
   const stateLabel = t(STATE_KEY[status], locale);
+  // At the accessibility sizes the state label and the «Aiuta» chip move under the tappa's
+  // name (#847): beside both, the `flex-1` name was left narrower than one long word and broke
+  // it mid-word («actuall / y»). A tappa is a sentence, so it keeps every line — it just gets
+  // the row's width.
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   const confirmDelete = () => {
     setMenuOpen(false);
@@ -86,6 +92,26 @@ export function MilestoneRow({
       { text: t('milestone.delete', locale), style: 'destructive', onPress: onDelete },
     ]);
   };
+
+  const nameText = (
+    <Text
+      className={`${stacked ? '' : 'flex-1 '}text-[15px] ${done ? 'text-faint line-through' : 'text-foreground'}`}
+    >
+      {name}
+    </Text>
+  );
+  const trailing = (
+    <>
+      <Text className="text-[12px] text-faint">{stateLabel}</Text>
+      {offerable ? (
+        <View className="rounded-ctl border border-aura-line bg-aura-soft px-4 py-1.5">
+          <Text className="text-[13px] text-aura">{t('help.cta', locale)}</Text>
+        </View>
+      ) : helpState && helpState !== 'available' ? (
+        <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
+      ) : null}
+    </>
+  );
 
   // The cells every arm shares. It holds NO Pressable, deliberately: source-audit §21 walks tag
   // depth over the file text and cannot see through a const, so a control hoisted in here would
@@ -108,19 +134,17 @@ export function MilestoneRow({
       >
         {done ? '✓' : '○'}
       </Text>
-      <Text
-        className={`flex-1 text-[15px] ${done ? 'text-faint line-through' : 'text-foreground'}`}
-      >
-        {name}
-      </Text>
-      <Text className="text-[12px] text-faint">{stateLabel}</Text>
-      {offerable ? (
-        <View className="rounded-ctl border border-aura-line bg-aura-soft px-4 py-1.5">
-          <Text className="text-[13px] text-aura">{t('help.cta', locale)}</Text>
+      {stacked ? (
+        <View className="flex-1 gap-2">
+          {nameText}
+          <View className="flex-row flex-wrap items-center gap-3">{trailing}</View>
         </View>
-      ) : helpState && helpState !== 'available' ? (
-        <Text className="text-[12px] text-faint">{t(HELP_LABEL_KEY[helpState], locale)}</Text>
-      ) : null}
+      ) : (
+        <>
+          {nameText}
+          {trailing}
+        </>
+      )}
     </>
   );
 
@@ -132,13 +156,13 @@ export function MilestoneRow({
           accessibilityLabel={t('help.a11y.offerRow', locale, { need: name, state: stateLabel })}
           // Literal 44px, never `h-11`: a spacing step is 3.5px on device, so the class form
           // is 38.5pt there while measuring a passing 44 on the web walk (§29, #638).
-          className="min-h-[44px] flex-row items-center gap-3"
+          className={`min-h-[44px] flex-row gap-3 ${stacked ? 'items-start' : 'items-center'}`}
           onPress={onHelp}
         >
           {rowContent}
         </Pressable>
       ) : (
-        <View className="flex-row items-center gap-3">
+        <View className={`flex-row gap-3 ${stacked ? 'items-start' : 'items-center'}`}>
           {rowContent}
           {isOwner ? (
             <Pressable

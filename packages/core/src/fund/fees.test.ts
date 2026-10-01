@@ -67,7 +67,7 @@ describe('feeCoverage — the recursive gross-up', () => {
 
   it('never overshoots by more than a cent — the coverage is a cost, not a margin', () => {
     // Bounds the formula from ABOVE too: charging more than the fee plus one cent of
-    // rounding would make the coverage a hidden donation the payer did not consent to.
+    // rounding would make the coverage a hidden extra payment the payer did not consent to.
     for (let gift = 100; gift <= 100_000; gift += 7) {
       const { chargedCents } = feeCoverage(gift);
       expect(chargedCents - stripeFeeOn(chargedCents)).toBeLessThanOrEqual(gift + 1);

@@ -10,8 +10,8 @@ import { supabase } from '@/lib/supabase';
  * automatically. On a tier-up celebration, navigates to the level overlay.
  *
  * Rule #1: NEVER writes to aura_* tables — this hook only reads and invalidates.
- * Engine is dormant (deploy-deferred §TODO(M6-deploy)) → no live pushes yet, but
- * the wiring is correct-by-construction: safe to call, no-crash if never fired.
+ * The engine shipped in M6 and writes the aura_* tables this channel listens to (published
+ * in migration 20260617162238); the hook stays safe to call and no-crash if a push never comes.
  *
  * API rule: subscribeAura already returns the channel-removal cleanup fn; the
  * useEffect cleanup calls it. Effect dep = [profileId] prevents double-subscribe.

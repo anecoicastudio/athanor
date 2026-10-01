@@ -38,6 +38,8 @@ const POLL_MS = 250;
  * that component's close-then-launch dance, and the difference is the point: that dance exists
  * because a native picker view controller silently fails to present while an RN Modal is up.
  * There is no view controller here — the recorder is our own React tree — so it opens on top.
+ * Its CLOSING is sequenced, though: on iOS it is still a presented controller, and hiding the
+ * sheet under it in the same batch leaves an invisible screen that swallows every touch (#859).
  *
  * ## Two phases, because a third would be a promise this cannot keep
  *
@@ -72,6 +74,7 @@ export function AudioRecorderSheet({
   onRecorded,
   onCancel,
   onFailed,
+  onDismissed,
 }: {
   visible: boolean;
   locale: Locale;
@@ -91,6 +94,12 @@ export function AudioRecorderSheet({
    * message rendered underneath a still-visible `MediaSheet`.
    */
   onFailed: (key: MessageKey) => void;
+  /**
+   * iOS only: the recorder is fully off screen (RN Modal's `onDismiss`). `MediaSheet` hides
+   * itself only after this, never in the same batch as closing the recorder (#859,
+   * `nested-modal-gate.ts`).
+   */
+  onDismissed?: () => void;
 }) {
   const recorder = useAudioRecorder(AUDIO_RECORDING_OPTIONS);
   const state = useAudioRecorderState(recorder, POLL_MS);
@@ -276,7 +285,13 @@ export function AudioRecorderSheet({
   const seconds = recordedSeconds(recording ? state.durationMillis : lastMs.current);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={cancel}
+      {...(onDismissed ? { onDismiss: onDismissed } : {})}
+    >
       {/* scrim — silenced so VoiceOver can descend (§21); `cancel` is the named exit (§22) */}
       <Pressable
         accessible={false}

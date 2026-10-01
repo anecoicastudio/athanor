@@ -165,7 +165,7 @@ select is(
 -- read that depends on one. A privilege is what the migrations state; a successful read only
 -- tells you what this particular database happens to allow today.
 --
--- The client surface is the half that answers the same everywhere: 20260618131250:158-159
+-- The client surface is the half that answers the same everywhere: migration 20260618131250
 -- revokes from anon and grants to authenticated, and no later migration widens it. 0121
 -- declares the same two facts in its catalog sweep; they are restated here because this file
 -- is where someone reads what the view is for.
@@ -219,7 +219,7 @@ reset role;
 -- ── unauthorised actor: anon ──────────────────────────────────────────────────────────
 -- The cross-member case above is the only negative this file carried. A candidacy card is a
 -- member's dream, story and video -- the whole surface is members-only, and the view is the
--- one place that joins them into a single readable row. `20260618131250_m7_voting.sql:158`
+-- one place that joins them into a single readable row. `20260618131250_m7_voting.sql`
 -- revokes all from anon; assert the door, not the intent.
 
 -- the view is not readable by anon at all (privilege, not row filtering)

@@ -19,7 +19,10 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
   const openDetail = () => router.push(`/(modal)/post/${post.id}`);
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-      <View className="flex-row items-center justify-between">
+      {/* `gap-3` + `flex-wrap` (#847): with neither, a long name ran straight into the tag at
+          AX sizes («Vera LombardiCREATIVI»). Now the tag keeps its distance and, when the two
+          no longer fit one line, drops under the name. Nothing wraps at the default size. */}
+      <View className="flex-row flex-wrap items-center justify-between gap-3">
         <PostAuthorRow authorId={post.author_id} size="sm" />
         <SectionLabel>{categoryLabel}</SectionLabel>
       </View>

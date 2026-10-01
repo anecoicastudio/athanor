@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
-import { getLatestExportJob, requestErasure, requestExport } from './gdpr';
+import { getLatestExportJob, hasOpenErasureRequest, requestErasure, requestExport } from './gdpr';
 
 const ME = '00000000-0000-0000-0000-000000000001';
 
@@ -19,7 +19,7 @@ const JOB_ROW = {
 function stub(row: Record<string, unknown> | null = null, error: unknown = null) {
   const calls: Array<{ method: string; arg: unknown; arg2?: unknown }> = [];
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'order', 'limit']) {
+  for (const m of ['select', 'neq', 'order', 'limit']) {
     chain[m] = (arg?: unknown, arg2?: unknown) => {
       calls.push({ method: m, arg, arg2 });
       return chain;
@@ -89,6 +89,18 @@ describe('requestExport', () => {
     const { client } = insertStub({ id: ME }, new Error('rls denied'));
     await expect(requestExport(client)).rejects.toThrow('rls denied');
   });
+
+  // #784 — one OPEN export job per member (gdpr_export_jobs_one_open_per_profile), so a second
+  // request while one is queued raises 23505. The member asked and a job is on file: success.
+  it('treats the duplicate-request 23505 as success, because a job is already on file', async () => {
+    const { client } = insertStub({ id: ME }, { code: '23505', message: 'duplicate key' });
+    await expect(requestExport(client)).resolves.toBeUndefined();
+  });
+
+  it('still throws on any OTHER insert error', async () => {
+    const { client } = insertStub({ id: ME }, { code: '42501', message: 'rls denied' });
+    await expect(requestExport(client)).rejects.toThrow('rls denied');
+  });
 });
 
 describe('requestErasure', () => {
@@ -134,5 +146,41 @@ describe('requestErasure', () => {
     await expect(requestErasure(bad.client)).rejects.toThrow();
     await expect(requestExport(bad.client)).rejects.toThrow();
     expect(bad.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('hasOpenErasureRequest (#735)', () => {
+  const OPEN = { id: '00000000-0000-0000-0000-0000000000e1', status: 'retained' as const };
+
+  it("asks only for a request that is not 'done' — every other status is open", async () => {
+    const { client, calls } = stub(OPEN);
+    await hasOpenErasureRequest(client);
+    expect(calls.find((c) => c.method === 'select')?.arg).toBe('id, status');
+    expect(calls.some((c) => c.method === 'neq' && c.arg === 'status' && c.arg2 === 'done')).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.method === 'limit' && c.arg === 1)).toBe(true);
+  });
+
+  it('true for an open row, false when the member has none', async () => {
+    await expect(hasOpenErasureRequest(stub(OPEN).client)).resolves.toBe(true);
+    await expect(hasOpenErasureRequest(stub(null).client)).resolves.toBe(false);
+  });
+
+  it('a row that fails the schema still counts as open, and says which one (api.md)', async () => {
+    // The query already proves openness (status <> 'done'); a status this build does not know yet
+    // — the way 'retained' reached older builds — must not hide the banner, nor pass silently.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const row = { id: OPEN.id, status: 'some_future_status' };
+    await expect(hasOpenErasureRequest(stub(row).client)).resolves.toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[1])).toBe(OPEN.id);
+    warn.mockRestore();
+  });
+
+  it('throws on a read error rather than reporting «no request»', async () => {
+    await expect(hasOpenErasureRequest(stub(null, { message: 'boom' }).client)).rejects.toEqual({
+      message: 'boom',
+    });
   });
 });

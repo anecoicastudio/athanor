@@ -5,6 +5,7 @@ import { getPublicProfileByHandle } from '@athanor/api';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
 import { handleStaticParams } from '@/lib/handle-static-params';
 import { resolveHandle } from '@/lib/resolve-handle';
+import { SITE_URL } from '@/lib/site';
 import { createAnonClient } from '@/utils/supabase/server';
 import { PublicProfileClient } from '@/components/public-profile-client';
 
@@ -61,6 +62,10 @@ export async function generateMetadata({
   return {
     title: `@${profile.handle} — ${t('app.name', DEFAULT_LOCALE)}`,
     description,
+    // Self-canonical (#792), from the stored handle rather than the URL segment: resolveHandle
+    // accepts `%40Sole` and mixed case, and every spelling that reaches this page should
+    // consolidate onto the one the sitemap lists.
+    alternates: { canonical: `${SITE_URL}/@${profile.handle}` },
     // No `images` here: the sibling opengraph-image.tsx fills og:image per handle
     // (#157) — file-based metadata beats these fields, and naming a URL as well
     // would only invite the two to drift. Next replaces `openGraph`/`twitter`

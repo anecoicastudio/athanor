@@ -61,7 +61,7 @@ export default function PersonDetailScreen() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { showToast } = useToast();
   /**
-   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx:53`), so on every
+   * `/@handle` reaches this screen through a `replace` (`src/app/[handle].tsx`), so on every
    * deep link to a member this screen IS the stack — warm or cold, not only on a cold start.
    * A bare `back()` after blocking would leave the blocker staring at the person they just
    * blocked (#578).
@@ -212,7 +212,13 @@ export default function PersonDetailScreen() {
   // Native share sheet, via the one builder both profile surfaces use. Built at render so
   // the control can be withheld when there is nothing to share — the `missing` branch
   // renders headerRight too, and a button that silently no-ops is the defect #110 is about.
-  const shareMessage = profileShareMessage(personHandle, t('app.name', locale));
+  // The link rides along only when their /@handle page exists (#790). Absent flag = a database
+  // before 20260925143552, where the page was the default: keep the link, as before.
+  const shareMessage = profileShareMessage(
+    personHandle,
+    t('app.name', locale),
+    person?.has_public_page ?? true,
+  );
 
   const shareProfile = async () => {
     if (!shareMessage) return;

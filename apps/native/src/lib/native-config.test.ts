@@ -101,6 +101,12 @@ describe.each([
     expect(pluginProps(config, LOCATION_PLUGIN)).toEqual({});
   });
 
+  it('keeps a system font-size change from recreating the Activity (#845)', () => {
+    // Without `fontScale` in MainActivity's configChanges, Android destroys and recreates the
+    // Activity on a font-size change, and every unsent draft held in component state goes with it.
+    expect(pluginProps(config, FONT_SCALE_PLUGIN)).toEqual({});
+  });
+
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
@@ -115,6 +121,90 @@ describe.each([
     const props = pluginProps(config, '@sentry/react-native/expo');
     expect(props).toBeDefined();
     expect(props).not.toHaveProperty('authToken');
+  });
+});
+
+/*
+ * The iOS permission prompts in Italian (#83). app.config.ts builds `locales` from the i18n
+ * catalogs; Expo turns it into <lang>.lproj/InfoPlist.strings at prebuild. The plugin props in
+ * app.json are what Info.plist itself says, which is also what a phone in a third language
+ * shows — so they must be the EN catalog verbatim, or the same prompt reads two ways.
+ */
+const IOS_PROMPTS: [plugin: string, prop: string, plistKeys: string[]][] = [
+  ['expo-image-picker', 'cameraPermission', ['NSCameraUsageDescription']],
+  ['expo-image-picker', 'photosPermission', ['NSPhotoLibraryUsageDescription']],
+  ['expo-audio', 'microphonePermission', ['NSMicrophoneUsageDescription']],
+  ['expo-location', 'locationWhenInUsePermission', ['NSLocationWhenInUseUsageDescription']],
+  [
+    'expo-calendar',
+    'calendarPermission',
+    ['NSCalendarsUsageDescription', 'NSCalendarsFullAccessUsageDescription'],
+  ],
+];
+
+describe('iOS permission prompts per language (#83)', () => {
+  const config = resolveVariant(undefined);
+  const locale = (lang: 'it' | 'en') =>
+    (config.locales?.[lang] as { ios: Record<string, string> } | undefined)?.ios ?? {};
+
+  it('localises exactly the prompts the plugins are given, in it and en', () => {
+    const keys = IOS_PROMPTS.flatMap(([, , plistKeys]) => plistKeys).sort();
+    expect(Object.keys(config.locales ?? {}).sort()).toEqual(['en', 'it']);
+    expect(Object.keys(locale('it')).sort()).toEqual(keys);
+    expect(Object.keys(locale('en')).sort()).toEqual(keys);
+  });
+
+  it.each(IOS_PROMPTS)('%s %s: app.json says what en.lproj says', (plugin, prop, plistKeys) => {
+    for (const key of plistKeys) {
+      expect(pluginProps(config, plugin)?.[prop], key).toBe(locale('en')[key]);
+    }
+  });
+
+  it('the Italian copy is not the English copy', () => {
+    for (const [key, value] of Object.entries(locale('it'))) {
+      expect(value, key).not.toBe(locale('en')[key]);
+    }
+  });
+
+  it('turns on mixed localizations, as Expo’s locales guide requires', () => {
+    expect(config.ios?.infoPlist?.CFBundleAllowMixedLocalizations).toBe(true);
+  });
+
+  it('the dev client carries the same prompts', () => {
+    expect(resolveVariant('development').locales).toEqual(config.locales);
+  });
+});
+
+/*
+ * Sign in with Apple is enabled on the world.athanor.app App ID by hand (#79): the Services ID
+ * the browser OAuth flow uses is grouped under it. The binary has no Sign in with Apple
+ * entitlement and must not get one — the flow is Supabase's browser OAuth, not the native sheet.
+ *
+ * eas-cli's capability sync DISABLES every capability it manages that the entitlements do not
+ * declare (docs.expo.dev/build-reference/ios-capabilities, "Disabling"; eas-cli 24.7.0
+ * `credentials/ios/appstore/bundleIdCapabilities.js`, with Sign In with Apple in its
+ * `capabilityList.js`). `eas build` and `eas credentials` both run it; `eas submit` does not.
+ * The switch is read ONCE, from the shell, when eas-cli loads — a profile's `env` in eas.json
+ * is applied only while the app config is evaluated, so it cannot carry it. Hence the script.
+ */
+describe('EAS never syncs iOS capabilities (#83, #79)', () => {
+  const pkg = JSON.parse(readFileSync(join(NATIVE, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+
+  it('the eas script turns capability sync off for every eas-cli command', () => {
+    expect(pkg.scripts.eas).toBe('EXPO_NO_CAPABILITY_SYNC=1 pnpm dlx eas-cli');
+  });
+
+  it.each([
+    ['production', undefined],
+    ['development', 'development'],
+  ] as const)('%s declares no Sign in with Apple entitlement', (_label, variant) => {
+    // The day one is added, the sync would keep the capability on and the script above could
+    // go — decide that deliberately, here.
+    const resolved = resolveVariant(variant);
+    expect(resolved.ios?.usesAppleSignIn).not.toBe(true);
+    expect(resolved.ios?.entitlements ?? {}).not.toHaveProperty('com.apple.developer.applesignin');
   });
 });
 
@@ -174,6 +264,76 @@ describe('without-location-task-service plugin (#776)', () => {
     expect(out.manifest.application[0]!.service).toEqual([
       { $: { 'android:name': plugin.LOCATION_TASK_SERVICE, 'tools:node': 'remove' } },
     ]);
+  });
+});
+
+const FONT_SCALE_PLUGIN = './plugins/with-font-scale-config-change.js';
+
+describe('with-font-scale-config-change plugin (#845)', () => {
+  type Activity = { $: Record<string, string> };
+  const plugin = createRequire(import.meta.url)(`../../${FONT_SCALE_PLUGIN.slice(2)}`) as {
+    addFontScaleConfigChange: (manifest: unknown) => {
+      manifest: { application: { activity: Activity[] }[] };
+    };
+  };
+  // The bare template's MainActivity list (expo 57 `template.tgz`), plus a second activity the
+  // transform must leave alone.
+  const TEMPLATE =
+    'keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths';
+  const MAIN_FILTER = {
+    action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+    category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }],
+  };
+  const OTHER: Activity = {
+    $: { 'android:name': 'com.other.Activity', 'android:configChanges': 'orientation' },
+  };
+  const manifest = (configChanges: string | undefined) => ({
+    manifest: {
+      $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      application: [
+        {
+          $: { 'android:name': '.MainApplication' },
+          activity: [
+            {
+              $: {
+                'android:name': '.MainActivity',
+                ...(configChanges === undefined ? {} : { 'android:configChanges': configChanges }),
+              },
+              'intent-filter': [MAIN_FILTER],
+            },
+            structuredClone(OTHER),
+          ],
+        },
+      ],
+    },
+  });
+  const changes = (out: ReturnType<typeof plugin.addFontScaleConfigChange>, i = 0) =>
+    out.manifest.application[0]!.activity[i]!.$['android:configChanges'];
+
+  it('adds fontScale to MainActivity and keeps every flag the template declares', () => {
+    expect(changes(plugin.addFontScaleConfigChange(manifest(TEMPLATE)))).toBe(
+      `${TEMPLATE}|fontScale`,
+    );
+  });
+
+  it('leaves every other activity untouched', () => {
+    expect(
+      plugin.addFontScaleConfigChange(manifest(TEMPLATE)).manifest.application[0]!.activity[1],
+    ).toEqual(OTHER);
+  });
+
+  it('is idempotent — a second run, or a list that already has it, adds nothing', () => {
+    const twice = plugin.addFontScaleConfigChange(
+      plugin.addFontScaleConfigChange(manifest(TEMPLATE)),
+    );
+    expect(changes(twice)).toBe(`${TEMPLATE}|fontScale`);
+    expect(changes(plugin.addFontScaleConfigChange(manifest('fontScale|orientation')))).toBe(
+      'fontScale|orientation',
+    );
+  });
+
+  it('writes the attribute when MainActivity declares no configChanges at all', () => {
+    expect(changes(plugin.addFontScaleConfigChange(manifest(undefined)))).toBe('fontScale');
   });
 });
 
@@ -338,5 +498,33 @@ describe.each(EAS_PLATFORMS)('Sentry symbol upload per EAS profile — %s (#466)
     for (const profile of ['preview', 'production']) {
       expect(envOf(profile).EXPO_PUBLIC_APP_VARIANT, profile).toBeUndefined();
     }
+  });
+});
+
+/*
+ * `production-simulator` is the production app built as a simulator .app, for a production
+ * smoke on a Mac whose Xcode cannot compile the app locally (#83). It must stay production in
+ * everything but the target: the same env (so the same Supabase project, Sentry posture and
+ * app identity), the same EAS environment and channel, and no build-number bump — a smoke build
+ * must never advance the store's train.
+ */
+describe('production-simulator EAS profile (#83)', () => {
+  const build = JSON.parse(readFileSync(join(NATIVE, 'eas.json'), 'utf8')).build as Record<
+    string,
+    EasProfile & { autoIncrement?: boolean; ios?: { simulator?: boolean } }
+  >;
+  const sim = build['production-simulator'];
+
+  it('extends production, overriding only the target and the build number', () => {
+    expect(sim?.extends).toBe('production');
+    expect(Object.keys(sim ?? {}).sort()).toEqual(['autoIncrement', 'extends', 'ios']);
+    expect(sim?.ios).toEqual({ simulator: true });
+    expect(sim?.autoIncrement).toBe(false);
+  });
+
+  it.each(EAS_PLATFORMS)('resolves the same %s env as production', (platform) => {
+    expect(resolveEnv(build, 'production-simulator', platform)).toEqual(
+      resolveEnv(build, 'production', platform),
+    );
   });
 });

@@ -371,8 +371,9 @@ describe('the tile threads the signing state it is handed (#463, source audit)',
 });
 
 describe('the launch path refuses before it opens anything (#412, source audit)', () => {
-  // Same idiom as candidacy-wizard.test.ts:364 — `environment: 'node'` cannot render a screen
-  // or drive a picker, so ordering that must hold on device is pinned by reading the source.
+  // Same idiom as candidacy-wizard.test.ts's screen source audit — `environment: 'node'` cannot
+  // render a screen or drive a picker, so ordering that must hold on device is pinned by reading
+  // the source.
   const SRC = fileURLToPath(new URL('.', import.meta.url).href);
   const read = (rel: string) => readFileSync(`${SRC}${rel}`, 'utf8');
 

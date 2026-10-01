@@ -1,6 +1,6 @@
 -- #234 / FUND-29 — the per-cycle cost record.
 -- doc §20 «principali categorie di spesa; eventuali compensi o costi di gestione previsti» ·
--- PRD.md:256 · docs/FUND-SPEC.md §"Platform economics" · divergence D-16.
+-- PRD.md §4.11 «Transparency» · docs/FUND-SPEC.md §"Platform economics" · divergence D-16.
 --
 -- Asserts: the world reads the cost record — signed out included, because FUND-38 publishes
 -- it to a page an unregistered visitor sees; no client writes it, in either the policy sense

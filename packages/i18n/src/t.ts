@@ -54,12 +54,14 @@ export function tn(
 }
 
 /**
- * Label for a curated tag key (`tag.identity.*` / `tag.seeking.*` / `tag.skill.*`).
+ * Label for a curated tag key (`tag.identity.*` / `tag.seeking.*` / `tag.skill.*` /
+ * `tag.profession.*`).
  *
  * Separate from `t` because the key is DATA here, not a literal: the Momenti deck receives
  * tag keys from `get_momenti_deck()` and localizes them per read (#273 D), so the key cannot
- * be typed as a MessageKey at the call site. An unknown tag returns the key itself — a tag
- * that reaches the DB before the catalogs must read as «astronauta», never «undefined».
+ * be typed as a MessageKey at the call site. An unknown tag returns the stored value itself — a
+ * tag that reaches the DB before the catalogs must read as «astronauta», never «undefined», and
+ * never the raw key `t()` would echo back (#883).
  */
 export function tagLabel(
   kind: 'identity' | 'seeking' | 'skill' | 'profession',

@@ -5,8 +5,9 @@ import { json, error } from '../_shared/respond.ts';
 // Core math — imported directly from packages/core. Every specifier below carries an explicit
 // `.ts` and is resolved as written: the deployed edge runtime does NOT honour this function's
 // `unstable: ["sloppy-imports"]`, so an extension-less one would resolve locally, pass CI, and
-// boot a 503 BOOT_ERROR on the hosted project (index.ts:26-30; _shared/deploy-graph.test.ts
-// asserts the property transitively, for this graph and every other deployed entrypoint).
+// boot a 503 BOOT_ERROR on the hosted project (the «Deploy-asset pins» comment in index.ts;
+// _shared/deploy-graph.test.ts asserts the property transitively, for this graph and every other
+// deployed entrypoint).
 import { pointsFor, type AwardContext } from '../../../packages/core/src/score/award.ts';
 import { applyCap } from '../../../packages/core/src/score/caps.ts';
 import { applyDecay } from '../../../packages/core/src/score/decay.ts';

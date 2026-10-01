@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AthanorClient } from './client';
 import {
   listNotifications,
@@ -93,6 +93,128 @@ describe('listNotifications', () => {
     });
 
     await expect(listNotifications(as(client))).rejects.toThrow(/permission denied/);
+  });
+});
+
+// #800: a handle copied into params by value outlives a rename. Rows since 20260925124457 carry
+// the actor's id, and the page resolves the handle the actor has NOW.
+describe('listNotifications — the actor named is the actor as they are now (#800)', () => {
+  const LUNA = '44444444-4444-4444-8444-444444444444';
+  const SOL = '55555555-5555-4555-8555-555555555555';
+  const row = (id: string, params: Record<string, unknown>) =>
+    notification({ id, template_key: 'notif.tpl.connection', type: 'connection', params });
+  const N1 = '66666666-6666-4666-8666-666666666661';
+  const N2 = '66666666-6666-4666-8666-666666666662';
+  const N3 = '66666666-6666-4666-8666-666666666663';
+
+  it('shows the current handle, looked up once per page for every distinct actor', async () => {
+    const client = makeFakeClient({
+      'notifications.select': [
+        {
+          data: [
+            row(N1, { name: 'luna_old', actor_id: LUNA }),
+            row(N2, { name: 'luna_old', actor_id: LUNA }),
+            row(N3, { name: 'sol', actor_id: SOL }),
+          ],
+        },
+      ],
+      'profiles.select': [
+        {
+          data: [
+            { id: LUNA, handle: 'luna_new' },
+            { id: SOL, handle: 'sol' },
+          ],
+        },
+      ],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items.map((n) => n.params.name)).toEqual(['luna_new', 'luna_new', 'sol']);
+    const lookups = client.calls.filter((c) => c.table === 'profiles');
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]?.filters).toContainEqual(['in', 'id', [LUNA, SOL]]);
+  });
+
+  it('an actor the reader cannot see — blocked, banned, erased — is named by nobody, not by the stored handle', async () => {
+    // RLS (profiles_select_authenticated: not_blocked + not_banned) returns no row for them, and
+    // an erased member has no row at all. Falling back to `name` would show the very handle the
+    // block hides, so the name goes empty and the row renders the neutral «Qualcuno».
+    const client = makeFakeClient({
+      'notifications.select': [{ data: [row(N1, { name: 'hidden', actor_id: LUNA })] }],
+      'profiles.select': [{ data: [] }],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items[0]?.params).toEqual({ name: '', actor_id: LUNA });
+  });
+
+  it('an actor without a handle yet is named by nobody too', async () => {
+    const client = makeFakeClient({
+      'notifications.select': [{ data: [row(N1, { name: '', actor_id: LUNA })] }],
+      'profiles.select': [{ data: [{ id: LUNA, handle: null }] }],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items[0]?.params.name).toBe('');
+  });
+
+  it('a row written before #800 keeps its stored name, and a page of them looks nobody up', async () => {
+    const client = makeFakeClient({
+      'notifications.select': [{ data: [row(N1, { name: 'luna_old' }), notification()] }],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items[0]?.params).toEqual({ name: 'luna_old' });
+    expect(client.calls.filter((c) => c.table === 'profiles')).toHaveLength(0);
+  });
+
+  it('a failed lookup keeps the inbox up and names nobody — never the stored handle', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeFakeClient({
+      'notifications.select': [
+        { data: [row(N1, { name: 'luna_old', actor_id: LUNA }), row(N2, { name: 'old_row' })] },
+      ],
+      'profiles.select': [{ error: { message: 'lookup down' } }],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items.map((n) => n.params.name)).toEqual(['', 'old_row']);
+    expect(warn).toHaveBeenCalledWith('listNotifications: actor lookup failed');
+    warn.mockRestore();
+  });
+
+  it('a malformed profile row is withheld and counted, and its actor named by nobody', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeFakeClient({
+      'notifications.select': [
+        {
+          data: [
+            row(N1, { name: 'luna_old', actor_id: LUNA }),
+            row(N2, { name: 'sol', actor_id: SOL }),
+          ],
+        },
+      ],
+      'profiles.select': [
+        {
+          data: [
+            { id: LUNA, handle: 'NOT A HANDLE' },
+            { id: SOL, handle: 'sol' },
+          ],
+        },
+      ],
+    });
+
+    const page = await listNotifications(as(client));
+
+    expect(page.items.map((n) => n.params.name)).toEqual(['', 'sol']);
+    expect(warn).toHaveBeenCalledWith('listNotifications: 1 actor rows withheld');
+    expect(String(warn.mock.calls)).not.toContain(LUNA);
+    warn.mockRestore();
   });
 });
 

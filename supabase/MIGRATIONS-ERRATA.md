@@ -2383,3 +2383,102 @@ last_read_at AND last_message_sender_id <> me` (`20260902153057`), and v1 moved 
   `audit_log.report_id`'s `ON DELETE CASCADE` deleted it when a reporter's erasure deleted the
   report. `20260923064927` detaches content rows before the cascade (`reports_detach_content_audit`).
   pgTAP `0155` I1–I3 assert it.
+
+## `20260925124457_notification_actor_id_and_handle_rename_purge.sql` — 0121 does not read the five `athanor` producers
+
+- **«the revokes are restated because 0121 reads the migration that last defines a trigger
+  function»** (section 1's header). 0121 reads the catalog (`pg_proc.proacl`), not migrations,
+  and its trigger-function rule filters on the `public` schema. It covers
+  `public.on_momento_proposal_push` only; the five `athanor.notify_*` producers and
+  `athanor.enqueue_handle_rename_purge` are outside it. The revokes are still right — `create or
+replace` keeps the existing ACL, so restating them changes nothing — but the reason given is not
+  the real one. pgTAP `0156` asserts that no client role can execute
+  `athanor.enqueue_handle_rename_purge()`.
+
+## `20260620140149_m9_gdpr_export_erasure.sql` — «the job deletes the object» was true of no code until #784
+
+- **«To cut off access, the job deletes the object»** (the `exports` bucket comment). No code
+  deleted an export object before `20260925154710`; archives stayed until the member's erasure
+  swept their prefix, and /privacy said so («kept as long as you have the account»). Since #784
+  gdpr-export-job's nightly pass deletes every `exports` object no live job protects
+  (`gdpr_export_reap_candidates`) and every row past its window (`gdpr_export_reap_jobs`). pgTAP
+  `0158` asserts both predicates.
+- **«104857600»** is no longer the bucket's ceiling: `20260925154710` §1 raises it to 200 MiB,
+  because the archive now holds copies of the member's media and a candidacy video can be that
+  large.
+- The `20260827110034` entry above quotes the archive key as `${job.profile_id}/${job.id}.json`.
+  Since #784 the writer uses `{uid}/{job}/archive.json` with media under `{uid}/{job}/media/…`.
+  The first segment is still the member's id, so the erasure prefix sweep still covers every
+  object, and `0137`'s `{uid}/` fixture is still the right shape.
+
+## `20260908133119_gdpr_erasure_claim_lease_fences.sql` / `20260823073258_gdpr_erasure_partial_status.sql` — the claim now re-takes `retained`
+
+- **«every ''requested'' row, plus every ''processing'' row whose claim is older than p_lease»**
+  (the `claim_erasure_requests` comment) and **«requested → processing → done | partial |
+  failed»** (the `status` column comment). Since `20260925175902` (#735) the status set has a
+  sixth value, `retained`, written by erasure-job when the member's Circle subscription could not
+  be stopped at Stripe, and the claim re-takes `retained` rows exactly as it takes `requested`
+  ones. Both comments are replaced in the catalog by that migration. `failed` and `partial` are
+  still never re-claimed. pgTAP `0058` asserts both halves.
+- `20260925175902`'s own header says the claim re-takes `retained` rows «exactly as it takes
+  'requested' ones». Since `20260925181256` (same PR) it does not: `retained` rows sort after
+  every first attempt, least recently retried first, so a backlog of them cannot starve a new
+  request. Its header also says any Stripe failure is retried; since the same review a
+  `resource_missing` or `livemode_mismatch` ends `failed` (erasure-job `logic.ts`,
+  `PERMANENT_STRIPE_CODES`), and so does an unreadable `circle_memberships` row. pgTAP `0058`
+  and the Deno suite assert both.
+
+## `20260925193313_stripe_webhook_events_livemode.sql` — the column is generated, not written, since `20260925194113`
+
+- **«stripe-webhook writes `event.livemode` here on every delivery»** and the column comment's
+  **«Written by stripe-webhook from event.livemode; rows that predate the column were backfilled
+  from payload»**. Neither holds: `20260925194113` (same PR, #802 review) drops the column and
+  re-adds it as a STORED GENERATED column over `payload`, and stripe-webhook writes only
+  `event_id`, `type` and `payload`. The backfill `update` in `20260925193313` ran, and its values
+  were discarded by the drop — they were copies of `payload` either way. The plain-column shape
+  would have left rows written between the migration and the function deploy NULL forever, and a
+  function deployed ahead of the migration would have 500'd every delivery. The column comment is
+  replaced in the catalog by `20260925194113`. pgTAP `0159` asserts the column is generated and
+  derives from `payload`.
+
+## `20260620122139_m9_consent.sql` — `comms` retired, and the rows were never an audit trail
+
+- **«owner CRUD-MINUS-DELETE (rows persist as an audit trail)»** (`:2`). No history was ever kept:
+  `setConsent` (`packages/api/src/consent.ts`) upserts on `unique (profile_id, kind)`, so each
+  change overwrites `granted` / `granted_at` in place. What the missing DELETE grant preserves is
+  the member's latest answer per kind, not the sequence of them. The table comment is replaced in
+  the catalog by `20260926105116`.
+- **«Kinds: comms (marketing-email opt-in), …»** (`:3`) and the inline
+  `check (kind in ('comms','analytics','location_approx'))` (`:10`). Since `20260926105116`
+  (#841) `consent_kind_check` accepts only `analytics` and `location_approx`, every `comms` row
+  is deleted, and a BEFORE INSERT trigger (`athanor.consent_discard_retired_kind`) discards any
+  `comms` row an old build's switch still writes, so the upsert succeeds with nothing stored.
+  pgTAP `0056` asserts the constraint's accepted set, the discard on both insert and upsert, and
+  that no `comms` row exists.
+
+---
+
+## `20260815090015_cast_vote_window.sql:5-11` — "When #218 lands … this set converges on the screened set with no change here" converged only WITH a change
+
+The header counts the VOTABLE set (`submitted`, `screening`, `shortlisted`, `winner`) as the
+ballot minimum and promises that once #218 moves statuses the set "converges on the screened
+set with no change here". #218 landed the same day (`20260815164809_fund_screening.sql`, closed
+2026-08-15), and the convergence did happen — but not with no change. That migration's §5
+("The ballot converges on the screened set") rewrote the predicate itself: on the ballot is now
+`shortlisted` plus the declared `winner`, in the predicate's single home (#383), and
+`submitted`/`screening` rows are owner-visible only, unvotable, and uncounted by the minimum.
+Read the window clause in this file; read the ballot membership in `20260815164809` and later.
+
+Asserted by: `supabase/tests/0106_is_on_ballot.test.sql` (the truth table: `submitted` is not on
+the ballot, `shortlisted` is, and every former call site reads the one predicate).
+
+## `20260816073905_fund_realization_plans.sql:39-41` — "the sweep stays inert by construction until #231 lands"
+
+The same SEAMS paragraph as the `:37-38, 234` entry above, its last clause. #231 landed
+(`20260816110227_fund_tranche_gate.sql`, closed 2026-08-16), so the sweep is no longer inert;
+the `20260816071602_fund_settle_sweep.sql` entry records what it enumerates now. The clause's
+`release-fund-payout` "reserved refusal (logic.ts:111-117)" is stale too: the slot is the
+`phase not verified` rung (`THE GATE. No verification, no money.`) of the refusal ladder in
+`release-fund-payout/logic.ts`, which that function's header says #231 now occupies.
+
+Asserted by: `supabase/tests/0117_fund_tranche_gate.test.sql`.
