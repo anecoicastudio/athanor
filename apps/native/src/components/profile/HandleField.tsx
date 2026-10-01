@@ -13,9 +13,10 @@ const TONE_CLASS = {
 
 /**
  * The @handle field (#782) — one component for the two places a handle is chosen: the onboarding
- * step after sign-up and the profile editor. Never prefilled from anything but the handle the
- * member already holds: an email-derived suggestion the person taps through is the same leak as
- * no choice at all.
+ * step after sign-up and the profile editor. Never prefilled from the EMAIL: an email-derived
+ * suggestion the person taps through is the same leak as no choice at all. The editor opens on
+ * the handle the member already holds; the onboarding step may open on one suggested from the
+ * name they gave (#908, Marco's ruling 2026-10-01 — `HandleStepScreen` owns that, not this field).
  *
  * What is typed is normalised on the way in (one leading `@` dropped, lowercased — the column is
  * lowercase-only) and nothing else is repaired, so a space or a dot stays for the status line to

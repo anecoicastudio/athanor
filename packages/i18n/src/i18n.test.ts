@@ -891,3 +891,37 @@ describe('no copy of ours introduces an OS permission prompt (#908)', () => {
     expect(offenders(en, /^(allow\b.*|not now)$/i)).toEqual([]);
   });
 });
+
+describe('the handle step never asks for a name (#908)', () => {
+  /**
+   * Guideline 4, same submission: after Sign in with Apple the app must not ask again for the
+   * name Apple provided. The @handle step was the only mandatory field left, and its copy called
+   * the handle «il nome con cui compari» over a placeholder reading «il_tuo_nome» — a name
+   * prompt in everything but intent. The handle is an address; the copy says so, and the one
+   * place the word «nome» remains is the line that says the suggestion CAME from the name
+   * already given. The email half of #782 stays on screen.
+   */
+  test('the handle is never called a name, in either locale', () => {
+    for (const key of [
+      'onboarding.handle.title',
+      'onboarding.handle.sub',
+      'handle.label',
+      'handle.placeholder',
+      'handle.status.taken',
+      'handle.status.reserved',
+    ] as const) {
+      expect(it[key], key).not.toMatch(/nome/i);
+      expect(en[key], key).not.toMatch(/name/i);
+    }
+  });
+
+  test('the step still says the handle is not taken from the email', () => {
+    expect(it['onboarding.handle.sub']).toMatch(/email/i);
+    expect(en['onboarding.handle.sub']).toMatch(/email/i);
+  });
+
+  test('the suggested variant says where the suggestion came from', () => {
+    expect(it['onboarding.handle.subSuggested']).toMatch(/nome/i);
+    expect(en['onboarding.handle.subSuggested']).toMatch(/name/i);
+  });
+});
