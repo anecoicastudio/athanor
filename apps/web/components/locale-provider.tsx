@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Locale } from '@athanor/i18n';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
+import { LOCALE_PENDING_ATTR } from '@/lib/locale-pending';
 
 const COOKIE = 'athanor_locale';
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -37,9 +38,9 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 /**
  * Holds the active landing locale (IT canonical). Every public page is prerendered
  * as IT, so the server no longer reads the cookie — this provider picks it up after
- * hydration and switches in place. A returning EN visitor therefore gets a brief
- * flash of Italian — visible since the splash intro was removed (2026-10-03). That is the
- * accepted cost of prerendering; see lib/default-locale.ts.
+ * hydration and switches in place. A returning EN visitor would therefore read Italian
+ * for a moment; lib/locale-pending.ts hides the page until the switch has rendered, and this
+ * provider lifts that gate.
  *
  * Switching writes the cookie + updates <html lang> and re-renders the page in
  * place — no reload, no scroll reset. The catalogs
@@ -64,6 +65,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       });
     }
   }, []);
+
+  // Lift the locale-pending gate once the switched copy has rendered — an effect on `locale`
+  // runs after that commit. When no switch is coming (the first effect above found nothing),
+  // the head script never set the mark, so there is nothing to lift.
+  useEffect(() => {
+    if (locale !== DEFAULT_LOCALE) document.documentElement.removeAttribute(LOCALE_PENDING_ATTR);
+  }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);

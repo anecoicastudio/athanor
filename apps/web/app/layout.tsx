@@ -7,6 +7,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { SITE_URL } from '@/lib/site';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
+import { LOCALE_PENDING_SCRIPT } from '@/lib/locale-pending';
 import { SkipLink } from '@/components/skip-link';
 import { SmoothScroll } from '@/components/smooth-scroll';
 import { PageReveal } from '@/components/page-reveal';
@@ -86,10 +87,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning: the script below may set `lang` and the pending mark on <html>
+    // before React hydrates it (lib/locale-pending.ts). It covers this element's own attributes
+    // only, not its children.
     <html
       lang={DEFAULT_LOCALE}
       className={cn('h-full antialiased font-sans', hankenGrotesk.variable, ebGaramond.variable)}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_PENDING_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {/* Both of these read the live locale from context rather than taking a
             server-rendered string, or the chrome would stay Italian around
