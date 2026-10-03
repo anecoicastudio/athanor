@@ -60,11 +60,11 @@ const DECAY_FLOOR_PCT = Math.round(DECAY.PEAK_FLOOR_RATIO * 100);
  */
 const ERASURE_DELETES: Record<Locale, string[]> = {
   it: [
-    "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se eri nella lista d'attesa, togliamo anche il tuo indirizzo email.",
+    "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se avevi lasciato il tuo indirizzo email sul sito, per gli aggiornamenti o nella lista d'attesa, togliamo anche quello.",
     'Gli eventi che hai organizzato vengono nascosti e non portano più il tuo nome. Restano solo per non cancellare con loro i biglietti e le iscrizioni delle altre persone.',
   ],
   en: [
-    'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you were on the waitlist, we remove your email address from it too.',
+    'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you had left your email address on the site, for updates or on the waitlist, we remove that too.',
     "Events you organized are hidden and no longer carry your name. They remain only so that other people's tickets and sign-ups are not deleted with them.",
   ],
 };
@@ -202,7 +202,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         body: [
           'Il sito non richiede un account e non profila chi lo visita. Log tecnici: per servire le pagine, il nostro fornitore di hosting (Cloudflare) registra dati tecnici minimi — ad esempio gli header inviati dal browser, l’indirizzo IP e la data e ora della richiesta. La base giuridica è il legittimo interesse a far funzionare il sito e a mantenerlo sicuro; questi dati non vengono usati per profilarti.',
           `Aggiornamenti. Se lasci il tuo indirizzo email nel modulo «${tIt('landing.updates.label')}», lo trattiamo (insieme alla lingua scelta e alla provenienza dal sito) per scriverti quando c'è qualcosa di nuovo su Athanor: nuove funzioni, nuovi paesi, eventi. La base giuridica è il tuo consenso, che puoi ritirare quando vuoi scrivendo a ${EMAIL}. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte). Non ti inviamo alcun messaggio al momento dell’iscrizione, non lo usiamo per pubblicità e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account con quell'indirizzo o ci chiedi di rimuoverlo.`,
-          'Lista d’attesa. Prima del 3 ottobre 2026 il sito aveva una lista d’attesa. Gli indirizzi lasciati allora li usiamo al solo scopo di avvisare che Athanor è disponibile, e per nessun’altra comunicazione; valgono la stessa base giuridica, la stessa conservazione e la stessa cancellazione.',
+          'Lista d’attesa. Fino a ottobre 2026, prima che Athanor fosse disponibile, il sito aveva una lista d’attesa. Gli indirizzi lasciati allora li usiamo al solo scopo di avvisare che Athanor è disponibile, e per nessun’altra comunicazione; valgono la stessa base giuridica, la stessa conservazione e la stessa cancellazione.',
           'Per limitare le iscrizioni automatiche contiamo quante ne arrivano da ogni indirizzo IP: dell’indirizzo non salviamo il valore, ma solo un’impronta (hash) legata a una finestra di dieci minuti, che poi eliminiamo.',
         ],
       },
@@ -377,7 +377,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         body: [
           'The site requires no account and does not profile visitors. Technical logs: to serve the pages, our hosting provider (Cloudflare) records minimal technical data — such as the headers your browser sends, your IP address and the time of the request. The legal basis is our legitimate interest in operating and securing the site; this data is not used to profile you.',
           `Updates. If you leave your email address in the “${tEn('landing.updates.label')}” form, we process it (along with your chosen language and the fact you came from the site) to write to you when there is something new about Athanor: new features, new countries, events. The legal basis is your consent, which you can withdraw at any time by writing to ${EMAIL}. The address is stored on Supabase (European Union, Frankfurt). We send you no message when you sign up, we do not use it for advertising, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account with that address or ask us to remove it.`,
-          'Waitlist. Before 3 October 2026 the site had a waitlist. We use the addresses left then for the sole purpose of letting those people know that Athanor is available, and for no other message; the same legal basis, storage and deletion apply.',
+          'Waitlist. Until October 2026, before Athanor was available, the site had a waitlist. We use the addresses left then for the sole purpose of letting those people know that Athanor is available, and for no other message; the same legal basis, storage and deletion apply.',
           'To limit automated sign-ups we count how many arrive from each IP address: we do not store the address itself, only a fingerprint of it (a hash) tied to a ten-minute window, which we then delete.',
         ],
       },
