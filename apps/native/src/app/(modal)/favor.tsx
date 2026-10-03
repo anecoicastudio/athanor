@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed } from '@athanor/schemas';
 import { FlatList, Pressable, Text, View } from '@/tw';
@@ -191,7 +191,7 @@ export default function FavorScreen() {
         ListEmptyComponent={
           query.isLoading ? (
             <View className="items-center justify-center py-24">
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.aura} />
             </View>
           ) : (
             <View className="items-center justify-center gap-2 px-8 py-24">

@@ -4,7 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useQuery } from '@tanstack/react-query';
 import { getPostMedia, postMediaKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import type { Locale, MediaKind } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
@@ -90,9 +90,9 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
       onPress={() => (player.playing ? player.pause() : player.play())}
     >
       {player.playing ? (
-        <PauseGlyph size={22} color={semantic.foreground} />
+        <PauseGlyph size={22} color={galleria.foreground} />
       ) : (
-        <PlayGlyph size={22} color={semantic.foreground} />
+        <PlayGlyph size={22} color={galleria.foreground} />
       )}
       <Text className="text-[13px] text-foreground">{label}</Text>
     </Pressable>
@@ -216,7 +216,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   >
-                    <PlayGlyph size={36} color={semantic.faint} />
+                    <PlayGlyph size={36} color={galleria.faint} />
                   </View>
                 ) : (
                   <MediaFrame
@@ -229,7 +229,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                       // Ready-state only: ▶ over a real poster promises the playback that a tap
                       // delivers; over the unavailable ✦ it would promise the wrong thing.
                       <View className="absolute inset-0 items-center justify-center">
-                        <PlayGlyph size={36} color={semantic.foreground} />
+                        <PlayGlyph size={36} color={galleria.foreground} />
                       </View>
                     }
                   />
@@ -271,7 +271,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               accessibilityRole="button"
               accessibilityLabel={durLabel}
             >
-              <PlayGlyph size={16} color={semantic.foreground} />
+              <PlayGlyph size={16} color={galleria.foreground} />
               <Text className="text-[13px] text-foreground">{durLabel}</Text>
             </Pressable>
           );

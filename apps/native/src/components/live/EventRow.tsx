@@ -1,4 +1,4 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { LockGlyph } from '@/components/glyphs';
@@ -90,7 +90,7 @@ export function EventRow({
             className="mt-1 flex-row items-center gap-1 self-start rounded-full border border-hair bg-raise-2 px-2 py-0.5"
             accessibilityLabel={`${t('circle.gate.a11y', locale)} — ${t('common.locked', locale)}`}
           >
-            <LockGlyph size={12} color={semantic.foregroundMuted} />
+            <LockGlyph size={12} color={galleria.foregroundMuted} />
             <Text className="text-[11px] text-muted-foreground">
               {t('circle.gate.premiumEvents', locale)}
             </Text>

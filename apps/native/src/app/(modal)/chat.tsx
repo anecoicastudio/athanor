@@ -14,7 +14,7 @@ import {
   sendMessage,
   subscribeMessages,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { dayBucket, memberLabel } from '@athanor/core';
 import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
@@ -449,7 +449,7 @@ export default function ChatScreen() {
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
                     >
-                      <PlayGlyph size={24} color={semantic.faint} />
+                      <PlayGlyph size={24} color={galleria.faint} />
                     </View>
                   </View>
                 ) : (

@@ -1,4 +1,4 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
@@ -74,7 +74,7 @@ export function MomentTile({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          <PlayGlyph size={24} color={semantic.faint} />
+          <PlayGlyph size={24} color={galleria.faint} />
         </View>
       ) : (
         <MediaFrame
@@ -91,7 +91,7 @@ export function MomentTile({
               // Ready-state only: over the unavailable glyph this would be two centred marks on
               // top of each other, and ▶ would promise playback that isn't there.
               <View className="absolute inset-0 items-center justify-center">
-                <PlayGlyph size={24} color={semantic.foreground} />
+                <PlayGlyph size={24} color={galleria.foreground} />
               </View>
             ) : null
           }

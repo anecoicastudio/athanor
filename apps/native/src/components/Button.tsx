@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { Pressable, Text, View, cn } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 
@@ -82,19 +82,19 @@ import { auraGlow } from '@/lib/glow';
 type Variant = 'primary' | 'ghost' | 'light' | 'danger' | 'outline' | 'apple';
 
 const VARIANT_CLASSES: Record<Variant, { container: string | false; text: string; ink: string }> = {
-  light: { container: 'bg-aura', text: 'text-on-aura', ink: semantic.onAura },
-  primary: { container: 'bg-foreground', text: 'text-background', ink: semantic.background },
-  danger: { container: 'bg-error', text: 'text-on-error', ink: semantic.onError },
+  light: { container: 'bg-aura', text: 'text-on-aura', ink: galleria.onAura },
+  primary: { container: 'bg-foreground', text: 'text-background', ink: galleria.background },
+  danger: { container: 'bg-error', text: 'text-on-error', ink: galleria.onError },
   outline: {
     container: 'border border-hair bg-raise',
     text: 'text-foreground',
-    ink: semantic.foreground,
+    ink: galleria.foreground,
   },
-  ghost: { container: false, text: 'text-muted-foreground', ink: semantic.foregroundMuted },
+  ghost: { container: false, text: 'text-muted-foreground', ink: galleria.foregroundMuted },
   apple: {
     container: 'bg-apple-button-bg',
     text: 'text-apple-button-ink',
-    ink: semantic.appleButtonInk,
+    ink: galleria.appleButtonInk,
   },
 };
 

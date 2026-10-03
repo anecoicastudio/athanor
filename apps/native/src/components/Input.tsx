@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
 
 /**
@@ -141,7 +141,7 @@ export function Input({ size = 'md', trailing, className, onFocus, onBlur, ...re
         focused ? 'border-foreground' : 'border-hair',
         className,
       )}
-      placeholderTextColor={semantic.foregroundMuted}
+      placeholderTextColor={galleria.foregroundMuted}
       {...rest}
       onFocus={handleFocus}
       onBlur={handleBlur}

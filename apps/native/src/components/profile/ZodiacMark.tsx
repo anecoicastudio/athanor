@@ -1,4 +1,4 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale, ZodiacSign } from '@athanor/schemas';
 import { View } from '@/tw';
@@ -30,7 +30,7 @@ export function ZodiacMark({
       accessibilityLabel={t('profile.zodiac.a11y', locale, { sign: name })}
     >
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <ZodiacGlyph sign={sign} size={size} color={semantic.ink2} />
+        <ZodiacGlyph sign={sign} size={size} color={galleria.ink2} />
       </View>
     </View>
   );

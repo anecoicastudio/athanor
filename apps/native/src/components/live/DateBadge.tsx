@@ -71,10 +71,10 @@ export function DateBadge({
         {d.getDate()}
       </Text>
       {/* Tone follows `highlight` like the day number above, and for a contrast reason, not
-          symmetry: when highlighted this badge is `bg-aura-soft` over EventRow's `bg-raise`
-          (= #162734), where `faint` is 4.17:1 — under the floor. `muted-foreground` is 5.72
-          there. Unhighlighted stays `faint` on plain raise (4.97), so the common row is
-          unchanged. */}
+          symmetry: in the dark world `faint` was 4.17:1 on this badge when highlighted, and
+          `muted-foreground` 5.72. INTERIM (#921, open as of 2026-10-03): the two are one grey
+          now — 3.85:1 on `bg-aura-soft` over EventRow's `bg-raise` (= #1E2F31), 4.65 on plain
+          raise. `lib/contrast.test.ts` names this badge. */}
       <Text
         className={`text-[10px] uppercase ${highlight ? 'text-muted-foreground' : 'text-faint'}`}
       >

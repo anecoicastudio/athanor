@@ -4,7 +4,7 @@ import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postKeys, postMediaKeys, publishPost } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
@@ -334,7 +334,7 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={semantic.faint} />
+                        <PlayGlyph size={24} color={galleria.faint} />
                       </View>
                       <Text
                         className="mt-0.5 text-[11px] text-faint"
@@ -360,7 +360,7 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={semantic.faint} />
+                        <PlayGlyph size={24} color={galleria.faint} />
                       </View>
                     </View>
                   ) : (
@@ -470,8 +470,8 @@ export default function PostComposeScreen() {
               <Switch
                 accessibilityLabel={t('post.compose.stepTitle', locale)}
                 value={isStep}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
           </Pressable>

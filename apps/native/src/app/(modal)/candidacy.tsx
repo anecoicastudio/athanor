@@ -10,7 +10,7 @@ import {
   updateCandidacy,
 } from '@athanor/api';
 import { MAX_SKILLS, SKILLS, canSubmitCandidacy } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@athanor/schemas';
 import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -145,7 +145,7 @@ export default function CandidacyWizard() {
   if ((editing || resubmitting) && mineQuery.data === undefined) {
     return (
       <Screen className="items-center justify-center">
-        <ActivityIndicator color={semantic.aura} />
+        <ActivityIndicator color={galleria.aura} />
       </Screen>
     );
   }

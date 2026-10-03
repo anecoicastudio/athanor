@@ -1,5 +1,5 @@
 import { ActivityIndicator, Linking } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -150,7 +150,7 @@ export function VideoUploadTile({
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              <PlayGlyph size={36} color={semantic.faint} />
+              <PlayGlyph size={36} color={galleria.faint} />
             </View>
           </View>
         ) : (

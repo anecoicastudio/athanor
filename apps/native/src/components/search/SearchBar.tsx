@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { SearchIcon } from '@/components/glyphs';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 
 /**
  * Controlled search input (M8 §3.3 / §4 `<SearchBar>`).
@@ -15,7 +15,7 @@ import { semantic } from '@athanor/config';
  *
  * Tokens only — no literal hex (hook enforced). The one exception is
  * `placeholderTextColor` which RN requires a raw color value; we pull it
- * from `@athanor/config` semantic tokens.
+ * from the `galleria` tokens in `@athanor/config`.
  */
 export function SearchBar({
   value,
@@ -51,7 +51,7 @@ export function SearchBar({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={semantic.foregroundMuted}
+        placeholderTextColor={galleria.foregroundMuted}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"

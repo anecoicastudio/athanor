@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Linking, Switch } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import {
   notifKeys,
@@ -240,8 +240,8 @@ export default function NotifPrefsScreen() {
                     setPref.mutate({ type, channel: 'push', enabled }),
                   )
                 }
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
           ))}
@@ -257,8 +257,8 @@ export default function NotifPrefsScreen() {
               accessibilityLabel={t('notif.prefs.push', locale)}
               value={masterOn}
               onValueChange={(v) => applyWithPermission(v, (enabled) => setMaster.mutate(enabled))}
-              trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-              thumbColor={semantic.foreground}
+              trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+              thumbColor={galleria.foreground}
             />
           </View>
           {/* The OS half, stated only when it is positively off. Neutral chrome — this is a fact

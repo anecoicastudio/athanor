@@ -16,7 +16,7 @@ import {
   updateRealizationPlanPhase,
 } from '@athanor/api';
 import { formatFundTotal, payableCents, remainingPayableCents } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -292,7 +292,7 @@ export default function RealizationPlanScreen() {
       <Screen>
         {header}
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.aura} />
         </View>
       </Screen>
     );
@@ -338,7 +338,7 @@ export default function RealizationPlanScreen() {
           value={value}
           onChangeText={onChangeText}
           multiline
-          placeholderTextColor={semantic.foregroundMuted}
+          placeholderTextColor={galleria.foregroundMuted}
         />
       )}
       {hint ? <Text className="text-[12px] text-muted-foreground">{hint}</Text> : null}

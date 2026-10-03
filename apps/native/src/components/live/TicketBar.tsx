@@ -13,7 +13,7 @@ import {
   TicketCheckoutError,
 } from '@athanor/api';
 import { formatPrice } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Event } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -189,7 +189,7 @@ export function TicketBar({
     return (
       <View className="gap-2 rounded-card border border-hair bg-raise p-4">
         <View className="flex-row items-center justify-center gap-2">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.aura} />
           <Text className="text-[13px] text-ink-2">
             {t(phase === 'confirmSlow' ? 'ticket.confirmSlow' : 'ticket.confirming', locale)}
           </Text>

@@ -11,7 +11,7 @@ import {
   subscribeEventPresence,
   upsertRsvp,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { ENGINE_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Rsvp } from '@athanor/schemas';
@@ -238,7 +238,7 @@ export default function EventDetailScreen() {
             className="px-5 pt-16"
             loading={
               <View className="items-center pt-16">
-                <ActivityIndicator color={semantic.aura} />
+                <ActivityIndicator color={galleria.aura} />
               </View>
             }
           />

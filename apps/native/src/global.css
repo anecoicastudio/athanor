@@ -3,31 +3,36 @@
 @import 'tailwindcss/utilities.css';
 
 /*
- * Athanor brand tokens — values mirror packages/config/src/tokens.ts.
- * Update both together.
- * aura (the cyan light, --color-aura) is the action + meaning color; reserve
- * the glow for moment-grade events (Momento, lit star, dream helped, match).
- * The mandala gradient (--color-gradient-*) is the logo/hero ring only.
+ * Athanor mobile tokens — values mirror `galleria` in
+ * packages/config/src/tokens.ts (lib/tokens-mirror.test.ts holds the two
+ * together). Update both.
+ * Galleria (DESIGN.md §3): a black stage, charcoal blocks, one secondary grey.
+ * On a converted screen aura (--color-aura) is a small mark, never an action
+ * colour and never a glow; a screen not yet converted shows the old uses.
+ * The mandala gradient (--color-gradient-*) is the logo and boot splash only.
+ * surface-muted, line, success, ink-2, faint, raise, raise-2, aura-soft,
+ * aura-line and on-error are LEGACY ALIASES holding interim values, kept for
+ * the screens not yet converted. Each is deleted with its last call site.
  */
 @layer theme {
   @theme {
-    --color-background: #0a0a1a;
-    --color-surface: #100a1c;
-    --color-surface-muted: #04030a;
-    --color-foreground: #f0edf7;
-    --color-muted-foreground: #9a9db5;
+    --color-background: #000000;
+    --color-surface: #1d1d1f;
+    --color-surface-muted: #1d1d1f;
+    --color-foreground: #f5f5f7;
+    --color-muted-foreground: #86868b;
     --color-aura: #2bd0d2;
     --color-gradient-1: #7d236e;
     --color-gradient-2: #672088;
     --color-gradient-3: #223d86;
-    --color-line: #241b3a;
+    --color-line: #333336;
     --color-success: #36b37e;
-    --color-error: #e0476b;
-    --color-ink-2: #c9c3de;
-    --color-faint: #8781a8;
-    --color-raise: rgba(255, 255, 255, 0.04);
-    --color-raise-2: rgba(255, 255, 255, 0.065);
-    --color-hair: rgba(176, 158, 222, 0.1);
+    --color-error: #e5536f;
+    --color-ink-2: #f5f5f7;
+    --color-faint: #86868b;
+    --color-raise: #1d1d1f;
+    --color-raise-2: #2c2c2e;
+    --color-hair: #333336;
     --color-aura-soft: rgba(43, 208, 210, 0.1);
     --color-aura-line: rgba(43, 208, 210, 0.4);
     --color-on-aura: #04222a;

@@ -11,7 +11,7 @@ import {
   subscribeNewPosts,
   subscribeNewStories,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
@@ -301,7 +301,7 @@ export default function CommunityScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={onRefresh}
-            tintColor={semantic.aura}
+            tintColor={galleria.aura}
           />
         }
         onEndReachedThreshold={0.5}

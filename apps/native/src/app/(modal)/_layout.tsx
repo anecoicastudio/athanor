@@ -1,12 +1,12 @@
 import { Stack } from 'expo-router';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 
 export default function ModalLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: semantic.background },
+        contentStyle: { backgroundColor: galleria.background },
       }}
     >
       <Stack.Screen name="settings" />
