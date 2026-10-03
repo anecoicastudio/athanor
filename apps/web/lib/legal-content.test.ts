@@ -303,6 +303,31 @@ describe('privacy', () => {
     expect(all('en')).not.toMatch(/this site only|its own policy|not this one/i);
   });
 
+  // The two lists promise different things (Marco's ruling, 2026-10-03): the updates form is
+  // product news on consent, the pre-launch waitlist was one launch notice and nothing else.
+  // Merging them in the text would retroactively widen what the old addresses agreed to.
+  it.each(locales)('%s says what the updates form is for, under the name the form shows', (loc) => {
+    const updates = paragraphs(loc).find((p) => p.includes(t('landing.updates.label', loc)));
+    expect(updates).toBeDefined();
+    expect(updates).toMatch(
+      loc === 'it' ? /nuove funzioni, nuovi paesi, eventi/ : /new features, new countries, events/,
+    );
+    expect(updates).toMatch(loc === 'it' ? /consenso/ : /consent/);
+    expect(updates).toMatch(
+      loc === 'it' ? /non lo usiamo per pubblicità/ : /do not use it for advertising/,
+    );
+    expect(updates).toContain('info@anecoica.net');
+  });
+
+  it.each(locales)('%s keeps the waitlist addresses to the launch notice alone', (loc) => {
+    const waitlist = paragraphs(loc).filter((p) =>
+      p.startsWith(loc === 'it' ? 'Lista d’attesa.' : 'Waitlist.'),
+    );
+    expect(waitlist).toHaveLength(1);
+    expect(waitlist[0]).toMatch(loc === 'it' ? /al solo scopo/ : /for the sole purpose/);
+    expect(waitlist[0]).toMatch(loc === 'it' ? /nessun’altra comunicazione/ : /no other message/);
+  });
+
   it.each(locales)('%s names the app as the store listing does, and the site', (loc) => {
     expect(privacy[loc].intro).toContain(t('store.name', loc));
     expect(privacy[loc].intro).toMatch(loc === 'it' ? /questo sito/ : /this site/);

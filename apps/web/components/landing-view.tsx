@@ -7,6 +7,7 @@ import { MandorlaMark } from '@/components/mandorla-mark';
 import { SparkStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
 import { StoreBadges } from '@/components/store-badges';
+import { UpdatesForm } from '@/components/updates-form';
 import { ChapterSpine, type Chapter } from '@/components/chapter-spine';
 import { DeviceMockup } from '@/components/device-mockup';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
@@ -326,6 +327,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
               <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {t('landing.download.founders', L)}
               </p>
+              <UpdatesForm className="mt-12" locale={L} source="updates-footer" />
             </div>
           </div>
           <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-muted-foreground">
