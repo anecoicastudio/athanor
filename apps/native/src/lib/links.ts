@@ -60,6 +60,15 @@ export const SUPPORT_EMAIL = 'athanor@anecoica.net';
 export const INVITE_URL_BASE = `${SITE_ORIGIN}/invite`;
 
 /**
+ * The App Store listing, by way of the site (#269). Not an `apps.apple.com` URL: a listing URL
+ * names one country's storefront and Apple refuses it to an Apple ID from another — tested
+ * 2026-10-03, the bare `apps.apple.com/app/athanor` form this replaced resolves to the US
+ * storefront and answers «not available». `/get` picks the storefront per request and offers a
+ * picker when it cannot (`apps/web/lib/store-links.ts`).
+ */
+export const APP_STORE_GET_URL = `${SITE_ORIGIN}/get?store=apple`;
+
+/**
  * The support mail, with a subject line (#749). There is no in-app help centre — P3.4 settled
  * "Help row = mailto for now" — so the draft is the whole of it, and a bare `mailto:` opened an
  * empty one that told us nothing about where it came from. The subject is copy, so the caller

@@ -372,11 +372,21 @@ under it, and the notes' last sentence says so.
 - **Approved 2026-10-03.** Apple's mail of that day: submission `4cb70b1c`, one item, «App Version
   1.0 for iOS», _eligible for distribution_; the build on the version is 1.0.0 (4). The version
   was submitted for manual release, so approval alone puts nothing on the App Store: it is
-  released from the version page in App Store Connect, and the same mail says it can take up to 24 hours after that
-  for the listing to appear at `https://apps.apple.com/app/athanor/id6814581951`. Two checks
-  owed before the release, neither made as of 2026-10-03: that the Free Apps Agreement is active
-  (Business → Agreements), and that App Availability is limited to the EEA countries the reviewer
-  notes name, the same thirty the Play listing has.
+  released from the version page in App Store Connect, and the same mail says it can take up to
+  24 hours after that for the listing to appear.
+- **Released 2026-10-03, 08:10 UTC** (`currentVersionReleaseDate` in Apple's lookup API, version
+  1.0). Availability as observed that day through the same API: the listing exists on 29
+  storefronts — the EU-27, Norway and Iceland — and on none of US, GB, CH. Liechtenstein has no
+  storefront of its own. The Play listing is live for the same region.
+- **A listing URL must name the storefront of the visitor's Apple ID.** Tested 2026-10-03 with a
+  German account: `https://apps.apple.com/app/athanor/id6814581951`, the form Apple's own mail
+  gives, resolves to the US storefront and answers «not available»; `/it/` is refused too;
+  `/de/` opens. So no fixed App Store URL is ever published: the site's badges, the printed QR
+  and the app's force-update button all point at `https://www.athanor.world/get`, which picks the
+  storefront (`resolveStoreTarget` in `apps/web/lib/store-links.ts`, #269). Changing App
+  Availability means changing `EEA_STOREFRONTS` there.
+- The app is also offered on Apple silicon Macs («Designed for iPhone. Not verified for macOS»).
+  Nobody has walked it there as of 2026-10-03.
 - **The @handle step passed as resubmitted**: mandatory, pre-filled from the name. Apple raised
   nothing further under Guideline 4, so assigning a handle automatically to provider sign-ins is
   not owed.

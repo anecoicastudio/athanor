@@ -6,6 +6,7 @@ import { Mandorla } from '@/components/Mandorla';
 import { Button } from '@/components/Button';
 import { deviceLocale } from '@/lib/locale';
 import { useAnnounceOnMount, MODAL_A11Y } from '@/lib/a11y';
+import { APP_STORE_GET_URL } from '@/lib/links';
 
 /**
  * Blocking force-update screen (frontend 12 §10.1). No dismiss; rendered as an overlay above the
@@ -15,13 +16,13 @@ export function ForceUpdateScreen() {
   useAnnounceOnMount(t('update.title', deviceLocale));
 
   const openStore = () => {
-    // Android: the package id is known; iOS: the App Store id is assigned at submission —
-    // see docs/RELEASE-RUNBOOK.md (R-5 / S-9). Falls back to the store search.
+    // Android: Play's URL carries no country. iOS: an App Store URL does, so it goes through
+    // the site's `/get` (`APP_STORE_GET_URL` in `lib/links.ts`).
     const androidPkg = Constants.expoConfig?.android?.package ?? 'world.athanor.app';
     const url =
       Platform.OS === 'android'
         ? `https://play.google.com/store/apps/details?id=${androidPkg}`
-        : 'https://apps.apple.com/app/athanor';
+        : APP_STORE_GET_URL;
     void Linking.openURL(url);
   };
 
