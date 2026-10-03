@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Locale, MessageKey } from '@athanor/i18n';
 import { t } from '@athanor/i18n';
 import type { PublicEvent } from '@athanor/schemas';
-import { WaitlistForm } from '@/components/waitlist-form';
+import { StoreBadges } from '@/components/store-badges';
 import { eventDateTime, eventPrice } from '@/lib/event-format';
 
 /**
@@ -110,9 +110,7 @@ export function PublicEventView({
           {t('publicEvent.ctaTitle', locale)}
         </h2>
         <p className="text-sm text-muted-foreground">{t('publicEvent.ctaBody', locale)}</p>
-        {/* `source` tags where the signup happened — event pages are the one funnel that
-            starts from a link someone shared rather than from the landing page. */}
-        <WaitlistForm locale={locale} source="event" />
+        <StoreBadges className="justify-start pt-2" locale={locale} />
       </section>
 
       <footer>

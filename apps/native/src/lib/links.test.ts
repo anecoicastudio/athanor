@@ -122,6 +122,7 @@ describe.each([
       links.legalUrl('terms', 'it'),
       links.legalUrl('privacy', 'en'),
       links.INVITE_URL_BASE,
+      links.appStoreGetUrl('en'),
     ];
 
     for (const url of urls) {

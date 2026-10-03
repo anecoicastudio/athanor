@@ -4,18 +4,21 @@ import type { Database } from '@athanor/api';
 import { supabaseKey } from './key';
 
 /** Read-only Supabase server client carrying the request's cookies; authenticates
- * with the publishable key (legacy anon fallback — see ./key.ts). Its one caller is
- * the waitlist route — public @handle SSR now uses createAnonClient below, which
- * has no cookie jar and so does not force dynamic rendering.
+ * with the publishable key (legacy anon fallback — see ./key.ts). It has had no
+ * caller since the waitlist sign-up route was removed (#269, 2026-10-03) — public @handle SSR
+ * uses createAnonClient below, which has no cookie jar and so does not force dynamic rendering.
  *
- * `forwardedFor` exists for the waitlist throttle (issue #23) and is the whole reason that
- * trigger can key on a visitor at all. This client runs INSIDE the Worker, so the
+ * `forwardedFor` existed for the waitlist throttle (issue #23) and was the whole reason that
+ * trigger could key on a visitor at all. This client runs INSIDE the Worker, so the
  * request PostgREST receives is the Worker's, not the browser's — `request.headers` would
  * otherwise carry the function's egress IP and turn a per-visitor budget into a site-wide one,
  * with every regional visitor throttling the others off. Pass the address the Next route read
  * from its own request and the trigger sees the visitor.
  *
- * It is a per-request value, so it must never be hoisted into a module-level client. */
+ * It is a per-request value, so it must never be hoisted into a module-level client.
+ *
+ * Kept, uncalled, as the cookie-carrying counterpart the public pages' comments contrast
+ * createAnonClient with; the next server route that needs the request's cookies starts here. */
 export async function createClient(forwardedFor?: string) {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

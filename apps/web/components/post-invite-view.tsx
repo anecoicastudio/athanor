@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { t } from '@athanor/i18n';
 import { useLocale } from '@/components/locale-provider';
 import { AthanorWordmark } from '@/components/athanor-wordmark';
-import { WaitlistForm } from '@/components/waitlist-form';
+import { StoreBadges } from '@/components/store-badges';
 
 /**
  * Body of the `/post/{id}` invitation page (#268). Client-side like InviteView
@@ -38,7 +38,7 @@ export function PostInviteView() {
         <p className="max-w-sm text-base leading-relaxed text-muted-foreground">
           {t('post.landing.ctaBody', locale)}
         </p>
-        <WaitlistForm locale={locale} source="post-landing" />
+        <StoreBadges className="pt-2" locale={locale} />
       </div>
 
       <Link
