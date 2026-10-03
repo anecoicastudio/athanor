@@ -6,11 +6,16 @@ import { t, type Locale } from '@athanor/i18n';
 import { Button } from '@/components/ui/button';
 
 /**
- * Pre-launch email capture — replaces the inert "coming soon" store badges.
- * Posts to /api/waitlist, which stores in Supabase (no operator email — see issue #23). Copy is i18n; the
- * success/duplicate state shows the ✦ mark but stays in foreground — cyan is
- * reserved for the Dai-Vita star (DESIGN.md §4). `source` tags where on the page
- * the signup happened.
+ * The «updates» form in the landing footer (2026-10-03): an e-mail address for news about
+ * Athanor — features, new countries, events — from someone not ready to install. It sits under
+ * the store badges and is deliberately the quieter of the two: the badges are the action.
+ *
+ * The capture path is the pre-launch waitlist's, unchanged: it posts to /api/waitlist, which
+ * stores in `email_waitlist` (no operator email — see issue #23). What tells an updates
+ * subscriber from a waitlist address is the `source` tag and the date; the privacy policy
+ * (`lib/legal-content.ts`) promises the two different things, so never write an old tag here.
+ * The success/duplicate state shows the ✦ mark but stays in foreground — cyan is reserved for
+ * the Dai-Vita star (DESIGN.md §4).
  *
  * A 429 gets its own state (issue #23). The route answers one when the database throttle
  * refuses, and collapsing it into `error` would tell someone the site is broken when it is
@@ -20,7 +25,7 @@ import { Button } from '@/components/ui/button';
 type Status = 'idle' | 'loading' | 'success' | 'duplicate' | 'error' | 'invalid' | 'rateLimited';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function WaitlistForm({
+export function UpdatesForm({
   locale,
   source,
   className,
@@ -65,11 +70,14 @@ export function WaitlistForm({
   const done = status === 'success' || status === 'duplicate';
 
   return (
-    <div className={`flex w-full max-w-sm flex-col gap-3 ${className ?? ''}`}>
+    <div className={`flex w-full max-w-md flex-col gap-3 ${className ?? ''}`}>
+      {!done && (
+        <p className="text-sm font-medium text-foreground">{t('landing.updates.label', locale)}</p>
+      )}
       {done ? (
         <p className="text-base font-medium text-foreground">
           {t(
-            status === 'duplicate' ? 'landing.waitlist.duplicate' : 'landing.waitlist.success',
+            status === 'duplicate' ? 'landing.updates.duplicate' : 'landing.updates.success',
             locale,
           )}
         </p>
@@ -96,27 +104,32 @@ export function WaitlistForm({
               setEmail(e.target.value);
               if (status !== 'idle') setStatus('idle');
             }}
-            placeholder={t('landing.waitlist.placeholder', locale)}
-            aria-label={t('landing.waitlist.placeholder', locale)}
+            placeholder={t('landing.updates.placeholder', locale)}
+            aria-label={t('landing.updates.placeholder', locale)}
             className="h-12 flex-1 rounded-full border border-border bg-card/40 px-5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           />
-          <Button type="submit" disabled={status === 'loading'}>
-            {t('landing.waitlist.cta', locale)}
+          {/* Outlined, not the light fill: the store badges above are the action here. */}
+          <Button
+            type="submit"
+            disabled={status === 'loading'}
+            className="shrink-0 whitespace-nowrap border border-border bg-transparent text-foreground"
+          >
+            {t('landing.updates.cta', locale)}
           </Button>
         </form>
       )}
       {status === 'invalid' && (
-        <p className="text-sm text-muted-foreground">{t('landing.waitlist.invalid', locale)}</p>
+        <p className="text-sm text-muted-foreground">{t('landing.updates.invalid', locale)}</p>
       )}
       {status === 'error' && (
-        <p className="text-sm text-muted-foreground">{t('landing.waitlist.error', locale)}</p>
+        <p className="text-sm text-muted-foreground">{t('landing.updates.error', locale)}</p>
       )}
       {status === 'rateLimited' && (
-        <p className="text-sm text-muted-foreground">{t('landing.waitlist.rateLimited', locale)}</p>
+        <p className="text-sm text-muted-foreground">{t('landing.updates.rateLimited', locale)}</p>
       )}
       {!done && (
         <p className="text-xs text-muted-foreground">
-          {t('landing.waitlist.privacy', locale)}{' '}
+          {t('landing.updates.privacy', locale)}{' '}
           <Link href="/privacy" className="underline underline-offset-2 hover:opacity-80">
             {t('legal.privacy', locale)}
           </Link>

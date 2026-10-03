@@ -5,7 +5,7 @@ import { t } from '@athanor/i18n';
 import { useLocale } from '@/components/locale-provider';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
 import { DeviceMockup } from '@/components/device-mockup';
-import { WaitlistForm } from '@/components/waitlist-form';
+import { StoreBadges } from '@/components/store-badges';
 
 /** Body of the personal invite landing, client-side so the page carries no per-request work. */
 export function InviteView({ code }: { code: string | null }) {
@@ -48,7 +48,7 @@ export function InviteView({ code }: { code: string | null }) {
             {t('landing.preview.caption', locale)}
           </p>
         </div>
-        <WaitlistForm locale={locale} source="invite-landing" />
+        <StoreBadges locale={locale} />
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
           {t('landing.download.founders', locale)}
         </p>

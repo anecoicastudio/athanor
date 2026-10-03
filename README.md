@@ -8,17 +8,17 @@ TypeScript strict everywhere · Zod at every boundary · Turborepo + pnpm · Exp
 
 ## Repository map
 
-| Path               | What lives there                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`            |
-| `apps/web`         | Next.js 16 — marketing site, public `@handle` profiles, waitlist, **admin panel**          |
-| `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                             |
-| `packages/api`     | Typed Supabase client + queries. **No business logic**                                     |
-| `packages/schemas` | Zod schemas — the single validation source                                                 |
-| `packages/i18n`    | IT/EN catalogues                                                                           |
-| `packages/config`  | Design tokens, tsconfig presets                                                            |
-| `supabase/`        | Migrations, RLS policies, pgTAP tests, Deno edge functions (outside the pnpm workspace)    |
-| `docs/`            | Four reference documents — see below. The rest of `docs/` is internal and not in this repo |
+| Path               | What lives there                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `apps/native`      | Expo app — **the product**. Screens under `src/app/`, tabs in `src/app/(tabs)/`                           |
+| `apps/web`         | Next.js 16 — marketing site, public `@handle` profiles, `/get` store links, updates form, **admin panel** |
+| `packages/core`    | Pure domain logic (score engine, badges, matching). **No I/O**                                            |
+| `packages/api`     | Typed Supabase client + queries. **No business logic**                                                    |
+| `packages/schemas` | Zod schemas — the single validation source                                                                |
+| `packages/i18n`    | IT/EN catalogues                                                                                          |
+| `packages/config`  | Design tokens, tsconfig presets                                                                           |
+| `supabase/`        | Migrations, RLS policies, pgTAP tests, Deno edge functions (outside the pnpm workspace)                   |
+| `docs/`            | Four reference documents — see below. The rest of `docs/` is internal and not in this repo                |
 
 Dependency rule: `apps → packages` only; `core` imports only `schemas`.
 

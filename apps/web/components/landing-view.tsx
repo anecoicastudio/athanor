@@ -6,8 +6,8 @@ import { LegalNav } from '@/components/legal-nav';
 import { MandorlaMark } from '@/components/mandorla-mark';
 import { SparkStar } from '@/components/icons';
 import { PILLAR_GLYPHS, Ripples } from '@/components/icons/glyphs';
-import { WaitlistForm } from '@/components/waitlist-form';
-import { LaunchCountdown } from '@/components/launch-countdown';
+import { StoreBadges } from '@/components/store-badges';
+import { UpdatesForm } from '@/components/updates-form';
 import { ChapterSpine, type Chapter } from '@/components/chapter-spine';
 import { DeviceMockup } from '@/components/device-mockup';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
@@ -145,8 +145,7 @@ export function LandingView({ locale: L }: { locale: Locale }) {
           <h1 className="max-w-2xl font-display text-5xl font-medium leading-[1.05] tracking-tight md:text-7xl">
             {t('landing.hero.title', L)}
           </h1>
-          <WaitlistForm className="mt-2" locale={L} source="landing-hero" />
-          <LaunchCountdown className="mt-2" locale={L} />
+          <StoreBadges className="mt-2" locale={L} />
         </Reveal>
       </section>
 
@@ -324,10 +323,11 @@ export function LandingView({ locale: L }: { locale: Locale }) {
               <p className="mt-5 max-w-sm text-base leading-relaxed text-muted-foreground md:text-lg">
                 {t('landing.preview.caption', L)}
               </p>
-              <WaitlistForm className="mt-10" locale={L} source="landing-footer" />
+              <StoreBadges className="mt-10 md:justify-start" locale={L} />
               <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {t('landing.download.founders', L)}
               </p>
+              <UpdatesForm className="mt-12" locale={L} source="updates-footer" />
             </div>
           </div>
           <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-muted-foreground">

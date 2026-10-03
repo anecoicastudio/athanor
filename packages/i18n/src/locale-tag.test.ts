@@ -6,8 +6,8 @@ describe('localeTag', () => {
     expect(localeTag('it')).toBe('it-IT');
   });
 
-  // en-GB and NOT en-US: the two disagree on date order and clock, and one apps/web call
-  // site (launch-countdown) still says en-US. Pin the tag so a consolidation onto this
+  // en-GB and NOT en-US: the two disagree on date order and clock (the last apps/web call
+  // site that said en-US, the launch countdown, was removed 2026-10-03, #269). Pin the tag so a consolidation onto this
   // function can never quietly change what a reader sees.
   it('maps en to the British tag, not the American one', () => {
     expect(localeTag('en')).toBe('en-GB');

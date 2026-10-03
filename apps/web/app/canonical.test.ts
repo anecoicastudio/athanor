@@ -52,6 +52,7 @@ const DYNAMIC_SELF_CANONICAL = ['[handle]/page.tsx', 'event/[id]/page.tsx', 'dre
 const NOINDEX = [
   'invite/[code]/page.tsx',
   'post/page.tsx',
+  'get/page.tsx',
   'app/verify/page.tsx',
   'app/payout/refresh/page.tsx',
   'app/payout/return/page.tsx',
