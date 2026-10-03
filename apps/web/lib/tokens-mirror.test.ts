@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { gradient, semantic } from '@athanor/config';
+import { broadsheet, gradient, semantic } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -108,6 +108,15 @@ describe('globals.css mirrors the config tokens', () => {
     }
   });
 
+  it('carries the landing broadsheet palette too', () => {
+    // Token key → `--color-<kebab>`: the same kebab the NOT_ON_WEB hunt below uses.
+    for (const [name, value] of Object.entries(broadsheet)) {
+      const cssName = `--color-${name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`;
+      expect(cssVar(cssName), `${cssName} missing from globals.css`).toBeDefined();
+      expect(norm(cssVar(cssName) as string)).toBe(norm(value));
+    }
+  });
+
   it('accounts for every semantic token — a new one cannot be added to TS only', () => {
     expect([...Object.keys(ROLE_MAP), ...NOT_ON_WEB].sort()).toEqual(Object.keys(semantic).sort());
   });
@@ -121,7 +130,11 @@ describe('globals.css mirrors the config tokens', () => {
     // quoted old value in a docblock read as undeclared literals — which pushed prose away
     // from naming the very values these comments exist to explain. A colour inside a comment
     // paints nothing. The cost is that a commented-OUT declaration no longer trips this.
-    const known = new Set([...Object.values(semantic), ...Object.values(gradient)].map(norm));
+    const known = new Set(
+      [...Object.values(semantic), ...Object.values(gradient), ...Object.values(broadsheet)].map(
+        norm,
+      ),
+    );
     const literals =
       CSS.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g) ?? [];
     expect([...new Set(literals.map(norm))].filter((c) => !known.has(c))).toEqual([]);

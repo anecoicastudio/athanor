@@ -75,6 +75,21 @@ export const mandorla = {
   lensBottom: '#13234D', // lens fill gradient — bottom (indigo)
 } as const;
 
+/**
+ * Broadsheet — the web LANDING's palette, and only the landing's (Marco's rulings, 2026-10-03:
+ * two editorial references blended; docs/DESIGN.md §6 «Web landing» + §11). A painted wall, not
+ * the dark world: a concrete canvas, near-black iron, and one violet that takes whole bands.
+ * Violet is a SURFACE and a headline colour, never a button fill; there is no second accent,
+ * so `aura` does not appear on that page at all. Nothing in apps/native reads these.
+ */
+export const broadsheet = {
+  concrete: '#D9D9D9', // the page canvas — a neutral material grey
+  iron: '#1F1F1F', // text, hairlines, pill fills — near-black, softer than #000 on concrete
+  // Full-bleed bands, wall headings, icon strokes. The mandala's middle stop (`gradient[2]`),
+  // and the one place a mandala colour is a UI surface — on `/` only, by the same ruling.
+  violet: '#672088',
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,

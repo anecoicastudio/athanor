@@ -10,7 +10,8 @@ const LOCALES: readonly Locale[] = ['it', 'en'];
  * the locale context (no reload, no scroll reset). The active locale reads in
  * foreground, the other muted; never aura cyan — that is reserved for moments
  * that matter (DESIGN.md §4). The full language name (catalog `lang.*`) rides on
- * aria-label for assistive tech.
+ * aria-label for assistive tech. The buttons carry padding cancelled by a negative margin: a
+ * 32×44 hit area around a 16px label, with no change to the layout.
  */
 export function LangSwitch({ className }: { className?: string }) {
   const { locale, setLocale } = useLocale();
@@ -32,7 +33,7 @@ export function LangSwitch({ className }: { className?: string }) {
               onClick={() => setLocale(loc)}
               aria-pressed={active}
               aria-label={t(loc === 'it' ? 'lang.it' : 'lang.en', locale)}
-              className={`uppercase transition-opacity hover:opacity-80 ${
+              className={`-mx-2 -my-3.5 px-2 py-3.5 uppercase transition-opacity hover:opacity-80 ${
                 active ? 'text-foreground' : 'text-muted-foreground'
               }`}
             >
