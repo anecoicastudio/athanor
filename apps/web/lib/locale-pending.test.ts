@@ -52,7 +52,8 @@ describe('the locale-pending script', () => {
     const { html, attrs, timers } = run(search, cookie);
     expect(readLangParam(search) ?? readCookieLocale(cookie)).toBe('en');
     expect(attrs.has(LOCALE_PENDING_ATTR)).toBe(true);
-    expect(html.lang).toBe('en');
+    // `lang` is the provider's to set, when the copy switches — never the gate's.
+    expect(html.lang).toBe('it');
     expect(timers.map((t) => t.ms)).toEqual([LOCALE_PENDING_TIMEOUT_MS]);
   });
 

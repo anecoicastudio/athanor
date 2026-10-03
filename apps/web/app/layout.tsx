@@ -87,7 +87,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // suppressHydrationWarning: the script below may set `lang` and the pending mark on <html>
+    // suppressHydrationWarning: the script below may set the pending mark on <html>
     // before React hydrates it (lib/locale-pending.ts). It covers this element's own attributes
     // only, not its children.
     <html
