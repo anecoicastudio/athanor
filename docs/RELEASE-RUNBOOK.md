@@ -385,6 +385,12 @@ under it, and the notes' last sentence says so.
   and the app's force-update button all point at `https://www.athanor.world/get`, which picks the
   storefront (`resolveStoreTarget` in `apps/web/lib/store-links.ts`, #269). Changing App
   Availability means changing `EEA_STOREFRONTS` there.
+- **Checked on production, 2026-10-03**, after release PR 915 deployed: `/get` with an iPhone
+  user agent from a German connection answers 307 to the `/de/` storefront, so `cf-ipcountry`
+  reaches the Worker; an Android user agent answers 307 to Google Play; a desktop gets the badges
+  and the storefront picker; the response is `private, no-store`. Marco opened it on his iPhone
+  (German Apple ID) and on the moto g17 and landed in each store. The updates form in the
+  landing footer wrote a row tagged `updates-footer`.
 - The app is also offered on Apple silicon Macs («Designed for iPhone. Not verified for macOS»).
   Nobody has walked it there as of 2026-10-03.
 - **The @handle step passed as resubmitted**: mandatory, pre-filled from the name. Apple raised
