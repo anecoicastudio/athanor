@@ -2,7 +2,7 @@ import { ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsByOrganizer } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -45,7 +45,7 @@ export default function MyEventsScreen() {
           variant="light"
         />
 
-        {query.isLoading ? <ActivityIndicator color={semantic.aura} /> : null}
+        {query.isLoading ? <ActivityIndicator color={galleria.aura} /> : null}
 
         {query.isError ? (
           <View className="items-center gap-4 pt-8">

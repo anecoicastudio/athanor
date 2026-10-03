@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import {
   IDENTITY_TAGS,
   MIN_MEMBER_AGE,
@@ -384,7 +384,7 @@ export default function OnboardingScreen() {
                           accessibilityElementsHidden
                           importantForAccessibility="no-hide-descendants"
                         >
-                          <ZodiacGlyph sign={sign} size={32} color={semantic.ink2} />
+                          <ZodiacGlyph sign={sign} size={32} color={galleria.ink2} />
                         </View>
                         <Text
                           className="text-lg font-semibold text-foreground"

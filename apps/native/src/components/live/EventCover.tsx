@@ -6,7 +6,7 @@ import { Text, View } from '@/tw';
  * Event-detail hero. cover_url upload is deferred (a later slice) → render a token
  * dark surface with a faint aura band + the caption overlay (chip + display title).
  * No literal hex; no glow (a static cover is not a moment, rule #4).
- * Uses bg-surface (--color-surface: #100a1c) for the lifted dark card surface.
+ * Uses bg-surface (--color-surface: #1d1d1f, charcoal) for the lifted card surface.
  */
 export function EventCover({ event, locale }: { event: Event; locale: Locale }) {
   const chip = event.is_athanor_day

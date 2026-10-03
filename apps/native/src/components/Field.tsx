@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
 
 /**
@@ -129,7 +129,7 @@ export function Field({
         // routed them here; now it comes with the shape. Before `rest`, so a caller can still
         // override.
         textAlignVertical={multiline ? 'top' : undefined}
-        placeholderTextColor={semantic.foregroundMuted}
+        placeholderTextColor={galleria.foregroundMuted}
         {...rest}
         onFocus={handleFocus}
         onBlur={handleBlur}

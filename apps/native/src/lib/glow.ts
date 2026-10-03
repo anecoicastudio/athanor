@@ -1,4 +1,4 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 
 /** `#2BD0D2` → `43,208,210`. The token owns the colour; the shadow only needs its channels. */
 function channels(hex: string) {
@@ -33,6 +33,6 @@ export function auraGlow(level: number) {
   // both to 0; a glow that vanishes silently is still the failure worth closing by hand.
   if (!Number.isFinite(level) || level <= 0) return {};
   return {
-    boxShadow: `0 0 ${round(24 * level, 2)}px rgba(${channels(semantic.aura)},${round(0.45 * level, 3)})`,
+    boxShadow: `0 0 ${round(24 * level, 2)}px rgba(${channels(galleria.aura)},${round(0.45 * level, 3)})`,
   } as const;
 }

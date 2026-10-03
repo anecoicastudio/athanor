@@ -5,7 +5,7 @@ import { auraKeys, starKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Profile } from '@athanor/schemas';
 import { Share } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
@@ -208,7 +208,7 @@ function ProfileEditor({
                 hitSlop={HIT_SLOP}
                 onPress={() => router.push('/(modal)/settings')}
               >
-                <SettingsIcon size={24} color={semantic.faint} />
+                <SettingsIcon size={24} color={galleria.faint} />
               </Pressable>
               <Pressable
                 onPress={() => setEditing(true)}

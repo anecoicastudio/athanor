@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { auraKeys, eventKeys, favorKeys, fundKeys, momentiKeys } from '@athanor/api';
 import { greetingFor } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView } from '@/tw';
@@ -116,7 +116,7 @@ export default function HomeScreen() {
         className="flex-1"
         contentContainerClassName="gap-7 px-5 pb-12 pt-4"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={semantic.aura} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={galleria.aura} />
         }
       >
         <HomeHeader

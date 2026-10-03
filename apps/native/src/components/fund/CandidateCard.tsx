@@ -1,6 +1,6 @@
 import { ActivityIndicator } from 'react-native';
 import type { CandidateCard as CandidateCardModel } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { formatFundTotal } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
@@ -102,7 +102,7 @@ export function CandidateCard({
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >
-            <PlayGlyph size={36} color={semantic.faint} />
+            <PlayGlyph size={36} color={galleria.faint} />
           </View>
         ) : (
           // Three states, not two. A `posterUrl ? <Image/> : ▶` ternary would render "still
@@ -180,7 +180,7 @@ export function CandidateCard({
           </View>
         ) : voteState === 'voting' ? (
           <View className="min-h-[36px] items-center justify-center px-4">
-            <ActivityIndicator color={semantic.aura} />
+            <ActivityIndicator color={galleria.aura} />
           </View>
         ) : voteState === 'voteElsewhere' ? (
           // #633: the member's one vote sits on ANOTHER candidacy. «Vota» here would promise

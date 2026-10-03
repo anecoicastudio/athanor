@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { t } from '@athanor/i18n';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { NotificationRouter } from '@/components/boot/NotificationRouter';
 import { PushPermissionAsk } from '@/components/boot/PushPermissionAsk';
 import { useLocale } from '@/hooks/use-locale';
@@ -34,14 +34,14 @@ export default function TabsLayout() {
           // No native title bar anywhere (DESIGN §6 → Screen headers, #162): tab roots
           // render their own in-content header and take their top inset from Screen.
           headerShown: false,
-          tabBarStyle: { backgroundColor: semantic.surfaceMuted, borderTopColor: semantic.border },
+          tabBarStyle: { backgroundColor: galleria.surfaceMuted, borderTopColor: galleria.border },
           // DESIGN §9 tab bar: active = foreground — cyan stays on the ✦ badge only.
           // Icons only: labels don't fit the 5-tab slot in either language
           // («Costellazioni»). So every tab names itself through `tabBarAccessibilityLabel`
           // (DESIGN §6): the bottom-tab bar derives a label from `title` on iOS ONLY
           // (`BottomTabBar.js`, `EXPO_OS === 'ios'`), and TalkBack read four unnamed tabs (#749).
-          tabBarActiveTintColor: semantic.foreground,
-          tabBarInactiveTintColor: semantic.foregroundMuted,
+          tabBarActiveTintColor: galleria.foreground,
+          tabBarInactiveTintColor: galleria.foregroundMuted,
           tabBarShowLabel: false,
         }}
       >
@@ -67,7 +67,7 @@ export default function TabsLayout() {
             title: t('tabs.momenti', locale),
             tabBarIcon: ({ color, size }) => <MomentiGlyph color={color} size={size} />,
             tabBarBadge: hasUnseen ? '✦' : undefined,
-            tabBarBadgeStyle: { backgroundColor: 'transparent', color: semantic.aura },
+            tabBarBadgeStyle: { backgroundColor: 'transparent', color: galleria.aura },
             tabBarAccessibilityLabel: hasUnseen
               ? t('tabs.a11y.momentiUnread', locale)
               : t('tabs.momenti', locale),

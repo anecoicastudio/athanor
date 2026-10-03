@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View, cn } from '@/tw';
@@ -104,7 +104,7 @@ export function ListState({
       <>{loading}</>
     ) : (
       <View className={cn('items-center', padding)}>
-        <ActivityIndicator color={semantic.faint} />
+        <ActivityIndicator color={galleria.faint} />
       </View>
     );
   }

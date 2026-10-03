@@ -14,7 +14,7 @@ import {
   remoteConfigKeys,
   startCheckout,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { circleAnnualSavings, formatPrice } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { CirclePlan } from '@athanor/schemas';
@@ -230,7 +230,7 @@ export default function CircleScreen() {
       <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.aura} />
         </View>
       </Screen>
     );
@@ -426,7 +426,7 @@ export default function CircleScreen() {
           </View>
         ) : checkoutGate === 'loading' ? (
           <View className="items-center py-2">
-            <ActivityIndicator color={semantic.aura} />
+            <ActivityIndicator color={galleria.aura} />
           </View>
         ) : checkoutGate === 'closed' ? (
           // Checkout not open yet (#747): the same quiet line as the iOS arm, no button, no

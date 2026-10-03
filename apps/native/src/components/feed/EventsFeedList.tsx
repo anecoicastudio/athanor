@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { ActivityIndicator, RefreshControl } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type Locale, t } from '@athanor/i18n';
 import { FlatList, View } from '@/tw';
 import { ListState } from '@/components/ListState';
@@ -75,7 +75,7 @@ export function EventsFeedList({
           className="px-8 pt-16"
           loading={
             <View className="items-center pt-16">
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.aura} />
             </View>
           }
         />
@@ -84,7 +84,7 @@ export function EventsFeedList({
         <RefreshControl
           refreshing={query.isRefetching}
           onRefresh={onRefresh}
-          tintColor={semantic.aura}
+          tintColor={galleria.aura}
         />
       }
       onEndReachedThreshold={0.5}

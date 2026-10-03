@@ -2,7 +2,7 @@ import { useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { formatFundTotal } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, TextInput, View } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -81,7 +81,7 @@ export function PlanPhaseCard({
               className="rounded-full border border-hair bg-background p-4 text-[15px] text-foreground"
               value={phase.title}
               onChangeText={(title) => onChange({ ...phase, title })}
-              placeholderTextColor={semantic.foregroundMuted}
+              placeholderTextColor={galleria.foregroundMuted}
             />
           </View>
 
@@ -124,7 +124,7 @@ export function PlanPhaseCard({
               }}
               keyboardType="number-pad"
               placeholder={t('fund.plan.phase.amount.hint', locale)}
-              placeholderTextColor={semantic.foregroundMuted}
+              placeholderTextColor={galleria.foregroundMuted}
             />
           </View>
 
@@ -135,7 +135,7 @@ export function PlanPhaseCard({
               value={phase.criteria}
               onChangeText={(criteria) => onChange({ ...phase, criteria })}
               multiline
-              placeholderTextColor={semantic.foregroundMuted}
+              placeholderTextColor={galleria.foregroundMuted}
             />
           </View>
         </>

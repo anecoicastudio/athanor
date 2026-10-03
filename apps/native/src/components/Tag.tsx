@@ -9,12 +9,12 @@ import { cn, Text, View } from '@/tw';
  * the content they label. Passing the wrong one inverts the row's hierarchy — a metadata pill
  * reading brighter than the dream/message/title it sits beside.
  *
- * `quiet` is `muted-foreground`, NOT `faint`, and the reason is compositing: this pill's
- * `bg-raise-2` usually sits inside a `bg-raise` row (SuggestionRow, IncomingOfferRow), so the
- * backdrop is raise-2 OVER raise over the canvas = ~rgb(35,35,49) — not the bare-canvas stack
- * the 4.69:1 figure in tokens.ts certifies. `faint` on the nested stack is 4.22:1, under the
- * 4.5 floor for 13px text. `muted-foreground` is 5.79:1 there (6.43:1 on the bare-canvas
- * geometry BenefitRow has) and still a clear step below the `ink-2` payload beside it.
+ * `quiet` is `muted-foreground`, NOT `faint`. The reason was compositing: in the dark world
+ * this pill's `bg-raise-2` sat translucent over a `bg-raise` row (SuggestionRow,
+ * IncomingOfferRow), where `faint` was 4.22:1 and `muted-foreground` 5.79. INTERIM (#921, open
+ * as of 2026-10-03): under Galleria's legacy aliases `raise-2` is opaque and the two greys are
+ * one, 3.85:1 on this pill — under the 4.5 floor for 13px text until the pill is converted.
+ * `lib/contrast.test.ts` pins it. It is still a clear step below the `ink-2` payload beside it.
  *
  * `shrink` is for a pill sharing a `flex-row` with the row's payload, where the label is not a
  * short fixed string. React Native defaults `flexShrink` to **0**, so a wide pill takes its full

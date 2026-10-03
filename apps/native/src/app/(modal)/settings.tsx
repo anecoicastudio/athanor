@@ -54,7 +54,7 @@ export default function SettingsScreen() {
 
   const locale = useLocale();
   const email = session?.user.email ?? '';
-  const version = Constants.expoConfig?.version ?? '1.0.0';
+  const version = Constants.expoConfig?.version ?? '1.1.0';
 
   // Owner-private count for the blocked-profiles subtitle (rule #3: never public).
   const { data: blockedCount = 0 } = useQuery({

@@ -15,7 +15,7 @@ import {
   realizationPlanKeys,
   realizationUpdateKeys,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -218,7 +218,7 @@ export default function ProgressScreen() {
       <Screen>
         {header}
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.aura} />
         </View>
       </Screen>
     );
@@ -336,7 +336,7 @@ export default function ProgressScreen() {
                 multiline
                 maxLength={2000}
                 placeholder={t('fund.progress.compose.placeholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
+                placeholderTextColor={galleria.foregroundMuted}
               />
 
               {phases.length > 0 ? (
@@ -362,7 +362,7 @@ export default function ProgressScreen() {
           <View className="gap-3">
             <SectionLabel>{t('fund.progress.mine.title', locale)}</SectionLabel>
             {minePage.isLoading ? (
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.aura} />
             ) : mine.length === 0 ? (
               <Text className="text-[14px] text-muted-foreground">
                 {t('fund.progress.mine.empty', locale)}

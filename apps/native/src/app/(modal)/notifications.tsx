@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import {
   notifKeys,
@@ -119,7 +119,7 @@ export default function NotificationsScreen() {
               accessibilityLabel={t('notif.prefs.title', locale)}
               hitSlop={HIT_SLOP}
             >
-              <SettingsIcon size={22} color={semantic.foregroundMuted} />
+              <SettingsIcon size={22} color={galleria.foregroundMuted} />
             </Pressable>
           </View>
         }
@@ -133,7 +133,7 @@ export default function NotificationsScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={() => void query.refetch()}
-            tintColor={semantic.foregroundMuted}
+            tintColor={galleria.foregroundMuted}
           />
         }
         renderItem={({ item: section }) => {
@@ -166,7 +166,7 @@ export default function NotificationsScreen() {
             // uses the same tone, and two spinners a pull apart should not differ.
             loading={
               <View className="items-center pt-24">
-                <ActivityIndicator color={semantic.foregroundMuted} />
+                <ActivityIndicator color={galleria.foregroundMuted} />
               </View>
             }
           />

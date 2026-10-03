@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { ColorValue } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import type { ZodiacSign } from '@athanor/schemas';
 
 // The single home for the app's SVG icon set: tab-bar esoteric glyphs (below),
@@ -31,7 +31,7 @@ export type GlyphProps = { size?: number; color?: ColorValue };
 const VB = 24;
 
 const line = (color?: ColorValue) => ({
-  stroke: color ?? semantic.foregroundMuted,
+  stroke: color ?? galleria.foregroundMuted,
   strokeWidth: 1.8,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
@@ -39,7 +39,7 @@ const line = (color?: ColorValue) => ({
 });
 
 export function HomeGlyph({ size = 24, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Circle cx={12} cy={12} r={8} {...line(c)} />
@@ -68,7 +68,7 @@ export function MomentiGlyph({ size = 24, color }: GlyphProps) {
 }
 
 export function CostellazioniGlyph({ size = 24, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       {/* joining lines */}
@@ -98,7 +98,7 @@ export function ProfiloGlyph({ size = 24, color }: GlyphProps) {
  * than the 1.8px tab glyphs). Formerly components/home/icons.tsx.
  */
 const stroke = (color?: ColorValue) => ({
-  stroke: color ?? semantic.foregroundMuted,
+  stroke: color ?? galleria.foregroundMuted,
   strokeWidth: 2,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
@@ -138,7 +138,7 @@ export function SettingsIcon({ size = 22, color }: GlyphProps) {
   // Sun-wheel: circumpunct + eight radial ticks — the icon system's gear
   // (compass-and-ruler geometry per DESIGN §6, replacing a U+2699 text char
   // that fell back to the emoji font). Same 2px header stroke as above.
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   const ticks = Array.from({ length: 8 }, (_, i) => {
     const a = (i * Math.PI) / 4;
     return {
@@ -179,7 +179,7 @@ const EYE_LASH_LEFT = 'M9 15.9q-1.4 3-4 3.5';
 const EYE_LASH_RIGHT = 'M13.7 15.6l1.1 3.2';
 
 export function EyeGlyph({ size = 22, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path d={EYE_LID} {...line(c)} />
@@ -217,7 +217,7 @@ export function EyeGlyph({ size = 22, color }: GlyphProps) {
  * a struck one is not.
  */
 export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path d={EYE_LID} {...line(c)} />
@@ -253,7 +253,7 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
 /** The set's `scales` — balance, the Aura's weighting rule. Not the zodiac `BilanciaGlyph`,
  *  which §6 confines to the profile header. */
 export function ScalesGlyph({ size = 20, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path d="M12 4.5v15.5" {...line(c)} />
@@ -295,7 +295,7 @@ export function PauseGlyph({ size = 24, color }: GlyphProps) {
  * always spoken by the control's label, never by this drawing.
  */
 export function LockGlyph({ size = 16, color }: GlyphProps) {
-  const c = color ?? semantic.foregroundMuted;
+  const c = color ?? galleria.foregroundMuted;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" {...line(c)} />
@@ -323,7 +323,7 @@ const zodiacSvg = (size: number, color: ColorValue | undefined, children: React.
   </Svg>
 );
 
-const z = (color?: ColorValue) => line(color ?? semantic.ink2);
+const z = (color?: ColorValue) => line(color ?? galleria.ink2);
 
 export function ArieteGlyph({ size = 20, color }: GlyphProps) {
   // The ram: a stem with two horns curling outward from its top.

@@ -101,7 +101,7 @@ Usage matrix:
 
 **Contrast (WCAG 2.1 AA) — web:** foreground on background ≈ 17:1 ✓ · `aura` on background ≈ 10:1 ✓ (large text & UI ✓) · foregroundMuted on background ≈ 7:1 ✓ · `faint` on background ≈ 5.4:1 ✓, on `raise` ≈ 5.0:1 ✓ (retuned 2026-08-07 — see §11).
 
-**Contrast — mobile, on black / on charcoal:** foreground 19.29 / 15.46 ✓ · foregroundMuted 5.80 / 4.65 ✓ · `aura` 11.06 / 8.86 ✓ · `error` 5.80 / 4.65 ✓ · `onAura` on `aura` 8.72 ✓ · black on the white pill 19.29 ✓. Every text pair clears AA on both grounds. The hairline (1.67:1 on black) is decoration: it never carries meaning alone.
+**Contrast — mobile, on black / on charcoal:** foreground 19.29 / 15.46 ✓ · foregroundMuted 5.80 / 4.65 ✓ · `aura` 11.06 / 8.86 ✓ · `error` 5.80 / 4.65 ✓ · `onAura` on `aura` 8.72 ✓ · black on the white pill 19.29 ✓. Every text pair clears AA on both grounds. The hairline (1.67:1 on black) is decoration: it never carries meaning alone. These figures are recomputed from `galleria` by `apps/native/src/lib/contrast.test.ts`, so a retune of a token fails there before it reaches a screen.
 
 ## 4. Typography
 

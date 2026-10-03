@@ -3,7 +3,7 @@ import { ActivityIndicator } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type ContributionCursor, fundKeys, getMyContributions } from '@athanor/api';
 import { formatPrice } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FundContribution, Locale } from '@athanor/schemas';
 import { FlatList, Text, View } from '@/tw';
@@ -75,7 +75,7 @@ export default function PaymentsScreen() {
 
       {query.isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.aura} />
         </View>
       ) : null}
 
@@ -113,7 +113,7 @@ export default function PaymentsScreen() {
           }}
           ListFooterComponent={
             <View className="gap-4 pt-4">
-              {query.isFetchingNextPage ? <ActivityIndicator color={semantic.aura} /> : null}
+              {query.isFetchingNextPage ? <ActivityIndicator color={galleria.aura} /> : null}
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}
               </Text>

@@ -6,7 +6,7 @@ import { useCallback, useEffect } from 'react';
 import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { deriveVerifyState } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import {
@@ -219,8 +219,8 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.location.label', locale)}
                 value={grantedFor('location_approx', LOCATION_CONSENT_DEFAULT)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
 
@@ -239,8 +239,8 @@ export default function TrustScreen() {
                 value
                 disabled
                 accessibilityState={{ disabled: true }}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
           </View>
@@ -265,8 +265,8 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.consent.diagnostics', locale)}
                 value={grantedFor('analytics', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
           </View>
