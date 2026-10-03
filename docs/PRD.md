@@ -182,7 +182,7 @@ Always-visible countdown widget (days to the announcement event, fund total €,
 
 ### 4.9 Aura v1
 
-Aura 0–1000, profile-visible with transparent breakdown by source. Append-only ledger; nightly recompute with decay. Display **tiers** band the 0–1000 range, with a realtime tier-up celebration (glow-grade moment per `docs/DESIGN.md`) — presentation only, tiers grant nothing.
+Aura 0–1000, profile-visible with transparent breakdown by source. Append-only ledger; nightly recompute with decay. Display **tiers** band the 0–1000 range, with a realtime tier-up celebration (a celebration screen per `docs/DESIGN.md`) — presentation only, tiers grant nothing.
 
 **Earning (v1 weights, tunable server-side):**
 
@@ -360,7 +360,7 @@ athanor/
 │   ├── schemas/                # Zod schemas — single validation source
 │   ├── i18n/                   # IT/EN catalogs, Athanor voice & tone copy
 │   └── config/                 # ts/eslint presets, design tokens:
-│       │                       #   background #000206 · foreground #ECEEF6 · aura #2BD0D2
+│       │                       #   `semantic` web · `galleria` mobile · `broadsheet` landing
 ├── supabase/
 │   ├── migrations/             # SQL, RLS policies
 │   ├── functions/              # edge functions (Deno)
@@ -486,7 +486,7 @@ aura_events (ledger, append-only)
 | Media privacy | Uploaded images re-encoded + EXIF-stripped client-side, then byte-level metadata strip server-side (`media-process` edge function) before serving.                                                             |
 | Accessibility | WCAG 2.1 AA web; RN accessibility props; contrast-checked palette (aura on background verified).                                                                                                               |
 | i18n          | IT + EN day one, catalogs in `packages/i18n`, no hardcoded strings (lint rule).                                                                                                                                |
-| Brand         | The `aura` cyan accent reserved for moments that matter (new Momento, dream helped, star lit). Calm-but-powerful, no mystical effects. Two-weight humanist sans (Hanken Grotesk).                              |
+| Brand         | The `aura` cyan is the one accent: a small mark in the mobile app, action and meaning on the web (`docs/DESIGN.md` §2). Calm-but-powerful, no mystical effects. One humanist sans (Hanken Grotesk).            |
 
 ## 10. Testing & CI
 

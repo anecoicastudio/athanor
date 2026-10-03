@@ -197,14 +197,14 @@ which one you are pushing to, so check it before every push.
 
 ## The ten non-negotiable rules
 
-Enforced by review on every PR, and most also by CI — rules 3 and 4 currently have **no CI
-check**; rule 4's only guard today is local tooling, and a partial one (#61). Not style
-preferences.
+Enforced by review on every PR, and most also by CI. Rules 3 and 4 are covered in part: their
+checks (`apps/native/src/lib/source-audit.test.ts`, the two `tokens-mirror.test.ts` files) read
+the mobile app's source and the token mirrors, not every surface. Not style preferences.
 
 1. **Aura is never client-writable.** Only the `score-engine` edge function (service role) writes `aura_events` / `aura_scores`. RLS denies all client writes; pgTAP asserts it. Circle membership and fund contributions yield **zero** points.
 2. **RLS on every table**, deny-by-default, policies in the wrapped form `(select auth.uid())`, always `TO authenticated` / `TO anon` plus an ownership predicate. UPDATE policies need both `USING` and `WITH CHECK`.
 3. **No vanity metrics** rendered publicly — reaction counts are visible to the author only.
-4. **Design tokens only** — no literal hex in app code; tokens come from `@athanor/config`.
+4. **Design tokens only** — no literal hex in app code; tokens come from `@athanor/config`: `semantic` for the web, `galleria` for the mobile app, which never reads `semantic`. The two looks are specified in `docs/DESIGN.md`.
 5. **Zero hardcoded user-facing strings** — everything through `@athanor/i18n`, IT **and** EN (a parity test fails the build otherwise).
 6. **Money state is a cache of Stripe webhooks.** Stripe is the source of truth; keys server-side only; webhooks signature-verified and deduped.
 7. **Migrations are append-only once applied.** Create new ones via `supabase migration new <name>`, then `pnpm gen:types`. Never hand-edit `packages/api/src/database.types.ts`.
