@@ -38,7 +38,7 @@ export function CookieNotice() {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 border-t border-border bg-background/95 px-6 py-4 text-center text-sm text-muted-foreground backdrop-blur sm:flex-row sm:justify-center">
+    <div className="cookie-notice fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 border-t border-border bg-background/95 px-6 py-4 text-center text-sm text-muted-foreground backdrop-blur sm:flex-row sm:justify-center">
       <p className="max-w-xl">
         {t('cookie.notice', locale)}{' '}
         <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
@@ -48,7 +48,7 @@ export function CookieNotice() {
       <button
         type="button"
         onClick={dismiss}
-        className="rounded-full border border-border px-4 py-1.5 text-xs font-semibold text-foreground transition-opacity hover:opacity-80"
+        className="min-h-11 rounded-full border border-border px-5 py-1.5 text-xs font-semibold text-foreground transition-opacity hover:opacity-80"
       >
         {t('cookie.dismiss', locale)}
       </button>

@@ -38,11 +38,11 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
  * Holds the active landing locale (IT canonical). Every public page is prerendered
  * as IT, so the server no longer reads the cookie — this provider picks it up after
  * hydration and switches in place. A returning EN visitor therefore gets a brief
- * flash of Italian, which lands behind the existing splash animation. That is the
+ * flash of Italian — visible since the splash intro was removed (2026-10-03). That is the
  * accepted cost of prerendering; see lib/default-locale.ts.
  *
  * Switching writes the cookie + updates <html lang> and re-renders the page in
- * place — no reload, no scroll reset, no splash replay. The catalogs
+ * place — no reload, no scroll reset. The catalogs
  * (@athanor/i18n) already carry full IT + EN copy.
  */
 export function LocaleProvider({ children }: { children: ReactNode }) {

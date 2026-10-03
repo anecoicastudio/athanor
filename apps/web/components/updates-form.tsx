@@ -106,7 +106,7 @@ export function UpdatesForm({
             }}
             placeholder={t('landing.updates.placeholder', locale)}
             aria-label={t('landing.updates.placeholder', locale)}
-            className="h-12 flex-1 rounded-full border border-border bg-card/40 px-5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="h-12 shrink-0 rounded-full sm:flex-1 sm:shrink border border-border bg-card/40 px-5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           />
           {/* Outlined, not the light fill: the store badges above are the action here. */}
           <Button
