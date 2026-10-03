@@ -16,8 +16,8 @@ import { GetView } from '@/components/get-view';
  * else gets `GetView`: both badges and a storefront picker.
  *
  * The one deliberately per-request public page. `cf-ipcountry` is the header Cloudflare adds
- * with the visitor's country — believed, unverified on this Worker as of 2026-10-03: nothing
- * else in `apps/web` reads it, and OpenNext does not synthesise it. Any value outside the
+ * with the visitor's country. Seen arriving on production on 2026-10-03 (an iPhone user agent
+ * from Germany answered 307 to the `/de/` storefront); OpenNext does not synthesise it. Any value outside the
  * storefront list, and no header at all, is «cannot tell» to `resolveStoreTarget`, so the
  * failure mode is the picker for everyone, never a wrong storefront — which is also why a
  * header the visitor's own proxy could influence is acceptable here. Being dynamic also keeps it out of the KV incremental cache: one visitor's storefront must
