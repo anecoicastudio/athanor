@@ -1,6 +1,6 @@
 import { galleria } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
-import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from './contrast';
+import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from '@athanor/config/contrast';
 
 /**
  * The surfaces text actually renders on. Since Galleria (2026-10-03, #921) the grounds are
@@ -12,6 +12,9 @@ import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from './contrast';
  * `raise`, `raise2`, `auraSoft`, `faint`, `ink2`, `success` and `onError` are legacy aliases
  * carrying interim values (`galleria` in packages/config/src/tokens.ts). A block below that is
  * about one of them states the interim truth, and is retired with the alias it is about.
+ *
+ * The arithmetic lives with the tokens, in packages/config/src/contrast.ts, and so do its own
+ * tests and the web's pairs (`contrast.test.ts` there). This file is the app's surfaces.
  */
 const CANVAS = galleria.background; // #000000 — the stage: screens, modals
 const SURFACE = galleria.surface; // #1D1D1F — charcoal: grouped blocks, cards, sheets
@@ -20,43 +23,16 @@ const RAISE2 = galleria.raise2; // #2C2C2E — a chip, on the canvas or inside a
 const AURA_SOFT = over(galleria.auraSoft, CANVAS); // #041515 — accent surface on the canvas
 const AURA_SOFT_ON_RAISE = over(galleria.auraSoft, RAISE); // #1e2f31 — accent chip INSIDE a card
 
-describe('over', () => {
-  it('composites a translucent layer onto an opaque backdrop', () => {
-    expect(over('rgba(255,255,255,0.04)', '#0A0A1A')).toBe('#141423');
-    expect(over('rgba(0,0,0,1)', '#FFFFFF')).toBe('#000000');
-    expect(over('rgba(255,255,255,0)', '#0A0A1A')).toBe('#0a0a1a');
-  });
-
-  it('chains, so a chip inside a card lands on the real backdrop', () => {
-    // The dark world's stack, written out: a 6.5% white chip over a 4% white card over its
-    // canvas. It is the case this function was written for, and no Galleria surface is
-    // translucent twice over, so the palette itself can no longer exercise the chain.
-    const card = over('rgba(255,255,255,0.04)', '#0A0A1A');
-    const nested = over('rgba(255,255,255,0.065)', card);
-    expect(nested).toBe('#232331');
-    // The whole point: nesting is NOT the same surface as the layer straight on the canvas.
-    expect(nested).not.toBe(over('rgba(255,255,255,0.065)', '#0A0A1A'));
-  });
-
+describe('over, on the app’s surfaces', () => {
   it('composes the one translucent surface Galleria still has', () => {
+    // No Galleria surface is translucent twice over, so the chain itself (a chip inside a card)
+    // is exercised with the dark world's stack in packages/config/src/contrast.test.ts.
     expect(AURA_SOFT).toBe('#041515');
     expect(AURA_SOFT_ON_RAISE).toBe('#1e2f31');
   });
-});
 
-describe('luminance / ratio', () => {
-  it('anchors at the WCAG extremes', () => {
-    expect(luminance('#000000')).toBe(0);
-    expect(luminance('#FFFFFF')).toBeCloseTo(1, 5);
-    expect(ratio('#FFFFFF', '#000000')).toBeCloseTo(21, 5);
-    expect(ratio('#0A0A1A', '#0A0A1A')).toBeCloseTo(1, 5);
-  });
-
-  it('expands shorthand hex to the same colour as the long form', () => {
-    // NOT `ratio('#FFF','#000') === ratio('#000','#FFF')` — ratio() sorts hi/lo internally, so
-    // that holds by construction for any implementation, right or wrong.
-    expect(ratio('#FFF', '#000')).toBeCloseTo(ratio('#FFFFFF', '#000000'), 10);
-    // `ink2` is a legacy alias of `foreground` in the interim; the literal is that value.
+  it('the interim ink2 is the foreground value, literally', () => {
+    // `ink2` is a legacy alias of `foreground`; the literal is that value.
     expect(luminance('#F5F5F7')).toBeCloseTo(luminance(galleria.ink2), 10);
   });
 });

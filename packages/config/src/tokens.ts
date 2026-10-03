@@ -35,7 +35,8 @@ export const semantic = {
   // (It would NOT on border #241B3A ≈4.44; nothing pairs them today.)
   // These ratios were ASSERTED, not just claimed, while the app read this palette:
   // apps/native/src/lib/contrast.test.ts recomputed them from these values until 2026-10-03,
-  // when it moved to `galleria` (#921). Nothing recomputes them now. Note each figure
+  // when it moved to `galleria` (#921). Nothing recomputes them now — `contrast.test.ts` in
+  // this folder certifies only the roles the web draws, and `faint` is not one. Note each figure
   // names a SURFACE — `raise`/`raise2` are translucent, so a chip nested inside a card
   // is a different (darker-backed) stack than the same chip on the canvas, and `faint`
   // does NOT clear AA there (4.23). Compose surfaces with contrast.ts `over()`.
@@ -73,8 +74,9 @@ export const semantic = {
  * white primary pill. On a converted screen cyan is a small mark — the waiting-Momento dot, the
  * member's own Aura numeral, «✦ Un passo del percorso», the countdown seconds, the celebration
  * screens — never an action colour, a selected state or a glow, and nothing is green: `success`
- * below is a legacy alias. A screen not yet converted still shows the old uses, and no test
- * holds this paragraph before the last screens convert (#921, open as of 2026-10-03).
+ * below is a legacy alias. A screen not yet converted still shows the old uses (#921, open as
+ * of 2026-10-03). No test holds the cyan and green clauses yet, and the glow clause only as the
+ * pinned set of callers (`GLOW_SURFACES` in apps/native/src/lib/source-audit.test.ts).
  *
  * The ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts recomputes
  * them from these values, so a retune here fails there.

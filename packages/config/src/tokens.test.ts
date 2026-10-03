@@ -16,10 +16,9 @@ import {
 // malformed color does not throw — it lands in a Tailwind @theme block or a NativeWind style
 // and renders as nothing, on whichever screen happens to use that role. These assertions are
 // the cheap half of that: shape, parseability, and the values CLAUDE.md rule 4 pins by name for
-// each look. The mobile contrast RATIOS are asserted elsewhere, in
-// apps/native/src/lib/contrast.test.ts, which recomputes them from `galleria` — so a retune
-// here fails there. It certified `semantic` until 2026-10-03 (#921); nothing recomputes the
-// web's ratios now.
+// each look. The contrast RATIOS are asserted elsewhere and recomputed from these very
+// values, so a retune here fails there: the mobile pairs in
+// apps/native/src/lib/contrast.test.ts, the web's in ./contrast.test.ts.
 
 /** #RRGGBB, uppercase or lower. Three-digit shorthand is deliberately rejected: the file is
  *  documented in six-digit form and the two notations would diff badly against each other. */
