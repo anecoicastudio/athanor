@@ -60,11 +60,11 @@ const DECAY_FLOOR_PCT = Math.round(DECAY.PEAK_FLOOR_RATIO * 100);
  */
 const ERASURE_DELETES: Record<Locale, string[]> = {
   it: [
-    "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se eri nella lista d'attesa, togliamo anche il tuo indirizzo email.",
+    "Con il profilo eliminiamo anche i tuoi contenuti, le foto e i video che hai caricato e la tua pagina pubblica su questo sito. Se avevi lasciato il tuo indirizzo email sul sito, per gli aggiornamenti o nella lista d'attesa, togliamo anche quello.",
     'Gli eventi che hai organizzato vengono nascosti e non portano più il tuo nome. Restano solo per non cancellare con loro i biglietti e le iscrizioni delle altre persone.',
   ],
   en: [
-    'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you were on the waitlist, we remove your email address from it too.',
+    'Along with your profile we delete your content, the photos and videos you uploaded, and your public page on this site. If you had left your email address on the site, for updates or on the waitlist, we remove that too.',
     "Events you organized are hidden and no longer carry your name. They remain only so that other people's tickets and sign-ups are not deleted with them.",
   ],
 };
@@ -93,7 +93,7 @@ const ERASURE_KEEPS: Record<Locale, string[]> = {
 export const privacy: Record<Locale, LegalDoc> = {
   it: {
     title: 'Informativa sulla privacy',
-    updated: 'Settembre 2026',
+    updated: 'Ottobre 2026',
     intro: `Questa informativa spiega come ${CONTROLLER} tratta i dati personali di chi usa l'app ${tIt('store.name')} e di chi visita questo sito. Prima trovi cosa riguarda l'app, poi cosa riguarda solo il sito; le ultime sezioni — a chi arrivano i dati, su quali basi, per quanto tempo, l'età minima e i tuoi diritti — valgono per entrambi. Non vendiamo i tuoi dati e non li usiamo per la pubblicità.`,
     sections: [
       {
@@ -198,10 +198,11 @@ export const privacy: Record<Locale, LegalDoc> = {
         ],
       },
       {
-        heading: 'Sul sito: log tecnici e lista d’attesa',
+        heading: 'Sul sito: log tecnici e aggiornamenti via email',
         body: [
           'Il sito non richiede un account e non profila chi lo visita. Log tecnici: per servire le pagine, il nostro fornitore di hosting (Cloudflare) registra dati tecnici minimi — ad esempio gli header inviati dal browser, l’indirizzo IP e la data e ora della richiesta. La base giuridica è il legittimo interesse a far funzionare il sito e a mantenerlo sicuro; questi dati non vengono usati per profilarti.',
-          'Lista d’attesa. Se compili il modulo di iscrizione, trattiamo l’indirizzo email che inserisci (insieme alla lingua scelta e alla provenienza dal sito) al solo scopo di avvisarti quando Athanor sarà disponibile. La base giuridica è il tuo consenso. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte). Non ti inviamo alcun messaggio al momento dell’iscrizione. Non lo usiamo per altre comunicazioni di marketing oltre all’avviso di lancio e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account o ci chiedi di rimuoverlo.',
+          `Aggiornamenti. Se lasci il tuo indirizzo email nel modulo «${tIt('landing.updates.label')}», lo trattiamo (insieme alla lingua scelta e alla provenienza dal sito) per scriverti quando c'è qualcosa di nuovo su Athanor: nuove funzioni, nuovi paesi, eventi. La base giuridica è il tuo consenso, che puoi ritirare quando vuoi scrivendo a ${EMAIL}. L’indirizzo è conservato su Supabase (Unione Europea, Francoforte). Non ti inviamo alcun messaggio al momento dell’iscrizione, non lo usiamo per pubblicità e non lo cediamo né vendiamo a terzi. Lo cancelliamo al più tardi dopo circa 18 mesi, oppure prima se crei un account con quell'indirizzo o ci chiedi di rimuoverlo.`,
+          'Lista d’attesa. Fino a ottobre 2026, prima che Athanor fosse disponibile, il sito aveva una lista d’attesa. Gli indirizzi lasciati allora li usiamo al solo scopo di avvisare che Athanor è disponibile, e per nessun’altra comunicazione; valgono la stessa base giuridica, la stessa conservazione e la stessa cancellazione.',
           'Per limitare le iscrizioni automatiche contiamo quante ne arrivano da ogni indirizzo IP: dell’indirizzo non salviamo il valore, ma solo un’impronta (hash) legata a una finestra di dieci minuti, che poi eliminiamo.',
         ],
       },
@@ -218,7 +219,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           `Alle altre persone, come descritto sopra e secondo le scelte che fai. Per il resto, solo ai fornitori che ci servono per far funzionare ${tIt('store.name')}, ciascuno per ciò che gli serve.`,
           "Supabase ospita il database, l'accesso, i file e le funzioni server dell'app, e prepara le email di accesso, come quella per reimpostare la password. I dati sono nell'Unione Europea, a Francoforte.",
           'Resend le recapita: riceve il tuo indirizzo e il testo del messaggio.',
-          'Cloudflare serve questo sito dalla sua rete globale: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo della lista d’attesa, e le pagine pubbliche di profili, sogni ed eventi, la cui versione già composta resta per un breve periodo nella cache della rete.',
+          'Cloudflare serve questo sito dalla sua rete globale: ogni richiesta è gestita dal nodo più vicino a chi visita, che può trovarsi fuori dall’Unione Europea. Riguarda il caricamento delle pagine, il beacon di statistiche (che raggiunge Cloudflare, Inc. indipendentemente dal nodo che ha servito la pagina), l’invio del modulo degli aggiornamenti, e le pagine pubbliche di profili, sogni ed eventi, la cui versione già composta resta per un breve periodo nella cache della rete.',
           'Stripe gestisce pagamenti, abbonamenti, verifica dell’identità e conti per ricevere i pagamenti, come descritto sopra.',
           'Expo inoltra le notifiche push e distribuisce gli aggiornamenti dell’app. Apple e Google consegnano le notifiche ai telefoni e danno il nome della città a partire dalla posizione; Google e Apple, se li scegli, gestiscono anche l’accesso con il tuo account Google o Apple.',
           'Sentry riceve i rapporti di errore, solo se accendi la diagnostica, e li conserva nell’Unione Europea.',
@@ -231,7 +232,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Basi giuridiche',
         body: [
           `Trattiamo i dati dell'app per darti il servizio che chiedi iscrivendoti — account, profilo, contenuti, messaggi, eventi, biglietti, Circle, Aura e ${tIt('momenti.title')}: la base giuridica è il contratto tra te e noi. Senza questi dati l'app non può funzionare.`,
-          'Diagnostica e notifiche push si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Anche la lista d’attesa del sito si basa sul tuo consenso.',
+          'Diagnostica e notifiche push si basano sul tuo consenso, che puoi ritirare quando vuoi; il ritiro non tocca ciò che è avvenuto prima. Anche gli aggiornamenti via email e la lista d’attesa del sito si basano sul tuo consenso.',
           `Segnalazioni, blocchi, moderazione e protezione dagli abusi, come i log tecnici e il cookie della lingua sul sito, si basano sul nostro legittimo interesse a tenere ${tIt('store.name')} sicuro e funzionante. Puoi opporti in qualsiasi momento scrivendoci.`,
           'Conserviamo i pagamenti per i nostri obblighi contabili e fiscali.',
         ],
@@ -267,7 +268,7 @@ export const privacy: Record<Locale, LegalDoc> = {
   },
   en: {
     title: 'Privacy Policy',
-    updated: 'September 2026',
+    updated: 'October 2026',
     intro: `This policy explains how ${CONTROLLER} handles the personal data of people who use the ${tEn('store.name')} app and of people who visit this site. First comes what concerns the app, then what concerns only the site; the last sections — who receives the data, on what legal basis, for how long, the minimum age and your rights — apply to both. We do not sell your data and we do not use it for advertising.`,
     sections: [
       {
@@ -372,10 +373,11 @@ export const privacy: Record<Locale, LegalDoc> = {
         ],
       },
       {
-        heading: 'On the site: technical logs and waitlist',
+        heading: 'On the site: technical logs and email updates',
         body: [
           'The site requires no account and does not profile visitors. Technical logs: to serve the pages, our hosting provider (Cloudflare) records minimal technical data — such as the headers your browser sends, your IP address and the time of the request. The legal basis is our legitimate interest in operating and securing the site; this data is not used to profile you.',
-          'Waitlist. If you submit the sign-up form, we process the email address you enter (along with your chosen language and the fact you came from the site) for the sole purpose of letting you know when Athanor is available. The legal basis is your consent. The address is stored on Supabase (European Union, Frankfurt). We send you no message when you sign up. We do not use it for any marketing beyond the launch notice, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account or ask us to remove it.',
+          `Updates. If you leave your email address in the “${tEn('landing.updates.label')}” form, we process it (along with your chosen language and the fact you came from the site) to write to you when there is something new about Athanor: new features, new countries, events. The legal basis is your consent, which you can withdraw at any time by writing to ${EMAIL}. The address is stored on Supabase (European Union, Frankfurt). We send you no message when you sign up, we do not use it for advertising, and we do not share or sell it. We delete it after roughly 18 months at the latest, or sooner if you create an account with that address or ask us to remove it.`,
+          'Waitlist. Until October 2026, before Athanor was available, the site had a waitlist. We use the addresses left then for the sole purpose of letting those people know that Athanor is available, and for no other message; the same legal basis, storage and deletion apply.',
           'To limit automated sign-ups we count how many arrive from each IP address: we do not store the address itself, only a fingerprint of it (a hash) tied to a ten-minute window, which we then delete.',
         ],
       },
@@ -392,7 +394,7 @@ export const privacy: Record<Locale, LegalDoc> = {
           `Other people, as described above and according to the choices you make. Beyond that, only the providers we need to run ${tEn('store.name')}, each for what it needs.`,
           'Supabase hosts the app’s database, sign-in, files and server functions, and composes the sign-in emails, such as the one to reset your password. The data is in the European Union, in Frankfurt.',
           'Resend delivers them: it receives your address and the text of the message.',
-          'Cloudflare serves this site from its global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), waitlist form submissions, and the public pages of profiles, dreams and events, whose rendered version stays briefly in the network’s cache.',
+          'Cloudflare serves this site from its global network: each request is handled by the node closest to the visitor, which may sit outside the European Union. This covers page loads, the analytics beacon (which reaches Cloudflare, Inc. regardless of which node served the page), updates form submissions, and the public pages of profiles, dreams and events, whose rendered version stays briefly in the network’s cache.',
           'Stripe handles payments, subscriptions, identity verification and payout accounts, as described above.',
           'Expo relays push notifications and delivers app updates. Apple and Google deliver notifications to phones and turn a location into a city name; Google and Apple, if you choose them, also handle sign-in with your Google or Apple account.',
           'Sentry receives error reports, only if you turn diagnostics on, and keeps them in the European Union.',
@@ -405,7 +407,7 @@ export const privacy: Record<Locale, LegalDoc> = {
         heading: 'Legal bases',
         body: [
           `We process app data to give you the service you ask for when you join — account, profile, content, messages, events, tickets, Circle, Aura and ${tEn('momenti.title')}: the legal basis is the contract between you and us. Without this data the app cannot work.`,
-          "Diagnostics and push notifications rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. The site's waitlist rests on your consent too.",
+          "Diagnostics and push notifications rest on your consent, which you can withdraw at any time; withdrawal does not affect what happened before. The site's email updates and waitlist rest on your consent too.",
           `Reports, blocks, moderation and protection against abuse, like the site's technical logs and language cookie, rest on our legitimate interest in keeping ${tEn('store.name')} safe and working. You can object at any time by writing to us.`,
           'We keep payments for our accounting and tax obligations.',
         ],
