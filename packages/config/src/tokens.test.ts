@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import * as barrel from './index';
-import { gradient, mandorla, radius, semantic, spacing, typography } from './tokens';
+import { broadsheet, gradient, mandorla, radius, semantic, spacing, typography } from './tokens';
 
 // Why a suite for a file of constants: `turbo test` skipped this whole workspace in silence
 // until it had a `test` script (#172), and a token typo here is invisible at the source. A
@@ -65,6 +65,22 @@ describe('brand-mark tokens', () => {
   });
 });
 
+describe('the landing broadsheet palette', () => {
+  test('every value is a six-digit hex', () => {
+    for (const [role, value] of Object.entries(broadsheet)) {
+      expect(HEX6.test(value), `${role} = ${value}`).toBe(true);
+    }
+  });
+
+  test('it carries no cyan — the landing has one accent, and it is violet', () => {
+    expect(Object.values(broadsheet)).not.toContain(semantic.aura);
+  });
+
+  test('its violet is the mandala violet, not a near-miss of it', () => {
+    expect(broadsheet.violet).toBe(gradient[2]);
+  });
+});
+
 describe('scale tokens', () => {
   test('spacing and radius are positive finite numbers', () => {
     for (const [name, value] of [...Object.entries(spacing), ...Object.entries(radius)]) {
@@ -96,7 +112,7 @@ describe('the barrel', () => {
   // tokens.ts but not reachable through the barrel is a token no app can use.
   test('re-exports every runtime token export', () => {
     expect(Object.keys(barrel).sort()).toEqual(
-      ['gradient', 'mandorla', 'radius', 'semantic', 'spacing', 'typography'].sort(),
+      ['broadsheet', 'gradient', 'mandorla', 'radius', 'semantic', 'spacing', 'typography'].sort(),
     );
   });
 });

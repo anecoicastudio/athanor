@@ -1,10 +1,18 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { broadsheet } from '@athanor/config';
 import { LandingClient } from '@/components/landing-client';
 import { SITE_URL } from '@/lib/site';
 
 // Self-canonical (#792); title, description and the OG card come from the root layout.
 export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/` },
+};
+
+// The landing is the one concrete-grey page (components/landing-view.tsx), so the browser chrome
+// around it follows the wall rather than the root layout's dark canvas.
+export const viewport: Viewport = {
+  themeColor: broadsheet.concrete,
+  colorScheme: 'light',
 };
 
 /**

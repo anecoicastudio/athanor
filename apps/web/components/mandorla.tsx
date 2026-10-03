@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Mandorla — the single Athanor mark (DESIGN.md §5), shared by the splash intro
- * and the hero so the two are visually identical. Vesica piscis: two circles
+ * Mandorla — the single Athanor mark (DESIGN.md §5), drawn here once so every
+ * mount is visually identical. Vesica piscis: two circles
  * whose overlap forms the vertical lens almond (two people meeting); the ✦
  * star (✦) sits at the apex on top.
  *
@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils';
  * (logo/hero only); the star, dots and lens glow use `var(--color-aura)`. No
  * literal hex.
  *
- * `idPrefix` namespaces the gradient ids — REQUIRED because the splash and the
- * hero both mount on the same page and un-namespaced ids would collide.
+ * `idPrefix` namespaces the gradient ids — so two mounts on one page
+ * cannot collide.
  * Decorative: aria-hidden is set by the caller's wrapper where needed.
  */
 export function Mandorla({
@@ -27,7 +27,7 @@ export function Mandorla({
   className,
 }: {
   idPrefix: string;
-  /** Hero: breathe the rings + pulse the star after the draw. Splash: false. */
+  /** Breathe the rings + pulse the star after the draw. */
   loop?: boolean;
   className?: string;
 }) {

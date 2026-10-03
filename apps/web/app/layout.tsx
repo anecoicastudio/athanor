@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 import { SITE_URL } from '@/lib/site';
 import { DEFAULT_LOCALE } from '@/lib/default-locale';
 import { SkipLink } from '@/components/skip-link';
-import { RouteSplash } from '@/components/route-splash';
 import { SmoothScroll } from '@/components/smooth-scroll';
 import { PageReveal } from '@/components/page-reveal';
 import { LocaleProvider } from '@/components/locale-provider';
@@ -97,7 +96,6 @@ export default function RootLayout({
             English content after the toggle. */}
         <LocaleProvider>
           <SkipLink />
-          <RouteSplash />
           <PageReveal>
             <SmoothScroll>{children}</SmoothScroll>
           </PageReveal>

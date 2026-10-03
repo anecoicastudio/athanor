@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import Lenis from 'lenis';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { whenSplashDone } from '@/lib/splash-ready';
 
 /**
  * Smooth-scroll provider (DESIGN.md §11, 2026-06-13 — the sanctioned parallax
@@ -22,10 +21,8 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     window.scrollTo(0, 0);
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      // No Lenis here — just make sure we land at the top once the splash lifts.
-      return whenSplashDone(() => window.scrollTo(0, 0));
-    }
+    // No Lenis under reduced motion — native scroll, already at the top.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     gsap.registerPlugin(ScrollTrigger);
 
@@ -36,17 +33,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
     gsap.ticker.add(raf);
     gsap.ticker.lagSmoothing(0);
 
-    // When the intro lifts, snap to the top — undoes any scroll that happened
-    // behind the splash (wheel/touch still reach the page during the overlay).
-    // immediate = no smooth tween, no leftover momentum; refresh re-seats any
-    // gated ScrollTriggers against the new position.
-    const stopWait = whenSplashDone(() => {
-      lenis.scrollTo(0, { immediate: true });
-      ScrollTrigger.refresh();
-    });
-
     return () => {
-      stopWait();
       gsap.ticker.remove(raf);
       lenis.destroy();
     };

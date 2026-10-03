@@ -41,6 +41,13 @@
   --color-surface-muted: #04030a;
   --color-success: #36b37e;
   --color-error: #e0476b;
+  /*
+   * The landing's broadsheet palette — mirrors `broadsheet` in packages/config/src/tokens.ts
+   * (lib/tokens-mirror.test.ts asserts it). Used on `/` only; see the `.broadsheet` block.
+   */
+  --color-concrete: #d9d9d9;
+  --color-iron: #1f1f1f;
+  --color-violet: #672088;
 }
 
 @theme inline {
@@ -54,6 +61,11 @@
   --font-display: var(--font-eb-garamond);
   --font-heading: var(--font-eb-garamond);
   --font-dream: var(--font-eb-garamond);
+  /* The landing's micro-label face (JetBrains Mono, loaded by landing-view.tsx only). The
+     fallback keeps `font-mono` meaningful on every other route, where the variable is unset. */
+  --font-mono:
+    var(--font-jetbrains-mono, ui-monospace), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -128,6 +140,122 @@
   --ring: #2bd0d2;
 }
 
+/*
+ * The broadsheet — the landing's world (`/` only; Marco's rulings 2026-10-03, DESIGN.md §6
+ * «Web landing»). A painted wall rather than the dark app: concrete canvas, near-black iron,
+ * one violet that takes whole bands. It works by re-pointing the shadcn role vars inside the
+ * landing's <main>, so the shared pieces it mounts (store badges, updates form, legal nav,
+ * language toggle) follow without a variant of their own. The cookie notice sits outside
+ * <main>, so it is named here too.
+ *
+ * Hairlines are solid iron — the line is the structure. Buttons and inputs keep their pill
+ * radius (the shared components already carry it); nothing else on the page is rounded.
+ */
+.broadsheet,
+body:has(.broadsheet) .cookie-notice {
+  --background: var(--color-concrete);
+  --foreground: var(--color-iron);
+  --card: var(--color-concrete);
+  --card-foreground: var(--color-iron);
+  --primary: var(--color-iron);
+  --primary-foreground: var(--color-concrete);
+  --muted-foreground: color-mix(in srgb, var(--color-iron) 78%, var(--color-concrete));
+  --border: var(--color-iron);
+  --input: var(--color-iron);
+  --ring: var(--color-violet);
+  --display: var(--color-violet);
+}
+/* Painted on <main> only: the cookie notice takes the vars and keeps its own utilities. */
+.broadsheet {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+/* The violet field: the same page with the tonal relationship reversed. */
+.broadsheet .broadsheet-field {
+  --background: var(--color-violet);
+  --foreground: var(--color-concrete);
+  --card: color-mix(in srgb, var(--color-violet) 70%, var(--color-iron));
+  --card-foreground: var(--color-concrete);
+  --primary: var(--color-concrete);
+  --primary-foreground: var(--color-violet);
+  --muted-foreground: color-mix(in srgb, var(--color-concrete) 82%, var(--color-violet));
+  --border: var(--color-concrete);
+  --input: var(--color-concrete);
+  --ring: var(--color-concrete);
+  --display: var(--color-concrete);
+  background-color: var(--background);
+  color: var(--foreground);
+}
+/* Concrete behind the page too, so overscroll and the scrollbar gutter are not the dark world. */
+html:has(.broadsheet) {
+  background-color: var(--color-concrete);
+  scrollbar-color: var(--color-violet) var(--color-concrete);
+}
+body:has(.broadsheet) {
+  background-color: var(--color-concrete);
+}
+.broadsheet ::selection {
+  background-color: var(--color-violet);
+  color: var(--color-concrete);
+}
+.broadsheet .broadsheet-field ::selection {
+  background-color: var(--color-concrete);
+  color: var(--color-violet);
+}
+.broadsheet input {
+  caret-color: currentColor;
+}
+/*
+ * Wall type: a condensed face at building scale, lines crushed until they stack into a
+ * facade. 0.78, not the reference's 0.70 — Italian capitals carry accents (È, À) and need
+ * the room. The family is spelled out for the reason given on `.bs-label`.
+ */
+.broadsheet .bs-display {
+  font-family: var(--font-wall), 'Arial Narrow', sans-serif;
+  font-size: clamp(4rem, 17vw, 13.4375rem);
+  line-height: 0.78;
+  letter-spacing: -0.04em;
+  font-weight: 400;
+}
+/*
+ * Three places the wall type has to give way. The brand line carries the ATHANOR logotype in
+ * the wide sans, which cannot wrap, so it runs a step smaller until the cap. A phone on
+ * its side has no height for 140px lines. And a split heading that wraps keeps its second
+ * word on the right edge.
+ */
+.broadsheet .bs-display--brand {
+  font-size: clamp(2.5rem, 15.5vw, 13.4375rem);
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .broadsheet .bs-display {
+    font-size: clamp(3rem, 26svh, 8rem);
+  }
+}
+.broadsheet .bs-heading {
+  font-family: var(--font-wall), 'Arial Narrow', sans-serif;
+  font-size: clamp(2.25rem, 4.6vw, 3.75rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+.broadsheet .bs-label {
+  /* Spelled out, not var(--font-mono): that one resolves on :root, where the face is unset. */
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+/* A margin annotation: reads bottom-to-top, like a plate number down a printed edge. */
+.broadsheet .bs-side {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 1.125rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -141,8 +269,8 @@
 }
 
 /*
- * Mandorla mark — la Mandorla animation (DESIGN.md §5/§10), shared by the splash
- * intro and the hero (components/mandorla.tsx). Entrance: the circles + lens
+ * Mandorla mark — la Mandorla animation (DESIGN.md §5/§10), drawn by
+ * components/mandorla.tsx (the 404 page's mark). Entrance: the circles + lens
  * draw in from empty (stroke-dash), the glow fades, the dots rise, then the star
  * pops at the apex. The `--loop` variants then settle into a calm loop — rings
  * breathe, star pulses (the sanctioned "moment flash", slowed).
@@ -329,7 +457,7 @@
 }
 /* the star pops LAST — after the rings draw and the dots have appeared (load order
    circles → dots → star) — then flares each time a dot fades into its center, on the
-   same 1.25s rhythm as the halo. Both variants flare so the splash star glows too. */
+   same 1.25s rhythm as the halo. Both variants flare. */
 .mandorla-spark,
 .mandorla-spark--loop {
   animation:
