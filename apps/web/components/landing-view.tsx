@@ -12,6 +12,7 @@ import { UpdatesForm } from '@/components/updates-form';
 import { AthanorWordmark, BrandText } from '@/components/athanor-wordmark';
 import { Reveal } from '@/components/reveal';
 import { LangSwitch } from '@/components/lang-switch';
+import { LandingVideo } from '@/components/landing-video';
 
 /**
  * Athanor landing — a single static one-pager presenting the project and linking to the app.
@@ -241,6 +242,9 @@ export function LandingView({ locale: L }: { locale: Locale }) {
           </div>
         </div>
       </section>
+
+      {/* THE VIDEO — keyed on locale: a language switch remounts it on the other cut's poster */}
+      <LandingVideo key={L} locale={L} />
 
       {/* IL NOME */}
       <Chapter id="nome" label={t('landing.nome.eyebrow', L)}>
