@@ -1,9 +1,9 @@
 # Athanor — Design System & Layout Reference
 
-**Version:** 1.2 · 2026-06-13 — **M0.5 prototype reconciliation** (ratified): cyan = action + meaning (glow = moments), background `#0A0A1A`, Hanken weights 300–800, the 20-glyph esoteric vocabulary, dream register = Hanken italic (Instrument Serif dropped). Where the older v1.1 lines below conflict, this reconciliation wins; the full prototype token palette is transcribed in frontend `00-foundation.md` §3 and lands with the M0 build.
-**Prior:** 1.1 · 2026-06-12 (typography swap, serif dream register, esoteric glyph icons, wordmark — via /design-consultation, preview-approved)
-**Sources:** `docs/ATHANOR.pdf` (brand identity, ch. 18) · `docs/screenshot-design/` (layout language reference) · `docs/PRD.md` · `packages/config/src/tokens.ts`
-**Scope:** How the web app and the mobile app should look and feel, before any UI code is written. This file is the design source of truth; visual decisions not covered here go through the user first.
+**Version:** 2.0 · 2026-10-03 — **Galleria on mobile** (Marco's ruling, §11; ships as app version 1.1): the mobile app is a black stage with charcoal grouped blocks and a white primary pill; cyan is a small mark, nothing glows, there is no green. The web is unchanged — the dark world of v1.2, and the broadsheet landing. Where a line below still speaks of the mobile app in v1.2's terms, this version wins.
+**Prior:** 1.2 · 2026-06-13 — **M0.5 prototype reconciliation**, still the web's look: cyan = action + meaning (glow = moments), background `#0A0A1A`, Hanken weights 300–800, the 20-glyph esoteric vocabulary, dream register = Hanken italic (Instrument Serif dropped); where the older v1.1 lines conflict with it, that reconciliation wins · 1.1 · 2026-06-12 (typography swap, serif dream register, esoteric glyph icons, wordmark — via /design-consultation, preview-approved)
+**Sources:** `docs/ATHANOR.pdf` (brand identity, ch. 18) · `docs/screenshot-design/` (layout language reference) · `docs/design-system/prototype/` (Galleria: every screen, and `base.css` for every value) · `docs/PRD.md` · `packages/config/src/tokens.ts`
+**Scope:** How the web and the mobile app look and feel. There are two looks, split by platform: **the mobile app is Galleria; the web is the dark world, and its landing the broadsheet.** A line that names a platform holds for that platform only; a line that names none holds for both. This file is the design source of truth; visual decisions not covered here go through the user first.
 
 ---
 
@@ -16,10 +16,13 @@
 
 ## 2. Design principles
 
-1. **Calma ma potente.** Minimal, elegant, premium-but-human. No cheap effects. Spirituality is perceived through the esoteric glyph vocabulary and the mandorla, never shouted. The mandala gradient stays the brand mark (logo / animated hero); the cyan _glow_ — the shadow, never the flat framed surface — is reserved for moment-grade events; the rest of the UI stays calm and flat.
+1. **Calma ma potente.** Minimal, elegant, premium-but-human. No cheap effects. Spirituality is perceived through the esoteric glyph vocabulary and the mandorla, never shouted. The mandala gradient stays the brand mark (logo / animated hero / boot splash). **Web:** the cyan _glow_ — the shadow, never the flat framed surface — is reserved for moment-grade events; the rest of the UI stays calm and flat. **Mobile:** nothing glows. Something waiting is one small cyan mark; something celebrated is a quiet screen of its own (§5).
 2. **Air is the luxury.** Generous whitespace, few elements per screen, editorial pacing. The reference layouts win through restraint, not decoration.
-3. **Cyan is action + meaning (M0.5).** The `aura` cyan (`#2BD0D2`) is the primary action + meaning color: CTAs, send, compose hints, the ✦ mark, "me" chat bubbles, active chips, live indicators, countdown, lit stars. The discipline moved from a _color_ prohibition to a _glow_ one — reserve the cyan glow — the **shadow** (`auraGlow()`, `apps/native/src/lib/glow.ts`) laid over an `auraSoft`/`auraLine` surface — for moment-grade events (a waiting Momento, a lit star, a dream helped — the accepted offer, never the «Aiuta» CTA — a match). The framed pair **without** a shadow (`border-aura-line bg-aura-soft`) is not a glow: it is the ordinary selected/active surface (a selected `Chip`, the active amount, a filter's on state), any control may take it, and a docblock that refuses it «because rule 4» is wrong (2026-09-07 ruling, §11). A flat cyan CTA is fine; a glowing cyan surface means something happened. (CLAUDE.md non-negotiable rule 4.)
-4. **One dark world.** Near-black background canvas everywhere — public reading surfaces and the lived-in app alike: the night sky where stars light up. Moments, chat, profile. The transition in (login, app download, «Hai un Momento» push) is the _varco_ — the gate into a moment.
+3. **Cyan: a small mark on mobile, action + meaning on the web.** (CLAUDE.md non-negotiable rule 4.)
+   - **Mobile (Galleria).** The `aura` cyan (`#2BD0D2`) is never an action colour and never a selected state. It appears as one of five marks and nowhere else: the **dot on a waiting Momento** (its Home card, the Momenti header, its notification row, the tab bar), the member's **own Aura numeral**, the line **«✦ Un passo del percorso»**, the **seconds** of the fund countdown, and the **celebration screens** — match, new level, favour done, candidacy sent, contribution thanks — where the ✦ inside the outline mandorla, the one-line label and the pill are cyan. Everything else is white or grey: the primary action is a white pill, a selected chip is a white fill, and a lit star, a live indicator or a sent message never turns cyan. **Nothing glows, and there is no green** — a ✓ and words carry a confirmation.
+   - **Web (M0.5, unchanged).** The `aura` cyan is the primary action + meaning colour: CTAs, the ✦ mark, active chips, live indicators, countdown, lit stars. The discipline is about the _glow_, not the colour: a glowing cyan surface is reserved for moment-grade events (a waiting Momento, a lit star, a dream helped, a match). A flat cyan CTA is fine; a glowing cyan surface means something happened. The landing carries no `aura` at all (§6 «Web landing»).
+   - **Before Galleria.** A mobile screen that has not been converted yet still shows the v1.2 rule it was built under: cyan as the action colour, the glow as a shadow (`auraGlow()`, `apps/native/src/lib/glow.ts`) over an `auraSoft`/`auraLine` surface, and the framed pair `border-aura-line bg-aura-soft` as the ordinary selected surface (2026-09-07 ruling, §11). That rule is superseded on mobile and nothing new is built to it; a comment in the app that cites «§2.3» for it is describing this history.
+4. **A black stage on mobile, one dark world on the web.** **Mobile:** every screen stands on black (`#000000`). Lists are grouped blocks — rows inside one rounded charcoal surface per group — and a screen has at most one bordered card, for the thing that matters. **Web:** near-black `background` canvas everywhere — public reading surfaces and the lived-in app alike: the night sky where stars light up (the landing alone is the broadsheet, §6). On both, the transition in (login, app download, «Hai un Momento» push) is the _varco_ — the gate into a moment.
 5. **Thin lines only.** All illustration is 1px-stroke geometry: concentric circles (the ripples of the moment), vesica shapes, dotted spines, single small stars. Never filled illustrations, never stock photos, never icons-in-colored-circles.
 6. **No vanity metrics rendered.** No follower counts, no public reaction counts (author only). Mockups below comply.
 
@@ -29,36 +32,52 @@
 | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Alternating ivory / sand / black full-width bands                                               | **Not adopted** — retired 2026-06-13; web public pages are ONE dark canvas   |
 | 3-zone editorial row: big headline left · thin-line illustration center · small paragraph right | Kept as the core web section layout                                          |
-| Letterspaced uppercase micro-labels                                                             | Kept — signature secondary-text style, both platforms                        |
-| Yellow accent wedge in color wheel                                                              | Becomes the `aura` cyan accent — action + meaning; glow reserved for moments |
+| Letterspaced uppercase micro-labels                                                             | Kept on the web. Mobile labels are plain grey, sentence case (§4)            |
+| Yellow accent wedge in color wheel                                                              | Becomes the `aura` cyan — web: action + meaning; mobile: a small mark (§2.3) |
 | Dark cosmic hero with particle stars + ringed center                                            | Becomes the dark "night sky" hero: Mandorla, mandala rings, ✦ particles      |
 | Vertical benefits spine (dots on a line, labels alternating L/R)                                | Reused for Aura breakdown and Six Stars progress                             |
 | Pill CTAs, dark rounded inputs, light pill submit                                               | Kept as the component language                                               |
-| Stats block: huge number + tiny caption                                                         | Becomes the countdown widget (numbers in `aura`)                             |
+| Stats block: huge number + tiny caption                                                         | Becomes the countdown widget (web: numbers in `aura`; mobile: the seconds)   |
 | FAQ accordion with thin rules and `+`                                                           | Kept for web public pages                                                    |
 | Dark rounded popup card (Stay Updated / Get the App / Thank you)                                | Kept as the modal pattern (auth, «Hai un Momento», confirmations)            |
 
 ## 3. Color
 
-Tokens come from `@athanor/config` (single source: `packages/config/src/tokens.ts`). **Never literal hex in app code.** The palette is flattened to **semantic-only English names** — there are no separate "brand" colors, just one semantic set the apps consume directly.
+Tokens come from `@athanor/config` (single source: `packages/config/src/tokens.ts`). **Never literal hex in app code.** Colours are named by **role, in English** — there are no separate "brand" colours. Each platform reads its own role set: the web reads `semantic`, the mobile app reads `galleria`, and the landing has `broadsheet` (§6). The mobile app never reads `semantic`, and a `semantic` key is never added, removed or retuned for the app's sake — the web's mirror test (`apps/web/lib/tokens-mirror.test.ts`) pins that set.
 
-**Brand etymology.** _Athanor_ — the alchemist's furnace, the slow vessel where base matter is patiently worked into gold. Reputation here is forged the same way: never bought, only earned through real acts over time. The cyan `aura` token is the visual seal of that presence — the action + meaning color, with its _glow_ reserved for moments that matter.
+**Brand etymology.** _Athanor_ — the alchemist's furnace, the slow vessel where base matter is patiently worked into gold. Reputation here is forged the same way: never bought, only earned through real acts over time. The cyan `aura` token is the visual seal of that presence: on the web the action + meaning colour, with its _glow_ reserved for moments that matter; on mobile a small mark that appears only where something waits, was earned or is celebrated.
 
-**Palette lineage (ATHANOR Concept Document §18).** The concept palette is Cosmo/Cosmos `#0A0A1A`, Viola/Violet `#672088`, Magenta `#7D236E`, Indaco/Indigo `#223D86`, Ciano/Cyan ("la luce") `#2BD0D2`. **M0.5 (2026-06-13) adopts the prototype = the concept palette:** `background` is now `#0A0A1A` (the cosmo void) over a violet/indigo radial body wash — not the old `#000206`. The full prototype surface/text palette (`cosmo · ink · ink2 · muted · faint · raise · raise2 · hair · auraSoft · auraLine · glow · onAura · danger`) is transcribed in frontend `00-foundation.md` §3 and lands in `@athanor/config` with the M0 foundation build (Part B of the gate). The table below is updated for `background`; the remaining rows migrate with that build.
+**Palette lineage — the web's dark world (ATHANOR Concept Document §18).** The concept palette is Cosmo/Cosmos `#0A0A1A`, Viola/Violet `#672088`, Magenta `#7D236E`, Indaco/Indigo `#223D86`, Ciano/Cyan ("la luce") `#2BD0D2`. **M0.5 (2026-06-13) adopts the prototype = the concept palette:** `background` is now `#0A0A1A` (the cosmo void) over a violet/indigo radial body wash — not the old `#000206`. The full prototype surface/text palette (`cosmo · ink · ink2 · muted · faint · raise · raise2 · hair · auraSoft · auraLine · glow · onAura · danger`) is transcribed in frontend `00-foundation.md` §3 and landed in `@athanor/config` with the M0 foundation build: `semantic` in `tokens.ts` is the full set, and the table below lists its base roles. Galleria does not descend from the concept palette — it keeps the cyan, leaves the mandala to the logo, and takes its black, charcoal and near-white from its own prototype (`docs/design-system/prototype/base.css`).
 
-### Semantic tokens (the only set)
+### Web — `semantic` (the dark world)
 
 | Token             | Hex       | Use                                                |
 | ----------------- | --------- | -------------------------------------------------- |
 | `background`      | `#0A0A1A` | App canvas, the cosmo void                         |
 | `surface`         | `#100A1C` | Cards, sheets (background lifted, violet)          |
 | `surfaceMuted`    | `#04030A` | Recessed areas, tab bar, popup scrims              |
-| `foreground`      | `#ECEEF6` | Primary text and light surfaces on dark            |
+| `foreground`      | `#F0EDF7` | Primary text and light surfaces on dark            |
 | `foregroundMuted` | `#9A9DB5` | Secondary text on dark                             |
 | `aura`            | `#2BD0D2` | The cyan accent — action + meaning; glow = moments |
 | `border`          | `#241B3A` | Hairlines, dividers (violet)                       |
 | `success`         | `#36B37E` | Confirmations, check-in OK (emerald, calm)         |
 | `error`           | `#E0476B` | Input error ring, destructive (raspberry)          |
+
+### Mobile — `galleria`
+
+| Token                              | Hex                   | Use                                                                           |
+| ---------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `background`                       | `#000000`             | The stage — the ground of every screen, and the tab bar                       |
+| `surface`                          | `#1D1D1F`             | Charcoal — grouped blocks, the card, inputs, incoming bubbles, avatar discs   |
+| `hair`                             | `#333336`             | Hairlines — between rows, around the card and a chip, above the tab bar       |
+| `foreground`                       | `#F5F5F7`             | Text; and the white fills — primary pill, selected chip, own bubble, bar fill |
+| `foregroundMuted`                  | `#86868B`             | Secondary text, labels, placeholders, the outline pill's border               |
+| `aura`                             | `#2BD0D2`             | The small mark (§2.3) — the same cyan as the web's                            |
+| `onAura`                           | `#04222A`             | Ink on a cyan fill: the celebration pill's label                              |
+| `error`                            | `#E5536F`             | Error text, an invalid field's border, the destructive outline pill           |
+| `appleButtonBg` / `appleButtonInk` | `#FFFFFF` / `#000000` | Apple's mandated Sign in with Apple fill and ink — a vendor rule, not a role  |
+
+There is **no green** on mobile: a confirmation is a ✓ and words in `foreground`. The red is a mobile value — the web's `#E0476B` reads 4.23:1 on charcoal, under AA for text — and the cyan is the one value both looks share.
 
 ### `mandala` gradient — logo / hero ring ONLY
 
@@ -70,43 +89,62 @@ The brand mark's two rings run this gradient. It is **not** a UI accent: never o
 | 2    | `#672088` | violet  |
 | 3    | `#223D86` | indigo  |
 
-Usage matrix (one dark world):
+Usage matrix:
 
 | Surface                            | Background                     | Text                         | Accent                                 |
 | ---------------------------------- | ------------------------------ | ---------------------------- | -------------------------------------- |
-| Web public (landing, @handle, FAQ) | background (one canvas)        | foreground / foregroundMuted | `aura` only on countdown + moment CTAs |
+| Web landing (`/`)                  | `broadsheet` concrete (§6)     | iron                         | none — no `aura` on this page          |
+| Web public (@handle, dream, event) | background (one canvas)        | foreground / foregroundMuted | `aura` only on countdown + moment CTAs |
 | Web app (logged in)                | background                     | foreground / foregroundMuted | `aura` on moments                      |
-| Mobile app                         | background                     | foreground / foregroundMuted | `aura` on moments                      |
-| Modals/popups (both)               | surfaceMuted card on dim scrim | foreground                   | `aura` if the modal IS a moment        |
+| Modals/popups (web)                | surfaceMuted card on dim scrim | foreground                   | `aura` if the modal IS a moment        |
+| Mobile app, modals included        | background; blocks on surface  | foreground / foregroundMuted | `aura` as one of five marks (§2.3)     |
 
-**Contrast (WCAG 2.1 AA):** foreground on background ≈ 19:1 ✓ · `aura` on background ≈ 10:1 ✓ (large text & UI ✓) · foregroundMuted on background ≈ 7:1 ✓ · `faint` on background ≈ 5.4:1 ✓, on `raise` ≈ 5.0:1 ✓ (retuned 2026-08-07 — see §12).
+**Contrast (WCAG 2.1 AA) — web:** foreground on background ≈ 17:1 ✓ · `aura` on background ≈ 10:1 ✓ (large text & UI ✓) · foregroundMuted on background ≈ 7:1 ✓ · `faint` on background ≈ 5.4:1 ✓, on `raise` ≈ 5.0:1 ✓ (retuned 2026-08-07 — see §11).
+
+**Contrast — mobile, on black / on charcoal:** foreground 19.29 / 15.46 ✓ · foregroundMuted 5.80 / 4.65 ✓ · `aura` 11.06 / 8.86 ✓ · `error` 5.80 / 4.65 ✓ · `onAura` on `aura` 8.72 ✓ · black on the white pill 19.29 ✓. Every text pair clears AA on both grounds. The hairline (1.67:1 on black) is decoration: it never carries meaning alone.
 
 ## 4. Typography
 
-One sans, two weights, two worlds — plus one sacred exception. **No third weight, no sans italics for UI.**
+One sans family in six weights — plus one sacred exception, the dream italic. **No second family outside the landing (§6), no italics for UI.**
 
-- **Family:** Hanken Grotesk (v1.1, was Inter) — the warm grotesque of the reference screenshots: generous x-height, round forms, premium-but-human. Tabular-nums for countdown. Loaded via `next/font/google` (web) and `@expo-google-fonts/hanken-grotesk` (mobile).
+- **Family:** Hanken Grotesk (v1.1, was Inter) — the warm grotesque of the reference screenshots: generous x-height, round forms, premium-but-human. Tabular-nums for countdown. Loaded via `next/font/local` (web, self-hosted) and `@expo-google-fonts/hanken-grotesk` (mobile).
 - **Weights (M0.5):** 300, 400, 500, 600, 700, 800 (was 400/600 only) — 300 light wordmark, 400 body, 500/600 UI, 700 display, 800 big numerals (Aura / countdown).
 - **The dream register is Hanken italic (M0.5).** Dream quotes («Il Sogno» blocks) render in Hanken _italic_ (weight 400) — the brand's "dream voice." **Instrument Serif is dropped** (it never appeared in the prototype; one family, italic for dreams — less load, no second `@font-face`). Applied via a single `<DreamQuote>` component so one edit re-themes the register. Never UI, never headings, never body. _(Code swap — font load + `--font-dream` + the dream card — is Part B of the M0.5 gate.)_
-- **Letterspaced button labels (v1.1).** Pill button labels render in 13px/600 with `letter-spacing: 0.14em` (the reference «B e t h e F i r s t» pattern). Ghost actions same tracking.
+- **Letterspaced button labels (v1.1) — web only.** Pill button labels render in 13px/600 with `letter-spacing: 0.14em` (the reference «B e t h e F i r s t» pattern). Ghost actions same tracking. On mobile a pill label is 17/600 with no tracking, and a text action is a 15px underlined link (§9).
 
-### Scale
+### Scale — web
 
-| Style       | Web (rem/line)   | Mobile (pt/line) | Weight | Notes                                                         |
-| ----------- | ---------------- | ---------------- | ------ | ------------------------------------------------------------- |
-| display-xl  | 3.5/1.1 (56)     | 34/40            | 400    | Hero only. Large + light = calm power                         |
-| display     | 2.5/1.15 (40)    | 28/34            | 400    | Section headlines («Qual è il tuo sogno?»)                    |
-| h1          | 2/1.2 (32)       | 24/30            | 600    | Screen titles                                                 |
-| h2          | 1.5/1.3 (24)     | 20/26            | 600    | Card titles, modal titles                                     |
-| body        | 1/1.6 (16)       | 16/24            | 400    | Default                                                       |
-| body-strong | 1/1.6 (16)       | 16/24            | 600    | Inline emphasis, button labels                                |
-| caption     | 0.8125/1.4 (13)  | 13/18            | 400    | Timestamps, helper text                                       |
-| micro       | 0.6875/1.45 (11) | 11/16            | 600    | UPPERCASE, letter-spacing 0.12em. Labels, eyebrows, tab names |
+| Style       | Web (rem/line)   | Weight | Notes                                                         |
+| ----------- | ---------------- | ------ | ------------------------------------------------------------- |
+| display-xl  | 3.5/1.1 (56)     | 400    | Hero only. Large + light = calm power                         |
+| display     | 2.5/1.15 (40)    | 400    | Section headlines («Qual è il tuo sogno?»)                    |
+| h1          | 2/1.2 (32)       | 600    | Screen titles                                                 |
+| h2          | 1.5/1.3 (24)     | 600    | Card titles, modal titles                                     |
+| body        | 1/1.6 (16)       | 400    | Default                                                       |
+| body-strong | 1/1.6 (16)       | 600    | Inline emphasis, button labels                                |
+| caption     | 0.8125/1.4 (13)  | 400    | Timestamps, helper text                                       |
+| micro       | 0.6875/1.45 (11) | 600    | UPPERCASE, letter-spacing 0.18em. Labels, eyebrows, tab names |
+
+### Scale — mobile (Galleria)
+
+| Style     | Size | Line | Weight     | Tracking | Use                                                                |
+| --------- | ---- | ---- | ---------- | -------- | ------------------------------------------------------------------ |
+| h1        | 32   | 1.12 | 600        | −0.02em  | Screen titles: tab roots, entry and celebration screens            |
+| title     | 24   | 1.12 | 600        | −0.02em  | The title in a pushed screen's header row (`ModalHeader`)          |
+| h2        | 19   | 1.2  | 600        | −0.01em  | Card titles, a person's name on a card, the line of an empty state |
+| body      | 17   | 1.4  | 400        | —        | Default. A row's title is body at 500                              |
+| small     | 15   | 1.4  | 400        | —        | Secondary lines, helper text, text links                           |
+| label     | 13   | 1.3  | 500        | —        | Section labels — plain grey, sentence case                         |
+| quote     | 18   | 1.3  | 400 italic | —        | The dream register                                                 |
+| numeral   | 44   | 1    | 800        | −0.03em  | The Aura numeral, the countdown. Tabular                           |
+| numeral-m | 26   | 1    | 800        | −0.03em  | The week's numbers, the fund total. Tabular                        |
+
+Sizes are px at the default text size, and every style scales with the member's setting up to 2× (§10). Two fixed sizes sit outside the named styles: 14 (chip, small pill, the reason under an invalid field) and 11 (the name under a story ring, the month in a date tile). The tab roots Community, Momenti and Costellazioni share one title size, h1; Home's greeting and Profilo's name row are the two richer variants (§6). The mobile styles before Galleria (`display-xl` 34 … `micro` 11) leave with the screens that used them: where a frame in §8 still names one, read `display` as h1, `caption` as small and `micro` as label.
 
 Rules:
 
-- Headlines in display/display-xl are sentence case, never uppercase.
-- `micro` is the only uppercase style besides button labels (the screenshots' signature: `N A M E`, `INDICE · CONTENTS`). Tracking 0.18em (v1.1, was 0.12em — matches reference).
+- Headlines are sentence case, never uppercase — on both platforms.
+- **Web:** `micro` is the only uppercase style besides button labels (the screenshots' signature: `N A M E`, `INDICE · CONTENTS`). Tracking 0.18em (v1.1, was 0.12em — matches reference). **Mobile** has no uppercase style and no letterspacing outside the wordmark: a section label is `label`, plain grey.
 - Countdown numerals use `font-variant-numeric: tabular-nums`.
 - **Wordmark (v1.1):** `A T H A N O R` — always letterspaced (0.35–0.4em), weight 400. Display contexts only: headers, splash, footer, lockup. In running text, metadata, SEO titles the brand is plain "Athanor". _Landing (2026-10-03, see §11): the lockup is `ATHΛNOR` — the first A is Hanken's own glyph, only the second is the drawn peak, and the letters are spaced by a flex gap rather than by letter-spacing. Earlier (v1.4, 2026-06-13): `ΛURIΛ` in **Hanken Grotesk** (`font-sans`), uppercase + letterspaced — matching the vertical section labels (was EB Garamond; user-directed). The A's are a **drawn Λ peak** (crossbar-less), a small inline SVG in `components/athanor-wordmark.tsx` — Hanken ships no Greek Λ glyph, so to keep the sans match and the lambda A's the A is drawn (em-sized, `currentColor`). Shown at logo scale only — no giant footer/splash watermark._
 
@@ -147,6 +185,8 @@ From the brand doc: the mark is born from the **vesica piscis** — two perfect 
 
 **Rules:** clear space = mandorla width on all sides · min height 20px (mark) / 24px (app icon source) · never fill the mandorla, never rotate · the static logo is flat; only the animated hero mark adds motion + the star bloom (§10) · on photos: don't (we don't use photos behind the mark).
 
+**On mobile — the outline mandorla.** Empty, error and loading states and the celebration screens draw the mark as two overlapping hairline circles in secondary grey: no fill, no gradient, no glow. A celebration screen sets the ✦ in `aura` at its centre (§2.3); every other state leaves the centre empty. The boot splash and the app icon are unchanged, on a black ground.
+
 ## 6. Layout language
 
 ### Web public pages (light-text world)
@@ -178,22 +218,24 @@ Ruled 2026-10-03 (§11, two rounds the same day): the landing leaves the dark wo
 
 ### Mobile app
 
-- 5-tab bar on `surfaceMuted`: **Home · Community · Momenti · Costellazioni · Profilo** (2026-09-02 correction — Costellazioni shipped in the slot this line used to give Live; Athanor Live is reached from Home's events block and Community's «Eventi» filter, and may earn a surface of its own later). Tabs are **icons only** — `tabBarShowLabel: false`, ratified 2026-09-02: «Costellazioni» does not fit a 5-tab slot in either language, and one unlabeled tab beside four labeled ones is worse than five glyphs. The cost is real (a first-run member sees five abstract glyphs), so every tab MUST carry its localized `title` as the accessibility label, and onboarding may point at the bar once. Active: foreground icon; inactive: foregroundMuted. **No badge counts on tabs** except Momenti when a Momento waits — a single `aura` ✦, never a number.
-- Screen padding 20pt horizontal (`spacing.gutter` token). Cards on `surface`, radius `lg` (20).
+- 5-tab bar on black (`background`) under a hairline: **Home · Community · Momenti · Costellazioni · Profilo** (2026-09-02 correction — Costellazioni shipped in the slot this line used to give Live; Athanor Live is reached from Home's events block and Community's «Eventi» filter, and may earn a surface of its own later). Tabs are **icons only** — `tabBarShowLabel: false`, ratified 2026-09-02: «Costellazioni» does not fit a 5-tab slot in either language, and one unlabeled tab beside four labeled ones is worse than five glyphs. The cost is real (a first-run member sees five abstract glyphs), so every tab MUST carry its localized `title` as the accessibility label, and onboarding may point at the bar once. Active: foreground icon; inactive: foregroundMuted. **No badge counts on tabs** except Momenti when a Momento waits — a single 8px `aura` dot on the icon, never a number (before Galleria it was a ✦).
+- Screen padding 20pt horizontal (`spacing.gutter` token); blocks sit 26pt apart.
+- **Grouped blocks are the list shape.** Rows live inside one charcoal (`surface`) block per group: radius 28, no border, 16pt inside, a hairline between rows, every row at least 60pt. A grey `label` names the group above it. **One bordered card per screen** — `surface`, radius 28, hairline border, padding 20 — for the thing that matters (§2.4). Other radii: a multi-line field 24, a chat bubble 20, a media tile 14; pills, chips and single-line inputs are fully round.
+- **Heights are minimums.** Pill 50, small pill 44, chip 32 and row 60 are `min-h`: at a larger text size the box grows (§10). A 32pt chip reaches its 44pt target through `hitSlop`.
 - One scroll axis per screen. Horizontal carousels only for event cards on Home.
 - **Safe area:** the top inset (status bar / notch / Dynamic Island / Android edge-to-edge) comes from `react-native-safe-area-context` through the `Screen` primitive (`apps/native/src/components/Screen.tsx`) — never a hardcoded `pt-*`. `Screen` measures per view, so it is 0 inside an iOS sheet (the sheet already cleared the status bar) and status-bar height on full-screen pushes and Android modals. Native React Navigation headers are off everywhere (`headerShown: false`, tabs included), so every screen — tab roots too — takes its top inset from `Screen`. The bottom edge is `Screen`'s job too (#163): home-indicator height on sheets, 0 on tab screens (the tab bar is a flow sibling that carries its own inset). Trailing breathing room in scroll content is the one shared value `pb-12` — never a guessed `pb-[104px]` for chrome that isn't on screen. A persistent action bar is a `Screen footer` (#117), not the last scroll child: it stays above the bottom inset, and the toast band (§9) clears it by construction. Keyboard: composers AND form screens wrap in `KeyboardAvoiding` (`apps/native/src/components/KeyboardAvoiding.tsx`), placed OUTSIDE `Screen` so the bottom inset is never reserved twice: while the keyboard is up on iOS, whose keyboard already spans the home indicator, `Screen` drops its bottom edge (#765); Android's keyboard height is net of the system bars, so there the inset stays. The exception is a screen using `Screen footer`, which pins an action bar the wrapper is not meant to lift. **Lifted action bar** (#770, ruled 2026-09-19): a form whose last field is multiline has no keyboard submit, so it pins its primary action in a bar that sits after the scroll view, inside `KeyboardAvoiding`, and rises with the keyboard — the shape a composer's input bar has always had. `post-compose`, `story-compose` and `project-compose` ship it, and `source-audit.test.ts` §36's `PINNED` registry holds it; `Screen footer` stays the recipe for bars the keyboard must not lift. One padding path on both platforms: the keyboard's own height, read from the keyboard event by `hooks/use-keyboard-inset.ts` — a mount-time measurement never sees a modal sheet finish sliding in (#616). Never a hand-rolled `KeyboardAvoidingView`, and never a second subscription to keyboard events.
 - **Form fields in view** (#689, #766, #769): a focused field is scrolled into view by `useRevealOnFocus` (`apps/native/src/hooks/use-reveal-on-focus.ts`) — the one reveal recipe, the companion to `KeyboardAvoiding`, which uncovers the viewport but moves nothing inside it. A row that fits is scrolled only as far as needed; one already on screen never moves. A row taller than the viewport shows its **top** when focused without a touch, and when pressed into keeps the **band around the press** on screen — iOS puts a multiline field's caret where the finger lands, so neither end is where typing happens; the tap itself moves nothing, and the keyboard arriving over the caret lifts it. While the member types at the end, the list follows the foot. A **refused submit** brings the first invalid field to the member (`revealRow(key)`) with its reason rendered **inside that field's row**, never in a line by the button: a submit pressed from the foot of a long form refuses a field far above the fold. The empty-field reason is field copy in Athanor voice, never the server-failure «Riprova».
-- **Full-bleed media + overlay chrome** (story viewer): the media fills the screen edge-to-edge (`absolute inset-0`, cover) and every piece of chrome — progress, name + ✕, caption, actions — floats above it in two scrim bands hugging the ends. The scrim is `background` at 70% (`bg-background/70`), never a literal hex and not a gradient (no `expo-linear-gradient` dependency). Each band owns its safe-area edge with the per-view `SafeAreaView` (`@/tw`), per the Safe-area bullet above. Reserve this pattern for immersive media surfaces; every other screen stays in the dark-world flow layout with the 20pt gutter.
-- **Screen headers: left-aligned, in-content, one recipe.** No native title bar and no centered title anywhere — a centered tab title next to left-aligned pushed titles read as a rendering bug, and §8.2's Home mockup is left-aligned (#162). Pushed screens and sheets use `ModalHeader` (`apps/native/src/components/ModalHeader.tsx`): h1 24/600, back chevron `‹` left on pushes (always drawn — on a stack root it lands on Home, or on the parent a screen names via `fallbackHref`, instead of hiding, #578), `✕` right on self-dismissing sheets (`HeaderClose`), `✕` left on immersive media chrome. Tab roots render an in-content header in the same h1 style; Home's greeting row (§8.2) and Profilo's avatar row (§8.5) are the two sanctioned richer variants.
+- **Full-bleed media + overlay chrome** (story viewer): the media fills the screen edge-to-edge (`absolute inset-0`, cover) and every piece of chrome — progress, name + ✕, caption, actions — floats above it in two scrim bands hugging the ends. The scrim is `background` at 70% (`bg-background/70`), never a literal hex and not a gradient (no `expo-linear-gradient` dependency). Each band owns its safe-area edge with the per-view `SafeAreaView` (`@/tw`), per the Safe-area bullet above. Reserve this pattern for immersive media surfaces; every other screen stays in the ordinary flow layout with the 20pt gutter.
+- **Screen headers: left-aligned, in-content, one recipe.** No native title bar and no centered title anywhere — a centered tab title next to left-aligned pushed titles read as a rendering bug, and §8.2's Home mockup is left-aligned (#162). Pushed screens and sheets use `ModalHeader` (`apps/native/src/components/ModalHeader.tsx`): `title` 24/600, the drawn back icon left on pushes (always drawn — on a stack root it lands on Home, or on the parent a screen names via `fallbackHref`, instead of hiding, #578), the drawn close icon right on self-dismissing sheets (`HeaderClose`) and left on immersive media chrome. Both are drawings at 1.8 (the interface icons below), no longer the characters `‹` and `✕`. Tab roots render an in-content title at h1 (32/600) on Community, Momenti and Costellazioni; Home's greeting row (§8.2) and Profilo's name row (§8.5) are the two sanctioned richer variants.
 - Header→content gap: 16pt, owned by `ModalHeader` (`pb-4`) — screens don't re-add it.
 
 ### Thin-line illustration vocabulary
 
 | Motif                                                                                           | Meaning                  | Where                                                                                   |
 | ----------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------- |
-| Concentric circles (ripples)                                                                    | the moment expanding     | Hero, empty states, splash                                                              |
+| Concentric circles (ripples)                                                                    | the moment expanding     | Hero, splash, the web's empty states                                                    |
 | Mandorla / vesica                                                                               | Encounter, the gate      | Logo, Momenti match screen                                                              |
-| Vertical spine: open circles ○, active = `aura` dot inside + bold label, labels alternating L/R | Progress, breakdown      | Aura breakdown, Six Stars, milestones                                                   |
+| Vertical spine: open circles ○, active = `aura` dot inside + bold label, labels alternating L/R | Progress, breakdown      | Web: Aura breakdown, Six Stars, milestones. On mobile a breakdown is white bars         |
 | Single 4-point ✦                                                                                | A star lit / reaction    | Feed reaction, badges, moments                                                          |
 | Sphere of meridians                                                                             | The self, the profile    | Profilo empty state, onboarding                                                         |
 | Particle field (tiny ▲ triangles + rare ✦, scattered)                                           | The community, night sky | Dark heroes, countdown band (reference pattern: triangles; ✦ stays rare = `aura` logic) |
@@ -204,21 +246,24 @@ No icon pack. The official icon vocabulary is the **20-glyph esoteric set** tran
 
 > **Third-party brand marks are attribution, not iconography.** The 20-glyph rule governs Athanor's own icons. A provider's brand mark — the Google "G", the Apple logo — is a vendor attribution requirement and is exempt from it: it ships in the vendor's mandated form (full colour, unmodified, correct clear space) and appears **only** on that provider's OAuth CTA. It is never recoloured to `currentColor`, never treated as part of the glyph vocabulary, and never used anywhere else in the app. _(Ruling 2026-08-24, ratified 2026-08-30 — issue #539.)_
 
-> **Zodiac set (12, addendum 2026-09-05 — issue #694).** Twelve stroke glyphs in the same compass-and-ruler system as the 20-set — `fill:none; stroke:currentColor`, 1.8 native / 1.2 web, round caps, at most three primitives each, no fill: `ariete · toro · gemelli · cancro · leone · vergine · bilancia · scorpione · sagittario · capricorno · acquario · pesci` (`apps/native/src/components/glyphs.tsx`, `apps/web/components/icons/glyphs.tsx`, one `ZODIAC_GLYPHS` registry each, keyed by the twelve `ZodiacSign` values). Register is **cosmetic/granted**, the same as «Membro fondatore»: `ink2` / `muted-foreground`, never `aura`, never a glow — a sign is something you were born under, not something that happened here. Rendered **only** beside the display name in the profile header (native own and other-member profile, web `/@handle`); never on cards, chat, lists, or the OG card. The sign is derived from `birth_date`, which is owner-only and never rendered anywhere. Who sees the sign is the member's choice since #790 — its own three-way visibility key `zodiac` (Tutti / Membri / Solo io, default Membri), set in the profile editor, where the sign appears as text, not glyph; a viewer who may not see it gets no glyph.
+> **Zodiac set (12, addendum 2026-09-05 — issue #694).** Twelve stroke glyphs in the same compass-and-ruler system as the 20-set — `fill:none; stroke:currentColor`, 1.8 native / 1.2 web, round caps, at most three primitives each, no fill: `ariete · toro · gemelli · cancro · leone · vergine · bilancia · scorpione · sagittario · capricorno · acquario · pesci` (`apps/native/src/components/glyphs.tsx`, `apps/web/components/icons/glyphs.tsx`, one `ZODIAC_GLYPHS` registry each, keyed by the twelve `ZodiacSign` values). Register is **cosmetic/granted**, the same as «Membro fondatore»: foreground or grey (`ink2` / `muted-foreground` on the web), never `aura`, never a glow — a sign is something you were born under, not something that happened here. Rendered **only** beside the display name in the profile header (native own and other-member profile, web `/@handle`); never on cards, chat, lists, or the OG card. The sign is derived from `birth_date`, which is owner-only and never rendered anywhere. Who sees the sign is the member's choice since #790 — its own three-way visibility key `zodiac` (Tutti / Membri / Solo io, default Membri), set in the profile editor, where the sign appears as text, not glyph; a viewer who may not see it gets no glyph.
 
 | Glyph                                 | Construction                                        | Use                                                                                  |
 | ------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Circumpunct ◉ (circle + center point) | r16 circle, r2.5 filled center                      | Tab: Home — il centro, the self in the circle                                        |
 | Triad (three circles)                 | Three r6 circles in triangle formation              | Tab: Community — le persone                                                          |
 | Constellation (four linked stars)     | Four r1.5 filled points joined by a 1px closed path | Tab: Costellazioni — stars joined into work (2026-09-02, with the roster correction) |
-| Ripples (three concentric circles)    | r6 / r12 / r18                                      | The moment expanding — Live surfaces, empty states (no longer a tab glyph)           |
-| ✦ spark (4-point)                     | Concave diamond star                                | Tab: Momenti — l'istante. Single `aura` ✦ dot when a Momento waits                   |
-| Meridian sphere                       | r16 circle + inner ellipses                         | Tab: Profilo — the self that evolves                                                 |
+| Ripples (three concentric circles)    | r6 / r12 / r18                                      | The moment expanding — Live surfaces, the web's empty states (no longer a tab glyph) |
+| ✦ spark (4-point)                     | Concave diamond star                                | Tab: Momenti — l'istante. An 8px `aura` dot on it when a Momento waits               |
+| Person                                | r3.6 head over a half-circle shoulder arc           | Tab: Profilo on mobile — the classic person (Galleria, 2026-10-03)                   |
+| Meridian sphere                       | r16 circle + inner ellipses                         | The self that evolves — the illustration motif above; no longer the Profilo tab      |
 | Vesica/varco (almond + point)         | Mandorla outline + center point                     | Invitations, match, onboarding                                                       |
 
 New icons must be designed in this same system (compass-and-ruler geometry), never imported from icon libraries.
 
-> **A character is never an icon (addendum 2026-09-19 — issue #753).** An emoji-capable code point (Unicode `Emoji`: ▶ ⏸ ⚙ ⚖ 🔒 🎧 …) draws as whatever the platform's font fallback decides — a monochrome glyph, a colour emoji or a «?» box — so every such mark is a drawing in `apps/native/src/components/glyphs.tsx`, stroked in the set's 1.8px (the gear keeps the header icons' 2px). One is a **port** from the 20-set: `scales` (the Aura weighting rule). Three are **new**, ruled 2026-09-19 because the set has no mark that honestly means them: **Play** — the `fire` triangle turned to face right, equilateral, centred on its centroid, outline only; **Pause** — two parallel strokes at Play's height; **Lock** — a semicircle shackle over the `frame` body, whose keyhole is its one filled centre point (a Circle-only feature; the locked state is always spoken by the control's label, never by the drawing). The gear is the sun-wheel `SettingsIcon`. **Audio has no mark of its own** — the set's `waves` was ported for 🎧 and dropped after it went on a device, where it reads as a Wi-Fi signal (ruling 2026-09-20): an audio surface takes the transport mark (Play/Pause) and the «Audio · m:ss» text beside it. `waves` stays in the 20-set for anything that genuinely means a signal; it is simply not the audio icon. ✦ ✧ ✓ ✕ ◎ ◑ and the other text marks are not emoji-capable and stay characters. `apps/native/src/lib/source-audit.test.ts` §42 holds the rule for source, and `packages/i18n/src/i18n.test.ts` holds it for catalog values.
+> **Interface icons (mobile, addendum 2026-10-03 — Galleria).** The chrome every screen shares gets plain drawings of its own: **back, close, more, add, share, send, people, clock, pin** — in `apps/native/src/components/glyphs.tsx`, `fill:none; stroke:currentColor`, 1.8px, round caps, drawn by hand like the rest and never taken from an icon pack. Every header icon draws at 1.8 (it was 2). The esoteric set and the tab glyphs keep their places; these nine cover the chrome.
+
+> **A character is never an icon (addendum 2026-09-19 — issue #753).** An emoji-capable code point (Unicode `Emoji`: ▶ ⏸ ⚙ ⚖ 🔒 🎧 …) draws as whatever the platform's font fallback decides — a monochrome glyph, a colour emoji or a «?» box — so every such mark is a drawing in `apps/native/src/components/glyphs.tsx`, stroked in the set's 1.8px (the gear too since Galleria; header icons were 2px until then). One is a **port** from the 20-set: `scales` (the Aura weighting rule). Three are **new**, ruled 2026-09-19 because the set has no mark that honestly means them: **Play** — the `fire` triangle turned to face right, equilateral, centred on its centroid, outline only; **Pause** — two parallel strokes at Play's height; **Lock** — a semicircle shackle over the `frame` body, whose keyhole is its one filled centre point (a Circle-only feature; the locked state is always spoken by the control's label, never by the drawing). The gear is the sun-wheel `SettingsIcon`. **Audio has no mark of its own** — the set's `waves` was ported for 🎧 and dropped after it went on a device, where it reads as a Wi-Fi signal (ruling 2026-09-20): an audio surface takes the transport mark (Play/Pause) and the «Audio · m:ss» text beside it. `waves` stays in the 20-set for anything that genuinely means a signal; it is simply not the audio icon. ✦ ✧ ✓ ◎ ◑ and the other text marks are not emoji-capable and stay characters; `✕` and the back chevron `‹` were characters too, until Galleria made them drawings (close and back, the interface icons above). `apps/native/src/lib/source-audit.test.ts` §42 holds the rule for source, and `packages/i18n/src/i18n.test.ts` holds it for catalog values.
 
 ## 7. Web mockups (ASCII)
 
@@ -345,6 +390,8 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 
 ## 8. Mobile mockups (ASCII)
 
+> **How to read these frames since Galleria (2026-10-03).** The frames were drawn for v1.2 and their **layouts stand**: Galleria changed the look, not what a screen holds or in what order. The notes beside each frame were rewritten for Galleria; the drawings were not. So a label drawn in capitals is a sentence-case `label`, a rule drawn under a tab row is a row of chips, and `display` / `caption` / `micro` read as h1 / small / label (§4). Each family is checked against the device as its screens convert.
+
 ### 8.1 Onboarding (5 full-screen steps)
 
 Since 2026-09-05 (#694) the funnel is identity → **birth date** → seeking → dream → face. The birth-date frame sits between the first two below:
@@ -357,16 +404,16 @@ Since 2026-09-05 (#694) the funnel is identity → **birth date** → seeking �
 │   ●──●──○──○──○      │
 │                      │
 │   Quando sei nato?   │
-│   (display)          │
+│   (h1)               │
 │   Per il tuo segno,  │
 │   e per sapere che   │
 │   hai almeno 18 anni.│
 │                      │
 │  ┌──────────────────┐│
-│  │ 10 agosto 1990   ││  date card (`raise`, `hair` border) → native date wheel
+│  │ 10 agosto 1990   ││  date pill (`surface`, no border) → native date wheel
 │  └──────────────────┘│
-│   ♌  Sei Leone.     │  reveal: 32pt zodiac glyph (`ink2`) + one line, 200ms fade,
-│                      │  NO glow — cosmetic register; under 18 → `text-error` line,
+│   ♌  Sei Leone.     │  reveal: 32pt zodiac glyph (foreground) + one line, 200ms fade,
+│                      │  cosmetic register, never `aura`; under 18 → `text-error` line,
 │   ( Continua )       │  «Continua» disabled
 └──────────────────────┘
 ```
@@ -375,10 +422,10 @@ Since 2026-09-05 (#694) the funnel is identity → **birth date** → seeking �
 ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
 │    background    │  │    background    │  │    background    │
 │                      │  │                      │  │        ╱ ╲           │
-│   ●──○──○   (micro)  │  │   ●──●──○            │  │       │ ✦ │ varco    │
+│   ●──○──○   (bars)   │  │   ●──●──○            │  │       │ ✦ │ varco    │
 │                      │  │                      │  │        ╲ ╱           │
 │   Chi sei?           │  │   Cosa cerchi?       │  │  Qual è il tuo       │
-│   (display)          │  │                      │  │  sogno?              │
+│   (h1)               │  │                      │  │  sogno?              │
 │                      │  │  [connessioni]       │  │                      │
 │  [imprenditrice]     │  │  [collaborazioni]    │  │ ┌──────────────────┐ │
 │  [freelance]         │  │  [crescita]          │  │ │ Scrivilo con le  │ │
@@ -388,10 +435,9 @@ Since 2026-09-05 (#694) the funnel is identity → **birth date** → seeking �
 │   ( Avanti )         │  │   ( Avanti )         │  │  ( Pianta il sogno ) │
 │                      │  │                      │  │   più tardi (ghost)  │
 └──────────────────────┘  └──────────────────────┘  └──────────────────────┘
-   tag chips: surface bg, foreground text, radius full. Selected: `border-aura-line` + `bg-aura-soft` + semibold
-   (2026-09-02 correction — the old "foreground bg, indigo text" line contradicted §2.3, which sanctions the flat
-   aura treatment for active chips; the shipped `Chip` is the spec. Flat aura selected-state is sanctioned and NOT
-   moment-grade — no shadow ever rides a selected chip.)
+   tag chips: no fill, hairline border, foreground text, radius full, 32pt (a 44pt target through `hitSlop`).
+   Selected: foreground fill, background text — white, never cyan (Galleria, 2026-10-03, §11). The flat-aura
+   selected state of the 2026-09-02 correction (`border-aura-line` + `bg-aura-soft`) is superseded on mobile.
 ```
 
 Since 2026-09-19 (#782, ruled by Marco) one more screen follows the account creation: the **@handle step**, `(onboarding)/handle`. It is outside the funnel — the account already exists, so it carries no `StepBars`, and its top row holds the eyebrow where the funnel holds the back slot — and it is the one screen every sign-up path reaches: email and password, Google (which skips the sign-up form and its name field), and a first sign-in on a new device. The person chooses the handle; it is never the email's local part, not even as a prefilled suggestion.
@@ -402,15 +448,15 @@ Since 2026-09-19 (#782, ruled by Marco) one more screen follows the account crea
 │                      │  not «Ultimo passo», which /welcome already says
 │                      │
 │  Scegli il tuo       │
-│  @handle             │  display, `accessibilityRole="header"`
+│  @handle             │  h1, `accessibilityRole="header"`
 │  Te ne proponiamo…   │  muted sub — «È l'indirizzo della tua pagina…» when nothing is suggested
 │ ┌──────────────────┐ │
 │ │ elena_rossi      │ │  `Input` pill, SUGGESTED from the name already given, never from the
 │ └──────────────────┘ │  email; empty (placeholder «il_tuo_handle») when there is no name
 │  Da 3 a 30 caratteri…│  rules line, always, muted
-│  ✓ È libero.         │  status: `success` free · `error` taken / reserved /
+│  ✓ È libero.         │  status: foreground ✓ when free (no green) · `error` taken / reserved /
 │                      │  malformed · muted checking / unchecked
-│   ( Continua )       │  `light` CTA, disabled until free (or unchecked)
+│   ( Continua )       │  white `primary` CTA, disabled until free (or unchecked)
 └──────────────────────┘
 ```
 
@@ -424,21 +470,21 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 ┌────────────────────────┐
 │  A T H A N O R        ◉    │
 │                        │
-│  DAI VITA AL TUO SOGNO │ micro, aura
+│  DAI VITA AL TUO SOGNO │ label, grey
 │  ┌──────────────────┐  │
-│  │  287  ·  €483k   │  │ aura tabular numbers
+│  │  287  ·  €483k   │  │ numerals 800, foreground, tabular
 │  │  giorni   fondo  │  │ captions muted
 │  │  13.874 persone  │  │
 │  └──────────────────┘  │
 │                        │
-│  ✦ Hai un Momento.     │ aura — moment card
+│  ✦ Hai un Momento.     │ 8px `aura` dot + grey label — the card
 │  ┌──────────────────┐  │
 │  │ Sara · Milano    │  │
 │  │ design ↔ sogno   │  │
 │  │ [Scopri] [passa] │  │
 │  └──────────────────┘  │
 │                        │
-│  EVENTI VICINI         │ micro
+│  EVENTI VICINI         │ label
 │  ┌───────┐ ┌───────┐   │
 │  │Ath.Day│ │Brera  │→ │ horizontal scroll
 │  │Day MI │ │18/6   │   │
@@ -449,7 +495,7 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  costellazione →       │ invite, ghost
 │                        │
 ├────────────────────────┤
-│ ⌂   ⊞   ✦   ✱   ◍     │ tab bar, surfaceMuted —
+│ ⌂   ⊞   ✦   ✱   ◍     │ tab bar, black + hairline —
 │ Home·Comm·Mom·Cost·Pro │ icons only (§6); names
 │                        │ here are a legend, not labels
 └────────────────────────┘
@@ -461,8 +507,8 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 ┌────────────────────────┐
 │  Community         +   │ h1 + compose
 │                        │
-│  Tutti Business Human  │ tab pills, active=foreground
-│  Creativi Evoluz. Ev.  │ underline hairline
+│  Tutti Business Human  │ filter chips; selected = a white
+│  Creativi Evoluz. Ev.  │ fill, no underline
 │  ────                  │
 │  ┌──────────────────┐  │
 │  │ ◉ Lucia · 2h     │  │ caption muted
@@ -473,11 +519,11 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  │ ho imparato...   │  │
 │  │                  │  │
 │  │ ✦        ◻ 4     │  │ ✦ = light a star (no count
-│  └──────────────────┘  │     shown; aura when YOU lit it)
+│  └──────────────────┘  │     shown; foreground when YOU lit it)
 │  ┌──────────────────┐  │
 │  │ ◉ Andrea · 5h    │  │
-│  │ [storia evolutiva│  │ story: thin aura ring on
-│  │  ▶ 0:42]         │  │ avatar = journey-pinned
+│  │ [storia evolutiva│  │ story: foreground ring on the
+│  │  ▶ 0:42]         │  │ avatar, never `aura`
 │  └──────────────────┘  │
 ├────────────────────────┤
 │ ⌂   ⊞   ✦   ✱   ◍     │
@@ -499,18 +545,18 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  │   Service design │  │
 │  │   Milano         │  │
 │  │                  │  │
-│  │  PERCHÉ ORA      │  │ micro, aura
+│  │  PERCHÉ ORA      │  │ label, grey
 │  │  Siete entrambi  │  │
 │  │  a Milano ·      │  │ match reasons (PRD §4.7)
 │  │  design ↔ il suo │  │
 │  │  sogno           │  │
 │  │                  │  │
-│  │  ( ✦ Accetta )   │  │ aura pill — accepting IS the moment
-│  │     passa        │  │ ghost text
+│  │  ( ✦ Accetta )   │  │ white pill — the primary action
+│  │     passa        │  │ outline pill, beside it
 │  └──────────────────┘  │
 │                        │
 │  TI POTREBBE           │
-│  INTERESSARE           │ micro + small list
+│  INTERESSARE           │ label + grouped rows
 ├────────────────────────┤
 │ ⌂   ⊞   ✦   ✱   ◍     │
 └────────────────────────┘
@@ -524,12 +570,12 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 
 ```
 ┌────────────────────────┐
-│  ◉  Marco V. ♌    ⚙    │  ♌ = zodiac glyph, 20pt `ink2`, after the name (#694)
+│  ◉  Marco V. ♌    ⚙    │  ♌ = zodiac glyph, 20pt, foreground, after the name (#694)
 │  Imprenditore · Torino │
 │  ★ Creatore ★ Collab.  │ earned stars only, foreground;
 │                        │ unlit shown only on own profile
 │  ┌──────────────────┐  │
-│  │ IL SOGNO  (aura)    │  │
+│  │ IL SOGNO  (grey)    │  │
 │  │ «Un'app che fa   │  │
 │  │ incontrare le    │  │
 │  │ persone giuste.» │  │
@@ -537,8 +583,8 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  └──────────────────┘  │
 │                        │
 │  AURA                  │
-│        612             │ display, foreground (NOT aura —
-│         │              │ Aura is status, not moment)
+│        612             │ numeral; `aura` on your OWN
+│         │              │ profile, foreground on others'
 │  eventi ·──┤           │
 │            ├──· aiuti  │ spine breakdown
 │  contrib ·─┤           │
@@ -554,12 +600,12 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 
 ```
 ┌────────────────────────┐
-│ dim scrim (surfaceMuted│
+│ dim scrim, over black  │
 │  ┌──────────────────┐  │
 │  │                  │  │
 │  │       ╱ ╲        │  │
 │  │      │ ✦ │       │  │ il varco — gate ajar,
-│  │       ╲ ╱        │  │ spark in the opening (aura)
+│  │       ╲ ╱        │  │ spark in the opening (foreground)
 │  │                  │  │
 │  │  Hai un Momento. │  │ h2, foreground
 │  │                  │  │
@@ -568,7 +614,7 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  │  per il tuo      │  │
 │  │  sogno.          │  │
 │  │                  │  │
-│  │  ( ✦ Scopri )    │  │ aura pill
+│  │  ( ✦ Scopri )    │  │ white pill
 │  │    più tardi     │  │ ghost
 │  └──────────────────┘  │
 └────────────────────────┘
@@ -580,11 +626,11 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 ┌────────────────────────┐
 │ ←  Athanor Day Milano  │
 │                        │
-│  ATHANOR DAY    (micro,│
-│                   aura)   │ platform-official flag
+│  ATHANOR DAY    (label,│
+│                   grey)   │ platform-official flag
 │  Il primo incontro     │
 │  della costellazione   │
-│  milanese.   (display) │
+│  milanese.   (h1)      │
 │                        │
 │  📍 BASE Milano        │
 │  🗓  28 giugno · 18:00  │
@@ -592,10 +638,10 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │                        │
 │  ┌──────────────────┐  │
 │  │   ▓▓ QR ▓▓       │  │ after purchase:
-│  │   ▓▓▓▓▓▓▓▓       │  │ QR on surface card
+│  │   ▓▓▓▓▓▓▓▓       │  │ QR: black on white, always
 │  └──────────────────┘  │
 │  ( Prendi il tuo posto │
-│        · €15 )         │ foreground pill
+│        · €15 )         │ white pill
 └────────────────────────┘
 ```
 
@@ -605,7 +651,7 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 ┌────────────────────────┐
 │ ←  Sara T.        ⚑    │
 │                        │
-│  ── IL VOSTRO MOMENTO ─│ micro divider, aura
+│  ── IL VOSTRO MOMENTO ─│ grey italic line, never `aura`
 │                        │
 │  ┌ Chi sei? ──────────┐│ ice-breaker prompts:
 │  └────────────────────┘│ ghost cards, tap to answer
@@ -616,10 +662,10 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  └────────────────────┘│
 │                        │
 │         ┌─────────────┐│
-│         │ Ciao Sara!  ││ own msg: surface bubble
+│         │ Ciao Sara!  ││ own msg: white bubble, black text
 │         └─────────────┘│
 │     ┌─────────────┐    │
-│ (◕) │ Ciao Marco ✦│    │ other: surfaceMuted, + 28pt avatar
+│ (◕) │ Ciao Marco ✦│    │ other: `surface` + hairline, + 28pt avatar
 │     └─────────────┘    │ on the LAST bubble of a run only
 │         ┌───────────┐  │
 │         │ ▦▦▦▦▦▦▦▦▦ │  │ image bubble: MediaFrame, 220pt · 4/3
@@ -628,7 +674,7 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │ ┌──┐                   │ tap → fullscreen (#576). staged
 │ └──┘ Carico…           │ attachment: 64pt thumb + ✕, dims
 │                        │ while sending («Carico…»)
-│ + ┌──────────────┐ (➤) │ input row: flat faint + opens MediaSheet
+│ + ┌──────────────┐ (➤) │ input row: grey + opens MediaSheet; send is a white disc
 └────────────────────────┘ (photo + library only — chat is stills)
 ```
 
@@ -640,7 +686,7 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 │  Dove le connessioni   │  │                        │
 │  diventano lavoro.     │  │  Cerco co-founder      │
 │                        │  │  tecnico     (h2)      │
-│  Tutte Startup Arte …  │  │  STARTUP · APERTA      │ micro: category · status
+│  Tutte Startup Arte …  │  │  STARTUP · APERTA      │ label: category · status
 │                        │  │  aperta il 12 ago      │
 │  ┌──────────────────┐  │  │                        │
 │  │ Cerco co-founder │  │  │  Il progetto, nelle    │ body, foreground —
@@ -662,10 +708,10 @@ The same field (`components/profile/HandleField.tsx`) sits in the profile editor
 
 Rules:
 
-- **Every card and detail carries a date and a status.** `aperta` / `chiusa` chips in `micro`; the board query filters `status = 'open'` by default. A board with no lifecycle can only accumulate — the owner gets «Chiudi la ricerca» + «Modifica» where the visitor gets «Rispondi».
-- **Hierarchy: pitch over person.** The description renders `body` foreground; the author row stays `caption` muted. On a collaboration board the pitch is the payload.
+- **Every card and detail carries a date and a status.** `aperta` / `chiusa` chips; the board query filters `status = 'open'` by default. A board with no lifecycle can only accumulate — the owner gets «Chiudi la ricerca» + «Modifica» where the visitor gets «Rispondi».
+- **Hierarchy: pitch over person.** The description renders `body` foreground; the author row stays `small`, grey. On a collaboration board the pitch is the payload.
 - **One name per language.** IT: «ricerca» everywhere (board label, compose, detail, toasts). EN: "search". «Costellazione» names the tab and the pillar, never a single listing. Route slug `/listing/` is code-internal and exempt.
-- **Passa il Favore is a band, not a footer.** Its disclosure (nothing is asked in return; irreversibility) renders in the row or a confirm step — **never in a `ModalHeader` subtitle**, which is one-line by contract and truncates. The favor completion overlay keeps its `auraGlow(1)` — helping IS moment-grade.
+- **Passa il Favore is a band, not a footer.** Its disclosure (nothing is asked in return; irreversibility) renders in the row or a confirm step — **never in a `ModalHeader` subtitle**, which is one-line by contract and truncates. The favour done-card is a celebration screen (§2.3): the outline mandorla with its `aura` ✦ and the cyan pill, no glow — helping IS the thing celebrated.
 
 ### 8.10 Athanor Live — the tab surfaces _(added 2026-09-02, #641 — §8.7 covered only detail + ticket)_
 
@@ -675,8 +721,8 @@ Rules:
 │  Vicino Calendario     │ panel tabs (min-h 44)
 │  Mappa Online          │
 │                        │
-│  ⏺ IN DIRETTA    (aura)│ live chip — the ONLY glow
-│  ┌──────────────────┐  │ on this screen, only while
+│  ⏺ IN DIRETTA    (chip)│ live chip — foreground: no
+│  ┌──────────────────┐  │ `aura`, no glow; only while
 │  │ Diretta: si      │  │ actually live; row title
 │  │ comincia tra poco│  │ wraps to TWO lines
 │  │ Online · Musica  │  │ category in the sub-line,
@@ -693,12 +739,12 @@ Rules:
 
 Rules:
 
-- **The pillar must express time.** Live-now = `aura` chip + the glow (the one sanctioned live surface, §2.3) + elapsed/remaining in the detail; starting-soon = countdown vocabulary (§9 widget, compact form); past = dimmed + «Evento concluso» in lists too, or filtered out. A bare timestamp is never the only time signal.
+- **The pillar must express time.** Live-now = a foreground «in diretta» chip (no `aura`, no glow — §2.3) + elapsed/remaining in the detail; starting-soon = countdown vocabulary (§9 widget, compact form); past = dimmed + «Evento concluso» in lists too, or filtered out. A bare timestamp is never the only time signal.
 - «Guarda in diretta» renders **only while live**, is always a real control, and opens `stream_url`. Nothing live-flavoured renders on a not-yet-live event.
 - **Titles win the row.** Two lines, category demoted to the sub-line («Creativi · Milano · sab 5 set, 20:00»).
 - Event detail: the description is the organizer's own words; **no fabricated fallback ever** — absent means absent. In-person events surface their coordinates as an "open in Maps" affordance.
 - Check-in (organizer, at the door): `blocked` permission branch with a Settings route, haptic + announced verdicts, `already` gets its own warning colour, torch toggle, and the counter names its staleness when realtime drops. Free events get check-in too — attendance Aura exists for them.
-- The Athanor Days promo card is **not** a moment surface: `border-hair` + `bg-raise` (per the 2026-08-12 rule: before something happened, nothing glows).
+- The Athanor Days promo card is the screen's one bordered card (`surface` + hairline, §6) and nothing more — the 2026-08-12 rule stands: before something happened, nothing is marked.
 
 ### 8.11 Post detail _(added 2026-09-02, #641 — the screen had no spec; the shipped shape was the null hypothesis)_
 
@@ -716,13 +762,13 @@ Rules:
 │  ┌ ◉ Valentino · 1h ─┐ │
 │  │ Che bel passo!    │ │ oldest-first: a thread
 │  └───────────────────┘ │ reads as a conversation
-│  [scrivi…]        (✦)  │ send: aura ONLY when
-└────────────────────────┘ enabled; disabled = 40%
+│  [scrivi…]        (✦)  │ send: a white disc when
+└────────────────────────┘ enabled; disabled = 40%, never `aura`
 ```
 
 Rules:
 
-- **A disabled control is never the loudest thing on screen.** Composer CTAs («Pubblica», send ✦) render `opacity-40` until valid — app-wide rule, this screen was the third violation. The most saturated cyan on a screen must always be tappable.
+- **A disabled control is never the loudest thing on screen.** Composer CTAs («Pubblica», send ✦) render `opacity-40` until valid — app-wide rule, this screen was the third violation. The brightest fill on a screen must always be tappable.
 - **The author's zero is a sentence, not a digit.** At n=0 the author-only reaction line renders voice («Ancora nessuna stella su questo passo») or collapses; the count appears from n≥1. Public visitors still see no count ever (§2.6).
 - **Comments are «Risposte» and behave like it**: oldest-first so an answer follows its question. One reply level maximum; threading beyond that is out of scope for Fase 1 (ruling row, §11).
 - Timestamps on the post and every comment (`· 2h` from §8.3 carries into the detail).
@@ -732,10 +778,10 @@ Rules:
 
 `/annual` narrative order (the screen teaches before it asks):
 
-1. Hero + countdown (numbers flat `aura`, §2.3 — **no glow on the clock**; `/annual` carries exactly two glows, the live fund ticker and the winner pill on a decided ballot — both moment-grade under rule 4, and neither is the countdown)
+1. Hero + countdown (numerals foreground, the **seconds** alone in `aura` — §2.3; nothing on `/annual` glows: the live fund ticker and the winner pill on a decided ballot are flat)
 2. The ticker: raised total · contributors · **the goal, printed** — a progress bar over an unprinted denominator is meaningless
 3. The dreams (ballot / candidacy cards) — you meet a dream before you're asked to fund one
-4. Contribute (amount chips ≥44pt; the zero-Aura line rides **above the CTA** at `body` weight — it is the product's differentiator, never fine print)
+4. Contribute (amount chips with a 44pt target; the zero-Aura line rides **above the CTA** at `body` weight — it is the product's differentiator, never fine print)
 5. How it works (PhaseList — already the family's clearest asset)
 
 Ballot rules:
@@ -748,9 +794,9 @@ Aura rules:
 
 - «Come si costruisce» names **rates, not just categories** — the weights from `packages/core/src/score/weights.ts` render beside each source, and the 30-day decay window is stated in copy before it costs anyone points.
 - The first source row is «Contributi **alla community**» (the recap's qualifier is canonical); the bare word «Contributi» belongs to the fund and to money.
-- Source-row values render **foreground** — the §11 «status, not moment» ruling covers the breakdown's children, not just the hero numeral. The hero caps at `display-xl` (34pt mobile).
+- Source-row values render **foreground**. The hero numeral is the member's own Aura: `aura`, in the `numeral` style (§2.3, §4) — the 2026-06-12 «status, not moment» ruling and the 34pt cap of 2026-09-02 are superseded on mobile (§11).
 - `/aura` links to the Six Stars (the what-do-I-do-next surface); a lit star opens the same criteria sheet an unlit one does.
-- The three ceremony overlays (tier-up, candidacy sent, contribution thanks) may share a skeleton but **must not share a composition** — a tier-up is rarer than a thanks and earns more (e.g. the star-bloom variant); the glow economy needs rank to mean rank.
+- The celebration screens (match, new level, favour done, candidacy sent, contribution thanks) share **one quiet composition**: the outline mandorla with its `aura` ✦, a one-line label, the h1, one grey line, the cyan pill. Rank is carried by the words. The earlier rule — a tier-up must out-compose a thanks — belonged to the glow economy and went with it (§11).
 
 ### 8.13 Settings & safety family _(added 2026-09-02, #641 — `SettingsRow` has cited a "§8 list-row" spec since it shipped; this is that section)_
 
@@ -758,23 +804,23 @@ Aura rules:
 ┌────────────────────────┐
 │ ‹  Impostazioni        │
 │                        │
-│  ACCOUNT        (micro)│ SettingsGroup: micro eyebrow
-│  ┌──────────────────┐  │ + surface card, radius lg
-│  │ Lingua      IT › │  │ SettingsRow: ≥56pt, one
+│  ACCOUNT        (label)│ SettingsGroup: grey label
+│  ┌──────────────────┐  │ + `surface` block, radius 28
+│  │ Lingua      IT › │  │ SettingsRow: ≥60pt, one
 │  │ Notifiche      › │  │ accessible button; value
 │  │ Pagamenti      › │  │ right, chevron `›`
 │  └──────────────────┘  │
 │  PRIVACY               │
-│  ┌──────────────────┐  │ toggles: platform Switch,
+│  ┌──────────────────┐  │ toggles: the app's `Switch`,
 │  │ Chi vede il  [⣿] │  │ ALWAYS labeled for VO with
-│  │ mio sogno        │  │ the row's own text; on-track
-│  └──────────────────┘  │ uses a dedicated `switchOn`
-└────────────────────────┘ tone, legibly ≠ off
+│  │ mio sogno        │  │ the row's own text; on = a
+│  └──────────────────┘  │ white track, off = a grey
+└────────────────────────┘ outline (46×28), legibly ≠ off
 ```
 
 Rules:
 
-- **Grouped/inset lists** (`SettingsGroup` + `SettingsRow`) are the settings shape; rows are single accessible buttons ≥56pt; toggles are platform `Switch`, each carrying its row label as the accessibility label.
+- **Grouped lists** (`SettingsGroup` + `SettingsRow`) are the settings shape and, since Galleria, the list shape of the whole app (§6, §9 «Grouped rows»); rows are single accessible buttons ≥60pt; toggles are the app's `Switch` (§9), each carrying its row label as the accessibility label.
 - **Safety actions outrank housekeeping.** On trust/safety surfaces the report/block affordances render at least as loud as any data-management CTA — never ghost text under a full-bleed slab.
 - Sign-out gets a confirm (destructive to session state); report→block uses the same `block.confirm` Alert the profile path already has — one block, one confirm, everywhere.
 - Deep-link catchers wait for auth `loading`, split network-failure from not-found (a fetch error never renders «profilo non disponibile» — the #111 rule), and always land somewhere with a retry or a home CTA.
@@ -782,31 +828,35 @@ Rules:
 
 ## 9. Component inventory
 
-| Component            | Spec                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Button / primary** | Pill (radius full), foreground bg, background text, label 13/600 letterspaced 0.14em (v1.1), h 52pt mobile / 48px web, full-width in cards                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **Button / moment**  | Pill, `aura` bg, background text, leading ✦, letterspaced label. ONLY on moment actions (accept Momento, contribute). Offering help is not one — `(modal)/help.tsx`'s «Aiuta» ships flat `light` (2026-09-07, §11)                                                                                                                                                                                                                                                                                                                                      |
-| **Button / ghost**   | No bg, foregroundMuted text, letterspaced 0.14em, underline on hover/press. «più tardi», «passa»                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Input**            | Radius full (v1.1, reference pattern), `raise` bg, hairline border, foreground text, placeholder foregroundMuted, focus = foreground ring 1px, error = `error` ring + caption below                                                                                                                                                                                                                                                                                                                                                                     |
-| **Field (block)**    | The form/sheet field, under a `SectionLabel`. Radius `hero` (26), `raise` bg, hairline border, foreground text `text-lg` — 15.75px on device, 18px on the web build (`rem` inlines at 14 on native, 16 in a browser; see the 2026-08-30 row in §11) — placeholder foregroundMuted, focus = foreground ring 1px, error = `error` ring + caption below (`error` outranks focus). `multiline` takes a min height in two steps — a field among fields, or the field the screen is about. Dream register via `register="dream"`, never a pasted `font-dream` |
-| **Card**             | surface bg, radius lg, padding 20, hairline border. Moment cards add 1px `aura` border; a card presenting a **waiting Momento** (the deck's top card, Home's «Hai un Momento» card) additionally takes the glow — §2.3's allowlist names it first, and this row's old border-only spec was the contradiction the 2026-09-02 ruling (§11) resolved in §2.3's favour                                                                                                                                                                                      |
-| **Modal/popup**      | surfaceMuted card radius lg on 60% background scrim, max-w 360pt, content centered (reference Stay-Updated pattern)                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Accordion (web)**  | Hairline top rule per row, question body-strong, `+`/`–` right, 24px padding-y                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Tabs (feed)**      | Text pills, active = foreground text + 2px foreground underline, inactive foregroundMuted. Horizontal scroll on mobile                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **Tab bar (mobile)** | surfaceMuted, hairline-top, 5 items, esoteric glyph 24 (§6 set), icons only — the localized title ships as the accessibility label, never rendered (§6, 2026-09-02); active foreground, `aura` ✦ dot on Momenti when a Momento waits                                                                                                                                                                                                                                                                                                                    |
-| **Countdown widget** | Numbers display/tabular `aura`, captions micro muted, realtime via Supabase. Compact chip (topbar) and full card forms                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **Star badge ✦**     | 4-point star. Earned: foreground (`aura` flash animation on earn). Unearned (own profile only): border outline                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Reaction ✦**       | Outline default → `aura` fill when lit by you. Count visible to author only                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Toast**            | Bottom, surface bg, leading ✓ in success / ✦ in `aura` for moment events. One global host (#117): single toast at a time, 2.5s hold, never blocks a tap; the band sits 40pt above the content region, so it clears a pinned `Screen footer` (the layer under it is the footer's, never claimed by content)                                                                                                                                                                                                                                              |
-| **Avatar**           | Circle. Photo when the member set one, initial otherwise (from the name when set, the handle when not). Evolutionary story active = thin `aura` ring (journey, not vanity)                                                                                                                                                                                                                                                                                                                                                                              |
-| **Empty state**      | Thin-line motif (§6) + one body line + one ghost action. Never sad-face illustrations                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| **Placeholder**      | «Presto qui» — `SectionLabel` + `Card` + one `EmptyState` line. ONLY over a block whose MILESTONE has not shipped, never over a landed feature that has no data today (§11 2026-08-12). None ships today — Esplora, the last, collapses instead (§11 2026-09-18); the recipe stands for the next unshipped milestone                                                                                                                                                                                                                                    |
+| Component            | Spec                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Button / primary** | **Mobile:** pill (radius full), foreground (white) fill, background (black) label 17/600 with no tracking, min-h 50pt, full-width in cards — the primary action everywhere, the Momento action included. `size="sm"`: min-h 44pt, label 14. Pressed = opacity 0.6 + scale 0.98; disabled = 40%. **Web:** pill, foreground bg, background text, label 13/600 letterspaced 0.14em (v1.1), h 48px                                                                                             |
+| **Button / moment**  | **Mobile:** the celebration pill — `aura` fill, `onAura` label — on the five celebration screens and nowhere else (§2.3). An action that makes a moment (accepting a Momento, contributing) is the white primary. **Web:** pill, `aura` bg, background text, leading ✦, letterspaced label. ONLY on moment actions (accept Momento, contribute)                                                                                                                                            |
+| **Button / outline** | **Mobile.** Pill, no fill, 1px `foregroundMuted` border, foreground label: the second action beside a primary («Passa», «Annulla»). **Destructive** is the same outline in `error` — border and label, no fill; it replaces the filled danger button                                                                                                                                                                                                                                       |
+| **Button / ghost**   | **Mobile:** a text link — 15px, foreground, underlined, 44pt target. «più tardi», «Fatto». **Web:** no bg, foregroundMuted text, letterspaced 0.14em, underline on hover/press. «più tardi», «passa»                                                                                                                                                                                                                                                                                       |
+| **Input**            | **Mobile:** pill, min-h 50pt, `surface` fill, no border at rest, foreground text, placeholder foregroundMuted, focus = 1px foreground border, error = 1px `error` border + the reason in `error` (14px) inside the field's own row. **Web:** radius full (v1.1, reference pattern), `raise` bg, hairline border, foreground text, placeholder foregroundMuted, focus = foreground ring 1px, error = `error` ring + caption below                                                           |
+| **Field (block)**    | The mobile form/sheet field, under a `SectionLabel`. Multi-line: radius 24, `surface` fill, no border at rest, foreground text (body 17), placeholder foregroundMuted, focus = 1px foreground border, error = 1px `error` border + the reason below (`error` outranks focus). It takes a min height in two steps — a field among fields, or the field the screen is about. A single-line field is a pill, like `Input`. Dream register via `register="dream"`, never a pasted `font-dream` |
+| **Card**             | **Mobile:** `surface` (charcoal) fill, radius 28, padding 20, 1px hairline border — at most one per screen, for the thing that matters (§2.4). A card presenting a **waiting Momento** carries the 8px `aura` dot beside its label; no card takes a cyan border and none glows. **Web:** surface bg, radius lg, padding 20, hairline border. Moment cards add 1px `aura` border; a card presenting a waiting Momento additionally takes the glow (§2.3)                                    |
+| **Grouped rows**     | **Mobile.** The list shape of the whole app (§6): rows inside one `surface` block per group — radius 28, no border, 16pt inside, a hairline between rows. A row is one accessible button, min-h 60pt: title 17/500, an optional second line 15 grey, value or chevron `›` right. A grey `label` names the group. `SettingsGroup` + `SettingsRow` (§8.13) are this shape, and it is generalised from them                                                                                   |
+| **Chip**             | **Mobile.** Pill, min-h 32pt with a 44pt target through `hitSlop`, 14px label, hairline border, no fill, foreground text. Selected = foreground fill, background text — white, never `aura`. A quiet chip sets its text grey                                                                                                                                                                                                                                                               |
+| **Switch**           | **Mobile.** 46×28 pill. On = foreground track, background knob; off = a `foregroundMuted` outline with a grey knob. `accessibilityRole="switch"`, labelled with its row's own text (§8.13). It replaces the platform switch                                                                                                                                                                                                                                                                |
+| **Modal/popup**      | **Web:** surfaceMuted card radius lg on 60% background scrim, max-w 360pt, content centered (reference Stay-Updated pattern). **Mobile:** a modal route is an ordinary screen on black (§3)                                                                                                                                                                                                                                                                                                |
+| **Accordion (web)**  | Hairline top rule per row, question body-strong, `+`/`–` right, 24px padding-y                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Tabs (feed)**      | **Mobile:** a horizontally scrolling row of chips (see Chip): selected = foreground fill, no underline. **Web:** text pills, active = foreground text + 2px foreground underline, inactive foregroundMuted                                                                                                                                                                                                                                                                                 |
+| **Tab bar (mobile)** | Black (`background`), hairline-top, 5 items, glyph 24 at 1.8 stroke (§6 set; Profilo is the person), icons only — the localized title ships as the accessibility label, never rendered (§6, 2026-09-02); active foreground, inactive foregroundMuted; an 8px `aura` dot on Momenti when a Momento waits                                                                                                                                                                                    |
+| **Countdown widget** | Numbers display/tabular, realtime via Supabase. **Mobile:** numerals foreground, the **seconds** alone in `aura` (§2.3); captions small, grey. **Web:** numbers `aura`, captions micro muted. Compact chip (topbar) and full card forms                                                                                                                                                                                                                                                    |
+| **Star badge ✦**     | 4-point star. Earned: foreground (on the web, an `aura` flash animation on earn). Unearned (own profile only): border outline                                                                                                                                                                                                                                                                                                                                                              |
+| **Reaction ✦**       | Outline default. Lit by you: foreground on mobile, `aura` fill on the web. Count visible to author only                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Toast**            | Bottom, surface bg, leading ✓ or ✦ — foreground on mobile (no green, no `aura`); on the web ✓ in success / ✦ in `aura` for moment events. One global host (#117): single toast at a time, 2.5s hold, never blocks a tap; the band sits 40pt above the content region, so it clears a pinned `Screen footer` (the layer under it is the footer's, never claimed by content)                                                                                                                 |
+| **Avatar**           | Circle — on mobile a `surface` disc with a hairline, in five sizes: 30 / 44 / 56 / 72 / 104. Photo when the member set one, initial otherwise (from the name when set, the handle when not). A story to watch = a 2px foreground ring on mobile (at reduced weight beyond first-degree connections, §11 2026-09-02), a thin `aura` ring on the web — journey, not vanity                                                                                                                   |
+| **Empty state**      | **Mobile:** the outline mandorla (§5) + one line in h2 + at most one grey line and one action. **Web:** thin-line motif (§6) + one body line + one ghost action. Never sad-face illustrations                                                                                                                                                                                                                                                                                              |
+| **Placeholder**      | «Presto qui» — `SectionLabel` + `Card` + one `EmptyState` line. ONLY over a block whose MILESTONE has not shipped, never over a landed feature that has no data today (§11 2026-08-12). None ships today — Esplora, the last, collapses instead (§11 2026-09-18); the recipe stands for the next unshipped milestone                                                                                                                                                                       |
 
 ## 10. Motion & accessibility
 
-- **Motion = calm.** 150–250ms ease-out fades/slides. No springs, no bounces, no parallax _in the app_ (the public landing is exempt — scroll parallax via Lenis/GSAP, see §11 2026-06-13). One exception: the **moment flash** — when a star is lit or a Momento accepted, the ✦ scales 1→1.15→1 with a 400ms `aura` fade. That's the only "effect" in the app. (The animated hero Mandorla — born-from-circles draw + a slow breathe — is the brand mark, not app chrome.)
+- **Motion = calm.** 150–250ms ease-out fades/slides. No springs, no bounces, no parallax _in the app_ (the public landing is exempt — scroll parallax via Lenis/GSAP, see §11 2026-06-13). One exception: the **moment flash** — when a star is lit or a Momento accepted, the ✦ scales 1→1.15→1 with a 400ms fade, in `aura` on the web and in foreground on mobile. That's the only "effect" in the app. (The animated hero Mandorla — born-from-circles draw + a slow breathe — is the brand mark, not app chrome.) On mobile a press answers: a pill dims to 0.6 and scales to 0.98; a chip, a row or an icon dims to 0.6.
 - Respect `prefers-reduced-motion` / RN `isReduceMotionEnabled`: replace all transitions with opacity cuts.
-- Tap targets ≥ 44pt. Web focus rings: 2px `aura` (offset 2px) on the background canvas.
+- Tap targets ≥ 44pt. Focus rings are the web's: 2px `aura` (offset 2px) on the background canvas. The mobile app draws no ring — a focused field takes a 1px foreground border (§9).
 - **Headings: the title, never the eyebrow** (2026-09-07, #651). Where an eyebrow `SectionLabel` sits above a
   display title, the **title** carries `accessibilityRole="header"` and the eyebrow carries nothing — the
   VoiceOver rotor lands on «Controlla la tua email», not on «QUASI FATTO». A section whose only text is the
@@ -840,13 +890,14 @@ Rules:
   exception: a lone full-width pill whose label is wider than the screen at 2× (e.g. «Entra nel
   Circle · 12,00 €/mese» on an iPhone SE at AX5) wraps inside its own pill.
 - All ✦/star meanings carry text labels for screen readers («Hai acceso una stella a Lucia»).
-- Contrast pairs verified in §3. Keep `aura` for accents/moments, not long body text.
+- Contrast pairs verified in §3, per platform. `aura` is never body text: on the web it is for accents and moments, on mobile for the five marks of §2.3.
 - i18n: all mockup copy here is illustrative; real strings live in `packages/i18n` (IT+EN), Athanor voice — «Hai un Momento», never «Hai una nuova notifica»; people/momenti/progetti, never "utenti".
 
 ## 11. Decisions log
 
 | Date       | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Rationale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-10-03 | **The mobile app becomes Galleria (ships as 1.1); the web is untouched.** A black stage `#000000` with charcoal grouped blocks `#1D1D1F`, hairline `#333336`, text `#F5F5F7` / `#86868B`; a white primary pill; cyan only as one of five marks — the waiting-Momento dot, the member's own Aura numeral, «✦ Un passo del percorso», the countdown seconds, the celebration screens; no glow, no green; error red `#E5536F`; headings 600 in sentence case, plain grey labels, numerals 800; radius 28; drawn interface icons at 1.8, and Profilo is the person. §2–§6 and §8–§10 carry it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Marco's ruling, approved on a prototype that draws every route (`docs/design-system/prototype/`), with eight rulings on how it lands: one integration branch and every screen released at once; cyan strict, the five marks and nothing else; a mobile error red, because the web's `#E0476B` is 4.23:1 on charcoal; no tier visual on the profile; the boot splash and the app icon stay, on black; no green on mobile. The app reads a token set of its own, `galleria`; `semantic` stays the web's and is not edited. Where the drawing and a shipped accessibility ruling disagree, the ruling wins: side-by-side pills wrap in `ButtonRow` (2026-09-23), heights are `min-h` and text scales to 2× (2026-09-02), a single word never breaks (2026-09-24), a 32pt chip keeps a 44pt target (2026-09-02). **Supersedes, on mobile only:** the Aura number rendered foreground (2026-06-12) and its 34pt cap (2026-09-02) — the member's own numeral is `aura`, in the numeral style; the waiting Momento glows, selected chips = flat aura, full-`aura` story rings (all 2026-09-02); the glow is the shadow (2026-09-07) and a `boxShadow` (2026-09-20) — nothing glows; letterspaced button labels (2026-06-12) and the uppercase eyebrow (`SectionLabel`, 2026-08-08) — it stays the one home for the label, which is now plain; inputs are `raise` + hairline (2026-08-22) — `surface`, no border at rest; the `onError` ink on a filled destructive button (2026-08-08) — destructive is an outline; §6's 2026-09-19 addendum where `✕` stayed a character and header icons kept 2px; the meridian-sphere Profilo glyph (2026-06-12); §8.12's rule that the ceremony overlays must not share a composition; and the single dark world of 2026-06-13, which from here names the web. For the web every one of those rows still holds.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-10-03 | The web landing becomes the broadsheet: concrete canvas, violet fields, condensed wall type, mono annotations, dark pills, solid hairlines; the splash intro is removed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Marco's rulings, two rounds: an editorial reference (Outsource Consultants) adopted in full, then blended with a second (The1) — concrete instead of bone, mandala violet instead of the first round's indigo, Barlow Condensed for headings, pill buttons, the 3D phone mockup restored, no animation on load. Scoped to `/`; the app, the other public pages and rule 4's dark world are untouched. The references' paid faces are not licensed: Barlow Condensed and JetBrains Mono (both OFL, self-hosted) stand in. Supersedes the 2026-06-13 single-dark-canvas landing and its splash rows below; the chapter spine and the splash are deleted. See §6 «Web landing».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-10-01 | Nothing of ours is shown before an OS permission prompt; a sheet appears only once the OS can no longer ask (#908)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | App Review rejected 1.0 (2) under Guideline 5.1.1(iv) (submission `4cb70b1c`): the pre-permission sheet carried a «Consenti» button and a «Non ora» that skipped the system request. Ruled by Marco the same day: drop the pattern, do not reword it. A tap on the feature fires the OS dialog directly (camera, microphone, the check-in scanner; notifications once per install on first arrival in the tabs), and the photo library asks for nothing because the system picker needs no permission. `PermissionPrimer` became `PermissionBlockedSheet`: a per-kind title, the shared blocked body, «Apri Impostazioni» and «Chiudi», shown only after a refusal the OS will not re-ask. No ✦ on it: a permission that is off is not a moment. `source-audit.test.ts` §45 closes the list of files that may ask; `i18n.test.ts` closes the `permission.` namespace. Supersedes frontend-PRD 12 §4 and §8.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 2026-10-01 | The @handle step opens on a handle suggested from the name already given, and never calls the handle a name (#908)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Same rejection, Guideline 4: after Sign in with Apple the app may not ask again for what Apple provided, and the step's copy («È il nome con cui compari», placeholder «il_tuo_nome») read as exactly that. Ruled by Marco: suggest from `profiles.display_name` when a claimable, free shape exists; keep the field editable; reword. The 2026-09-19 ruling's email half stands — nothing is derived from the email, and a «name» carrying an `@` suggests nothing. No provider branch: the rule is on the name. §8.1 carries the mock.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
