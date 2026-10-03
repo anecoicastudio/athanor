@@ -15,11 +15,12 @@ import { GetView } from '@/components/get-view';
  * country Cloudflare saw the request arrive from, an Android phone to Google Play, and anyone
  * else gets `GetView`: both badges and a storefront picker.
  *
- * The one deliberately per-request public page. `cf-ipcountry` is set by the Cloudflare edge
- * (IP geolocation; `XX` or `T1` when it has no country, absent off Cloudflare — each of which
- * `resolveStoreTarget` treats as «cannot tell»). A wrong guess costs nothing worse than the
- * picker, which is why a header the visitor's own proxy could influence is acceptable here.
- * Being dynamic also keeps it out of the KV incremental cache: one visitor's storefront must
+ * The one deliberately per-request public page. `cf-ipcountry` is the header Cloudflare adds
+ * with the visitor's country — believed, unverified on this Worker as of 2026-10-03: nothing
+ * else in `apps/web` reads it, and OpenNext does not synthesise it. Any value outside the
+ * storefront list, and no header at all, is «cannot tell» to `resolveStoreTarget`, so the
+ * failure mode is the picker for everyone, never a wrong storefront — which is also why a
+ * header the visitor's own proxy could influence is acceptable here. Being dynamic also keeps it out of the KV incremental cache: one visitor's storefront must
  * never be served to the next.
  *
  * Kept out of the AASA paths and the Android intent filters on purpose. If the app claimed

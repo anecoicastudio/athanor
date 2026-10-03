@@ -52,7 +52,7 @@ export function resolveStoreTarget({
   store,
 }: {
   userAgent: string | null | undefined;
-  /** ISO 3166-1 alpha-2 as Cloudflare reports it; absent off Cloudflare, `XX`/`T1` when unknown. */
+  /** ISO 3166-1 alpha-2 from `cf-ipcountry`; null when the header is absent. */
   country: string | null | undefined;
   store?: string | null;
 }): StoreTarget {

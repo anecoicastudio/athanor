@@ -15,7 +15,10 @@ import { supabaseKey } from './key';
  * with every regional visitor throttling the others off. Pass the address the Next route read
  * from its own request and the trigger sees the visitor.
  *
- * It is a per-request value, so it must never be hoisted into a module-level client. */
+ * It is a per-request value, so it must never be hoisted into a module-level client.
+ *
+ * Kept, uncalled, as the cookie-carrying counterpart the public pages' comments contrast
+ * createAnonClient with; the next server route that needs the request's cookies starts here. */
 export async function createClient(forwardedFor?: string) {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

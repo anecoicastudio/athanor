@@ -64,9 +64,12 @@ export const INVITE_URL_BASE = `${SITE_ORIGIN}/invite`;
  * names one country's storefront and Apple refuses it to an Apple ID from another — tested
  * 2026-10-03, the bare `apps.apple.com/app/athanor` form this replaced resolves to the US
  * storefront and answers «not available». `/get` picks the storefront per request and offers a
- * picker when it cannot (`apps/web/lib/store-links.ts`).
+ * picker when it cannot (`apps/web/lib/store-links.ts`). `?lang=` for the same reason as
+ * `legalUrl`: the picker is a prerendered-Italian page that learns the language no other way.
  */
-export const APP_STORE_GET_URL = `${SITE_ORIGIN}/get?store=apple`;
+export function appStoreGetUrl(locale: Locale): string {
+  return `${SITE_ORIGIN}/get?store=apple&lang=${locale}`;
+}
 
 /**
  * The support mail, with a subject line (#749). There is no in-app help centre — P3.4 settled
