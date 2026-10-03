@@ -256,6 +256,11 @@ body:has(.broadsheet) {
   white-space: nowrap;
 }
 
+/* The locale-pending gate (lib/locale-pending.ts): no Italian shown to a reader about to get English. */
+html[data-locale-pending] body {
+  visibility: hidden;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
