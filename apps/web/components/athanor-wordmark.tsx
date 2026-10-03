@@ -5,19 +5,18 @@ import { cn } from '@/lib/utils';
 /**
  * Crossbar-less Λ peak standing in for an "A". Hanken Grotesk ships no Greek Λ
  * glyph, so to keep the wordmark in Hanken sans (matching the vertical section
- * labels) *and* render the brand's lambda A's, the A is drawn here. em-sized →
+ * labels) *and* render the brand's lambda, the peak is drawn here. em-sized →
  * scales with the surrounding font-size; `currentColor`; the box bottom sits on
- * the text baseline (align-baseline) at cap height, so it lines up with the
- * letters beside it. `strokeWidth` is tuned by eye to Hanken 400. Pass a
- * `className` (e.g. `mx-[…em]`) to add side-bearings where the bare peak reads
- * too tight against a neighbour.
+ * the text baseline at cap height, so it lines up with the letters beside it.
+ * `strokeWidth` is tuned by eye to Hanken 400. The stroke runs to the edge of the
+ * box, so the box is the ink — it needs no side-bearing of its own.
  */
 export function LambdaA({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 66 72"
-      className={cn('inline-block h-[0.72em] w-[0.66em] align-baseline', className)}
+      className={cn('inline-block h-[0.72em] w-[0.66em] shrink-0', className)}
       fill="none"
       stroke="currentColor"
       strokeWidth={8}
@@ -31,22 +30,42 @@ export function LambdaA({ className }: { className?: string }) {
 }
 
 /**
- * Renders a translated string with the brand name set as the uppercase logotype
- * `ΛTHΛNOR` — both A's drawn as the logo's Λ peak (<LambdaA>) — so an inline
- * "Athanor" in copy reads like the logo (user request 2026-06-13 — scope: the
- * download headline; uppercased on request).
+ * The brand's letters, `ATHΛNOR` (Marco's ruling, 2026-10-03, superseding the 2026-06-13
+ * `ΛTHΛNOR`): the first A is the font's own glyph, every later A is the drawn peak.
  *
- * The brand token is derived from i18n (rule 5 — no hardcoded letters): split on
- * `app.name` ("Athanor"), then render its uppercase form letter by letter, each
- * `A` → the peak (with an `mx` side-bearing so it doesn't crowd the `U`), the
- * rest as uppercase text in the inherited font. The visible glyphs are
- * `aria-hidden`; a visually-hidden copy of the plain `text` carries the real
- * words for screen readers / SEO (so AT hears "Take Athanor with you.").
+ * Spaced by a flex `gap`, not by `letter-spacing`. Tracking adds its space after a text glyph
+ * and not after an inline SVG, so the old lockup patched each peak with hand-tuned margins that
+ * held at one size and drifted at the next. A gap is the same distance between every pair of
+ * boxes whatever is in them, which is what «equally spaced» means here. `tracking-normal`
+ * keeps an inherited letter-spacing from adding to it.
+ *
+ * Derived from the i18n brand name (rule 5 — no hardcoded letters). Decorative: callers hide it
+ * from assistive technology and supply the real name themselves.
+ */
+function BrandLetters({ gap }: { gap: string }) {
+  const letters = [...t('app.name', 'it').toUpperCase()]; // "ATHANOR"
+  const firstA = letters.indexOf('A');
+  return (
+    <span aria-hidden className={cn('inline-flex items-baseline tracking-normal', gap)}>
+      {letters.map((ch, i) =>
+        ch === 'A' && i !== firstA ? <LambdaA key={i} /> : <span key={i}>{ch}</span>,
+      )}
+    </span>
+  );
+}
+
+/**
+ * Renders a translated string with the brand name set as the uppercase logotype
+ * (`BrandLetters`), so an inline "Athanor" in copy reads like the logo (user request
+ * 2026-06-13 — scope: the download headline; uppercased on request).
+ *
+ * The string is split on `app.name`; the visible glyphs are `aria-hidden`, and a
+ * visually-hidden copy of the plain `text` carries the real words for screen readers / SEO
+ * (so AT hears "Take Athanor with you."). The logotype is one flex box, so a headline wraps
+ * around the name and never inside it.
  */
 export function BrandText({ text }: { text: string }) {
-  const brand = t('app.name', 'it'); // "Athanor"
-  const upper = brand.toUpperCase(); // "ATHANOR"
-  const parts = text.split(brand);
+  const parts = text.split(t('app.name', 'it'));
   return (
     <>
       <span aria-hidden>
@@ -54,14 +73,8 @@ export function BrandText({ text }: { text: string }) {
           <Fragment key={i}>
             {part}
             {i < parts.length - 1 && (
-              <span className="font-sans tracking-[0.14em]">
-                {[...upper].map((ch, j) =>
-                  ch === 'A' ? (
-                    <LambdaA key={j} className="mx-[0.06em]" />
-                  ) : (
-                    <span key={j}>{ch}</span>
-                  ),
-                )}
+              <span className="font-sans">
+                <BrandLetters gap="gap-[0.14em]" />
               </span>
             )}
           </Fragment>
@@ -73,42 +86,21 @@ export function BrandText({ text }: { text: string }) {
 }
 
 /**
- * ATHANOR wordmark (DESIGN.md §4 wordmark rule + §11). "ATHANOR" in the body sans
- * (Hanken Grotesk, `font-sans`), uppercase + letterspaced — matching the vertical
- * section labels (2026-06-13) — with the A's drawn as a Λ peak (<LambdaA>, since
- * Hanken has no Greek Λ; user request 2026-06-13). The lambdas carry an
- * *asymmetric* side-bearing (`-ml`/`mr`) so they sit as evenly as the plain
- * letters: `tracking-[0.3em]` renders as trailing space inside each text glyph's
- * box but is NOT applied after the inline-block SVG, so a bare peak reads open on
- * its left and tight on its right — the negative `ml` cancels the preceding
- * letter's leftover trailing space (and the triangle's optical whitespace), the
- * positive `mr` replaces the trailing letter-spacing the SVG never gets. Values
- * tuned by eye at logo scale (measured true-ink gaps ≈ plain-letter gaps, a hair
- * tighter as a triangular glyph wants). Derived from the i18n brand name so there
- * are no hardcoded user-facing strings (rule 5): the visible glyphs are decorative
- * (`aria-hidden`) and the accessible name comes from `aria-label`, so a screen
- * reader hears "Athanor".
+ * ATHANOR wordmark (DESIGN.md §4 wordmark rule + §11). The brand's letters in the body sans
+ * (Hanken Grotesk, `font-sans`), uppercase and evenly spaced — matching the vertical section
+ * labels (2026-06-13). See `BrandLetters` for the letters and for why the spacing is a gap.
+ * The accessible name comes from `aria-label`, so a screen reader hears "Athanor".
  *
- * Letterspaced per §4 (callers can override the tracking via className — twMerge
- * resolves the conflict). Color follows `currentColor` (foreground by default —
+ * Callers size it with a text-size class. Color follows `currentColor` (foreground by default —
  * never aura cyan).
  */
 export function AthanorWordmark({ className }: { className?: string }) {
-  const name = t('app.name', 'it').toUpperCase(); // "ATHANOR"
   return (
     <span
       aria-label={t('app.name', 'it')}
-      className={cn('font-sans uppercase leading-none tracking-[0.3em] select-none', className)}
+      className={cn('inline-flex font-sans uppercase leading-none select-none', className)}
     >
-      <span aria-hidden>
-        {[...name].map((ch, i) =>
-          ch === 'A' ? (
-            <LambdaA key={i} className="ml-[-0.10em] mr-[0.19em]" />
-          ) : (
-            <span key={i}>{ch}</span>
-          ),
-        )}
-      </span>
+      <BrandLetters gap="gap-[0.3em]" />
     </span>
   );
 }
