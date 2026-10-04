@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { gradient, radius, semantic, spacing } from '@athanor/config';
+import { galleria, gradient, radius, spacing } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
  * file leaves every contrast assertion passing while the running app shows the old colour —
  * the tests would certify a value the user never sees. This closes that.
  *
- * Covers every `semantic` colour, the mandala `gradient`, and the three `radius` values the
+ * Covers every `galleria` colour, the mandala `gradient`, and the three `radius` values the
  * stylesheet declares — NOT the type scale or font families, which have no `tokens.ts` twin.
  *
  * The name mapping is NOT mechanical camelCase→kebab; two tokens diverge outright
@@ -22,8 +22,8 @@ import { describe, expect, it } from 'vitest';
 // isn't assignable to node's `fileURLToPath` parameter.
 const CSS = readFileSync(fileURLToPath(new URL('../global.css', import.meta.url).href), 'utf8');
 
-/** semantic token key → CSS custom property name (without the `--color-` prefix). */
-const NAME_MAP: Record<keyof typeof semantic, string> = {
+/** galleria token key → CSS custom property name (without the `--color-` prefix). */
+const NAME_MAP: Record<keyof typeof galleria, string> = {
   background: 'background',
   surface: 'surface',
   surfaceMuted: 'surface-muted',
@@ -66,9 +66,9 @@ function norm(v: string): string {
 }
 
 describe('global.css mirrors the config tokens', () => {
-  it.each(Object.entries(NAME_MAP))('semantic.%s === --color-%s', (key, cssName) => {
+  it.each(Object.entries(NAME_MAP))('galleria.%s === --color-%s', (key, cssName) => {
     const fromCss = cssVar(cssName);
-    const fromTs = semantic[key as keyof typeof semantic];
+    const fromTs = galleria[key as keyof typeof galleria];
     expect(fromCss, `--color-${cssName} missing from global.css`).toBeDefined();
     expect(norm(fromCss as string)).toBe(norm(fromTs));
   });
@@ -79,8 +79,8 @@ describe('global.css mirrors the config tokens', () => {
     }
   });
 
-  it('maps every semantic token — a new one cannot be added to TS only', () => {
-    expect(Object.keys(NAME_MAP).sort()).toEqual(Object.keys(semantic).sort());
+  it('maps every galleria token — a new one cannot be added to TS only', () => {
+    expect(Object.keys(NAME_MAP).sort()).toEqual(Object.keys(galleria).sort());
   });
 
   // Only the radii the stylesheet actually declares. `radius` also carries sm/md/lg/full, which

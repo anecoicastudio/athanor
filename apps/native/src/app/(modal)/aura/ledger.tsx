@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, SectionList } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { type LedgerCursor, type LedgerFilter, getAuraLedgerPage, ledgerKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEvent, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
@@ -202,7 +202,7 @@ export default function LedgerScreen() {
           ListFooterComponent={
             query.isFetchingNextPage ? (
               <View className="py-6">
-                <ActivityIndicator color={semantic.aura} />
+                <ActivityIndicator color={galleria.aura} />
               </View>
             ) : null
           }

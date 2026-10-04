@@ -1140,7 +1140,7 @@ describe('placeholders are a token, never the platform default (#499)', () => {
     expect(
       bare.map(([at]) => at),
       'a placeholder is rendering in the platform grey — route it through Field/Input, or pass ' +
-        'placeholderTextColor={semantic.foregroundMuted} (#499)',
+        'placeholderTextColor={galleria.foregroundMuted} (#499)',
     ).toEqual([]);
   });
 
@@ -2112,7 +2112,7 @@ describe('a post and its media are one write (#588)', () => {
 /**
  * A `text-`/`bg-`/`border-` class whose token is not declared in `global.css` produces no
  * declaration at all. react-native-css has nothing to emit, so the property is simply absent
- * and RN falls back to its own default — black text, no border colour — on a `#0a0a1a`
+ * and RN falls back to its own default — black text, no border colour — on a black
  * canvas. Nothing throws, nothing warns, and TypeScript cannot see inside a string literal.
  * #595 was `text-ink` on `RuleRow`: the Aura screen's three protection-rule headings rendered
  * at 1.07:1 against the background, invisible, for as long as the screen has existed.
@@ -4757,5 +4757,39 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
       show,
       'onRow shows the blocked sheet before it has asked the OS — that order is a primer (#908)',
     ).toBeGreaterThan(ask);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 46 — the app reads `galleria`, never `semantic` (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half: `@athanor/config` holds two palettes and the app's is `galleria` (Marco's
+ * ruling, 2026-10-03). `semantic` is the web's dark world, and it type-checks here — same
+ * package, same key names, every value a valid colour — so a screen that imports it compiles,
+ * lints and renders, in the wrong look, with nothing to say so.
+ *
+ * By NAME over comment-stripped code, test files included: a test that recomputes a ratio or
+ * pins a config value from `semantic` certifies a colour the app does not draw. A comment may
+ * still say the word — the history of a retune is the decision record. `stripComments` leaves
+ * string bodies in place, so an assertion message that names the web palette as the remedy is
+ * caught too.
+ */
+describe('the app reads galleria, never semantic (#921)', () => {
+  it('no file under src names the web palette in code', () => {
+    const hits = codeLines()
+      .filter(([, t]) => /\bsemantic\b/.test(t))
+      .map(([where, t]) => `${where}  ${t.trim()}`);
+    expect(
+      hits,
+      'apps/native reads `galleria` from @athanor/config. `semantic` is the web palette, and ' +
+        'the same key exists on `galleria` (rule 4, docs/DESIGN.md §3).',
+    ).toEqual([]);
+  });
+
+  it('…and the palette it does read is still read somewhere', () => {
+    // The walk above also passes on a tree that went back to literals or reads no token at all.
+    expect(codeLines().some(([, t]) => /\bgalleria\.[a-zA-Z]/.test(t))).toBe(true);
   });
 });

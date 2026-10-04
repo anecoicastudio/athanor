@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { View } from '@/tw';
 import { auraGlow } from '@/lib/glow';
 
@@ -44,7 +44,7 @@ export function Mandorla({
         <Path
           d="M50,4 A49,49 0 0,1 50,96 A49,49 0 0,1 50,4 Z"
           fill="none"
-          stroke={semantic.auraLine}
+          stroke={galleria.auraLine}
           strokeWidth={1.5}
         />
       </Svg>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image, Switch } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -139,7 +139,7 @@ export default function StoryComposeScreen() {
                   accessibilityLabel={t('media.noPoster.video', locale)}
                 >
                   <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                    <PlayGlyph size={36} color={semantic.faint} />
+                    <PlayGlyph size={36} color={galleria.faint} />
                   </View>
                 </View>
               ) : (
@@ -218,8 +218,8 @@ export default function StoryComposeScreen() {
               <Switch
                 accessibilityLabel={t('story.add.stepTitle', locale)}
                 value={isStep}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
+                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
+                thumbColor={galleria.foreground}
               />
             </View>
           </Pressable>

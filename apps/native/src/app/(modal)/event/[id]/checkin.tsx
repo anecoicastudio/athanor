@@ -10,7 +10,7 @@ import {
   getEventCheckinCount,
   subscribeAttendance,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { Pressable, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
@@ -122,7 +122,7 @@ export default function CheckinScreen() {
   if (!permission || (askable && !answered)) {
     return (
       <Screen className="items-center justify-center">
-        <ActivityIndicator color={semantic.aura} />
+        <ActivityIndicator color={galleria.aura} />
       </Screen>
     );
   }

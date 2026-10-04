@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useRouter } from 'expo-router';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View } from '@/tw';
@@ -103,7 +103,7 @@ export function CircleGate({
     variant === 'pill' ? (
       <>
         {/* Lock mark — drawn, not the 🔒 emoji (#753); the label says «bloccato» */}
-        <LockGlyph size={16} color={semantic.foregroundMuted} />
+        <LockGlyph size={16} color={galleria.foregroundMuted} />
         <Text className="text-[14px] text-muted-foreground">{lockCopy}</Text>
       </>
     ) : variant === 'label' ? (

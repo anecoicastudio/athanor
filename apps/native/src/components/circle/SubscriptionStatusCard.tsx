@@ -92,7 +92,7 @@ export function SubscriptionStatusCard({
 
       {/* Past-due warning — OUTSIDE the glow card, deliberately. Two reasons, one move.
           Contrast: on `bg-aura-soft` this 13px `error` was 4.26:1, under the floor; on the
-          modal's `bg-background` it is 4.93:1. Meaning: the aura-soft + aura-line + auraGlow(1)
+          modal's `bg-background` it is 5.80:1. Meaning: the aura-soft + aura-line + auraGlow(1)
           recipe is what rule #4 reserves for moment-grade good news («you belong») — a failed
           payment inside it had the surface contradicting the text.
           Still open, not decided here: whether the card should glow AT ALL while past-due. */}

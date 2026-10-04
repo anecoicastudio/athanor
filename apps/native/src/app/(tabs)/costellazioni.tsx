@@ -3,7 +3,7 @@ import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import { FlatList, Pressable, Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
@@ -139,7 +139,7 @@ export default function CostellazioniScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={onRefresh}
-            tintColor={semantic.aura}
+            tintColor={galleria.aura}
           />
         }
         onEndReachedThreshold={0.5}

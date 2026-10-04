@@ -1,9 +1,9 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
 import { auraGlow } from './glow';
 
 /** The aura token's channels, derived — so the token stays the single source (rule #4). */
-const rgb = [1, 3, 5].map((i) => Number.parseInt(semantic.aura.slice(i, i + 2), 16)).join(',');
+const rgb = [1, 3, 5].map((i) => Number.parseInt(galleria.aura.slice(i, i + 2), 16)).join(',');
 
 describe('auraGlow', () => {
   it('level 0 or below → no glow at all', () => {

@@ -14,7 +14,7 @@ import {
   voteKeys,
 } from '@athanor/api';
 import { consensusForCandidacy, formatFundTotal } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { VoteBar } from '@/components/fund/VoteBar';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -179,7 +179,7 @@ export default function CandidacyDetailScreen() {
             emptyLabel={t('fund.candidacy.notFound', locale)}
             onRetry={() => void cardQuery.refetch()}
             className="px-5"
-            loading={<ActivityIndicator color={semantic.aura} />}
+            loading={<ActivityIndicator color={galleria.aura} />}
           />
         </View>
       </FundChrome>
@@ -312,7 +312,7 @@ export default function CandidacyDetailScreen() {
               </View>
             ) : voteState === 'voting' ? (
               <View className="min-h-[44px] items-center justify-center px-5">
-                <ActivityIndicator color={semantic.aura} />
+                <ActivityIndicator color={galleria.aura} />
               </View>
             ) : voteState === 'voted' ? (
               <View className="rounded-full border border-hair px-5 py-3">
