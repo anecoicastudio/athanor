@@ -19,18 +19,19 @@ export default function NotFoundScreen() {
 
   return (
     <Screen>
-      <View className="flex-1 items-center justify-center gap-6 px-8">
-        <Text className="text-center text-lg font-semibold text-foreground">
-          {t('notFound.title', locale)}
-        </Text>
-        <Text className="text-center text-base text-muted-foreground">
-          {t('notFound.body', locale)}
-        </Text>
-        <Button
-          variant="outline"
-          label={t('notFound.home', locale)}
-          onPress={() => router.replace('/(tabs)')}
-        />
+      <View className="flex-1 items-center justify-center gap-[26px] px-5">
+        <View className="gap-2">
+          <Text accessibilityRole="header" className="text-center type-h1 text-foreground">
+            {t('notFound.title', locale)}
+          </Text>
+          <Text className="text-center type-small text-muted-foreground">
+            {t('notFound.body', locale)}
+          </Text>
+        </View>
+        {/* The one way out of a dead end is the screen's primary action. */}
+        <View className="self-stretch">
+          <Button label={t('notFound.home', locale)} onPress={() => router.replace('/(tabs)')} />
+        </View>
       </View>
     </Screen>
   );
