@@ -18,7 +18,7 @@ import { Screen } from '@/components/Screen';
  * Route param `tier` is a tier id (e.g. 'bagliore', 'luce', 'faro', 'costellazione').
  *
  * Mirrors the match.tsx overlay pattern exactly: centered Animated.View fade + scale
- * entrance, glowing <Mandorla> burst (rule #4 — a moment happened: tier crossed),
+ * entrance, the ✦ inside a hairline <Mandorla> (rule 4 — a moment happened: tier crossed),
  * reduced-motion safe (opacity-in only, no transform, hold ~600ms entrance).
  *
  * Registered with `animation: 'fade'` (not presentation:'modal') like match.tsx.

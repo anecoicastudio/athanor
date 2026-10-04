@@ -58,8 +58,8 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * and is not enough where the card's content is a number. Those two compose their data into the
  * label now; this one still cannot, for the nullability reason above.
  *
- * `tone="aura"` is safe HERE only because Home has no other cyan eyebrow — `SectionLabel`'s
- * docblock warns that a second one costs the first its rank. Check that before adding one.
+ * The label is plain grey since 2026-10-04 (#921): it was the one cyan eyebrow on Home, and a
+ * label is not one of the five cyan marks. The waiting Momento's mark is a dot (DESIGN §2.3).
  */
 export function MomentiCard({ locale }: { locale: Locale }) {
   const router = useRouter();

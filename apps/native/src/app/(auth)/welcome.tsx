@@ -359,8 +359,8 @@ export default function WelcomeScreen() {
               has happened to the member yet; an account exists and a mail is in flight, and
               the screen's job is to send them to their inbox. `success` carries the state, the
               same reason the password checklist uses it («a satisfied form rule is a
-              confirmation, not a moment»). The eyebrow keeps the screen's own hero slot —
-              flat cyan text, which rule #4 allows; it is the glow that is reserved. */
+              confirmation, not a moment»). The label keeps the screen's own hero slot, in the
+              plain grey every label has since 2026-10-04 (#921). */
             <View className="mt-6 gap-4">
               <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
               <Text

@@ -10,7 +10,7 @@ import { appStoreGetUrl } from '@/lib/links';
 
 /**
  * Blocking force-update screen (frontend 12 §10.1). No dismiss; rendered as an overlay above the
- * navigator so there's no route to pop (Android back is a no-op, §2.4). Calm — Mandorla glow 0.
+ * navigator so there's no route to pop (Android back is a no-op, §2.4). Calm — a hairline Mandorla.
  */
 export function ForceUpdateScreen() {
   useAnnounceOnMount(t('update.title', deviceLocale));

@@ -15,8 +15,8 @@ import { Screen } from '@/components/Screen';
 
 /**
  * Match overlay — fired on a MUTUAL Momento match (the deck navigates here on a
- * matched accept). This is the one glowing surface of the swipe-deck slice
- * (rule #4 — a moment happened): a glowing <Mandorla> burst with the ✦ mark.
+ * matched accept). This is the one celebration screen of the swipe-deck slice
+ * (rule 4 — a moment happened): the ✦ mark inside a hairline <Mandorla>, no glow.
  *
  * Reduced-motion safe: under Reduce Motion the burst fades opacity only (no
  * scale/transform), following the MomentFlash/AccessibilityInfo pattern.

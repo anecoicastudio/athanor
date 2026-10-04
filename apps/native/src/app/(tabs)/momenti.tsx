@@ -139,7 +139,7 @@ export default function MomentiScreen() {
   });
 
   // Every claim this screen makes about the deck comes from one derivation, tested in
-  // `lib/momenti-deck-state.ts`: which arm renders, whether the cyan eyebrow may say «Hai un
+  // `lib/momenti-deck-state.ts`: which arm renders, whether the label may say «Hai un
   // Momento», and which of the two empty sentences is true (#594).
   const { hasMomento, exhausted, neverHadOne } = momentiDeckView({
     isLoading: deck.isLoading,
