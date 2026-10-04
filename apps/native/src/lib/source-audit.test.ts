@@ -5557,5 +5557,16 @@ describe('icons, header controls and the tab bar keep the Galleria shape (#921)'
     expect(src, 'no navigator badge: it was the ✦ character').not.toMatch(/tabBarBadge|✦/);
     expect(src, 'the dot').toMatch(/h-2 w-2 rounded-full bg-aura/);
     expect(src.match(/aura/g), 'one cyan, and none read in TS').toHaveLength(1);
+    // The dot stands only while a Momento waits, and the tab says so in words in the same case.
+    const flat = src.replace(/\s+/g, ' ');
+    expect(flat, 'waiting = the deck is not empty').toMatch(
+      /const hasUnseen = \(deck\.data\?\.length \?\? 0\) > 0;/,
+    );
+    expect(flat, 'no dot when nothing waits').toMatch(
+      /\{hasUnseen \? \( <View className="[^"]*\bbg-aura\b[^"]*" \/> \) : null\}/,
+    );
+    expect(flat, 'the label follows the same flag').toMatch(
+      /tabBarAccessibilityLabel: hasUnseen \? t\('tabs\.a11y\.momentiUnread', locale\) : t\('tabs\.momenti', locale\)/,
+    );
   });
 });
