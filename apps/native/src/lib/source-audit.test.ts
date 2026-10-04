@@ -4538,6 +4538,45 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
         '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
     ).toEqual([]);
   });
+
+  /**
+   * The cells of a row are not the same height: a pill is 50pt, a `ghost` link 44pt, and a cell
+   * may stack two controls (`ConnectButton` while a request is pending). Measured on an iPhone
+   * SE simulator on 2026-10-04: aligned by their tops, a pill's label and a link's sit 3pt
+   * apart; centred, a link beside a stacked cell lands 12.5pt below the stack's first control.
+   * On the text baseline every first-line label shares one line, whatever its cell holds.
+   *
+   * That baseline is the LABEL's, so a pill has to keep its label in the layout while it is
+   * busy. With the label swapped out for the spinner the cell's baseline fell to the spinner's
+   * foot: the row grew 2pt and the link beside it sat 4.5pt lower than beside an idle pill
+   * (same simulator, same day). With the label kept, a busy pill and an idle one measured the
+   * same on the simulator and on a moto g17: same width, same row, same offset to the link.
+   */
+  it('ButtonRow lines its cells up on the text baseline', () => {
+    const row = stripComments(read(`${SRC}components/ButtonRow.tsx`));
+    expect(
+      /(?<![\w-])items-baseline(?![\w-])/.test(row),
+      'components/ButtonRow.tsx no longer aligns its cells with `items-baseline`. A pill and a ' +
+        'text link then stop sharing a line of text, and which of them looks wrong depends on ' +
+        'what replaced it (the measurements are in the comment above this test).',
+    ).toBe(true);
+  });
+
+  it('a busy Button keeps its label in the layout, under the spinner', () => {
+    const button = stripComments(read(`${SRC}components/Button.tsx`)).replace(/\s+/g, ' ');
+    expect(
+      /loading && 'opacity-0'/.test(button),
+      'components/Button.tsx no longer hides the label of a busy button in place. Rendering ' +
+        'the spinner INSTEAD of the label takes the text baseline out of the cell, so a busy ' +
+        'pill in a `ButtonRow` shifts its neighbours, and a pill sized to its label shrinks ' +
+        'to the spinner.',
+    ).toBe(true);
+    expect(
+      /<View className="absolute [^"]*">\s*<ActivityIndicator\b/.test(button),
+      'the spinner of a busy Button is no longer an absolute overlay: in the flow it sits ' +
+        'beside the hidden label and widens the pill.',
+    ).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------------------

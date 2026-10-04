@@ -37,10 +37,13 @@ import { PRESS_DIM, pillPress } from '@/lib/press';
  * to 0.6 and scales to 0.98, and under Reduce Motion it only dims; the link only dims. Both
  * come from `lib/press.ts`. Disabled is 40%.
  *
- * `loading` swaps the label for a spinner in the variant's own ink and marks the control
- * busy for assistive tech. It implies `disabled`, so a press cannot be queued behind a
- * request that is already in flight — that is why `welcome.tsx` forked this component three
- * times rather than using it.
+ * `loading` shows a spinner in the variant's own ink over the label and marks the control busy
+ * for assistive tech. It implies `disabled`, so a press cannot be queued behind a request that
+ * is already in flight — that is why `welcome.tsx` forked this component three times rather
+ * than using it. The label stays in the layout, invisible, under the spinner: a busy pill keeps
+ * the width and the height its label gave it, and keeps the text baseline `ButtonRow` aligns
+ * its cells on. Beside a link, a busy pill and an idle one measured the same on an iPhone SE
+ * simulator and a moto g17 (2026-10-04): same width, same row height, same offset to the link.
  *
  * `icon` is an optional leading slot (#539), today used only by the two OAuth provider CTAs
  * for their vendor brand marks. It is ABSOLUTELY POSITIONED in a reserved left gutter rather
@@ -172,27 +175,30 @@ export function Button({
         // mirrored-gutter property holds whatever a step measures, without a second number.
         <View className="absolute bottom-0 left-6 top-0 justify-center">{mark}</View>
       ) : null}
+      <Text
+        className={cn(
+          'text-center',
+          // A type class owns size, line height and tracking: no utility for any of them may
+          // sit beside it (`source-audit.test.ts` section 48). 14 is not in the scale, so the
+          // small pill writes it out. The underline is the link's shape, so it sits here and
+          // not in the colour table.
+          link
+            ? 'type-small underline'
+            : small
+              ? 'text-[14px] font-semibold'
+              : 'type-body font-semibold',
+          text,
+          // Hidden, not unmounted: see `loading` in the docblock.
+          loading && 'opacity-0',
+        )}
+      >
+        {label}
+      </Text>
       {loading ? (
-        <ActivityIndicator color={ink} />
-      ) : (
-        <Text
-          className={cn(
-            'text-center',
-            // A type class owns size, line height and tracking: no utility for any of them may
-            // sit beside it (`source-audit.test.ts` section 48). 14 is not in the scale, so the
-            // small pill writes it out. The underline is the link's shape, so it sits here and
-            // not in the colour table.
-            link
-              ? 'type-small underline'
-              : small
-                ? 'text-[14px] font-semibold'
-                : 'type-body font-semibold',
-            text,
-          )}
-        >
-          {label}
-        </Text>
-      )}
+        <View className="absolute bottom-0 left-0 right-0 top-0 items-center justify-center">
+          <ActivityIndicator color={ink} />
+        </View>
+      ) : null}
     </Pressable>
   );
 }
