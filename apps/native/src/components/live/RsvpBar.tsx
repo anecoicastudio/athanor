@@ -8,7 +8,7 @@ import { t } from '@athanor/i18n';
  * screen keeps the «Presto» stub (tickets-qr slice). Optimistic state + the upsert
  * mutation live in the parent; this is presentation. NO client Aura write (rule #1).
  *
- *  - going=false → «Partecipo» (Button light)
+ *  - going=false → «Partecipo» (Button primary)
  *  - going=true  → «✓ Parteciperai» (Button ghost) + «Calendario» (Button ghost)
  *  - soldOut (capacity reached AND not going) → «Tutto esaurito» (disabled)
  *

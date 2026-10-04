@@ -212,8 +212,9 @@ export interface TypeStyle {
   size: number;
   /**
    * px at the default text size; it grows with the member's text size, as `size` does. Measured
-   * on an iPhone SE simulator (36 → 72 at the 2× cap, 2026-10-04); on Android by the source of
-   * react-native 0.86.3 (`TextAttributeProps.kt` converts `lineHeight` from SP), not measured.
+   * on an iPhone SE simulator (36 → 72 at the 2× cap, 2026-10-04). On Android react-native
+   * 0.86.3 converts `lineHeight` from SP (`TextAttributeProps.kt`), and a moto g17 at a font
+   * scale of 2.0 measured 24 → 36 and 21 → 34.8 the same day: less than double at these sizes.
    */
   lineHeight: number;
   /** One of `typography.weights`: on device a weight is a font file, not a number. */

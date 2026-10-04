@@ -13,7 +13,7 @@ describe('what a press looks like (DESIGN §10)', () => {
     expect(pillPress(true)).toBe('active:opacity-60');
   });
 
-  it('the dim is one class, shared with everything that is pressed and is not a pill', () => {
+  it('the dim is one class, and a pill takes that same class in both states', () => {
     expect(PRESS_DIM).toBe('active:opacity-60');
     expect(pillPress(false).split(' ')).toContain(PRESS_DIM);
     expect(pillPress(true)).toBe(PRESS_DIM);

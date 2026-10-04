@@ -1,6 +1,7 @@
 /**
  * What a press looks like (DESIGN §10): a pill dims to 0.6 and scales to 0.98; a chip, a row,
- * an icon or a text link only dims. Neither is animated — the state is a cut, in and out.
+ * an icon or a text link only dims. No transition class is set beside either, so the state is
+ * meant as a cut, in and out; no measurement below observes its timing.
  *
  * Under Reduce Motion the scale goes and the dim stays: §10 replaces a transition with an
  * opacity cut, and the scale is the only part of a press that moves. The flag is an ARGUMENT

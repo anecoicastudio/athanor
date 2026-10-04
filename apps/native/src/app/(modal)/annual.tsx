@@ -420,7 +420,7 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard. One candidacy
+        {/* 4. «Candida il tuo sogno» — the `primary` Button → candidacy wizard. One candidacy
             per edition (dream_candidacies_one_per_edition), so an existing row replaces the
             CTA; while it is still 'submitted' (the RLS update window) and the window is open,
             the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}

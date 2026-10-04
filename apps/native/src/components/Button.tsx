@@ -12,14 +12,14 @@ import { PRESS_DIM, pillPress } from '@/lib/press';
  *     everywhere, an action that makes a moment included (accepting a Momento, contributing).
  *   - `celebration` — the cyan pill: `aura` fill, `onAura` label. On the five celebration
  *     screens and nowhere else (match, new level, favour done, candidacy sent, contribution
- *     thanks): rule 4 keeps cyan off every action, and `source-audit.test.ts` section 47 holds
- *     both the list of screens and this table to it.
+ *     thanks): rule 4 keeps cyan off every other action, and `source-audit.test.ts` section 47
+ *     holds both the list of screens and this table to it.
  *   - `outline` — no fill, a 1px `foregroundMuted` border, foreground label: the second action
  *     beside a primary, and the «go home» of a dead end.
  *   - `destructive` — the same outline in `error`, border and label. It replaced the filled
  *     `danger` button.
  *   - `ghost` — not a pill: a text link, 15px, foreground, underlined, in a 44pt target.
- *     «più tardi», «Annulla».
+ *     «più tardi», «Fatto».
  *   - `apple` — the one platform-mandated exception: Apple's HIG requires its own
  *     white-fill/black-ink Sign in with Apple button (ruled 2026-09-19 on #79). It serves
  *     exactly one call site, the Apple CTA on `welcome.tsx` — never reach for it elsewhere.
