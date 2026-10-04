@@ -2404,11 +2404,13 @@ const openingTags = (src: string, tag: string): { line: number; attrs: string }[
  *
  * ## A bare `Switch` is an unnamed control
  *
- * React Native gives `Switch` its role and its checked state from `value`, and NOTHING else. The
- * label `Text` beside it in the row is a sibling, not an association — there is no `htmlFor`
- * here — so a `Switch` with no `accessibilityLabel` announces as «attivato, interruttore» with
- * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was
- * every switch the app had at the time.
+ * A switch has a role and a checked state, and NOTHING else. The label `Text` beside it in the
+ * row is a sibling, not an association — there is no `htmlFor` here — so a `Switch` with no
+ * `accessibilityLabel` announces as «attivato, interruttore» with no subject. Eleven platform
+ * switches shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was every switch the
+ * app had at the time. Since 2026-10-04 the tag is the app's own `components/Switch.tsx` (#921),
+ * whose type requires the label; this walk stays, because a type does not see an empty string
+ * and the register below is what makes a new toggle screen get read.
  *
  * The check is per-JSX-site, not per-runtime-control: `notif-prefs.tsx` renders six switches
  * from one tag inside `PREF_ROWS.map`, so a count here would be a number that rots. The property
@@ -2455,7 +2457,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     expect(
       unnamed,
       `an unnamed <Switch>:\n` +
-        `RN derives the role and the checked state from \`value\`, and nothing else — the label ` +
+        `A switch has a role and a checked state, and nothing else — the label ` +
         `Text beside it is an unassociated sibling, so this toggle announces with no subject. ` +
         `Pass accessibilityLabel with the SAME key the visible label renders, so the two ` +
         `cannot drift (#635).`,
@@ -2667,8 +2669,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:469',
-    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
+    'components/Switch.tsx:54': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -5383,5 +5386,86 @@ describe('surfaces and text primitives keep the Galleria look (#921)', () => {
     expect(sixty, 'the 60pt disc is the story ring’s and nobody else’s').toEqual([
       'components/stories/StoryRing.tsx',
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the grouped rows and the switch (#921, 2026-10-04).
+ *
+ * A list is rows inside one `surface` block (DESIGN §9 «Grouped rows»): `RowGroup` draws the
+ * block and the hairlines, `Row` draws a row. A toggle is the app's own `Switch` (§9), a
+ * `Pressable` with the `switch` role: the platform switch takes its colours as props from every
+ * call site, which is seven places to turn cyan again, and it draws a different control on each
+ * OS. These pin the shapes a walk would otherwise have to re-measure, and the two things that
+ * bring the old look back: a second row component, and a platform switch.
+ */
+describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
+  const component = (name: string) => stripComments(read(`${SRC}components/${name}.tsx`));
+  const appCode = () =>
+    FILES.filter((p) => !isTest(p)).map((p) => [rel(p), stripComments(read(p))] as const);
+
+  it('the switch is a 46×28 pressable with the switch role and a 44pt target', () => {
+    const src = component('Switch');
+    expect(src, 'the role').toMatch(/accessibilityRole="switch"/);
+    expect(src, 'the checked state').toMatch(/accessibilityState=\{\{[^}]*\bchecked\b/);
+    expect(src, '46 wide').toMatch(/w-\[46px\]/);
+    expect(src, '28 tall').toMatch(/(?<![\w-])h-7(?![\w-])/);
+    // 28 + 8 + 8 = 44 (DESIGN §10). The width is already past the floor.
+    expect(src, 'hitSlop makes up the height').toMatch(/SWITCH_SLOP = \{ top: 8, bottom: 8 \}/);
+    expect(src, 'and the control takes it').toMatch(/hitSlop=\{SWITCH_SLOP\}/);
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(src, 'it names itself: the prop is required').toMatch(/accessibilityLabel: string/);
+  });
+
+  it('the switch is white when on, a grey outline when off, and never cyan', () => {
+    const src = component('Switch');
+    expect(src, 'on = a foreground track').toMatch(/bg-foreground/);
+    expect(src, 'on = a background knob').toMatch(/bg-background/);
+    expect(src, 'off = a secondary-grey outline').toMatch(/border-muted-foreground/);
+    expect(src, 'off = a grey knob').toMatch(/bg-muted-foreground/);
+    expect(src, 'no cyan, no green, no glow, no colour read in TS').not.toMatch(
+      /aura|success|galleria\./,
+    );
+  });
+
+  it('nothing imports the platform switch', () => {
+    const hits = appCode()
+      .filter(([, src]) => /import\s*\{[^}]*\bSwitch\b[^}]*\}\s*from\s*'react-native'/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the platform `Switch` takes its colours from the call site and looks different on each ' +
+        'OS. Import `Switch` from `@/components/Switch` (DESIGN §9).',
+    ).toEqual([]);
+  });
+
+  it('a row is one 60pt button with a 17/500 title and a 15 grey second line', () => {
+    const src = component('Row');
+    expect(src, 'min-h 60, never a fixed height').toMatch(/(?<![\w-])min-h-15(?![\w-])/);
+    expect(src, 'the title').toMatch(/type-body font-medium/);
+    expect(src, 'the second line and the value').toMatch(/type-small text-muted-foreground/);
+    expect(src, 'a destructive title is the error red').toMatch(/text-error/);
+    expect(src, 'one accessible button').toMatch(/accessibilityRole="button"/);
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(src, 'a long title, value or second line wraps').not.toMatch(/numberOfLines/);
+    expect(src, 'no cyan').not.toMatch(/aura/);
+  });
+
+  it('a group is one borderless surface block, radius 28, with hairlines between rows', () => {
+    const src = component('RowGroup');
+    expect(src, 'radius 28').toMatch(/rounded-\[28px\]/);
+    expect(src, 'the surface fill').toMatch(/bg-surface(?![\w-])/);
+    expect(src, 'the hairline between rows').toMatch(/bg-hair/);
+    expect(src, 'no border on the block, no legacy fill').not.toMatch(/border-hair|bg-raise/);
+  });
+
+  it('there is one row component', () => {
+    const hits = FILES.map((p) => [rel(p), stripComments(read(p))] as const)
+      .filter(([, src]) => /\bSettings(?:Group|Row)\b/.test(src))
+      .map(([at]) => at);
+    expect(hits, '`SettingsGroup` / `SettingsRow` became `RowGroup` / `Row`').toEqual([]);
   });
 });

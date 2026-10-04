@@ -228,8 +228,8 @@ describe('the rejected inert value #615A7E', () => {
 describe('forbidden pairs — no call site may use these', () => {
   it('error clears on the canvas and on a card — the surfaces it IS used on', () => {
     expect(ratio(galleria.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 5.80 — modal bodies, Circle past-due
-    expect(ratio(galleria.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — SettingsRow danger
-    expect(ratio(galleria.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — MilestoneRow menu
+    expect(ratio(galleria.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — a legacy card
+    expect(ratio(galleria.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — a destructive Row, MilestoneRow menu
   });
 
   it('error on a chip stays unusable (was MilestoneRow, now bg-surface)', () => {
