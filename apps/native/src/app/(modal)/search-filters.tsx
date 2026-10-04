@@ -43,8 +43,8 @@ import {
  * wiring them now would silently pass an ignored param. They show «in arrivo» to be
  * honest about the status.
  *
- * Rule #4: cyan chips (auraSoft) are CORRECT here — selected advanced-filter chips are
- * an active accent / selection affordance, not a glow. No literal hex below.
+ * A selected advanced-filter chip is `Chip`'s foreground fill: rule 4 keeps cyan off
+ * every selected state. No literal hex below.
  */
 
 export default function SearchFiltersScreen() {

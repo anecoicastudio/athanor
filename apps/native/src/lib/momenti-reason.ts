@@ -55,7 +55,8 @@ export function reasonPrefix(kind: MomentoReasonKind, locale: Locale): string {
  * The chip's own SHORT vocabulary (#526) — the pill only, never the deck.
  *
  * `Tag shrink` caps the «Ti potrebbe interessare» pill at 40 % of the row with a two-line
- * clamp, which leaves a 92.4 px text box at a 390 viewport and 86.4 px at 375. Three of the
+ * clamp, which left a 92.4 px text box at a 390 viewport and 86.4 px at 375 (13 px label, before
+ * the pill took the 14 px chip label on 2026-10-04). Three of the
  * sixteen localized full forms need a THIRD line in that box and truncate: «Potrebbe cercare
  * ciò che offri», "May be looking for what you offer", "Crafts that complete each other".
  * Widening the cap is not the fix — the pixels come out of the member's NAME, and this row is
@@ -69,8 +70,9 @@ export function reasonPrefix(kind: MomentoReasonKind, locale: Locale): string {
  * sends KINDS without tags (#124), so there is nothing to splice, and it names the reason and
  * stops.
  *
- * Thirteen of the sixteen strings are the deck's, duplicated verbatim — only the three that did
- * not fit moved: `offering` in both locales, `profession` in EN. «Mestieri che si completano» is
+ * Twelve of the sixteen strings are the deck's, duplicated verbatim — only the four that did
+ * not fit moved: `offering` in both locales, `profession` in EN, and `mutualActivity` in EN
+ * ("You've shared", 2026-10-04, when the pill took the 14 px chip label). «Mestieri che si completano» is
  * 26 characters and wraps inside the two lines, so IT keeps it; the EN chip says "Complementary
  * crafts" rather than anything shorter-and-vaguer, because this term fires only on crafts that
  * COMPLEMENT one another and never on the same craft twice. The duplication is deliberate: the
@@ -91,7 +93,7 @@ const CHIP_KEY: Record<MomentoReasonKind, MessageKey> = {
  * The reason as the suggestion pill says it — short enough to wrap inside the pill's two lines.
  *
  * `reasonPrefix` is still the deck's; the two are asserted against each other in the test for
- * every string the two sets share, so a silent drift in those thirteen fails.
+ * every string the two sets share, so a silent drift in those twelve fails.
  */
 export function reasonChipLabel(kind: MomentoReasonKind, locale: Locale): string {
   return t(CHIP_KEY[kind], locale);

@@ -56,6 +56,7 @@ export function HandleField({
         value={value}
         onChangeText={(next) => onChangeText(normalizeHandleInput(next))}
         editable={lockedNote === null}
+        invalid={lockedNote === null && line?.tone === 'error'}
         placeholder={t('handle.placeholder', locale)}
         accessibilityLabel={t('handle.label', locale)}
         autoCapitalize="none"

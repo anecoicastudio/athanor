@@ -29,11 +29,15 @@ export function Section({
 }) {
   return (
     <Card>
-      <View className="flex-row items-center justify-between gap-3">
+      {/* Wraps twice. Three 14px chips beside a long label («SEGNO ZODIACALE») are wider than the
+          card on an iPhone SE, where the last chip was cut at the card's edge, so the group
+          drops under the label; and at the largest text size the three chips are wider than
+          the card by themselves, so the group wraps too (seen on that simulator, 2026-10-04). */}
+      <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <SectionLabel>{label}</SectionLabel>
         {editing ? (
           <View
-            className="flex-row gap-1.5"
+            className="flex-row flex-wrap gap-1.5"
             accessibilityRole="radiogroup"
             accessibilityLabel={t('profile.visibility.label', locale)}
           >
@@ -41,7 +45,6 @@ export function Section({
               <Chip
                 key={opt}
                 role="radio"
-                small
                 label={t(`visibility.${opt}` as MessageKey, locale)}
                 selected={(visibility[field] ?? 'members') === opt}
                 onPress={() => setVis(field, opt)}

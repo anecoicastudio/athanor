@@ -33,8 +33,8 @@ import type { EventCategory } from '@athanor/schemas';
  * capability, and `features.advancedFilters` is the people-search perk. Copying the
  * entitlement guard here would invent a paywall the product never asked for.
  *
- * Rule #4: cyan `Chip` fills are correct here — a selected filter is an active accent,
- * not a moment-grade glow. No literal hex below; every colour is a token class.
+ * A selected filter is `Chip`'s foreground fill: rule 4 keeps cyan off every selected
+ * state. No literal hex below; every colour is a token class.
  */
 
 export default function EventFiltersScreen() {

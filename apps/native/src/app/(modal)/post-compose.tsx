@@ -422,13 +422,12 @@ export default function PostComposeScreen() {
             <SectionLabel>{t('post.compose.catLabel', locale)}</SectionLabel>
             {/* `Chip`, not a hand-rolled pill (#635). These four announced no selected state at
                 all — the cyan fill was the only thing saying which category was chosen, and
-                colour is not an announcement. `small` is the compact variant and the only one
-                that carries DESIGN §10's 44pt floor, which these pills (py-2, ~34pt) missed. */}
+                colour is not an announcement. `Chip` also carries DESIGN §10's 44pt target,
+                which these pills (py-2, ~34pt) missed. */}
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => (
                 <Chip
                   key={c}
-                  small
                   label={t(`feed.filter.${c}` as MessageKey, locale)}
                   selected={c === category}
                   onPress={() => setCategory(c)}

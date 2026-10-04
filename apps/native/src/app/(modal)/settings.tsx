@@ -189,7 +189,7 @@ export default function SettingsScreen() {
               <Text className="text-base text-foreground">{t('settings.lang.title', locale)}</Text>
               <Text className="text-[13px] text-faint">{t('settings.lang.desc', locale)}</Text>
             </View>
-            <LocaleChips small value={locale} onChange={switchLocale} />
+            <LocaleChips value={locale} onChange={switchLocale} />
           </View>
           {/* Tema scuro — dark-only in Fase 1: display-on, non-interactive */}
           <SettingsRow

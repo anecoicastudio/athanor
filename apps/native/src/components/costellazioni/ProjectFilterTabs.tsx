@@ -16,12 +16,12 @@ const FILTERS: ProjectFilter[] = [
 /**
  * Horizontal board filter row, built from `Chip` (#635).
  *
- * It hand-rolled the Chip vocabulary — the same `border-aura-line bg-aura-soft` fill, the same
+ * It hand-rolled what `Chip` drew then — the same `border-aura-line bg-aura-soft` fill, the same
  * six keys `BallotFilterChips` already renders through `Chip` — but none of the contract behind
  * it: six bare `Pressable`s with no role and no `selected`, so which filter was active reached a
- * screen reader as cyan and nothing else. `small` is deliberate: it is the compact variant AND
- * the only one carrying the 44pt floor these pills already had, so routing through the default
- * variant would have regressed a target #638 records as correct.
+ * screen reader as cyan and nothing else. Since 2026-10-04 `Chip` has one size, a foreground
+ * fill when selected, and the 44pt target #638 records for these pills through its own
+ * `hitSlop`.
  */
 export function ProjectFilterTabs({
   active,
@@ -41,7 +41,6 @@ export function ProjectFilterTabs({
       {FILTERS.map((f) => (
         <Chip
           key={f}
-          small
           label={t(`costellazioni.filter.${f}` as MessageKey, locale)}
           selected={f === active}
           onPress={() => onChange(f)}

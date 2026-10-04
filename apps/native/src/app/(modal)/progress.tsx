@@ -248,12 +248,11 @@ export default function ProgressScreen() {
     );
   }
 
-  // `Chip small` (#635). The role was already here; the SELECTED state was not, so which phase
+  // `Chip` (#635). The role was already here; the SELECTED state was not, so which phase
   // an update belongs to was conveyed by cyan alone — and at py-2 the pill missed 44pt.
   const phaseChip = (id: string | null, label: string) => (
     <Chip
       key={id ?? 'none'}
-      small
       label={label}
       selected={phaseId === id}
       onPress={() => setPhaseId(id)}

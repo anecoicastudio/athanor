@@ -62,12 +62,11 @@ function FilterPills({
   // line anyway.
   return (
     <View className="flex-row flex-wrap gap-2 px-5 py-3">
-      {/* `Chip small` (#635): these were bare Pressables, so the active filter reached a screen
+      {/* `Chip` (#635): these were bare Pressables, so the active filter reached a screen
           reader as cyan and nothing else — and at py-2 they sat under DESIGN §10's 44pt. */}
       {FILTERS.map((f) => (
         <Chip
           key={f}
-          small
           label={t(`ledger.filter.${f}` as MessageKey, locale)}
           selected={f === active}
           onPress={() => onChange(f)}

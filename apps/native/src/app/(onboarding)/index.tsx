@@ -300,7 +300,7 @@ export default function OnboardingScreen() {
                   the identity tags above. */}
                   <View className="gap-3 pt-2">
                     <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-                    <LocaleChips small value={locale} onChange={switchLocale} />
+                    <LocaleChips value={locale} onChange={switchLocale} />
                   </View>
                 </View>
               ) : null}

@@ -1108,7 +1108,7 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
  * in the toolchain can see it — NativeWind has no `placeholder:` variant on native, so there is
  * no class for a linter to miss either.
  *
- * The fix is a primitive (`Input` for the pill, `Field` for the hero-radius block), and both omit
+ * The fix is a primitive (`Input` for the pill, `Field` for the block), and both omit
  * `placeholderTextColor` from their prop types so it cannot be handed back. This guard covers the
  * raw `<TextInput>`s that remain — the compose bars and the fund controls, which have their own
  * shapes and are not worth a third primitive.
@@ -1146,11 +1146,16 @@ describe('placeholders are a token, never the platform default (#499)', () => {
 
   /**
    * The primitive is the reason the list above stays short, so the ways in are pinned by name.
-   * A newly hand-rolled hero-radius field is the regression this catches: it would satisfy the
+   * A newly hand-rolled block field is the regression this catches: it would satisfy the
    * assertion above just by pasting the prop, which is exactly the drift #499 removed.
    *
+   * The pin is on the block's RADIUS, because that is what a hand-rolled copy would paste. It
+   * was `hero` (26) until 2026-10-04; under Galleria a multi-line field is radius 24 (DESIGN
+   * §9), so the pin followed it, and the second assertion below keeps the old radius from
+   * coming back on a text field.
+   *
    * Matched on the ELEMENT's own attributes, not on the file — a file-level match would also
-   * name every screen that merely wraps something in a `rounded-hero` container.
+   * name every screen that merely wraps something in a container of the same radius.
    *
    * The list carries NO exceptions, and keeping it that way is the whole of #504. The three
    * compose screens — story, post, project — were the rest of this family and sat here in a
@@ -1161,18 +1166,28 @@ describe('placeholders are a token, never the platform default (#499)', () => {
    * The exception array is gone rather than emptied: an empty list is an invitation to append to,
    * and the next hand-rolled field should have nowhere to be written down.
    */
-  it('the hero-radius block field exists in exactly one place', () => {
+  it('the block field exists in exactly one place', () => {
     const users = [
       ...new Set(
         textInputs()
-          .filter(([, attrs]) => /\brounded-hero\b/.test(attrs))
+          .filter(([, attrs]) => /(?<![\w-])rounded-\[24px\]/.test(attrs))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ].sort();
     expect(
       users,
-      'a hero-radius text field has been hand-rolled again — use the Field primitive (#499)',
+      'a block text field has been hand-rolled again — use the Field primitive (#499)',
     ).toEqual(['components/Field.tsx']);
+  });
+
+  it('no text field keeps the hero radius the block had before Galleria', () => {
+    expect(
+      textInputs()
+        .filter(([, attrs]) => /\brounded-hero\b/.test(attrs))
+        .map(([at]) => at),
+      'a `rounded-hero` text field: the block field is radius 24 since 2026-10-04 (DESIGN §9) ' +
+        '— use the Field primitive (#499)',
+    ).toEqual([]);
   });
 });
 
@@ -5099,6 +5114,129 @@ describe('a press is spelled in one module, and its scale asks Reduce Motion (#9
       hits,
       "`pillPress(true|false)`: the argument is the member's setting, from " +
         '`useReducedMotion()` (`@/hooks/use-reduced-motion`), never a literal.',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 50 — chips, tags and fields keep the Galleria shape (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §9 on the primitives every form and every filter is built from: `Chip`, `Tag`, `Input`
+ * and `Field`. Each line below is a look that fails silently — the control still works, it is
+ * only wrong — and each was the shipped look until 2026-10-04:
+ *
+ *   - **No cyan.** A selected chip is the foreground fill. Rule 4 keeps `aura` off every
+ *     selected state, and a chip was the most common one (`bg-aura-soft` + `border-aura-line`).
+ *   - **No fill on a chip or a tag at rest.** The `raise-2` fill is the surface on which the
+ *     secondary grey is 3.85:1 (`contrast.test.ts`); a quiet `Tag` on no fill reads on the
+ *     stage or on a block, where that grey clears AA. A fill coming back brings the failure
+ *     with it.
+ *   - **A chip is 32pt tall and its target is 44.** `min-h`, so a large text size grows it, and
+ *     `hitSlop` for the rest: §10's floor is on the target, not on the drawing.
+ *   - **A press always answers.** `PRESS_DIM` sits in the class list unconditionally: an
+ *     `active:` class that appears after the first render remounts the children
+ *     (`lib/press.ts` says where that was read).
+ *   - **A field is a 50pt `surface` pill with no border at rest.** The border is there, in
+ *     `transparent`, so focus and error colour it without moving the text by a pixel.
+ *   - **A field's vertical padding is physical.** `py-*` compiles to `padding-block`, and a
+ *     multi-line iOS `TextInput` draws its text as if that were absent: 8pt higher than with
+ *     `pt-`/`pb-` on an iPhone SE simulator (2026-10-04; `Input`'s docblock has the figures).
+ *     It is §40's finding on the other axis, held here for the two files that build fields.
+ */
+describe('chips, tags and fields keep the Galleria shape (#921)', () => {
+  const code = (f: string) => stripComments(read(`${SRC}components/${f}`));
+  const PRIMITIVES = ['Chip.tsx', 'Tag.tsx', 'Input.tsx', 'Field.tsx', 'LocaleChips.tsx'];
+
+  it('none of them names a cyan class', () => {
+    const hits = PRIMITIVES.flatMap((f) =>
+      [...code(f).matchAll(/(?<![\w-])(?:text|bg|border)-(?:aura|on-aura)[\w-]*/g)].map(
+        (m) => `components/${f}  ${m[0]}`,
+      ),
+    );
+    expect(
+      hits,
+      'cyan on a chip, a tag or a field: a selected chip is the foreground fill, a focused ' +
+        'field takes a foreground border (rule 4, DESIGN §9)',
+    ).toEqual([]);
+  });
+
+  it('a chip fills only when selected, and a tag never', () => {
+    const fills = (f: string) =>
+      [...code(f).matchAll(/(?<![\w-])bg-[\w-]+(?:\/\d+)?/g)].map((m) => m[0]);
+    expect(fills('Chip.tsx'), 'the selected chip is the one fill a chip has').toEqual([
+      'bg-foreground',
+    ]);
+    expect(fills('Tag.tsx'), 'a tag is a hairline pill with nothing behind its text').toEqual([]);
+  });
+
+  it('a chip is 32pt tall with a 14px label, and its target reaches 44pt', () => {
+    const chip = code('Chip.tsx');
+    expect(chip, 'the chip lost its `min-h-[32px]` floor').toMatch(/(?<![\w-])min-h-\[32px\]/);
+    expect(chip, 'a fixed height on a chip clips its label at a large text size').not.toMatch(
+      /(?<![\w-])h-\[\d+px\]/,
+    );
+    expect(chip, 'the chip label is the fixed 14px size (DESIGN §4)').toMatch(
+      /(?<![\w-])text-\[14px\]/,
+    );
+    const slop = chip.match(/top:\s*(\d+),\s*bottom:\s*(\d+)/);
+    expect(slop, 'the chip lost its vertical `hitSlop`').not.toBeNull();
+    expect(chip, 'the slop is declared but not handed to the Pressable').toMatch(/\bhitSlop=\{/);
+    expect(
+      32 + Number(slop?.[1]) + Number(slop?.[2]),
+      'a 32pt chip and its vertical slop must make the 44pt target (DESIGN §10)',
+    ).toBeGreaterThanOrEqual(44);
+  });
+
+  it('a tag draws the same pill as a chip, at the same label size', () => {
+    const tag = code('Tag.tsx');
+    expect(tag).toMatch(/(?<![\w-])min-h-\[32px\]/);
+    expect(tag).toMatch(/(?<![\w-])text-\[14px\]/);
+  });
+
+  it('a chip always carries the pressed state', () => {
+    const chip = code('Chip.tsx');
+    expect(chip, 'the chip does not take `PRESS_DIM` from lib/press').toMatch(
+      /import \{[^}]*\bPRESS_DIM\b[^}]*\} from '@\/lib\/press'/,
+    );
+    expect(
+      chip.match(/(?:&&|\?|:)\s*PRESS_DIM\b/),
+      'a conditional `PRESS_DIM`: the class must be there from the first render',
+    ).toBeNull();
+    expect(chip, '`PRESS_DIM` is imported and never put in a class list').toMatch(
+      /[(,]\s*PRESS_DIM\s*[,)]/,
+    );
+  });
+
+  it.each(['Input.tsx', 'Field.tsx'])(
+    '%s is a 50pt surface pill with a border that only shows on focus or error',
+    (f) => {
+      const src = code(f);
+      expect(src, 'the field lost its `min-h-[50px]` floor').toMatch(/(?<![\w-])min-h-\[50px\]/);
+      expect(src, 'the field fills with `surface`').toMatch(/(?<![\w-])bg-surface(?![\w-])/);
+      expect(src, 'a legacy fill on the field').not.toMatch(/(?<![\w-])bg-raise/);
+      expect(src, 'the rest border is transparent, so focus moves nothing').toMatch(
+        /(?<![\w-])border-transparent(?![\w-])/,
+      );
+      expect(src, 'a hairline at rest: the Galleria field has no rest border').not.toMatch(
+        /(?<![\w-])border-hair(?![\w-])/,
+      );
+    },
+  );
+
+  it('the files that build fields spell vertical padding physically', () => {
+    const hits = ['Input.tsx', 'Field.tsx'].flatMap((f) => {
+      const src = code(f);
+      return [...src.matchAll(/(['"`])((?:(?!\1)[^\\\n])*)\1/g)].flatMap((lit) =>
+        [...(lit[2] as string).matchAll(/(?<![\w-])-?(?:py|my)-[\w[\].]+/g)].map(
+          (m) => `components/${f}:${src.slice(0, lit.index).split('\n').length}  ${m[0]}`,
+        ),
+      );
+    });
+    expect(
+      hits,
+      'use `pt-N pb-N`: a multi-line iOS TextInput draws its text as if `py-N` were not there',
     ).toEqual([]);
   });
 });

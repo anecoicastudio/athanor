@@ -34,6 +34,7 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { EVENT_HREF } from '@/components/live/EventRow';
+import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -557,9 +558,12 @@ export default function EventCreateScreen() {
                 if (nameMissing) setNameMissing(false);
               }}
               maxLength={140}
+              invalid={nameMissing}
             />
             {nameMissing ? (
-              <Text className="text-sm text-error">{t('event.create.nameRequired', locale)}</Text>
+              <Text className="text-[14px] text-error">
+                {t('event.create.nameRequired', locale)}
+              </Text>
             ) : null}
           </View>
 
@@ -568,14 +572,13 @@ export default function EventCreateScreen() {
               an absent paragraph asserts nothing. */}
           <View className="gap-2" ref={reveal.rowRef('desc')}>
             {label('event.create.desc')}
-            <Input
+            <Field
               {...reveal.fieldProps('desc')}
               placeholder={t('event.create.descPlaceholder', locale)}
               value={description}
               onChangeText={setDescription}
               multiline
               maxLength={2000}
-              className="min-h-[120px]"
             />
           </View>
 
@@ -585,7 +588,6 @@ export default function EventCreateScreen() {
               {CATEGORIES.map((c) => (
                 <Chip
                   key={c}
-                  small
                   label={t(`event.cat.${c}` as MessageKey, locale)}
                   selected={c === category}
                   onPress={() => setCategory(c)}

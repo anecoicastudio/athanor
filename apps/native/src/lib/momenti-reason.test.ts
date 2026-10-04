@@ -87,8 +87,8 @@ describe('reasonPrefix', () => {
 
 describe('reasonChipLabel', () => {
   // #526: `Tag shrink` caps the «Ti potrebbe interessare» pill at 40 % with a two-line clamp,
-  // which leaves a 92.4 px text box at 390 and 86.4 px at 375 (measured on Expo web, 13 px
-  // HankenGrotesk). Three of the sixteen localized full forms need a THIRD line there and
+  // which left a 92.4 px text box at 390 and 86.4 px at 375 (measured on Expo web, 13 px
+  // HankenGrotesk, before the 14 px chip label of 2026-10-04). Three of the sixteen localized full forms need a THIRD line there and
   // truncate. Marco ruled a short vocabulary for the chip alone on 2026-08-30.
   it('shortens the prefixes that overflowed the pill (#526)', () => {
     expect(reasonChipLabel('offering', 'it')).toBe('Cerca ciò che offri');
@@ -120,23 +120,25 @@ describe('reasonChipLabel', () => {
     );
   });
 
-  it('says exactly what the deck says for the six kinds that kept both locales', () => {
-    // Thirteen of the sixteen strings are unchanged copy. `offering` moved in both locales and
-    // `profession` in EN only, so these six kinds match on both. The keys are still separate,
-    // so the chip can move later without touching the deck — but the words must not drift for
-    // no reason.
-    for (const kind of [
-      'shared',
-      'seeking',
-      'skills',
-      'city',
-      'mutualActivity',
-      'newDream',
-    ] as const) {
+  it('says exactly what the deck says for the five kinds that kept both locales', () => {
+    // Twelve of the sixteen strings are unchanged copy. `offering` moved in both locales,
+    // `profession` and `mutualActivity` in EN only, so these five kinds match on both. The keys
+    // are still separate, so the chip can move later without touching the deck — but the words
+    // must not drift for no reason.
+    for (const kind of ['shared', 'seeking', 'skills', 'city', 'newDream'] as const) {
       for (const locale of ['it', 'en'] as const) {
         expect(reasonChipLabel(kind, locale)).toBe(reasonPrefix(kind, locale));
       }
     }
+  });
+
+  it('shortens mutualActivity in EN only, for the 14px chip label', () => {
+    // At 14px "You've already shared" took a third line in the pill on an iPhone SE simulator
+    // (2026-10-04) and the clamp cut it. Marco chose "You've shared" that day; the cap does not
+    // widen (#526). «Avete già condiviso» fits and stays the deck's words.
+    expect(reasonChipLabel('mutualActivity', 'en')).toBe("You've shared");
+    expect(reasonPrefix('mutualActivity', 'en')).toBe("You've already shared");
+    expect(reasonChipLabel('mutualActivity', 'it')).toBe(reasonPrefix('mutualActivity', 'it'));
   });
 
   it('covers every reason kind in both locales — no chip renders a raw key', () => {
