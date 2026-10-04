@@ -294,8 +294,8 @@ export function ProfileEditForm({
             `shouldGuardExit` stands down while a write is in flight, so an enabled control here
             would unmount the form mid-save.
 
-            A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step is
-            3.5px on device, so `h-11` would measure 38.5pt there while passing the web walk.
+            A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step was
+            3.5px on device until 2026-10-04 (#921), so `h-11` measured 38.5pt and passed on web.
             Text «Annulla» rather than a `‹`: DESIGN §6 reserves the chevron for pushed screens
             and sheets via `ModalHeader`, and a tab root has nothing to pop — this leaves a mode,
             not a screen.

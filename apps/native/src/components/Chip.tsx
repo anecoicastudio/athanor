@@ -7,8 +7,8 @@ import { Pressable, Text, cn } from '@/tw';
  * type scale only: DESIGN §10's 44pt floor is on both arms, because it is a
  * property of a tap target and not of a size (#635). It used to sit on `small`
  * alone, which read as "the compact one is the careful one" — the default arm's
- * `py-3` over an unsized label lands near 41pt, so every chip that skipped
- * `small` missed the floor. Mirrors the onboarding inline chip.
+ * `py-3` over an unsized label landed near 41pt (at the 3.5px step, before
+ * 2026-10-04), so a chip that skipped `small` missed the floor. Mirrors the onboarding chip.
  *
  * `role` is the a11y contract, not a second look. A chip inside a container that
  * declares `accessibilityRole="radiogroup"` is a RADIO — VoiceOver announces

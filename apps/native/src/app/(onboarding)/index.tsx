@@ -217,9 +217,9 @@ export default function OnboardingScreen() {
             {/* The back slot is reserved unconditionally (#164): a conditionally rendered
             arrow moved the row's content between step 0 and 1. The slot is a real 44pt tap
             target (DESIGN §10 — the old bare glyph + hitSlop measured ~38pt wide). Literal
-            `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px on device, so
-            `h-11` is 38.5pt there while measuring a passing 44px on web — the same trap
-            `Input.tsx` documents. -ml-3 keeps the glyph optically near the gutter. Step 0
+            `min-h-[44px] min-w-[44px]`, not `h-11`: until 2026-10-04 (#921) a spacing step was
+            3.5px on device, so `h-11` was 38.5pt there while measuring a passing 44px on web —
+            the trap `Input.tsx` records. -ml-3 keeps the glyph optically near the gutter. Step 0
             renders a hidden placeholder, not a disabled button, so screen readers gain no
             phantom control. */}
             <View className="-ml-3 min-h-[44px] min-w-[44px]">

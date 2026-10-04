@@ -327,7 +327,7 @@ export default function PostComposeScreen() {
                     >
                       <View
                         // A drawing, not the 🎧 character (#753), so it cannot outgrow the hard
-                        // 70pt tile at any text size — the job the `ornament` cap did for the
+                        // 80pt tile at any text size — the job the `ornament` cap did for the
                         // character. `PlayGlyph`, not the set's `waves`: on the phone that mark
                         // reads as a Wi-Fi signal (ruling 2026-09-20), and the duration under it
                         // already says audio. The wrapper above carries the label.

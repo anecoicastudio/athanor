@@ -1,11 +1,12 @@
 import { defineConfig } from 'vitest/config';
 
-// Mirrors packages/i18n/vitest.config.ts. This package is data, not logic — tokens.ts is a
-// wall of `as const` objects — so the suite exists for a different reason than core's: without
-// a `test` script, `turbo test` skipped this workspace in SILENCE, and a workspace that is
-// never run looks identical to one that always passes (#172). 90% matches the core/schemas
-// precedent; constants reach it trivially, which is the point — the floor only bites if
-// something with branches lands here later.
+// Mirrors packages/i18n/vitest.config.ts. This package was data, not logic, when the suite
+// arrived — tokens.ts is a wall of `as const` objects — so it exists for a different reason
+// than core's: without a `test` script, `turbo test` skipped this workspace in SILENCE, and a
+// workspace that is never run looks identical to one that always passes (#172). 90% matches
+// the core/schemas precedent; constants reach it trivially. The floor has bitten since
+// 2026-10-03, when contrast.ts moved here from apps/native: that file has branches, and a new
+// one needs its test in contrast.test.ts.
 export default defineConfig({
   test: {
     // Threads + no isolation, same rationale as core/i18n: pure tests (no vi.mock, no

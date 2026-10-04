@@ -134,8 +134,8 @@ export function ModalHeader({
           accessibilityLabel={backLabel}
           // A real box, not a bare glyph + hitSlop: the glyph measured ~6pt wide, so
           // HIT_SLOP's 11 each side reached 28 — under §10's 44 floor on the axis that
-          // matters. Literal `[44px]`, not `h-11`, because a spacing step is 3.5px on
-          // device (`h-11` = 38.5pt there while measuring a passing 44px on web). `-ml-3`
+          // matters. Literal `[44px]`, not `h-11`: until 2026-10-04 (#921) a spacing step was
+          // 3.5px on device (`h-11` = 38.5pt there, a passing 44px on web). `-ml-3`
           // keeps the glyph optically on the gutter — the same recipe as the reserved back
           // slot in (onboarding)/index.tsx, welcome.tsx and forgot-password.tsx. No
           // hitSlop now: the rect already clears 44, and slop would reach into the

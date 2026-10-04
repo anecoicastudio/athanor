@@ -444,7 +444,7 @@ export default function ChatScreen() {
                     )}
                   >
                     <View
-                      // Drawn, not the ▶ character (#753), so it cannot outgrow the hard 56pt
+                      // Drawn, not the ▶ character (#753), so it cannot outgrow the hard 64pt
                       // tile; the wrapper above is what announces it.
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
