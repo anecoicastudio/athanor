@@ -112,9 +112,9 @@ export function StoryRing({
           accessibilityLabel={t('story.add.title', locale)}
           // The badge's PAINTED size is fixed by the measurement above, so the 44pt floor
           // (§10) has to come from slop rather than from the box. `h-[20px] w-[20px]`, not
-          // `h-5`: a spacing step is 3.5px on device, so `h-5` painted 17.5 there against
-          // 20 on web — and 17.5 + 2×11 is 39.5, which is why the shared HIT_SLOP did not
-          // clear the floor here. 20 + 2×12 = 44.
+          // `h-5`: until 2026-10-04 (#921) a spacing step was 3.5px on device, so `h-5` painted
+          // 17.5 there against 20 on web — and 17.5 + 2×11 is 39.5, which is why the shared
+          // HIT_SLOP did not clear the floor here. 20 + 2×12 = 44.
           //
           // NOT a two-platform guarantee, and this is the honest limit: the badge sits at
           // `right-[6px]` in a 76pt wrapper, so 6 of the 12pt right slop falls outside the

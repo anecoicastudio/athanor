@@ -2524,19 +2524,19 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * on it. Both halves below exist because the obvious way to satisfy that clause measures
  * PASSING on the only harness this repo can run and FAILING on the device it ships to.
  *
- * ## `h-11` is 44 on web and 38.5 on device
+ * ## `h-11` was 44 on web and 38.5 on device
  *
- * `react-native-css` inlines `rem` at **14** unless the stylesheet declares a `:root`
- * font-size or metro passes `inlineRem`, and `apps/native` does neither (DESIGN §11,
- * 2026-08-30). So a spacing step is 3.5px, not 4, and the eleven-step utilities that read as
- * «44» are 38.5pt where it counts. Eleven sites shipped that way — one of them under a comment
- * that claimed «a real 44pt tap target» — because `getBoundingClientRect` in the expo-web walk
- * returns 44 for every one of them. The arbitrary form `h-[44px]` is a literal on both
- * platforms, which is why `Input`'s eye toggle reaches for `style={{ width: 44 }}` and says so.
+ * Until 2026-10-04 (#921) a spacing step was 3.5px on device: Tailwind's step is 0.25rem and
+ * `react-native-css` inlines `rem` at **14** (DESIGN §11, 2026-08-30). The eleven-step
+ * utilities that read as «44» were 38.5pt where it counts, and eleven sites shipped that way —
+ * one of them under a comment that claimed «a real 44pt tap target» — because
+ * `getBoundingClientRect` in the expo-web walk returned 44 for every one of them. `global.css`
+ * now states the step in px (`--spacing: 4px`, pinned by `tokens-mirror.test.ts`), so the class
+ * is 44 on both. The arbitrary form `h-[44px]` is a literal whatever a step measures.
  *
- * The ban is on the CLASS, not on a measurement: eleven steps is only ever an attempt at the
- * floor, so there is no legitimate `h-11` to carve out. A genuine 38.5pt box would be written
- * as one.
+ * The ban stays, and it is on the CLASS, not on a measurement: eleven steps is only ever an
+ * attempt at the floor, so the floor keeps one spelling, and that spelling does not lean on a
+ * line of the stylesheet.
  *
  * ## A bare `Pressable` is whatever its text happens to measure
  *
@@ -2601,9 +2601,9 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
     expect(
       hits,
       `an \`h-11\`/\`w-11\` used as the 44pt floor:\n` +
-        `A spacing step is 3.5px on device (rem inlines at 14 — DESIGN §11, 2026-08-30), so ` +
-        `this measures 38.5pt there while returning a passing 44px to the web walk. Write the ` +
-        `literal \`h-[44px]\`/\`w-[44px]\`, or \`min-h-[44px]\` where the box grows (#638).`,
+        `The 44pt floor has one spelling here, the literal. The class is 44 only while ` +
+        `global.css states \`--spacing: 4px\`; before 2026-10-04 it was 38.5pt on device. Write ` +
+        `the literal \`h-[44px]\`/\`w-[44px]\`, or \`min-h-[44px]\` where the box grows (#638).`,
     ).toEqual([]);
   });
 

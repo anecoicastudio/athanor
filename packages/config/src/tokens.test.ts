@@ -3,6 +3,7 @@ import * as barrel from './index';
 import {
   broadsheet,
   galleria,
+  galleriaType,
   gradient,
   mandorla,
   radius,
@@ -192,6 +193,51 @@ describe('scale tokens', () => {
   });
 });
 
+/**
+ * The mobile type scale (Galleria; DESIGN.md §4 «Scale — mobile»). Each style is a `type-<name>`
+ * class in apps/native/src/global.css, and tokens-mirror.test.ts there holds every class to
+ * these values: this block pins the table the document prints, that one pins what the app
+ * renders. `tracking` is em, as the table prints it; the stylesheet states it in px.
+ */
+describe('the mobile type scale', () => {
+  // The table of DESIGN.md §4, row for row — pinned for the same reason as the palettes above:
+  // a retune has to argue with the document.
+  test('the nine styles hold the values DESIGN.md §4 prints', () => {
+    expect(galleriaType).toEqual({
+      h1: { size: 32, lineHeight: 36, weight: 600, tracking: -0.02 },
+      title: { size: 24, lineHeight: 27, weight: 600, tracking: -0.02 },
+      h2: { size: 19, lineHeight: 23, weight: 600, tracking: -0.01 },
+      body: { size: 17, lineHeight: 24, weight: 400, tracking: 0 },
+      small: { size: 15, lineHeight: 21, weight: 400, tracking: 0 },
+      label: { size: 13, lineHeight: 17, weight: 500, tracking: 0 },
+      quote: { size: 18, lineHeight: 23, weight: 400, tracking: 0, italic: true },
+      num: { size: 44, lineHeight: 44, weight: 800, tracking: -0.03, tabular: true },
+      numM: { size: 26, lineHeight: 26, weight: 800, tracking: -0.03, tabular: true },
+    });
+  });
+
+  test('every weight is one the app loads a face for', () => {
+    // On device a weight is a font FILE — one family name per weight, loaded in
+    // apps/native/src/app/_layout.tsx. A weight outside `typography.weights` has no face, and
+    // the text falls back to the platform font without an error.
+    const loaded: number[] = Object.values(typography.weights);
+    for (const [name, style] of Object.entries(galleriaType)) {
+      expect(loaded, name).toContain(style.weight);
+    }
+  });
+
+  test('the one italic style is the dream register, at regular weight', () => {
+    // DESIGN.md §4: no italics for UI, the dream quote is the exception. And that register is
+    // a single file, Hanken 400 italic: an italic style at another weight would name a face
+    // nobody loads.
+    const italic = Object.entries(galleriaType).filter(([, style]) => 'italic' in style);
+    expect(italic.map(([name]) => name)).toEqual(['quote']);
+    for (const [name, style] of italic) {
+      expect(style.weight, name).toBe(typography.weights.regular);
+    }
+  });
+});
+
 describe('the barrel', () => {
   // Apps import from '@athanor/config', which resolves to src/index.ts. A token added to
   // tokens.ts but not reachable through the barrel is a token no app can use.
@@ -200,6 +246,7 @@ describe('the barrel', () => {
       [
         'broadsheet',
         'galleria',
+        'galleriaType',
         'gradient',
         'mandorla',
         'radius',

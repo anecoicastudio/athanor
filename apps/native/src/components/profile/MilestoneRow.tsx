@@ -154,8 +154,8 @@ export function MilestoneRow({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('help.a11y.offerRow', locale, { need: name, state: stateLabel })}
-          // Literal 44px, never `h-11`: a spacing step is 3.5px on device, so the class form
-          // is 38.5pt there while measuring a passing 44 on the web walk (§29, #638).
+          // Literal 44px, never `h-11`: until 2026-10-04 (#921) a spacing step was 3.5px on
+          // device, so the class form was 38.5pt there and a passing 44 on web (§29, #638).
           className={`min-h-[44px] flex-row gap-3 ${stacked ? 'items-start' : 'items-center'}`}
           onPress={onHelp}
         >

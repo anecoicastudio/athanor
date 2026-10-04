@@ -13,7 +13,7 @@
  *   The keys that test lists under `NOT_ON_WEB` were the app's: no screen draws with them now.
  * - `galleria` is the MOBILE app: a black stage, charcoal blocks, a white primary pill. The
  *   same cyan is a small mark there and nothing else. apps/native reads `galleria`, never
- *   `semantic`.
+ *   `semantic`. Its type scale is `galleriaType`, at the end of this file.
  * - `broadsheet` is the web landing's palette, and only the landing's.
  *
  * The mandala gradient (magenta → violet → indigo) is the logo / hero ring only, in every look.
@@ -204,6 +204,50 @@ export const typography = {
   /** Display wordmark (letter-spaced). Plain "Athanor" in body text and SEO. */
   wordmark: 'A T H A N O R',
 } as const;
+
+/** One style of the mobile type scale. */
+export interface TypeStyle {
+  /** px at the default text size. */
+  size: number;
+  /** px at the default text size; it grows with the member's text size, as `size` does. */
+  lineHeight: number;
+  /** One of `typography.weights`: on device a weight is a font file, not a number. */
+  weight: number;
+  /** Letter-spacing in em, as DESIGN.md §4 prints it. 0 is none. */
+  tracking: number;
+  /** The dream register's face — Hanken italic. */
+  italic?: true;
+  /** Tabular numerals. */
+  tabular?: true;
+}
+
+/**
+ * The mobile type scale — Galleria (docs/DESIGN.md §4 «Scale — mobile»). The web's scale is in
+ * the same section and has no object here.
+ *
+ * Each style is one class in apps/native/src/global.css, `type-<name>` (`numM` is
+ * `type-num-m`), holding size, line height, tracking and face together;
+ * apps/native/src/lib/tokens-mirror.test.ts pins every class to these values. A size token
+ * alone could not carry a style: on device a weight is a font family, so «32 semibold» is two
+ * declarations, and a line height reaches the device only from a class that states it as
+ * `-rn-line-height` (that stylesheet says why).
+ *
+ * Line heights are the prototype's ratios (1.12 · 1.2 · 1.4 · 1.3 · 1) rounded to a whole px.
+ * Rendered on an iPhone SE simulator and a moto g17 on 2026-10-04: no accent or descender is
+ * cut in the seven text styles. At a ratio of 1 iOS cuts the accent of a capital, so the two
+ * numerals are for digits.
+ */
+export const galleriaType = {
+  h1: { size: 32, lineHeight: 36, weight: 600, tracking: -0.02 }, // screen titles
+  title: { size: 24, lineHeight: 27, weight: 600, tracking: -0.02 }, // a pushed screen's header
+  h2: { size: 19, lineHeight: 23, weight: 600, tracking: -0.01 }, // card titles, a name on a card
+  body: { size: 17, lineHeight: 24, weight: 400, tracking: 0 }, // the default
+  small: { size: 15, lineHeight: 21, weight: 400, tracking: 0 }, // secondary lines, helper text
+  label: { size: 13, lineHeight: 17, weight: 500, tracking: 0 }, // section labels
+  quote: { size: 18, lineHeight: 23, weight: 400, tracking: 0, italic: true }, // the dream
+  num: { size: 44, lineHeight: 44, weight: 800, tracking: -0.03, tabular: true }, // Aura, countdown
+  numM: { size: 26, lineHeight: 26, weight: 800, tracking: -0.03, tabular: true }, // week, fund
+} as const satisfies Record<string, TypeStyle>;
 
 export type Semantic = typeof semantic;
 export type Gradient = typeof gradient;

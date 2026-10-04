@@ -73,11 +73,11 @@ const SIZE_CLASSES: Record<Size, string> = {
  * `SIZE_CLASSES` rather than extending it, so exactly one class per horizontal side ever
  * lands on the element — which is the whole of the warning above.
  *
- * `pr-14` is 49px ON DEVICE and 56 on web: `react-native-css` inlines `rem` at 14 here,
- * so a `--spacing` step is 3.5px, not 4. The control is 44 wide and flush right, so the
- * text run clears it by 5px. `pr-12` is 42 on device and does NOT clear — while looking
- * perfectly correct in the react-native-web harness, where it is 48. Every number in
- * this file's trailing path is a device number.
+ * `pr-14` is 56px. The control is 44 wide and flush right, so the text run clears it by
+ * 12px. It was chosen while a `--spacing` step was 3.5px on device (until 2026-10-04,
+ * #921): `pr-14` was 49 there and cleared by 5, and `pr-12` was 42 and did NOT clear —
+ * while looking perfectly correct in the react-native-web harness, where it was 48.
+ * Since then a step is 4px in both builds, and a number here is the same in each.
  */
 const SIZE_CLASSES_TRAILING: Record<Size, string> = {
   md: 'pl-5 pr-14 py-4 text-[15px]',
@@ -160,9 +160,9 @@ export function Input({ size = 'md', trailing, className, onFocus, onBlur, ...re
       <Pressable
         // `inset-y-0`, not a fixed height: the pill's height is emergent (`py-4` plus the
         // platform's intrinsic line box), so a centred 44 would be a guess. This makes the
-        // target the full pill height × 44. `style` for the width rather than `w-11`,
-        // because a spacing step is 3.5px on device and `w-11` would be 38.5pt — under
-        // G2/A-1's 44pt floor while measuring a passing 44px on web. No hitSlop: the rect
+        // target the full pill height × 44. `style` for the width rather than `w-11`:
+        // until 2026-10-04 (#921) a spacing step was 3.5px on device and `w-11` was 38.5pt,
+        // under G2/A-1's 44pt floor while measuring a passing 44px on web. No hitSlop: the rect
         // already clears 44, and slop would extend past the wrapper into the region
         // Android declines to deliver.
         className="absolute inset-y-0 right-0 items-center justify-center"

@@ -95,8 +95,8 @@ export default function NotificationsScreen() {
         title={t('notif.title', locale)}
         backLabel={t('common.back', locale)}
         right={
-          // gap-6 (21pt on device), not gap-4: the gear's HIT_SLOP (11) plus «Segna lette»'s
-          // slop (8) is 19, and gap-4's 14 let the two hit rects overlap.
+          // gap-6 (24pt), not gap-4: the gear's HIT_SLOP (11) plus «Segna lette»'s
+          // slop (8) is 19, and gap-4's 16 lets the two hit rects overlap.
           <View className="flex-row items-center gap-6">
             {unreadItems.length > 0 ? (
               <Pressable

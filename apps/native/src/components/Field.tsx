@@ -27,9 +27,9 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * hold it) or is one field among several (the report's optional note, the profile's bio and
  * mission). 36-vs-32 draws no such line, so it collapses.
  *
- * - `md` (default) — a field among fields. `min-h-28` (98px on device, 112 on web). The story
+ * - `md` (default) — a field among fields. `min-h-28` (112px). The story
  *   caption, which sits beside the media it annotates.
- * - `lg` — the field the screen is about. `min-h-36` (126px on device, 144 on web). The dream, the
+ * - `lg` — the field the screen is about. `min-h-36` (144px). The dream, the
  *   help message, the candidacy prose, and — since #504 — the post body and the project description.
  *
  * A single-line field takes neither: `size` applies only when `multiline` is set, because
@@ -41,13 +41,13 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * to — the same failure as the placeholder colour this primitive exists to fix, one axis over.
  * The majority spelling wins and the four join it. What `text-lg` RENDERS depends on the platform,
  * which is worth knowing before anyone quotes a number at it. On device, `react-native-css` inlines
- * `rem` at **14** unless the stylesheet declares `:root { font-size: Npx }` or metro passes
- * `inlineRem`, and this app does neither — so 1.125rem is **15.75px** and each `--spacing` step is
- * 3.5px. The react-native-web build takes the browser's 16 instead, so the same classes measure
- * **18px** there. `Input`'s `text-[15px]` is 15 on both. The two input families are 0.75px apart on
- * device and 3px apart on web, and BOTH sit off §4's mobile scale, which has no step between body
- * 16 and h2 20; reconciling them against that scale is a separate question and is NOT settled
- * here.
+ * `rem` at **14**, so 1.125rem is **15.75px**; the react-native-web build takes the browser's 16
+ * instead, so the same class measures **18px** there. (Spacing stopped following the rem on
+ * 2026-10-04, #921: `--spacing` is 4px in `global.css`, so the `min-h-*` above are the same in
+ * both builds.) `Input`'s `text-[15px]` is 15 on both. The two input families are 0.75px apart on
+ * device and 3px apart on web. `Input`'s 15 is §4's `small`; this field's 15.75 is on no step of
+ * §4's mobile scale (small 15, body 17). Reconciling them against that scale is a separate
+ * question and is NOT settled here.
  *
  * ── WHY `register` IS A PROP AND `font-dream` IS NOT A CLASS ───────────────────────────────
  * Three fields carry `font-dream` and all three hold a dream (§4: the italic register is the
