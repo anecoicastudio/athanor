@@ -638,3 +638,47 @@ describe('the copies of the app version follow app.json', () => {
     expect(fallback).toBe(staticConfig().version);
   });
 });
+
+/*
+ * Three grounds are painted by the native side before any of our JS draws: the root view
+ * (`backgroundColor`), the splash, and the Android adaptive icon's ground. Galleria keeps the
+ * splash animation and the icon art and moves only the ground under them to the stage's black
+ * (ruling 6 of #921, 2026-10-03). They are native config: a change here reaches a phone with a
+ * build, never with a bundle. Asserted on both variants, since `app.config.ts` rewrites the
+ * Android block for the dev client.
+ */
+describe('the three native grounds are the Galleria stage (#921)', () => {
+  const stage = galleria.background.toLowerCase();
+  const grounds = (config: ExpoConfig) => ({
+    root: config.backgroundColor?.toLowerCase(),
+    splash: (
+      pluginProps(config, 'expo-splash-screen')?.backgroundColor as string | undefined
+    )?.toLowerCase(),
+    adaptiveIcon: config.android?.adaptiveIcon?.backgroundColor?.toLowerCase(),
+  });
+
+  it.each([['production', undefined] as const, ['development', 'development'] as const])(
+    'root, splash and adaptive icon are black on the %s variant',
+    (_name, variant) => {
+      expect(stage).toBe('#000000');
+      expect(grounds(resolveVariant(variant))).toEqual({
+        root: stage,
+        splash: stage,
+        adaptiveIcon: stage,
+      });
+    },
+  );
+
+  it('the splash image and the icon art are the files they were', () => {
+    const config = staticConfig();
+    expect(pluginProps(config, 'expo-splash-screen')?.android).toEqual({
+      image: './assets/images/splash-icon.png',
+      imageWidth: 76,
+    });
+    expect(config.android?.adaptiveIcon).toMatchObject({
+      foregroundImage: './assets/images/android-icon-foreground.png',
+      backgroundImage: './assets/images/android-icon-background.png',
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    });
+  });
+});
