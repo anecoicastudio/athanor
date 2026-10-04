@@ -27,9 +27,10 @@ const INITIAL_SIZE = {
 export type AvatarSize = keyof typeof INITIAL_SIZE;
 
 /**
- * Circle avatar (DESIGN.md §9): a `surface` disc with a hairline. Renders the member's photo when they have set one, and the
- * initial otherwise — the fallback is a first-class state, not a placeholder for a missing
- * upload, because name and photo are optional by product decision (#75).
+ * Circle avatar (DESIGN.md §9): a `surface` disc with a hairline. Renders the member's photo
+ * when they have set one, and the initial otherwise — the fallback is a first-class state, not
+ * a placeholder for a missing upload, because name and photo are optional by product decision
+ * (#75).
  *
  * The initial comes from `displayName` when there is one and the handle otherwise, so a member
  * called «Stella» is an S rather than the letter their handle happens to start with.

@@ -399,7 +399,7 @@ New icons must be designed in this same system (compass-and-ruler geometry), nev
 
 Since 2026-09-05 (#694) the funnel is identity → **birth date** → seeking → dream → face. The birth-date frame sits between the first two below:
 
-**Header and anchor (2026-09-24, #754).** Every step shares one header, top to bottom: the 44pt row — the reserved back slot left, «Hai un account? Accedi» right — then the step bars, then the «COMPLETA IL PROFILO» eyebrow **on its own line under the bars**, never in the top row (it truncated there at 375pt in IT and at 402pt in EN). The step's content is **top-anchored** at a fixed gap under that header, so its eyebrow and display title sit at the same y on every step and stay put when the keyboard or the date wheel opens; «Continua» stays at the bottom of a short step. Each step opens scrolled to the top, and a focused field is brought above the keyboard by scrolling (the #689 reveal, with «Continua» riding along) — never by re-laying out the step. The mockups below predate the header line and draw the content centred — read them for the step's contents, not its position.
+**Header and anchor (2026-09-24, #754).** Every step shares one header, top to bottom: the 44pt row — the reserved back slot left, «Hai un account? Accedi» right — then the step bars, then the «Completa il profilo» label (grey, sentence case; an uppercase eyebrow until 2026-10-04) **on its own line under the bars**, never in the top row (it truncated there at 375pt in IT and at 402pt in EN). The step's content is **top-anchored** at a fixed gap under that header, so its eyebrow and display title sit at the same y on every step and stay put when the keyboard or the date wheel opens; «Continua» stays at the bottom of a short step. Each step opens scrolled to the top, and a focused field is brought above the keyboard by scrolling (the #689 reveal, with «Continua» riding along) — never by re-laying out the step. The mockups below predate the header line and draw the content centred — read them for the step's contents, not its position.
 
 ```
 ┌──────────────────────┐
@@ -447,7 +447,7 @@ Since 2026-09-19 (#782, ruled by Marco) one more screen follows the account crea
 
 ```
 ┌──────────────────────┐
-│  UN'ULTIMA SCELTA    │  eyebrow in the 44pt top row, no step bars —
+│  Un'ultima scelta    │  label in the 44pt top row, no step bars —
 │                      │  not «Ultimo passo», which /welcome already says
 │                      │
 │  Scegli il tuo       │
