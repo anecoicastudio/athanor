@@ -78,7 +78,7 @@ export default function LevelOverlay() {
         </Text>
 
         <View className="mt-8 w-full">
-          <Button variant="light" label={t('common.continue', locale)} onPress={leave} />
+          <Button variant="celebration" label={t('common.continue', locale)} onPress={leave} />
         </View>
       </Screen>
     </Animated.View>

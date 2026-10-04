@@ -112,11 +112,9 @@ export default function DreamEditorScreen() {
           }}
         />
 
-        {/* light + glow = moment-grade per rule #4: lighting your dream ✦ (spec §3.2). */}
         <Button
           label={t('dream.editor.cta', locale)}
-          variant="light"
-          glow
+          variant="primary"
           disabled={saving || !loaded}
           onPress={save}
         />

@@ -343,13 +343,13 @@ export function AudioRecorderSheet({
             {recording ? (
               <Button
                 label={t('media.record.stop', locale)}
-                variant="light"
+                variant="primary"
                 onPress={() => void finish()}
               />
             ) : (
               <Button
                 label={t('media.record.start', locale)}
-                variant="light"
+                variant="primary"
                 loading={busy}
                 onPress={() => void start()}
               />

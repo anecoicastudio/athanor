@@ -17,8 +17,8 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * directly, and nothing of ours stands before it. `source-audit.test.ts` pins that.
  *
  * Bottom-anchored transparent Modal (no Sheet primitive in the app — mirrors Lightbox). Fade-only
- * animation → reduced-motion safe (no transform). The CTA is flat cyan (`variant="light"`, no
- * glow): opening Settings is not a moment event, so rule #4 keeps the glow off.
+ * animation → reduced-motion safe (no transform). The CTA is the `primary` pill: opening
+ * Settings is an ordinary action.
  */
 export function PermissionBlockedSheet({
   kind,
@@ -92,7 +92,7 @@ export function PermissionBlockedSheet({
           <View className="mt-8 gap-3">
             <Button
               label={t('permission.openSettings', locale)}
-              variant="light"
+              variant="primary"
               onPress={() => {
                 void Linking.openSettings();
               }}

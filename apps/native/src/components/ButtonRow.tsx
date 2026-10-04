@@ -18,10 +18,23 @@ import { View, cn } from '@/tw';
  * the browser does not, and an over-wide pill would otherwise run off the page there.
  *
  * `null` / `false` children are skipped, so a conditional pill leaves no empty cell and no gap.
+ *
+ * `items-baseline`: the cells of a row are not one height. A pill is 50pt and a `ghost` link
+ * 44pt, and a cell may stack two controls (`ConnectButton` while a request is pending). So the
+ * row lines up TEXT: every first-line label sits on one baseline, whatever its cell holds.
+ * `Button` keeps its label in the layout while it is busy for the same reason: the baseline is
+ * the label's. `source-audit.test.ts` section 43 holds both, and says what the two other
+ * alignments measured.
+ *
+ * How a cell finds its baseline (`calculateBaseline` in Yoga's `algorithm/Baseline.cpp`, as
+ * shipped in react-native 0.86.3; read 2026-10-04): a text node reports its own; any other
+ * node takes its first child in the flow, and skips an absolutely positioned one; a node with
+ * no such child reports its own height. So a cell may hold a `Button`, a stack or a nested row
+ * and still line up by its first label, and the icon gutter and the spinner never count.
  */
 export function ButtonRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <View className={cn('flex-row flex-wrap gap-3', className)}>
+    <View className={cn('flex-row flex-wrap items-baseline gap-3', className)}>
       {Children.toArray(children).map((child, i) => (
         <View key={i} className="max-w-full shrink-0 grow basis-auto">
           {child}

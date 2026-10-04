@@ -125,7 +125,7 @@ export default function FavorScreen() {
         <View className="w-full gap-3">
           <Button
             label={t('favor.done.write', locale, { name })}
-            variant="light"
+            variant="celebration"
             disabled={writing}
             onPress={() => void write(done)}
           />

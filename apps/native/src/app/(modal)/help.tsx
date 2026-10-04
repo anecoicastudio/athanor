@@ -260,10 +260,9 @@ export default function HelpScreen() {
           <Text className="text-sm text-error">{t('help.alreadyOffered', locale)}</Text>
         ) : null}
 
-        {/* flat light CTA — offering help is not itself moment-grade, so no glow (rule #4). */}
         <Button
           label={t('help.sheet.cta', locale)}
-          variant="light"
+          variant="primary"
           disabled={saving || type === null}
           onPress={submit}
         />

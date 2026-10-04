@@ -111,8 +111,7 @@ export default function MatchOverlay() {
 
           <View className="mt-8 w-full gap-3">
             <Button
-              variant="light"
-              glow
+              variant="celebration"
               label={accepted ? fill('match.accepted.writeCta') : t('match.openCta', locale)}
               onPress={() => {
                 if (conversationId) router.replace(`/chat?conversationId=${conversationId}`);

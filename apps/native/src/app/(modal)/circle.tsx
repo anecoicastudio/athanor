@@ -395,8 +395,8 @@ export default function CircleScreen() {
         {/* 3. Six benefit rows (non-member: all shown, locked visual for Fase-2) */}
         <View className="gap-2">{benefitList(false)}</View>
 
-        {/* 4. Join CTA (non-iOS) — flat cyan, no glow: a subscription checkout is
-            commerce, not a moment-grade event (rule #4 / DESIGN §2.3).
+        {/* 4. Join CTA (non-iOS) — the `primary` pill: a subscription checkout is
+            commerce, an ordinary action (DESIGN §9).
             On iOS the in-app Stripe subscribe button is forbidden (Apple 3.1.1 /
             S-IAP-1); show a neutral, non-steering note instead. Apple IAP deferred. */}
         {Platform.OS === 'ios' ? (
@@ -440,7 +440,7 @@ export default function CircleScreen() {
               price: formatPrice(prices[plan].unitAmount, prices[plan].currency, locale),
             })}
             onPress={() => void onJoin()}
-            variant="light"
+            variant="primary"
             disabled={checkoutPhase !== 'idle'}
             // `loading` instead of the old '…' label swap: the spinner + busy state are
             // what Button implements for exactly this, and «…» was unpronounceable to

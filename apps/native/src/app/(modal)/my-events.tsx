@@ -19,7 +19,7 @@ import { Screen } from '@/components/Screen';
  * I tuoi eventi — organizer surface (P4.5; frontend 04 §3.7 Live entry).
  * Makes (modal)/event-create reachable and lists the caller's own events
  * (organizer_id-filtered read — rule #3: owner-facing list, nothing public).
- * Flat light CTA, no glow (rule #4). Bounded 50-row read, small by nature.
+ * The CTA is the `primary` pill. Bounded 50-row read, small by nature.
  */
 export default function MyEventsScreen() {
   const { session } = useAuth();
@@ -42,7 +42,7 @@ export default function MyEventsScreen() {
         <Button
           label={t('event.create.title', locale)}
           onPress={() => router.push('/(modal)/event-create')}
-          variant="light"
+          variant="primary"
         />
 
         {query.isLoading ? <ActivityIndicator color={galleria.aura} /> : null}

@@ -159,7 +159,7 @@ export default function ForgotPasswordScreen() {
               {/* Revealed with the email row (#752) — see the same block in welcome.tsx. */}
               <View className="mt-7 gap-3" ref={reveal.submitRef()}>
                 <Button
-                  variant="light"
+                  variant="primary"
                   label={t('auth.forgot.cta', locale)}
                   disabled={disabled}
                   loading={submitting}

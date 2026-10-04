@@ -10,9 +10,9 @@
  * On a converted screen aura (--color-aura) is a small mark, never an action
  * colour and never a glow; a screen not yet converted shows the old uses.
  * The mandala gradient (--color-gradient-*) is the logo and boot splash only.
- * surface-muted, line, success, ink-2, faint, raise, raise-2, aura-soft,
- * aura-line and on-error are LEGACY ALIASES holding interim values, kept for
- * the screens not yet converted. Each is deleted with its last call site.
+ * surface-muted, line, success, ink-2, faint, raise, raise-2, aura-soft and
+ * aura-line are LEGACY ALIASES holding interim values, kept for the screens
+ * not yet converted. Each is deleted with its last call site.
  */
 @layer theme {
   @theme {
@@ -36,7 +36,6 @@
     --color-aura-soft: rgba(43, 208, 210, 0.1);
     --color-aura-line: rgba(43, 208, 210, 0.4);
     --color-on-aura: #04222a;
-    --color-on-error: #1a050d;
     --color-apple-button-bg: #ffffff;
     --color-apple-button-ink: #000000;
     --radius-ctl: 14px;

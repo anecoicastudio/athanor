@@ -484,7 +484,7 @@ export default function PostComposeScreen() {
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={mutation.isPending}
-            variant="light"
+            variant="primary"
           />
         </View>
       </Screen>

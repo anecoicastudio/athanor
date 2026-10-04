@@ -199,7 +199,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Footer ── */}
         <View className="gap-3 pt-2">
-          <Button label={t('common.apply', locale)} variant="light" onPress={handleApply} />
+          <Button label={t('common.apply', locale)} variant="primary" onPress={handleApply} />
           <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
         </View>
       </ScrollView>

@@ -4465,10 +4465,13 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
    * What it pins is the CALLERS, not «the clock is unglowed»: a raw `boxShadow` or a NativeWind
    * `shadow-*` on a countdown file would evade it. Nothing in `apps/native/src` outside
    * `lib/glow*` uses either today, so the coverage is total by circumstance, not construction.
+   *
+   * Since Galleria (rule 4, mobile half, 2026-10-03) nothing on mobile glows, so the list only
+   * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop, and each of
+   * the rest leaves when its own screens are converted (#921, open as of 2026-10-04).
    */
   const GLOW_SURFACES = [
     'app/(modal)/favor.tsx',
-    'components/Button.tsx',
     'components/Mandorla.tsx',
     'components/circle/SubscriptionStatusCard.tsx',
     'components/fund/CandidateCard.tsx',
@@ -4491,10 +4494,10 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
 
     expect(
       callers,
-      'A glow means something happened (rule 4). Adding one is a design decision, so add the ' +
-        'file here in the same edit and say in the PR what moment it marks. If a COUNTDOWN file ' +
-        'appears, that is DESIGN.md §8.12 being broken again — the clock takes the framed pair ' +
-        '`border-aura-line bg-aura-soft`, never the shadow.',
+      'Nothing on mobile glows since Galleria (rule 4), so a file that is NEW here is a ' +
+        'regression: take the `auraGlow()` call out. A file that is MISSING was converted: drop ' +
+        'it from GLOW_SURFACES in the same edit. If a COUNTDOWN file appears, that is DESIGN.md ' +
+        '§8.12 being broken again — the clock is flat, and was before Galleria too.',
     ).toEqual(GLOW_SURFACES);
   });
 });
@@ -4534,6 +4537,45 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
         'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
         '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
     ).toEqual([]);
+  });
+
+  /**
+   * The cells of a row are not the same height: a pill is 50pt, a `ghost` link 44pt, and a cell
+   * may stack two controls (`ConnectButton` while a request is pending). Measured on an iPhone
+   * SE simulator on 2026-10-04: aligned by their tops, a pill's label and a link's sit 3pt
+   * apart; centred, a link beside a stacked cell lands 12.5pt below the stack's first control.
+   * On the text baseline every first-line label shares one line, whatever its cell holds.
+   *
+   * That baseline is the LABEL's, so a pill has to keep its label in the layout while it is
+   * busy. With the label swapped out for the spinner the cell's baseline fell to the spinner's
+   * foot: the row grew 2pt and the link beside it sat 4.5pt lower than beside an idle pill
+   * (same simulator, same day). With the label kept, a busy pill and an idle one measured the
+   * same on the simulator and on a moto g17: same width, same row, same offset to the link.
+   */
+  it('ButtonRow lines its cells up on the text baseline', () => {
+    const row = stripComments(read(`${SRC}components/ButtonRow.tsx`));
+    expect(
+      /(?<![\w-])items-baseline(?![\w-])/.test(row),
+      'components/ButtonRow.tsx no longer aligns its cells with `items-baseline`. A pill and a ' +
+        'text link then stop sharing a line of text, and which of them looks wrong depends on ' +
+        'what replaced it (the measurements are in the comment above this test).',
+    ).toBe(true);
+  });
+
+  it('a busy Button keeps its label in the layout, under the spinner', () => {
+    const button = stripComments(read(`${SRC}components/Button.tsx`)).replace(/\s+/g, ' ');
+    expect(
+      /loading && 'opacity-0'/.test(button),
+      'components/Button.tsx no longer hides the label of a busy button in place. Rendering ' +
+        'the spinner INSTEAD of the label takes the text baseline out of the cell, so a busy ' +
+        'pill in a `ButtonRow` shifts its neighbours, and a pill sized to its label shrinks ' +
+        'to the spinner.',
+    ).toBe(true);
+    expect(
+      /<View className="absolute [^"]*">\s*<ActivityIndicator\b/.test(button),
+      'the spinner of a busy Button is no longer an absolute overlay: in the flow it sits ' +
+        'beside the hidden label and widens the pill.',
+    ).toBe(true);
   });
 });
 
@@ -4791,5 +4833,272 @@ describe('the app reads galleria, never semantic (#921)', () => {
   it('…and the palette it does read is still read somewhere', () => {
     // The walk above also passes on a tree that went back to literals or reads no token at all.
     expect(codeLines().some(([, t]) => /\bgalleria\.[a-zA-Z]/.test(t))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 47 — the cyan pill stands on the five celebration screens and nowhere else (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half (Marco's ruling, 2026-10-03): cyan is a small mark, never an action
+ * colour, and a test holds the list of places it may stand. One pill is cyan — `Button`'s
+ * `celebration` variant — and it belongs to the five celebration screens: match, new level,
+ * favour done, candidacy sent, contribution thanks (DESIGN §2.3, §9). On any other screen it
+ * type-checks, lints and renders, as the action colour the rule retired.
+ *
+ * Two halves, because either one alone can be walked around. The CALL SITES are an exact set of
+ * files, as `GLOW_SURFACES` is above; and the COMPONENT may put cyan in that one variant only,
+ * or a retune of `primary` would turn every other pill in the app cyan under a green allowlist.
+ *
+ * What this does not pin: a hand-rolled `bg-aura` Pressable is not a `Button`, and the screens
+ * still carry some. Each leaves with its own screen's conversion (#921, open as of 2026-10-04),
+ * and the last of those owes the whole-tree cyan list.
+ */
+
+/**
+ * The top-level entries of the object literal assigned to `const <name>`, as `key → body text`.
+ * Naive on purpose: it walks braces and quotes, which is all a table of class strings needs.
+ */
+function objectEntries(src: string, name: string): Record<string, string> {
+  const at = src.indexOf(`const ${name}`);
+  const open = at === -1 ? -1 : src.indexOf('= {', at);
+  if (open === -1) return {};
+  const entries: Record<string, string> = {};
+  let depth = 0;
+  let quote = '';
+  let start = open + 3;
+  for (let i = open + 2; i < src.length; i += 1) {
+    const c = src[i] as string;
+    if (quote) {
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c;
+    else if (c === '{') depth += 1;
+    else if (c === '}') depth -= 1;
+    if ((c === ',' && depth === 1) || depth === 0) {
+      const entry = src.slice(start, i).match(/^\s*([A-Za-z_$][\w$]*)\s*:\s*([\s\S]*)$/);
+      if (entry) entries[entry[1] as string] = entry[2] as string;
+      start = i + 1;
+      if (depth === 0) break;
+    }
+  }
+  return entries;
+}
+
+describe('the cyan pill stands on the five celebration screens and nowhere else (#921)', () => {
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+
+  const BUTTON = `${SRC}components/Button.tsx`;
+
+  /** Every `<Button>` the app renders, with the raw text of its opening tag. */
+  const buttons = () =>
+    FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => t.base === 'Button')
+        .map((t) => ({ at: `${rel(p).replace('apps/native/src/', '')}:${t.line}`, raw: t.raw })),
+    );
+
+  it('finds the Buttons it is walking', () => {
+    // A scanner that finds nothing passes both call-site assertions below. 107 on 2026-10-04.
+    expect(
+      buttons().length,
+      'no <Button> found at all — the walk is broken, not the tree',
+    ).toBeGreaterThan(80);
+  });
+
+  it('every Button names its variant as a literal, or takes the default', () => {
+    const computed = buttons()
+      .filter(({ raw }) => /\bvariant=\{/.test(raw))
+      .map(({ at }) => at);
+    expect(
+      computed,
+      'a `<Button variant={…}>` whose variant is computed:\n' +
+        'The list below reads call sites, so a pill whose variant is decided at run time is a ' +
+        'pill it cannot place. Branch on the JSX instead — two `<Button>`s, each with its own ' +
+        'literal `variant="…"`.',
+    ).toEqual([]);
+  });
+
+  it('the celebration variant is used on exactly the five celebration screens', () => {
+    const owners = [
+      ...new Set(
+        buttons()
+          .filter(({ raw }) => /\bvariant="celebration"/.test(raw))
+          .map(({ at }) => at.replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      owners,
+      'The cyan pill belongs to the five celebration screens (rule 4; DESIGN §2.3, §9). A file ' +
+        'that is NEW here is cyan used as an action colour: the primary action is the white ' +
+        '`primary`, an action that makes a moment included. A file that is MISSING lost its ' +
+        'celebration pill, which is the one cyan control the look keeps.',
+    ).toEqual(CELEBRATION_SCREENS);
+  });
+
+  it('Button puts cyan in the celebration variant and in no other', () => {
+    const variants = objectEntries(stripComments(read(BUTTON)), 'VARIANT_CLASSES');
+    expect(
+      Object.keys(variants).length,
+      'VARIANT_CLASSES was not found in components/Button.tsx as an object literal — the ' +
+        'assertion below would pass on an empty table',
+    ).toBeGreaterThan(3);
+    const cyan = Object.entries(variants)
+      .filter(([, body]) => /aura/i.test(body))
+      .map(([variant]) => variant);
+    expect(
+      cyan,
+      'a Button variant other than `celebration` reads an `aura` class or token. Every call ' +
+        'site of that variant turns cyan with it, and the allowlist above stays green.',
+    ).toEqual(['celebration']);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 48 — a type class stands alone (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §4: a `type-*` class sets size, line height and face together, five of the nine set
+ * a tracking too, and the rule is unlayered, so it beats a Tailwind utility whatever the order
+ * in `className`. What a converted call site leaves beside it therefore fails in one of two
+ * silent ways:
+ *
+ *   - a size or a `leading-*` utility does nothing. It is dead, and it reads as if it were not;
+ *   - `type-body`, `type-small`, `type-label` and `type-quote` state NO tracking, so a
+ *     `tracking-*` left beside one of them still applies: the old letterspaced label, drawn at
+ *     the new size. `uppercase` survives the same way, and the mobile look has no uppercase
+ *     style (§4).
+ *
+ * A weight utility is the one neighbour that is meant to win («a row's title is `type-body
+ * font-medium`») — except beside `type-quote`, where the weight's upright face replaces the
+ * italic one and the dream register is gone.
+ *
+ * Read one string literal at a time. A class list split across `cn()` arguments is checked
+ * argument by argument, so a utility in a SIBLING argument is not seen: this catches the
+ * leftover in the string that was edited, which is the common case, not every composition.
+ */
+describe('a type class stands alone (#921)', () => {
+  const TYPE_CLASS = /(?<![\w-])type-(?:h1|title|h2|body|small|label|quote|num-m|num)(?![\w-])/;
+  const NEIGHBOURS: [RegExp, string][] = [
+    [/(?<![\w-])tracking-[\w[\].-]+/, 'a tracking utility'],
+    [/(?<![\w-])uppercase(?![\w-])/, '`uppercase`'],
+    [/(?<![\w-])leading-[\w[\].-]+/, 'a `leading-*` utility'],
+    [/(?<![\w-])text-(?:\[\d+(?:\.\d+)?px\]|xs|sm|base|lg|[2-9]?xl)(?![\w-])/, 'a size utility'],
+  ];
+  const WEIGHT =
+    /(?<![\w-])font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/;
+
+  /** Every string literal on a code line that carries a type class. */
+  const literals = () =>
+    CODE_LINES.filter(([p]) => !isTest(p)).flatMap(([p, ls]) =>
+      ls.flatMap((text, i) =>
+        [...text.matchAll(/(['"`])((?:(?!\1).)*)\1/g)]
+          .map((m) => m[2] as string)
+          .filter((classes) => TYPE_CLASS.test(classes))
+          .map((classes) => ({
+            at: `${rel(p).replace('apps/native/src/', '')}:${i + 1}`,
+            classes,
+          })),
+      ),
+    );
+
+  it('finds the type classes it is walking', () => {
+    // No call site used one before 2026-10-04, and a scanner that finds nothing passes below.
+    expect(
+      literals().length,
+      'no `type-*` class found in any string literal — the walk is broken, or the last call ' +
+        'site that used one is gone',
+    ).toBeGreaterThan(0);
+  });
+
+  it('no size, line-height, tracking or uppercase utility sits beside one', () => {
+    const hits = literals().flatMap(({ at, classes }) =>
+      NEIGHBOURS.filter(([re]) => re.test(classes)).map(
+        ([, what]) => `${at}  ${what} beside a type class: "${classes}"`,
+      ),
+    );
+    expect(
+      hits,
+      'a utility a type class makes dead, or one it fails to cancel:\n' +
+        'The class owns size, line height and tracking (DESIGN §4). Delete the utility; if the ' +
+        'text really needs another size, it is not that style — use the right `type-*` class ' +
+        'or one of the two fixed sizes §4 names, with no type class beside it.',
+    ).toEqual([]);
+  });
+
+  it('no weight utility sits beside type-quote', () => {
+    const hits = literals()
+      .filter(
+        ({ classes }) => /(?<![\w-])type-quote(?![\w-])/.test(classes) && WEIGHT.test(classes),
+      )
+      .map(({ at, classes }) => `${at}  "${classes}"`);
+    expect(
+      hits,
+      'a weight beside `type-quote`: on device a weight IS a font face, so it replaces the ' +
+        'italic one and the dream register reads as plain text (DESIGN §4).',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 49 — a press is spelled in one module, and its scale asks Reduce Motion (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §10: a press answers — a pill dims to 0.6 and scales to 0.98; a chip, a row or an icon
+ * dims — and under Reduce Motion a transition becomes an opacity cut. The CSS runtime cannot
+ * ask that question itself: `react-native-css@3.0.7` evaluates no `prefers-reduced-motion`
+ * media query (`testComparison` in its `native/conditions/media-query.ts` has no case for it,
+ * read 2026-10-04), so a `motion-safe:` variant is not a way to write it and a hand-typed
+ * `active:scale-*` scales for everyone. `lib/press.ts` is the one place the classes are
+ * spelled, and its `pillPress` takes the flag from `useReducedMotion()` as an argument, which
+ * `lib/press.test.ts` holds.
+ */
+describe('a press is spelled in one module, and its scale asks Reduce Motion (#921)', () => {
+  const HOME = ['apps/native/src/lib/press.ts', 'apps/native/src/lib/press.test.ts'];
+  const PRESS_CLASS = /(?<![\w-])active:(?:opacity|scale)-/;
+  const at = (where: string) => where.replace(/:\d+$/, '');
+
+  it('finds the press classes it is walking', () => {
+    expect(
+      codeLines().some(([where, t]) => at(where) === HOME[0] && PRESS_CLASS.test(t)),
+      'lib/press.ts no longer spells an `active:` class — the walk below passes on a tree ' +
+        'where nothing answers a press',
+    ).toBe(true);
+  });
+
+  it('no file spells a press class of its own', () => {
+    const hits = codeLines()
+      .filter(([where, t]) => !HOME.includes(at(where)) && PRESS_CLASS.test(t))
+      .map(([where, t]) => `${where}  ${t.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      'an `active:opacity-*` or `active:scale-*` written at a call site:\n' +
+        'Take `PRESS_DIM` (a chip, a row, an icon, a text link) or `pillPress(reduceMotion)` ' +
+        '(a pill) from `@/lib/press`. A scale typed here ignores Reduce Motion, and a second ' +
+        'dim value is a second pressed look (DESIGN §10).',
+    ).toEqual([]);
+  });
+
+  it('nobody answers the Reduce Motion question with a constant', () => {
+    const hits = codeLines()
+      .filter(
+        ([where, t]) => !HOME.includes(at(where)) && /\bpillPress\(\s*(?:true|false)\s*\)/.test(t),
+      )
+      .map(([where, t]) => `${where}  ${t.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      "`pillPress(true|false)`: the argument is the member's setting, from " +
+        '`useReducedMotion()` (`@/hooks/use-reduced-motion`), never a literal.',
+    ).toEqual([]);
   });
 });

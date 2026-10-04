@@ -104,7 +104,7 @@ export default function ProjectDetailScreen() {
                 <Button
                   label={t('project.respond', locale)}
                   onPress={() => void respond()}
-                  variant="light"
+                  variant="primary"
                   disabled={opening}
                 />
               </>

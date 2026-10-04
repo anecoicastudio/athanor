@@ -42,7 +42,6 @@ const NAME_MAP: Record<keyof typeof galleria, string> = {
   auraSoft: 'aura-soft',
   auraLine: 'aura-line',
   onAura: 'on-aura',
-  onError: 'on-error',
   appleButtonBg: 'apple-button-bg',
   appleButtonInk: 'apple-button-ink',
 };

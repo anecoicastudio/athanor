@@ -173,7 +173,7 @@ export default function NewPasswordScreen() {
             out, and dismissing it only re-presents it. */}
           <View className="mt-7 gap-3" ref={reveal.submitRef()}>
             <Button
-              variant="light"
+              variant="primary"
               label={t('auth.newPassword.cta', locale)}
               disabled={disabled}
               loading={saving}

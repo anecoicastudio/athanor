@@ -17,8 +17,9 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
  * Only one of those distinctions is a design decision rather than drift:
  *
  * - `md` (default) — a form field on a form screen. `pl-5 pr-5 py-4` at 15pt lands the pill
- *   at ~52pt, which is the `Button` height (DESIGN §9), so a field and the CTA under it
- *   are the same pill. The six form spellings above all collapse here.
+ *   at ~52pt, which was the `Button` height until the pill became 50pt on 2026-10-04; the
+ *   field takes 50 when it is converted (DESIGN §9; #921, open as of 2026-10-04). The six
+ *   form spellings above all collapse here.
  * - `sm` — the compose bar: a `flex-1` field sharing a bottom row with a 44pt send
  *   button (chat, post comments, story replies). A 52pt pill there would out-rank the
  *   send button and eat the keyboard-adjacent viewport, so its shorter `py-2` really is

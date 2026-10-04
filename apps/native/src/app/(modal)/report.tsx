@@ -27,8 +27,8 @@ import { Screen } from '@/components/Screen';
  * is the M6 engine's job, server-only (rule #1). After a person report, offers «Blocca anche
  * questa persona» (routes through the merged blocks flow); a message report does not, because
  * the affordance below keys on `targetId` being a person and for a message it is a message —
- * the chat overflow menu still offers «Blocca» directly. Flat `light` CTA — reporting is not a
- * moment-grade event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
+ * the chat overflow menu still offers «Blocca» directly. The CTA is the `primary` pill:
+ * reporting is an ordinary action. Neutral chrome (no cyan/glow surfaces).
  */
 export default function ReportScreen() {
   const leave = useGuardedBack();
@@ -165,10 +165,9 @@ export default function ReportScreen() {
               <Text className="text-sm text-error">{t('report.error', locale)}</Text>
             ) : null}
 
-            {/* flat light CTA — reporting is not moment-grade, so no glow (rule #4). */}
             <Button
               label={report.isPending ? t('report.submitting', locale) : t('report.cta', locale)}
-              variant="light"
+              variant="primary"
               disabled={category === null || report.isPending}
               onPress={() => report.mutate()}
             />

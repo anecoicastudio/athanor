@@ -823,8 +823,8 @@ export default function EventCreateScreen() {
 
                 {/* #104 — the account the split pays into. Shown only once the read has landed, so
                     an already-onboarded organiser never sees an accusation; and only while the flag
-                    is false, so it disappears the moment W13 flips it. Flat cyan CTA, no glow:
-                    connecting a bank account is a chore, not a moment-grade event (rule #4). */}
+                    is false, so it disappears the moment W13 flips it. The `primary` pill:
+                    connecting a bank account is a chore, an ordinary action. */}
                 {payoutKnown && !payoutsEnabled ? (
                   <View className="gap-3 rounded-card border border-hair bg-raise p-5">
                     <Text className="text-[14px] leading-5 text-foreground">
@@ -839,7 +839,7 @@ export default function EventCreateScreen() {
                       </Text>
                     ) : null}
                     <Button
-                      variant="light"
+                      variant="primary"
                       label={t(
                         payoutOpening ? 'event.create.payout.opening' : 'event.create.payout.cta',
                         locale,
@@ -872,7 +872,7 @@ export default function EventCreateScreen() {
               label={t('event.create.submit', locale)}
               onPress={() => void onSubmit()}
               disabled={mutation.isPending}
-              variant="light"
+              variant="primary"
             />
           </View>
         </ScrollView>

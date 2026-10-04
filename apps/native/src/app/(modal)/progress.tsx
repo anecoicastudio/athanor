@@ -301,10 +301,8 @@ export default function ProgressScreen() {
             <Button
               label={t('fund.progress.compose.cta', locale)}
               onPress={onPost}
-              variant="light"
+              variant="primary"
               disabled={busy}
-              // Flat cyan CTA — no glow (rule #4): a progress note is the ordinary rhythm
-              // of a realization, not a moment.
             />
           </View>
         ) : undefined

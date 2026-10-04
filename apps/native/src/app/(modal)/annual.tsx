@@ -420,7 +420,7 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard. One candidacy
+        {/* 4. «Candida il tuo sogno» — the `primary` Button → candidacy wizard. One candidacy
             per edition (dream_candidacies_one_per_edition), so an existing row replaces the
             CTA; while it is still 'submitted' (the RLS update window) and the window is open,
             the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}
@@ -430,8 +430,7 @@ export default function AnnualFundScreen() {
               <Button
                 label={t('fund.candidate.cta', locale)}
                 onPress={() => router.push('/(modal)/candidacy')}
-                variant="light"
-                // No glow — flat CTA, rule #4
+                variant="primary"
               />
               {/* FUND-35 cross-cycle (#221): a prior-cycle candidacy offers the EXPLICIT
                   prefilled restart — a fresh row in this cycle, never an auto-carry. */}
@@ -480,7 +479,7 @@ export default function AnnualFundScreen() {
             <Button
               label={t('fund.plan.entry.cta', locale)}
               onPress={() => router.push('/(modal)/plan')}
-              variant="light"
+              variant="primary"
             />
             <Text className="text-center text-[12px] text-muted-foreground">
               {t('fund.plan.entry.hint', locale)}
@@ -506,8 +505,7 @@ export default function AnnualFundScreen() {
                 <Button
                   label={t('fund.progress.compose.entry.cta', locale)}
                   onPress={() => router.push('/(modal)/progress')}
-                  variant="light"
-                  // Flat cyan CTA — no glow (rule #4)
+                  variant="primary"
                 />
                 <Text className="text-center text-[12px] text-muted-foreground">
                   {t('fund.progress.compose.entry.hint', locale)}
@@ -564,9 +562,8 @@ export default function AnnualFundScreen() {
                   amt: String(Math.floor(amountCents / 100)),
                 })}
                 onPress={onContribute}
-                variant="light"
+                variant="primary"
                 disabled={amountCents < MIN_CONTRIBUTION_CENTS}
-                // Flat cyan CTA — no glow (rule #4)
               />
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}

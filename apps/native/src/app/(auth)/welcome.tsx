@@ -637,7 +637,7 @@ export default function WelcomeScreen() {
                 keyboard. The whole block, so signup's consent notice rides with its button. */}
               <View className="mt-7 gap-3" ref={reveal.submitRef()}>
                 <Button
-                  variant="light"
+                  variant="primary"
                   label={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
                   disabled={disabled}
                   loading={submitting}

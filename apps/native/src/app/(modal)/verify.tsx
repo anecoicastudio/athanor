@@ -181,7 +181,7 @@ export default function VerifyScreen() {
 
         {!verified ? (
           <Button
-            variant="light"
+            variant="primary"
             disabled={state === 'pending'}
             label={
               state === 'pending'

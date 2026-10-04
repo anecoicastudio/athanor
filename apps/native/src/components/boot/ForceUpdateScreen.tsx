@@ -45,7 +45,7 @@ export function ForceUpdateScreen() {
         {t('update.body', deviceLocale)}
       </Text>
       <View className="mt-8 w-full">
-        <Button label={t('update.cta', deviceLocale)} variant="light" onPress={openStore} />
+        <Button label={t('update.cta', deviceLocale)} variant="primary" onPress={openStore} />
       </View>
     </View>
   );
