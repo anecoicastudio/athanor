@@ -421,7 +421,7 @@ export function ProfileEditForm({
           <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
             <View
-              className="flex-row gap-1.5"
+              className="flex-row flex-wrap gap-1.5"
               accessibilityRole="radiogroup"
               accessibilityLabel={t('profile.visibility.label', locale)}
             >
