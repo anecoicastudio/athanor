@@ -308,9 +308,10 @@ describe('forbidden pairs — no call site may use these', () => {
   });
 
   it('success clears AA where it marks a satisfied rule', () => {
-    // The signup password checklist ((auth)/welcome.tsx) is the newest call site. `success` is
-    // a legacy alias: mobile has no green (ruled 2026-10-03), and the value stays only while
-    // its sites are unconverted.
+    // `success` is a legacy alias: mobile has no green (ruled 2026-10-03), and the value stays
+    // only while its sites are unconverted. The password checklists and the handle status
+    // left it with the entry screens (2026-10-04); the profile's «saved» line, the check-in
+    // frame and `SwipeStamp` still read it.
     expect(ratio(galleria.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
     expect(ratio(galleria.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });

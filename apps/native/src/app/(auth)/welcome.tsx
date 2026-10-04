@@ -89,7 +89,9 @@ function LegalNotice({
   return (
     <View className="gap-1">
       <Text className="text-center type-small text-muted-foreground">{text}</Text>
-      <View className="flex-row items-center justify-center gap-6">
+      {/* `flex-wrap`: at the largest text size the two links are wider than the screen side by
+        side (iPhone SE simulator, 2026-10-04), and a clipped link is a link nobody can read. */}
+      <View className="flex-row flex-wrap items-center justify-center gap-x-6">
         {(
           [
             ['settings.legal.terms', legalUrl('terms', locale)],
