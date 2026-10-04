@@ -2671,7 +2671,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
-    'components/Switch.tsx:60': 'the 22pt knob of the switch: a drawn disc, no prose inside',
+    'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
@@ -5398,8 +5398,7 @@ describe('surfaces and text primitives keep the Galleria look (#921)', () => {
  * A list is rows inside one `surface` block (DESIGN §9 «Grouped rows»): `RowGroup` draws the
  * block and the hairlines, `Row` draws a row. A toggle is the app's own `Switch` (§9), a
  * `Pressable` with the `switch` role: the platform switch takes its colours as props from every
- * call site, which is seven places to turn cyan again, and it draws a different control on each
- * OS. These pin the shapes a walk would otherwise have to re-measure, and the two things that
+ * call site, which is seven places to turn cyan again. These pin the shapes a walk would otherwise have to re-measure, and the two things that
  * bring the old look back: a second row component, and a platform switch.
  */
 describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
@@ -5437,8 +5436,8 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
       .map(([at]) => at);
     expect(
       hits,
-      'the platform `Switch` takes its colours from the call site and looks different on each ' +
-        'OS. Import `Switch` from `@/components/Switch` (DESIGN §9).',
+      'the platform `Switch` takes its colours from the call site. Import `Switch` from ' +
+        '`@/components/Switch` (DESIGN §9).',
     ).toEqual([]);
   });
 

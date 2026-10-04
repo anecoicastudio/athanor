@@ -9,8 +9,7 @@ const SWITCH_SLOP = { top: 8, bottom: 8 } as const;
  * the foreground and the knob the background, at the right; off, the track is a secondary-grey
  * outline and the knob the same grey, at the left. White, never `aura`: rule 4 keeps cyan off
  * every selected state, and `source-audit.test.ts` («grouped rows and the switch») holds this
- * file to it. It replaces the platform `Switch`, which took its colours from each call site and
- * drew a different control on each OS.
+ * file to it. It replaces the platform `Switch`, which took its colours from each call site.
  *
  * `accessibilityLabel` is required. The label `Text` beside a toggle is a sibling, not an
  * association, so without it the control announces its state and no subject (#635): pass the
