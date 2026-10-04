@@ -227,7 +227,7 @@ export default function SearchScreen() {
           className="flex-1 px-8 pt-20"
           loading={
             <View className="flex-1 items-center pt-20">
-              <ActivityIndicator color={galleria.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             </View>
           }
         />

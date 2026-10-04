@@ -113,7 +113,7 @@ export default function FavorScreen() {
           className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
           style={auraGlow(1)}
         >
-          <SectionLabel tone="aura">{t('favor.done.eyebrow', locale)}</SectionLabel>
+          <SectionLabel tone="celebration">{t('favor.done.eyebrow', locale)}</SectionLabel>
           <Text accessibilityRole="header" className="text-center text-2xl text-foreground">
             {t('favor.done.title', locale, { name })}
           </Text>
@@ -191,7 +191,7 @@ export default function FavorScreen() {
         ListEmptyComponent={
           query.isLoading ? (
             <View className="items-center justify-center py-24">
-              <ActivityIndicator color={galleria.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             </View>
           ) : (
             <View className="items-center justify-center gap-2 px-8 py-24">

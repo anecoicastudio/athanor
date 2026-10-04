@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
-import { Text } from '@/tw';
+import { cn, Text } from '@/tw';
 import { t } from '@athanor/i18n';
 import { useLocale } from '@/hooks/use-locale';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
@@ -8,18 +8,24 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { spoken } from '@/lib/star';
 
 /**
- * Single animated tabular-nums Aura number (spec §4 DRY).
+ * The member's OWN Aura numeral, animated (spec §4 DRY) — one of the five cyan marks of the
+ * mobile look (DESIGN §2.3), so it is mounted only where the number is the signed-in member's:
+ * the Aura screen and Home's stars row. Someone else's Aura is a plain `Text`.
  * Tweens from previous to `value` over 700ms cubic ease.
  * Reduced-motion: snaps immediately.
  * Announces final value via AccessibilityInfo on settle.
  */
 export function AuraValue({
   value,
-  size = 44,
+  size,
   flashOnIncrease: _flashOnIncrease,
   className,
 }: {
   value: number;
+  /**
+   * Omit it: the numeral is `type-num` (44/800, DESIGN §4). A number is the old inline size,
+   * kept for Home's stars row until that screen converts (#921, open as of 2026-10-04).
+   */
   size?: number;
   flashOnIncrease?: boolean;
   className?: string;
@@ -69,9 +75,9 @@ export function AuraValue({
 
   return (
     <Text
-      // DESIGN §8.5/§11: Aura is status, not a moment — foreground, never aura cyan.
-      className={`text-foreground font-extrabold ${className ?? ''}`}
-      style={{ fontSize: size, fontVariant: ['tabular-nums'] }}
+      // `type-num` states the tabular figures itself; the inline size has to ask for them.
+      className={cn(size === undefined ? 'type-num' : 'font-extrabold', 'text-aura', className)}
+      style={size === undefined ? undefined : { fontSize: size, fontVariant: ['tabular-nums'] }}
       accessibilityRole="text"
     >
       {display}

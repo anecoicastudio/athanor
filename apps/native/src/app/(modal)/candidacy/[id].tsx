@@ -179,7 +179,7 @@ export default function CandidacyDetailScreen() {
             emptyLabel={t('fund.candidacy.notFound', locale)}
             onRetry={() => void cardQuery.refetch()}
             className="px-5"
-            loading={<ActivityIndicator color={galleria.aura} />}
+            loading={<ActivityIndicator color={galleria.foreground} />}
           />
         </View>
       </FundChrome>
@@ -312,7 +312,7 @@ export default function CandidacyDetailScreen() {
               </View>
             ) : voteState === 'voting' ? (
               <View className="min-h-[44px] items-center justify-center px-5">
-                <ActivityIndicator color={galleria.aura} />
+                <ActivityIndicator color={galleria.foreground} />
               </View>
             ) : voteState === 'voted' ? (
               <View className="rounded-full border border-hair px-5 py-3">

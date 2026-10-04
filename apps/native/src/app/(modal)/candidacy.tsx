@@ -145,7 +145,7 @@ export default function CandidacyWizard() {
   if ((editing || resubmitting) && mineQuery.data === undefined) {
     return (
       <Screen className="items-center justify-center">
-        <ActivityIndicator color={galleria.aura} />
+        <ActivityIndicator color={galleria.foreground} />
       </Screen>
     );
   }
@@ -381,7 +381,7 @@ function WizardForm({
             >
               <Text className="text-2xl text-foreground">‹</Text>
             </Pressable>
-            <SectionLabel tone="aura" numberOfLines={1} className="shrink">
+            <SectionLabel numberOfLines={1} className="shrink">
               {t('candidacy.eyebrow', locale)}
             </SectionLabel>
           </View>

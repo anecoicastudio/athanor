@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { galleria } from '@athanor/config';
 import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
+import { useInsideCard } from '@/components/Card';
 
 /**
  * The one form field that stands under a `SectionLabel` (DESIGN §9 Field, Galleria since
@@ -91,6 +92,7 @@ export function Field({
   ...rest
 }: FieldProps) {
   const [focused, setFocused] = useState(false);
+  const insideCard = useInsideCard();
 
   // Forwarded, not replaced — same reason `Input` forwards them: a caller may be driving
   // something else off focus, and swallowing these would strand it.
@@ -114,7 +116,10 @@ export function Field({
           // Physical on both axes, never `px-*` or `py-*`: Android's TextInput drops logical
           // inline padding (#749) and an iOS multi-line one drops logical block padding — see
           // `Input`'s docblock for both measurements.
-          'border bg-surface pb-3 pl-5 pr-5 pt-3 text-foreground',
+          'border pb-3 pl-5 pr-5 pt-3 text-foreground',
+          // Inside a `Card` the field's own fill is the card's and the field would vanish at rest;
+          // there it is a black well (`useInsideCard`, #921 2026-10-04).
+          insideCard ? 'bg-background' : 'bg-surface',
           multiline ? cn('rounded-[24px]', SIZE_CLASSES[size]) : 'min-h-[50px] rounded-full',
           register === 'dream' ? 'type-quote' : multiline ? 'type-body' : 'text-[17px]',
           error ? 'border-error' : focused ? 'border-foreground' : 'border-transparent',

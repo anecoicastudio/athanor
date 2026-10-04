@@ -62,7 +62,7 @@ export function ViralCard({ locale }: { locale: Locale }) {
 
   return (
     <View className="rounded-card border border-aura-line bg-aura-soft p-5 gap-3">
-      <SectionLabel tone="aura">{t('fund.viral.label', locale)}</SectionLabel>
+      <SectionLabel>{t('fund.viral.label', locale)}</SectionLabel>
       <Text className="text-[14px] leading-5 text-foreground">
         {t('fund.viral.tagline1', locale)}
       </Text>

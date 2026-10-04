@@ -126,7 +126,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Aura minima ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.aura', locale)}</SectionLabel>
+          <SectionLabel>{t('search.filter.section.aura', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {AURA_BUCKETS.map((bucket) => (
               <Chip
@@ -141,7 +141,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Città ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.city', locale)}</SectionLabel>
+          <SectionLabel>{t('search.filter.section.city', locale)}</SectionLabel>
           <Input
             placeholder={t('search.filter.city.placeholder', locale)}
             value={city}
@@ -154,7 +154,7 @@ export default function SearchFiltersScreen() {
 
         {/* ── Stella ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.star', locale)}</SectionLabel>
+          <SectionLabel>{t('search.filter.section.star', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {STAR_VALUES.map((s) => (
               <Chip
@@ -170,9 +170,7 @@ export default function SearchFiltersScreen() {
         {/* ── Disponibilità (disabled — backend param not yet implemented) ── */}
         <View className="gap-3 opacity-40">
           <View className="flex-row items-center gap-2">
-            <SectionLabel tone="foreground">
-              {t('search.filter.section.availability', locale)}
-            </SectionLabel>
+            <SectionLabel>{t('search.filter.section.availability', locale)}</SectionLabel>
             <Text className="text-[11px] text-muted-foreground">
               ({t('circle.benefit.soon', locale)})
             </Text>

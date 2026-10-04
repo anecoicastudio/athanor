@@ -301,7 +301,7 @@ export default function CommunityScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={onRefresh}
-            tintColor={galleria.aura}
+            tintColor={galleria.foreground}
           />
         }
         onEndReachedThreshold={0.5}

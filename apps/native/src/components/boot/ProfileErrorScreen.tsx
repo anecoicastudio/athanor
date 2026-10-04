@@ -30,7 +30,7 @@ export function ProfileErrorScreen({
       accessibilityRole="alert"
       {...MODAL_A11Y}
     >
-      <Mandorla size={120} glowLevel={0}>
+      <Mandorla size={120}>
         <View />
       </Mandorla>
       <Text

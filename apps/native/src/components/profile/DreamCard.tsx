@@ -56,9 +56,7 @@ export function DreamCard({
 
   return (
     <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-      <SectionLabel tone="aura">
-        {t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}
-      </SectionLabel>
+      <SectionLabel>{t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}</SectionLabel>
       {dream ? (
         /*
           Label = the dream, hint = the action (#356, #635). This Pressable masks `DreamQuote`, so

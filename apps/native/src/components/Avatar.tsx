@@ -8,7 +8,26 @@ import { useAvatarUrl } from '@/lib/media/avatar-url';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
- * Circle avatar (DESIGN.md §8). Renders the member's photo when they have set one, and the
+ * The avatar's sizes (DESIGN §9), each with the size of its initial as the prototype draws it.
+ * `size` is typed from this table, so a call site cannot invent a sixth.
+ *
+ * 60 is not a Galleria size. It is the story ring's disc, whose add badge is placed by a
+ * measurement against that ring (`components/stories/StoryRing.tsx`); it leaves when the ring
+ * converts (#921, open as of 2026-10-04). `source-audit.test.ts` keeps it to that one file.
+ */
+const INITIAL_SIZE = {
+  30: 12,
+  44: 15,
+  56: 15,
+  60: 15,
+  72: 24,
+  104: 34,
+} as const;
+
+export type AvatarSize = keyof typeof INITIAL_SIZE;
+
+/**
+ * Circle avatar (DESIGN.md §9): a `surface` disc with a hairline. Renders the member's photo when they have set one, and the
  * initial otherwise — the fallback is a first-class state, not a placeholder for a missing
  * upload, because name and photo are optional by product decision (#75).
  *
@@ -34,7 +53,7 @@ export function Avatar({
   decorative = false,
 }: {
   handle: string | null;
-  size?: number;
+  size?: AvatarSize;
   /** Optional human name (#76) — sources the initial and the screen-reader label. */
   displayName?: string | null;
   /**
@@ -71,7 +90,7 @@ export function Avatar({
 
   return (
     <View
-      className="items-center justify-center overflow-hidden rounded-full bg-surface-muted"
+      className="items-center justify-center overflow-hidden rounded-full border border-hair bg-surface"
       style={{ width: size, height: size }}
       // Labelled, it names the person either way, so a screen reader reads the same thing
       // whether or not the photo resolved. Decorative, it carries no label at all: a label on a
@@ -103,7 +122,7 @@ export function Avatar({
         <Text
           className="font-semibold text-foreground"
           maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-          style={{ fontSize: Math.round(size * 0.4) }}
+          style={{ fontSize: INITIAL_SIZE[size] }}
         >
           {initial}
         </Text>

@@ -122,7 +122,7 @@ export default function CheckinScreen() {
   if (!permission || (askable && !answered)) {
     return (
       <Screen className="items-center justify-center">
-        <ActivityIndicator color={galleria.aura} />
+        <ActivityIndicator color={galleria.foreground} />
       </Screen>
     );
   }

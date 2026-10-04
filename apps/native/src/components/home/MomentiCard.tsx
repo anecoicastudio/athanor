@@ -86,14 +86,14 @@ export function MomentiCard({ locale }: { locale: Locale }) {
       accessibilityLabel={t('home.momenti.a11y', locale)}
       onPress={() => router.push('/momenti')}
     >
-      <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+      <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel>
       <View className="gap-3 rounded-card border border-aura-line bg-raise p-5">
         <View className="flex-row items-center gap-3">
           <Avatar
             handle={top.handle}
             displayName={top.displayName}
             avatarPath={top.avatarPath}
-            size={48}
+            size={44}
           />
           <View className="flex-1">
             {/* numberOfLines: handles run to 30 chars (handleSchema) and would wrap the row. */}

@@ -230,7 +230,7 @@ export default function CircleScreen() {
       <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
         </View>
       </Screen>
     );
@@ -348,7 +348,7 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <SectionLabel tone="aura">{t('circle.eyebrow', locale)}</SectionLabel>
+          <SectionLabel>{t('circle.eyebrow', locale)}</SectionLabel>
 
           {/* Headline */}
           <Text accessibilityRole="header" className="text-[22px] font-bold text-foreground">
@@ -426,7 +426,7 @@ export default function CircleScreen() {
           </View>
         ) : checkoutGate === 'loading' ? (
           <View className="items-center py-2">
-            <ActivityIndicator color={galleria.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           </View>
         ) : checkoutGate === 'closed' ? (
           // Checkout not open yet (#747): the same quiet line as the iOS arm, no button, no

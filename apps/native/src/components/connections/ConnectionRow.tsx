@@ -30,7 +30,7 @@ export function ConnectionRow({
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}
-        size={48}
+        size={44}
       />
       <View className="flex-1">
         <Text className="text-[15px] font-semibold text-foreground">{name}</Text>

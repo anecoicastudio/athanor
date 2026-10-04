@@ -32,7 +32,7 @@ export function ConversationRow({
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}
-        size={48}
+        size={44}
       />
       <View className="flex-1 gap-0.5">
         {/* `gap-x-3` + `flex-wrap` (#847): the name and the time ran together at AX sizes; now

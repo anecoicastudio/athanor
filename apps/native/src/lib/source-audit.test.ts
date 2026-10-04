@@ -2590,7 +2590,7 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
    * which is the one nobody looked at. The line moving is the point — it forces a re-read.
    */
   const BARE_PRESSABLE_OK: Record<string, string> = {
-    'components/profile/DreamCard.tsx:74':
+    'components/profile/DreamCard.tsx:72':
       'wraps <DreamQuote>, a multi-line quote block that is far taller than the floor',
   };
 
@@ -4482,12 +4482,12 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
    * `lib/glow*` uses either today, so the coverage is total by circumstance, not construction.
    *
    * Since Galleria (rule 4, mobile half, 2026-10-03) nothing on mobile glows, so the list only
-   * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop, and each of
-   * the rest leaves when its own screens are converted (#921, open as of 2026-10-04).
+   * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop,
+   * `components/Mandorla.tsx` the same day with its `glowLevel`, and each of the rest leaves
+   * when its own screens are converted (#921, open as of 2026-10-04).
    */
   const GLOW_SURFACES = [
     'app/(modal)/favor.tsx',
-    'components/Mandorla.tsx',
     'components/circle/SubscriptionStatusCard.tsx',
     'components/fund/CandidateCard.tsx',
     'components/fund/FundTicker.tsx',
@@ -5238,5 +5238,150 @@ describe('chips, tags and fields keep the Galleria shape (#921)', () => {
       hits,
       'use `pt-N pb-N`: a multi-line iOS TextInput draws its text as if `py-N` were not there',
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the shared surfaces and text primitives (#921, 2026-10-04).
+ *
+ * Cyan is five marks (DESIGN §2.3). Two of them pass through a shared component: the member's
+ * own Aura numeral (`AuraValue`) and the one-line label of a celebration screen (`SectionLabel
+ * tone="celebration"`). Everything else these components draw is white or grey — a progress
+ * fill, a step, a toast's mark, a spinner, a pull-to-refresh tint — and none of it glows or
+ * turns green. Each of those type-checks, lints and renders in cyan, which is how the action
+ * colour would come back: one component at a time, on every screen that mounts it.
+ */
+describe('surfaces and text primitives keep the Galleria look (#921)', () => {
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+
+  /** The shared components that carry no cyan, no green and no glow at all. */
+  const PLAIN = [
+    'Avatar',
+    'Card',
+    'DreamQuote',
+    'EmptyState',
+    'ListState',
+    'LoadingScreen',
+    'Mandorla',
+    'MandorlaMark',
+    'ProgressBar',
+    'RecoverySent',
+    'Screen',
+    'ShimmerBar',
+    'StatLine',
+    'StepBars',
+    'StepDots',
+    'SuspendedNotice',
+    'Toast',
+  ];
+
+  const component = (name: string) => stripComments(read(`${SRC}components/${name}.tsx`));
+
+  /** Every opening tag of `base` in the app, with the file it stands in. */
+  const tags = (base: string) =>
+    FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => t.base === base)
+        .map((t) => ({
+          file: rel(p).replace('apps/native/src/', ''),
+          at: `${rel(p).replace('apps/native/src/', '')}:${t.line}`,
+          raw: t.raw,
+        })),
+    );
+
+  it('finds the tags it is walking', () => {
+    // A scanner that finds nothing passes every call-site assertion below. On 2026-10-04:
+    // 111 labels, 26 spinners, 5 refresh controls.
+    expect(tags('SectionLabel').length, 'no <SectionLabel> found').toBeGreaterThan(80);
+    expect(tags('ActivityIndicator').length, 'no <ActivityIndicator> found').toBeGreaterThan(15);
+    expect(tags('RefreshControl').length, 'no <RefreshControl> found').toBeGreaterThan(2);
+  });
+
+  it('none of the plain components names cyan, green or the glow', () => {
+    const hits = PLAIN.filter((name) =>
+      /(?<![\w-])(?:text|bg|border)-(?:aura|success)|galleria\.(?:aura|success)|auraGlow/.test(
+        component(name),
+      ),
+    );
+    expect(
+      hits,
+      'a shared surface or text primitive reads `aura`, `success` or `auraGlow()`. Every screen ' +
+        'that mounts it turns cyan, green or glowing with it. A fill, a step and a mark are ' +
+        '`foreground`; what is not lit is `hair`; a confirmation is a ✓ and words (DESIGN §2.3).',
+    ).toEqual([]);
+  });
+
+  it('SectionLabel is the label style, and cyan only in its celebration tone', () => {
+    const src = component('SectionLabel');
+    expect(src, 'the label is `type-label`').toMatch(/(['"])type-label\1/);
+    const tones = objectEntries(src, 'TONE');
+    expect(
+      Object.keys(tones).sort(),
+      'SectionLabel has two tones: the plain grey label and the celebration one',
+    ).toEqual(['celebration', 'plain']);
+    expect(tones.plain, 'the plain label is the secondary grey').toMatch(/text-muted-foreground/);
+    expect(tones.plain, 'the plain label is not cyan').not.toMatch(/aura/);
+  });
+
+  it('a label names its tone as a literal, and only a celebration screen takes the cyan one', () => {
+    const labels = tags('SectionLabel');
+    expect(
+      labels.filter(({ raw }) => /\btone=\{/.test(raw)).map(({ at }) => at),
+      'a `<SectionLabel tone={…}>` whose tone is computed: the list below cannot place it',
+    ).toEqual([]);
+    expect(
+      labels.filter(({ raw }) => /\btone="(?!celebration")/.test(raw)).map(({ at }) => at),
+      'a tone the label no longer has. A section label is plain grey: drop the prop.',
+    ).toEqual([]);
+    const owners = [
+      ...new Set(
+        labels.filter(({ raw }) => /\btone="celebration"/.test(raw)).map(({ file }) => file),
+      ),
+    ].sort();
+    expect(
+      owners,
+      'The cyan label is the one line above the title of a celebration screen (rule 4; DESIGN ' +
+        '§2.3). A file that is NEW here is cyan used as an eyebrow: the label is grey. A file ' +
+        'that is MISSING lost the label the look keeps cyan.',
+    ).toEqual(CELEBRATION_SCREENS);
+  });
+
+  it('a spinner and a pull-to-refresh tint are never cyan', () => {
+    const cyan = [...tags('ActivityIndicator'), ...tags('RefreshControl')]
+      .filter(({ raw }) => /galleria\.aura/.test(raw))
+      .map(({ at }) => at);
+    expect(
+      cyan,
+      'a spinner or a refresh tint in `aura`: waiting is not one of the five cyan marks ' +
+        '(DESIGN §2.3). Use `galleria.foreground`, or `galleria.foregroundMuted` where the ' +
+        'spinner is the quietest thing on the screen.',
+    ).toEqual([]);
+  });
+
+  it('the avatar has five sizes, and one named exception', () => {
+    const src = component('Avatar');
+    // `objectEntries` reads identifier keys; this table's keys are numbers.
+    const table = src.match(/const INITIAL_SIZE = \{([^}]*)\}/)?.[1] ?? '';
+    const sizes = [...table.matchAll(/(\d+)\s*:/g)].map((m) => Number(m[1]));
+    // 60 is not a Galleria size: it is the story ring's disc, whose badge is placed by a
+    // measurement (`components/stories/StoryRing.tsx`). It leaves with that ring.
+    expect(sizes, 'the avatar sizes of DESIGN §9, plus the story ring’s 60').toEqual([
+      30, 44, 56, 60, 72, 104,
+    ]);
+    const sixty = codeLines()
+      .filter(([, text]) => /\bsize=\{60\}|\bAVATAR\w* = 60\b/.test(text))
+      .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, ''));
+    expect(sixty, 'the 60pt disc is the story ring’s and nobody else’s').toEqual([
+      'components/stories/StoryRing.tsx',
+    ]);
   });
 });

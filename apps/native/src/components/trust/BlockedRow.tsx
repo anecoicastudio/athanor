@@ -34,7 +34,7 @@ export function BlockedRow({
         handle={item.peerHandle}
         displayName={item.peerDisplayName}
         avatarPath={item.peerAvatarPath}
-        size={40}
+        size={44}
       />
       <Text className="flex-1 text-foreground">
         {item.removed ? removedLabel : (memberLabel(item.peerDisplayName, item.peerHandle) ?? '—')}

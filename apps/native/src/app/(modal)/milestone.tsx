@@ -72,7 +72,7 @@ export default function MilestoneScreen() {
         </Text>
 
         <View className="gap-2">
-          <SectionLabel tone="aura">{t('milestone.field.label', locale)}</SectionLabel>
+          <SectionLabel>{t('milestone.field.label', locale)}</SectionLabel>
           <Field
             error={error ? t('milestone.error.empty', locale) : null}
             maxLength={200}

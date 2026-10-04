@@ -74,7 +74,7 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
               handle={need.target_handle}
               displayName={need.target_display_name}
               avatarPath={need.target_avatar_path}
-              size={40}
+              size={44}
             />
             <View className="flex-1 gap-0.5">
               <Text className="text-[14px] text-foreground" numberOfLines={1}>

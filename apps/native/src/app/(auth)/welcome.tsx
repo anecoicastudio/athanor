@@ -362,7 +362,7 @@ export default function WelcomeScreen() {
               confirmation, not a moment»). The eyebrow keeps the screen's own hero slot —
               flat cyan text, which rule #4 allows; it is the glow that is reserved. */
             <View className="mt-6 gap-4">
-              <SectionLabel tone="aura">{t('auth.confirm.eyebrow', locale)}</SectionLabel>
+              <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
               <Text
                 accessibilityRole="header"
                 className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
@@ -399,7 +399,7 @@ export default function WelcomeScreen() {
           ) : (
             <>
               <View className="mt-6 gap-2">
-                <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
+                <SectionLabel>{copy('eyebrow')}</SectionLabel>
                 <Text
                   accessibilityRole="header"
                   className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
@@ -463,7 +463,7 @@ export default function WelcomeScreen() {
 
                   <View className="my-6 flex-row items-center gap-3">
                     <View className="h-px flex-1 bg-hair" />
-                    <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
+                    <SectionLabel>{t('auth.orEmail', locale)}</SectionLabel>
                     <View className="h-px flex-1 bg-hair" />
                   </View>
                 </>

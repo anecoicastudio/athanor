@@ -1,5 +1,4 @@
 import { Text, View } from '@/tw';
-import { auraGlowLevel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale, ZodiacSign } from '@athanor/schemas';
 import { Avatar } from '@/components/Avatar';
@@ -40,9 +39,9 @@ export function ProfileHero({
   const name = displayName?.trim() || null;
   return (
     <View className="items-center gap-3">
-      {/* Unknown Aura gets glow level 0: rule #4 reserves the glow for something that happened,
-          and a failed read is not an achievement. `auraGlowLevel(0)` is that level. */}
-      <Mandorla size={116} glowLevel={auraGlowLevel(auraScore ?? 0)}>
+      {/* The frame no longer glows with the Aura tier (rule 4, 2026-10-04); the frame itself
+          leaves when this screen converts (#921, open as of 2026-10-04). */}
+      <Mandorla size={116}>
         <Avatar handle={handle} displayName={displayName} avatarPath={avatarPath} size={104} />
       </Mandorla>
       {/* The name leads and the handle follows it, quieter — a member with no name is not

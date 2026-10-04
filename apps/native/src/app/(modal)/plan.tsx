@@ -292,7 +292,7 @@ export default function RealizationPlanScreen() {
       <Screen>
         {header}
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
         </View>
       </Screen>
     );

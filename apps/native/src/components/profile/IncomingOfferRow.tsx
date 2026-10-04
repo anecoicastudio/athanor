@@ -55,7 +55,7 @@ export function IncomingOfferRow({
             handle={helper?.handle ?? null}
             displayName={helper?.displayName ?? null}
             avatarPath={helper?.avatarPath ?? null}
-            size={36}
+            size={44}
           />
           <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
             {helperName}

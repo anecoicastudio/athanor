@@ -218,7 +218,7 @@ export default function ProgressScreen() {
       <Screen>
         {header}
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
         </View>
       </Screen>
     );
@@ -359,7 +359,7 @@ export default function ProgressScreen() {
           <View className="gap-3">
             <SectionLabel>{t('fund.progress.mine.title', locale)}</SectionLabel>
             {minePage.isLoading ? (
-              <ActivityIndicator color={galleria.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             ) : mine.length === 0 ? (
               <Text className="text-[14px] text-muted-foreground">
                 {t('fund.progress.mine.empty', locale)}

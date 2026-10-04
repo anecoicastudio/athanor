@@ -8,7 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { MediaFrame } from '@/components/media/MediaFrame';
 
 /** Small enough to sit under a bubble's last line without stealing width from the text. */
-const AVATAR_SIZE = 28;
+const AVATAR_SIZE = 30;
 
 /** Module-scope so the array is not rebuilt on every bubble render of a long thread. */
 const LONG_PRESS_ACTION = [{ name: 'longpress' as const }];

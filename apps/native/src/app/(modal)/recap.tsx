@@ -133,7 +133,7 @@ export default function RecapScreen() {
         {!isLoading && !isError && nextStar != null ? (
           <View className="mt-6">
             <Card>
-              <SectionLabel tone="aura">{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
+              <SectionLabel>{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
               {/* Borderline under §10 and decided here: at 15px this is small for a display
                   title, but «{star} — {gap}» IS the block's title and «Prossima stella» is the
                   generic label over it, so the title takes the header. The screen's own h1 sits

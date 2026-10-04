@@ -75,7 +75,7 @@ export function EventsFeedList({
           className="px-8 pt-16"
           loading={
             <View className="items-center pt-16">
-              <ActivityIndicator color={galleria.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             </View>
           }
         />
@@ -84,7 +84,7 @@ export function EventsFeedList({
         <RefreshControl
           refreshing={query.isRefetching}
           onRefresh={onRefresh}
-          tintColor={galleria.aura}
+          tintColor={galleria.foreground}
         />
       }
       onEndReachedThreshold={0.5}

@@ -2,7 +2,7 @@ import { View } from '@/tw';
 
 /**
  * Onboarding progress bars (prototype `.ob-steps`): equal-width horizontal bars,
- * bar i ≤ current is lit cyan. The bar form is the prototype's onboarding look;
+ * bar i ≤ current is lit white. The bar form is the prototype's onboarding look;
  * `StepDots` stays for the candidacy flow (M7) that uses a dot variant.
  */
 export function StepBars({ count, current }: { count: number; current: number }) {
@@ -20,8 +20,8 @@ export function StepBars({ count, current }: { count: number; current: number })
           key={i}
           className={
             i <= current
-              ? 'h-[3px] flex-1 rounded-full bg-aura'
-              : 'h-[3px] flex-1 rounded-full bg-raise-2'
+              ? 'h-[3px] flex-1 rounded-full bg-foreground'
+              : 'h-[3px] flex-1 rounded-full bg-hair'
           }
         />
       ))}

@@ -326,7 +326,7 @@ export default function ChatScreen() {
               handle={peer?.peerHandle ?? null}
               displayName={peer?.peerDisplayName ?? null}
               avatarPath={peer?.peerAvatarPath ?? null}
-              size={36}
+              size={30}
             />
           }
           title={peerName}

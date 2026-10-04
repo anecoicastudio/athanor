@@ -355,7 +355,7 @@ export default function AnnualFundScreen() {
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Skeleton / quiet placeholder */}
         <View className="flex-1 items-center justify-center gap-4 px-5">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
           <Text className="text-[13px] text-muted-foreground">— — —</Text>
         </View>
       </Screen>
@@ -514,7 +514,7 @@ export default function AnnualFundScreen() {
             ) : null}
 
             {updatesPage.isLoading ? (
-              <ActivityIndicator color={galleria.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             ) : updates.length === 0 ? (
               <Text className="text-[14px] text-muted-foreground">
                 {t('fund.progress.empty', locale)}
@@ -593,7 +593,7 @@ export default function AnnualFundScreen() {
         <View className="gap-3">
           <SectionLabel>{t('fund.candidates.title', locale)}</SectionLabel>
           {candidatesQuery.isLoading ? (
-            <ActivityIndicator color={galleria.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           ) : candidates.length === 0 ? (
             <Text className="text-[14px] text-muted-foreground">
               {t('fund.candidates.empty', locale)}

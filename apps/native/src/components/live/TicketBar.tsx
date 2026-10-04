@@ -189,7 +189,7 @@ export function TicketBar({
     return (
       <View className="gap-2 rounded-card border border-hair bg-raise p-4">
         <View className="flex-row items-center justify-center gap-2">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
           <Text className="text-[13px] text-ink-2">
             {t(phase === 'confirmSlow' ? 'ticket.confirmSlow' : 'ticket.confirming', locale)}
           </Text>
