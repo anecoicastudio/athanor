@@ -16,9 +16,14 @@ import { stacksTrailing } from '@/lib/type-scale';
  * holds in `trailing` names itself.
  *
  * Nothing here is clipped: `min-h`, no `numberOfLines`, and the value cell shrinks and wraps.
- * At the accessibility text sizes (`stacksTrailing`, `lib/type-scale.ts`) a `trailing` control
- * moves under the text, so the title keeps the full width and a word is not broken beside it
- * (#847).
+ * At the accessibility text sizes (`stacksTrailing`, `lib/type-scale.ts`) the value and a
+ * `trailing` control move under the text and only the chevron stays at the right, so the text
+ * keeps the width and a word is not broken beside them (#847). Seen on 2026-10-04 on the iPhone
+ * SE simulator at AX5: beside the text, the value «Abbonamento annuale attivo» broke as
+ * «Abbonam / ento»; stacked, it does not, there and on the moto g17 at a font scale of 2.0.
+ *
+ * Measured that day at the default size: a title-only row is 60 on both devices; with a second
+ * line it is 63 (simulator) and 63.2 (phone), which is why the height is a floor.
  */
 export function Row({
   title,
@@ -39,11 +44,17 @@ export function Row({
   accessibilityLabel?: string;
   trailing?: ReactNode;
 }) {
-  const stacked = stacksTrailing(useWindowDimensions().fontScale) && trailing != null;
-  const chevron = showChevron && onPress != null;
+  // At the accessibility sizes everything but the chevron stacks in one full-width column.
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
+  const chevron =
+    showChevron && onPress != null ? (
+      <Text className="type-small text-muted-foreground">›</Text>
+    ) : null;
+  const valueText = (align: string) =>
+    value ? <Text className={cn('type-small text-muted-foreground', align)}>{value}</Text> : null;
   const body = (
     <>
-      <View className={stacked ? 'gap-0.5 self-stretch' : 'flex-1 gap-0.5'}>
+      <View className={stacked ? 'flex-1 items-start gap-0.5' : 'flex-1 gap-0.5'}>
         <Text
           className={cn('type-body font-medium', destructive ? 'text-error' : 'text-foreground')}
         >
@@ -52,21 +63,21 @@ export function Row({
         {description ? (
           <Text className="type-small text-muted-foreground">{description}</Text>
         ) : null}
+        {stacked ? valueText('') : null}
+        {stacked && trailing != null ? <View className="pt-2">{trailing}</View> : null}
       </View>
-      {value || chevron ? (
+      {stacked ? (
+        chevron
+      ) : value || chevron ? (
         <View className="max-w-[50%] shrink flex-row items-center gap-2">
-          {value ? (
-            <Text className="type-small text-muted-foreground shrink text-right">{value}</Text>
-          ) : null}
-          {chevron ? <Text className="type-small text-muted-foreground">›</Text> : null}
+          {valueText('shrink text-right')}
+          {chevron}
         </View>
       ) : null}
-      {trailing}
+      {stacked ? null : trailing}
     </>
   );
-  const shape = stacked
-    ? 'min-h-15 items-start justify-center gap-[10px] py-[14px]'
-    : 'min-h-15 flex-row items-center justify-between gap-3 py-2';
+  const shape = 'min-h-15 flex-row items-center justify-between gap-3 py-2';
 
   if (!onPress) return <View className={shape}>{body}</View>;
   return (

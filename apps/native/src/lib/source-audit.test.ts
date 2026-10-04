@@ -2671,7 +2671,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'chevron is capped to `ornament`',
     'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
-    'components/Switch.tsx:54': 'the 22pt knob of the switch: a drawn disc, no prose inside',
+    'components/Switch.tsx:60': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:466':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',

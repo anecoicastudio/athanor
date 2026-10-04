@@ -20,6 +20,12 @@ const SWITCH_SLOP = { top: 8, bottom: 8 } as const;
  * `Chip`. Where the row is the control (the two composers), the switch sits inside a hidden,
  * touch-inert wrapper and only draws the state; it takes no `onValueChange` there.
  *
+ * Measured on 2026-10-04, both at the default text size and at the largest (AX5 on the
+ * simulator, a font scale of 2.0 on the phone): the track is 46×28 on the iPhone SE simulator
+ * (iOS 26.3, Expo Go) and on the moto g17 (Android 15, dev client); it does not grow with the
+ * text. At the default size a tap 6pt above the track flipped it on both; one 13pt above
+ * (simulator) and one 11dp above (phone) did not.
+ *
  * The knob does not travel: the state is a cut, so there is nothing for Reduce Motion to turn
  * off. A disabled switch is inert and looks as it would enabled; the row that locks it says so
  * (`trust.tsx` dims its «never sold» row).
