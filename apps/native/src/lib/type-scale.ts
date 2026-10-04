@@ -88,12 +88,12 @@ export const DECK_WELL_MAX = 438;
 
 /**
  * The floor the well never shrinks under. At the default text size it rarely binds — an
- * iPhone SE leaves ~426 — so it is chosen for the LARGEST text size, where the header and the
+ * iPhone SE leaves ~421 — so it is chosen for the LARGEST text size, where the header and the
  * action row grow and eat the room while the card's text wraps faster than it scales. Measured
- * on an iPhone SE at AX5 (fontScale capped at 2×): a card with three reasons and a two-line
- * dream needs ~646pt, i.e. a base of ~323; 300 clipped its quote. 380 → 760 at 2× leaves
- * ~114pt, about three more lines of AX quote. It stays under the SE's default-size room, so
- * the fit #751 exists for is not traded away.
+ * on an iPhone SE at AX5 (fontScale capped at 2×) on 2026-10-04, at the 4px spacing step: a card
+ * with three reasons and a three-line dream needs ~693pt, i.e. a base of ~347 (300 had clipped a
+ * quote, #751). 380 → 760 at 2× leaves ~67pt, about one more line of AX quote. It stays under
+ * the SE's default-size room, so the fit #751 exists for is not traded away.
  */
 export const DECK_WELL_MIN = 380;
 
