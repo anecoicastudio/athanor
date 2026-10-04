@@ -5,6 +5,7 @@ import { t, type Locale, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
 import { Pressable, ScrollView, Text, View, cn, type TextInputRef } from '@/tw';
 import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
 import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { providerMark } from '@/components/provider-marks';
@@ -16,6 +17,7 @@ import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
 import { legalUrl } from '@/lib/links';
 import { AUTH_REDIRECT_URL, signInWithProvider } from '@/lib/oauth';
 import { clearPendingReferral, getPendingReferral } from '@/lib/referral';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
 import { SectionLabel } from '@/components/SectionLabel';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
@@ -86,7 +88,7 @@ function LegalNotice({
 }) {
   return (
     <View className="gap-1">
-      <Text className="text-center text-xs leading-4 text-muted-foreground">{text}</Text>
+      <Text className="text-center type-small text-muted-foreground">{text}</Text>
       <View className="flex-row items-center justify-center gap-6">
         {(
           [
@@ -96,13 +98,13 @@ function LegalNotice({
         ).map(([key, url]) => (
           <Pressable
             key={key}
-            className="min-h-[44px] justify-center"
+            className={cn('min-h-[44px] justify-center', PRESS_DIM)}
             accessibilityRole="link"
             onPress={() => {
               WebBrowser.openBrowserAsync(url).catch(onError);
             }}
           >
-            <Text className="text-xs text-muted-foreground underline">{t(key, locale)}</Text>
+            <Text className="type-small text-foreground underline">{t(key, locale)}</Text>
           </Pressable>
         ))}
       </View>
@@ -348,39 +350,34 @@ export default function WelcomeScreen() {
 
           {phase === 'sent' ? (
             /* The confirmation the flow's most important moment used to get as one 14px cyan
-              line (#618). Rule #4 call, made explicitly: this is the CONFIRMATION register,
-              not the moment register — no ✦, no glow, no `auraSoft`/`auraLine` frame. Nothing
-              has happened to the member yet; an account exists and a mail is in flight, and
-              the screen's job is to send them to their inbox. `success` carries the state, the
-              same reason the password checklist uses it («a satisfied form rule is a
-              confirmation, not a moment»). The label keeps the screen's own hero slot, in the
-              plain grey every label has since 2026-10-04 (#921). */
+              line (#618). Rule 4 call, made explicitly: this is the CONFIRMATION register,
+              not a celebration — no ✦, no cyan. Nothing has happened to the member yet; an
+              account exists and a mail is in flight, and the screen's job is to send them to
+              their inbox. A ✓ in foreground and words carry the state, as in `RecoverySent`,
+              whose shape this is: the mobile look has no green (DESIGN §2.3). */
             <View className="mt-6 gap-4">
               <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
-              <Text
-                accessibilityRole="header"
-                className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-              >
+              <Text accessibilityRole="header" className="type-h1 text-foreground">
                 {t('auth.confirm.title', locale)}
               </Text>
 
-              <View className="mt-2 gap-3 rounded-hero border border-hair bg-raise p-5">
+              <Card>
                 {/* The mark is decoration over text that already says it (G2: state is never
                   carried by colour or a glyph alone), so it is hidden from the reader. */}
                 <Text
-                  className="text-2xl text-success"
+                  className="type-title text-foreground"
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants"
                 >
                   ✓
                 </Text>
-                <Text className="text-[15px] leading-[22px] text-foreground">
+                <Text className="type-body text-foreground">
                   {t('auth.confirm.body', locale, { email: email.trim() })}
                 </Text>
-                <Text className="text-[13px] text-muted-foreground">
+                <Text className="type-small text-muted-foreground">
                   {t('auth.confirm.hint', locale)}
                 </Text>
-              </View>
+              </Card>
 
               {/* A mistyped address is the one failure this screen cannot recover from on its
                 own, so the way back to the form is an action, not a re-open of the app. */}
@@ -394,13 +391,10 @@ export default function WelcomeScreen() {
             <>
               <View className="mt-6 gap-2">
                 <SectionLabel>{copy('eyebrow')}</SectionLabel>
-                <Text
-                  accessibilityRole="header"
-                  className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-                >
+                <Text accessibilityRole="header" className="type-h1 text-foreground">
                   {copy('display')}
                 </Text>
-                <Text className="text-sm text-muted-foreground">{copy('sub')}</Text>
+                <Text className="type-small text-muted-foreground">{copy('sub')}</Text>
               </View>
 
               {/* OAuth on top, per the prototype. Each provider is hidden until it is configured
@@ -437,7 +431,7 @@ export default function WelcomeScreen() {
                     ) : null}
 
                     {oauthError ? (
-                      <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                      <Text className="text-[14px] text-error" accessibilityLiveRegion="polite">
                         {oauthError}
                       </Text>
                     ) : null}
@@ -489,9 +483,7 @@ export default function WelcomeScreen() {
                   unconditional — there is no sign-in half of it to keep a fill for. */}
                 {!login ? (
                   <View className="gap-2" ref={reveal.rowRef('name')}>
-                    <Text className="text-xs font-medium text-muted-foreground">
-                      {t('auth.name.label', locale)}
-                    </Text>
+                    <SectionLabel>{t('auth.name.label', locale)}</SectionLabel>
                     <Input
                       {...reveal.fieldProps('name')}
                       autoCapitalize="words"
@@ -510,9 +502,7 @@ export default function WelcomeScreen() {
                 ) : null}
 
                 <View className="gap-2" ref={reveal.rowRef('email')}>
-                  <Text className="text-xs font-medium text-muted-foreground">
-                    {t('auth.email.label', locale)}
-                  </Text>
+                  <SectionLabel>{t('auth.email.label', locale)}</SectionLabel>
                   <Input
                     {...reveal.fieldProps('email')}
                     ref={emailRef}
@@ -533,9 +523,7 @@ export default function WelcomeScreen() {
                   and the checklist under it — which does not exist yet at the moment of the tap
                   (it mounts on the first keystroke), so the reveal fires again as it grows. */}
                 <View className="gap-2" ref={reveal.rowRef('password')}>
-                  <Text className="text-xs font-medium text-muted-foreground">
-                    {t('auth.password.label', locale)}
-                  </Text>
+                  <SectionLabel>{t('auth.password.label', locale)}</SectionLabel>
                   {/* Per the note above, signup takes `none` here: `newPassword` is what puts
                     iOS's strong-password overlay on the field, and the overlay's suggestion is
                     the committed value in question. Sign-in keeps `password`. Hypothesis 1 —
@@ -571,11 +559,11 @@ export default function WelcomeScreen() {
                     }}
                   />
                   {/* Signup only — the rule is stated once before typing, then becomes a
-                    live checklist. `success`, not `aura`: a satisfied form rule is a
-                    confirmation, not a moment (rule 4). Met/unmet is carried by the
-                    mark and by an explicit SR label, not by colour alone (G2). */}
+                    live checklist. A met rule goes from grey to foreground, never cyan and
+                    never green: a satisfied form rule is a confirmation (rule 4). Met/unmet is
+                    carried by the mark and by an explicit SR label, not by colour alone (G2). */}
                   {!login && password.length === 0 ? (
-                    <Text className="px-5 text-xs text-muted-foreground">
+                    <Text className="px-5 type-small text-muted-foreground">
                       {t('auth.password.hint', locale)}
                     </Text>
                   ) : null}
@@ -587,7 +575,10 @@ export default function WelcomeScreen() {
                         return (
                           <Text
                             key={requirement}
-                            className={`text-xs ${met ? 'text-success' : 'text-muted-foreground'}`}
+                            className={cn(
+                              'type-small',
+                              met ? 'text-foreground' : 'text-muted-foreground',
+                            )}
                             accessibilityLabel={`${t(met ? 'a11y.req.met' : 'a11y.req.unmet', locale)} ${label}`}
                           >
                             {met ? '✓' : '•'} {label}
@@ -598,14 +589,16 @@ export default function WelcomeScreen() {
                   ) : null}
                   {/* #631: the one recovery path an email member has. Login mode only —
                     a signup has no password to forget. Real 44pt box (min-h + centering,
-                    not hitSlop arithmetic on 13px text — the tap-target sweep's lesson),
+                    not hitSlop arithmetic on a line of text — the tap-target sweep's lesson),
                     left-aligned under the field it rescues. Carries the typed email so
-                    the next screen starts filled. */}
+                    the next screen starts filled. Hand-rolled rather than `Button ghost`,
+                    whose 24pt side padding would set the words a second gutter in; it
+                    wears the same link (small, foreground, underlined) and the same dim. */}
                   {login ? (
                     <Pressable
                       // On the gutter like every other left edge here (#754); the old `px-5`
                       // put its text a second gutter in. `pr-5` keeps the target's width.
-                      className="min-h-[44px] justify-center self-start pr-5"
+                      className={cn('min-h-[44px] justify-center self-start pr-5', PRESS_DIM)}
                       accessibilityRole="button"
                       onPress={() =>
                         router.push({
@@ -614,14 +607,14 @@ export default function WelcomeScreen() {
                         })
                       }
                     >
-                      <Text className="text-[13px] text-muted-foreground">
+                      <Text className="type-small text-foreground underline">
                         {t('auth.forgot.link', locale)}
                       </Text>
                     </Pressable>
                   ) : null}
                 </View>
 
-                {error ? <Text className="text-sm text-error">{error}</Text> : null}
+                {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
               </View>
 
               {/* `Button` owns the pill; the screen keeps the gap above it, because a
@@ -640,7 +633,7 @@ export default function WelcomeScreen() {
                 {/* The spinner alone said only «something is happening». This names it, and
                   keeps saying it across the session hop the spinner now rides out (#618). */}
                 {submitting ? (
-                  <Text className="text-center text-[13px] text-muted-foreground">
+                  <Text className="text-center type-small text-muted-foreground">
                     {inFlightLabel}
                   </Text>
                 ) : null}
@@ -657,17 +650,14 @@ export default function WelcomeScreen() {
                 ) : null}
               </View>
 
-              <Pressable
-                // 13px label + `hitSlop={8}` was 33pt tall (§10). Full-width row, so the
-                // floor only has to come off the vertical axis.
-                className="mt-6 min-h-[44px] items-center justify-center"
-                onPress={toggleMode}
-                accessibilityRole="button"
-              >
-                <Text className="text-[13px] text-muted-foreground">
-                  {t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}
-                </Text>
-              </Pressable>
+              {/* The other mode, as the shared text link: a 44pt target across the row (§10). */}
+              <View className="mt-6">
+                <Button
+                  variant="ghost"
+                  label={t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}
+                  onPress={toggleMode}
+                />
+              </View>
             </>
           )}
         </ScrollView>
