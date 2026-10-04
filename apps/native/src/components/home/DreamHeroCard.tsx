@@ -4,19 +4,23 @@ import { fundKeys, getFundAggregate } from '@athanor/api';
 import { formatFundTotal, timeRemaining } from '@athanor/core';
 import { t, tn } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
-import { Card } from '@/components/Card';
+import { Pressable, Text, View, cn } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
 import { dreamHeroSlot, fundCycleState } from '@/lib/fund-cycle';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
 import { useNow } from '@/hooks/use-now';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 
 /**
- * Compact dream-hero card for the Home tab (PRD 07-m7-countdown-edition §3.2, block 1).
+ * Compact dream-hero block for the Home tab (PRD 07-m7-countdown-edition §3.2, block 1).
  * Shows the days remaining to the active edition's target date, the live fund
- * total, and the contributor count. Tapping the whole card navigates to the
+ * total, and the contributor count. Tapping the whole block navigates to the
  * Annual screen where the per-second ticker lives.
+ *
+ * It is not a card (#921, 2026-10-05): Home's one bordered card is the waiting Momento, and
+ * the prototype draws this block bare on the stage — the label, the days as a 44/800 numeral
+ * with its word, and at the right «total · N persone ›» in grey. The file keeps its name.
  *
  * The slot's states live in `lib/fund-cycle.ts` (issue #224, FUND-47): a confirmed
  * no-cycle read renders the first cycle's ANNOUNCEMENT — «Il primo ciclo aprirà
@@ -26,9 +30,9 @@ import { useActiveEdition } from '@/hooks/use-active-edition';
  * `fallback` is gone: the fund shipped, so a milestone placeholder over it was a
  * false claim.
  *
- * Rule #3: fund total + people count are sanctioned public heartbeat — rendered
- * plainly (no glow; the glow lives on the annual screen's ticker).
- * Rule #4: flat cyan accent only (no aura glow on this card, none on the announcement).
+ * Rule #3: fund total + people count are sanctioned public heartbeat — rendered plainly.
+ * Rule #4: no cyan here. The countdown's cyan mark is its SECONDS (DESIGN §2.3), and this
+ * block counts days, so the numeral is foreground (Marco, 2026-10-05).
  */
 export function DreamHeroCard({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -60,13 +64,9 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
 
   if (slot === 'announce' || !edition) {
     return (
-      <View className="gap-3">
+      <View className="gap-2">
         <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
-        <Card>
-          <Text className="text-center text-[14px] leading-5 text-foreground">
-            {t('fund.noCycle', locale)}
-          </Text>
-        </Card>
+        <Text className="type-body text-foreground">{t('fund.noCycle', locale)}</Text>
       </View>
     );
   }
@@ -79,7 +79,7 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
 
   return (
     /*
-      The label CARRIES the card's three numbers (#635). This Pressable is an accessibility
+      The label CARRIES the block's three numbers (#635). This Pressable is an accessibility
       element, so on iOS it is atomic: VoiceOver reads its label and never descends, and a label
       of «Dai Vita al Tuo Sogno» alone left the countdown, the total and the contributor count
       unreachable — the whole payload of the card.
@@ -103,29 +103,29 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         people: tn('home.dream.a11y.people', contributors, locale),
       })}
       onPress={() => router.push('/annual')}
-      className="gap-3 min-h-[56px]"
+      // `flex-wrap`: at the largest sizes the grey line does not fit beside the numeral and
+      // drops under it instead of leaving the screen. Nothing wraps at the default size.
+      className={cn(
+        'min-h-[56px] flex-row flex-wrap items-end justify-between gap-x-3 gap-y-2',
+        PRESS_DIM,
+      )}
     >
-      <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
-      <Card>
-        {/* Days remaining — big number. `flex-wrap` (#639): the numeral and its word sit on
-            one baseline row with no shrink, so at AX sizes the word left the card; wrapping
-            drops it to a second line instead. Nothing wraps at the default size. */}
-        <View className="flex-row flex-wrap items-baseline gap-2">
-          <Text className="text-4xl font-bold text-aura">{days}</Text>
-          <Text className="text-sm text-muted-foreground">
+      <View className="gap-2">
+        <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
+        {/* `flex-wrap` (#639): the numeral and its word sit on one baseline row with no
+            shrink, so at AX sizes the word left the screen; wrapping drops it to a second
+            line instead. The word is a `Text` of its own: `type-num` is for digits. */}
+        <View className="flex-row flex-wrap items-baseline gap-[10px]">
+          <Text className="type-num text-foreground">{days}</Text>
+          <Text className="type-small text-muted-foreground">
             {tn('fund.countdown.days', days, locale)}
           </Text>
         </View>
-
-        {/* Fund total + contributor count */}
-        <View className="flex-row flex-wrap items-center justify-between gap-y-1">
-          <Text className="text-base font-semibold text-foreground">{fundTotal}</Text>
-          <View className="flex-row flex-wrap items-baseline gap-1">
-            <Text className="text-sm font-medium text-foreground">{contributors}</Text>
-            <Text className="text-xs text-muted-foreground">{t('fund.people.label', locale)}</Text>
-          </View>
-        </View>
-      </Card>
+      </View>
+      {/* Fund total + contributor count. `tn`: one contributor is «1 persona». */}
+      <Text className="type-small text-muted-foreground">
+        {fundTotal} · {tn('home.dream.a11y.people', contributors, locale)} ›
+      </Text>
     </Pressable>
   );
 }

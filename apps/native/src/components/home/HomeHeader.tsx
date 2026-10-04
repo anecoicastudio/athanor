@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { unreadPresence, subscribeNotifications } from '@athanor/api';
-import { Pressable, Text, View } from '@/tw';
+import { galleria } from '@athanor/config';
+import { Pressable, Text, View, cn } from '@/tw';
 import { supabase } from '@/lib/supabase';
-import { HIT_SLOP } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { BellIcon, MessageIcon, SearchIcon } from '@/components/glyphs';
 
 /**
@@ -14,9 +17,21 @@ import { BellIcon, MessageIcon, SearchIcon } from '@/components/glyphs';
  * icons. `messages` opens the conversations list (M5); search (M8) routes to the
  * search modal; notifications (M9) routes to the center.
  *
- * Bell carries a presence dot (bg-aura, h-2 w-2) when unread notifications exist.
+ * The greeting is the title (24/600) and the handle the grey line under it, as the prototype
+ * draws the row (#921, 2026-10-05); before that the handle was the large line.
+ *
+ * Bell carries a presence dot (8px, foreground) when unread notifications exist. It is not
+ * cyan: the cyan dot is the waiting Momento's, and this one lights for any unread notification
+ * (Marco, 2026-10-05).
  * No numeric badge — ever (Foundation §8 / rule #3). The dot is live-updated via
  * `subscribeNotifications` realtime subscription; cleaned up on unmount.
+ *
+ * At the accessibility text sizes (`stacksTrailing`, `lib/type-scale.ts`) the three controls
+ * take a line of their own above the greeting. Seen on 2026-10-05 on the iPhone SE simulator
+ * at AX5: beside them the greeting had 191pt and broke inside the word, «Buonaser / a».
+ *
+ * Each control is a 44pt box with a 22 drawing centred in it (DESIGN §10), the recipe of
+ * `ModalHeader`'s `HeaderIcon`, and no longer a bare glyph reaching 44 through `hitSlop`.
  */
 export function HomeHeader({
   greeting,
@@ -31,6 +46,7 @@ export function HomeHeader({
 }) {
   // Presence dot: boolean, never a count (rule #3).
   const [hasUnread, setHasUnread] = useState(false);
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,22 +87,29 @@ export function HomeHeader({
   ] as const;
 
   return (
-    <View className="flex-row items-start justify-between gap-3">
+    // Stacked, the column runs in reverse: the controls stand above the greeting, and the
+    // greeting stays first for a screen reader.
+    <View
+      className={
+        stacked
+          ? 'flex-col-reverse gap-2'
+          : 'min-h-[44px] flex-row items-center justify-between gap-2'
+      }
+    >
       {/* flex-1 + numberOfLines: handles run to 30 chars, and Yoga's default
         flexShrink of 0 would push the icon cluster off-screen instead of
-        truncating. gap-6 keeps the icons' HIT_SLOP rects (11px per side) from
-        overlapping each other.
+        truncating.
         The greeting takes two lines (#639): it is prose, and flex-1 is what protects the
         icon cluster. The HANDLE takes one (#754): it is a single word, so a second line
         could only split it — «@marco_acc / ardi» at AX5. It ellipsizes instead, and the
         label keeps the whole handle; no font cap (DESIGN §10). */}
-      <View className="flex-1 gap-0.5">
-        <Text className="text-[13px] text-faint" numberOfLines={2}>
+      <View className={stacked ? 'gap-0.5' : 'flex-1 gap-0.5'}>
+        <Text className="type-title text-foreground" numberOfLines={2}>
           {greeting}
         </Text>
         {handle ? (
           <Text
-            className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
+            className="type-small text-muted-foreground"
             accessibilityLabel={`@${handle}`}
             numberOfLines={1}
           >
@@ -94,20 +117,26 @@ export function HomeHeader({
           </Text>
         ) : null}
       </View>
-      <View className="shrink-0 flex-row items-center gap-6 pt-1">
+      {/* The boxes touch, and the last one is pulled 11 into the gutter so its drawing
+        stands on the 20pt edge (44 box, 22 drawing). */}
+      <View className={cn('-mr-[11px] shrink-0 flex-row items-center', stacked && 'self-end')}>
         {actions.map(({ key, label, Icon, dot }) => (
           <Pressable
             key={key}
             accessibilityRole="button"
             accessibilityLabel={label}
-            hitSlop={HIT_SLOP}
             onPress={() => onAction(key)}
+            className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
           >
             {/* Presence dot sits top-right of the icon; never a number (rule #3) */}
-            <View className="relative">
-              <Icon />
+            <View
+              className="relative"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Icon color={galleria.foreground} />
               {dot ? (
-                <View className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-aura" />
+                <View className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-foreground" />
               ) : null}
             </View>
           </Pressable>

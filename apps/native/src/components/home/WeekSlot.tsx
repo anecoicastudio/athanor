@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import { auraKeys } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { WeekCard } from '@/components/aura/WeekCard';
-import { Card } from '@/components/Card';
-import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
+import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
+import { PRESS_DIM } from '@/lib/press';
 import { fetchWeekRecap } from '@/lib/week-recap';
 import { weekRecapIsEmpty } from '@/lib/week-slot';
 
@@ -35,13 +35,13 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * client persists to AsyncStorage with a 24h `gcTime` and Aura decays, so a stale week
  * presented as this week is the false confidence `aura-display.ts` refused for the score.
  *
- * THE LABEL IS THE PLAIN GREY ONE, even though `WeekCard` renders the data state's
- * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: a `SectionLabel`
- * is grey everywhere but on a celebration screen (#921, 2026-10-04), `WeekCard`'s inline cyan
- * title is its own screen's conversion, and `WeekCard`'s «Section label row» comment says the
- * fold-to-11px fix is a visual decision that does not belong in a drive-by. So the three
- * non-data states keep the header `ComingSoonSection` was rendering, in the label style
- * every section has now.
+ * NO CARD, in any of the four states (#921, 2026-10-05): Home's one bordered card is the
+ * waiting Momento. The data state is `WeekCard`, bare; the other three are the same grey
+ * label over one grey line, standing on the stage. They are written here and not through the
+ * `ListState` component, whose error and empty arms draw `EmptyState`'s outline mandorla and
+ * a centred title: that is a whole screen's empty state, and inside a Home slot it stood as
+ * tall as the Momento card. The branch rule is still `listState`. The prototype draws the
+ * data state only.
  *
  * NO `staleTime` — same key, same queryFn, no options, the discipline `MomentiCard`
  * documents. `AnalyticsLiteCard`'s `recapQuery` already sets `staleTime: 60_000` on
@@ -49,17 +49,9 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * and belongs with
  * #111. Adding a fourth setting on one key would only deepen it.
  *
- * The retry is `Button variant="ghost"`, NOT a `border-aura-line bg-aura-soft` pill. Rule #4
- * permits that pair on any control — without a shadow it is the ordinary selected/active surface
- * (§2.3, ruled 2026-09-07), which is how `AmountRow` draws the active amount and how `Chip` drew
- * a selected chip until 2026-10-04 — so the reason here is weight, not permission: a failed fetch should not be the
- * loudest block on the home screen. The defect #119 (closed) counted was the hand-rolled copies
- * of the pill. (This docblock used to cite `favor.tsx` and `costellazioni.tsx` as two of them,
- * with line numbers. That was true when written and has rotted since: the #119 sweep took those
- * pills out — `6c8e092` for the error branches, `4e47f8d` for the empty ones — and the ranges
- * then drifted onto unrelated code. `costellazioni` has no framed pair left at all, and
- * `favor`'s only surviving one is its done-card, which carries `auraGlow(1)` and so is a real
- * glow rather than the plain pair.)
+ * The retry is a link, hand-rolled with the `ghost` link's classes because it stands on the
+ * gutter (`Button ghost` centres its words): a failed fetch should not be the loudest block on
+ * the home screen.
  *
  * Rule #1 is untouched: this reads the ledger and never writes it.
  */
@@ -86,8 +78,8 @@ export function WeekSlot({ locale }: { locale: Locale }) {
   });
 
   // `enabled: !!userId` holds this query while the session hydrates, which `listState` reports
-  // as 'idle' and `ListState` renders as nothing — right for a list, wrong here, because the
-  // section header is already on screen and would sit over an empty card. `weekSlotState` folded
+  // as 'idle' and a list renders as nothing — right for a list, wrong here, because the
+  // section label is already on screen and would sit over nothing. `weekSlotState` folded
   // idle into 'pending' for exactly this reason; the fold keeps the behaviour and makes the
   // choice visible instead of baking it into the predicate for every caller.
   const state = queryState === 'idle' ? 'loading' : queryState;
@@ -99,36 +91,35 @@ export function WeekSlot({ locale }: { locale: Locale }) {
   }
 
   return (
-    <View className="gap-3">
+    <View className="gap-2">
       <SectionLabel>{t('home.week.title', locale)}</SectionLabel>
-      <Card>
-        <ListState
-          state={state}
-          locale={locale}
-          errorLabel={t('aura.error', locale)}
-          // A real quiet week. Same sentence the sheet says about the same seven days
-          // (`recap.tsx`'s `recap.emptyWeek`) — one week, one claim, and no new key for copy that
-          // exists.
-          emptyLabel={t('recap.emptyWeek', locale)}
-          onRetry={() => void recapQuery.refetch()}
-          // Empty, not omitted: `Card` already owns the padding, and the default `px-8 pt-24`
-          // would push a Home slot down a third of the screen.
-          className=""
-          loading={
-            // `bg-raise-2` ghosts, NOT `ShimmerBar` — until 2026-10-04 that component had the
-            // fill of `Card` itself, so a bar inside a card was invisible (it is `hair` now, and
-            // this arm can take it when Home converts). `feed/FeedSkeleton.tsx` is
-            // the in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
-            // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
-            // double inside Home's own `px-5` ScrollView.) Static, so reduced-motion safe.
-            //
-            <View className="gap-3">
-              <View className="h-5 w-full rounded-sm bg-raise-2" />
-              <View className="h-5 w-2/3 rounded-sm bg-raise-2" />
-            </View>
-          }
-        />
-      </Card>
+      {state === 'loading' ? (
+        // Two `ShimmerBar`s (`hair`, static, so reduced-motion safe). `feed/FeedSkeleton.tsx`
+        // is not reusable here: no props, three hardcoded cards, and it bakes a `px-5` that
+        // would double inside Home's own `px-5` ScrollView.
+        <View className="gap-2">
+          <ShimmerBar />
+          <ShimmerBar width="w-2/3" />
+        </View>
+      ) : state === 'error' ? (
+        <View className="items-start">
+          <Text className="type-small text-muted-foreground">{t('aura.error', locale)}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void recapQuery.refetch()}
+            className={cn('min-h-[44px] justify-center', PRESS_DIM)}
+          >
+            <Text className="type-small text-foreground underline">
+              {t('common.retry', locale)}
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        // A real quiet week. Same sentence the sheet says about the same seven days
+        // (`recap.tsx`'s `recap.emptyWeek`) — one week, one claim, and no new key for copy that
+        // exists.
+        <Text className="type-small text-muted-foreground">{t('recap.emptyWeek', locale)}</Text>
+      )}
     </View>
   );
 }

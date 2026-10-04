@@ -3,13 +3,13 @@ import { Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
-import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
+import { Pressable, Text, View, cn } from '@/tw';
+import { HeaderClose } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useToast } from '@/components/ToastHost';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
 import { inviteShareMessage } from '@/lib/invite-share';
+import { PRESS_DIM } from '@/lib/press';
 import { useReferralCode } from '@/hooks/use-referral-code';
 
 /**
@@ -20,13 +20,17 @@ import { useReferralCode } from '@/hooks/use-referral-code';
  * flag was off (#749, ruled 2026-09-18: no placeholder at launch).
  * CTA = the invite/apply flow: shares the caller's personal referral link
  * (PS-1 — founding invites reuse the P4.1 referral mechanism).
- * PS-5 (rule #1): copy states the zero-score guarantee (`prime.note`);
- * flat styling only — no glow (rule #4: nothing "happened" here).
+ * PS-5 (rule #1): copy states the zero-score guarantee (`prime.note`).
+ *
+ * Not a card since 2026-10-05 (#921; Marco that day: the blocks the prototype does not draw
+ * are borderless too): the label with the drawn close at its right, then a title, the body,
+ * the note and a link, on the stage. The file keeps its name.
  *
  * #640 item 2: this is a MARKETING card, and it used to render the only filled CTA on
- * Home while being undismissible — outranking «Hai un Momento». The CTA is now ghost
- * (the moment surfaces keep the filled register) and the card carries a per-member
- * dismiss, remembered on this device. Dismissed → the slot collapses to nothing, like
+ * Home while being undismissible — outranking «Hai un Momento». The CTA is now a link
+ * (the moment surfaces keep the filled register) — hand-rolled with the `ghost` link's
+ * classes, because `Button ghost` centres its words and this one stands on the gutter — and
+ * the block carries a per-member dismiss, remembered on this device. Dismissed → the slot collapses to nothing, like
  * every other Home block with nothing to say (#177).
  */
 const DISMISSED_KEY = 'primeStelle.dismissed';
@@ -78,33 +82,27 @@ export function PrimeStelleCard({ locale }: { locale: Locale }) {
   };
 
   return (
-    <View className="gap-3">
-      <View className="flex-row items-center justify-between">
+    <View className="gap-2">
+      <View className="flex-row items-center justify-between gap-2">
         <SectionLabel>{t('prime.card.label', locale)}</SectionLabel>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.close', locale)}
-          hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }}
-          onPress={dismiss}
-        >
-          <Text className="text-base text-faint">✕</Text>
-        </Pressable>
+        <HeaderClose label={t('common.close', locale)} onPress={dismiss} />
       </View>
-      <Card>
-        <Text className="text-lg font-semibold text-foreground">
-          {t('prime.card.title', locale)}
-        </Text>
-        <Text className="text-sm leading-5 text-muted-foreground">
-          {t('prime.card.body', locale)}
-        </Text>
-        <Text className="text-xs italic text-faint">{t('prime.note', locale)}</Text>
-        <Button
-          label={t('prime.card.cta', locale)}
-          variant="ghost"
-          disabled={isPending}
-          onPress={() => void invite()}
-        />
-      </Card>
+      <Text className="type-h2 text-foreground">{t('prime.card.title', locale)}</Text>
+      <Text className="type-small text-muted-foreground">{t('prime.card.body', locale)}</Text>
+      <Text className="type-small italic text-muted-foreground">{t('prime.note', locale)}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: isPending }}
+        disabled={isPending}
+        onPress={() => void invite()}
+        className={cn(
+          'min-h-[44px] justify-center self-start',
+          PRESS_DIM,
+          isPending && 'opacity-40',
+        )}
+      >
+        <Text className="type-small text-foreground underline">{t('prime.card.cta', locale)}</Text>
+      </Pressable>
     </View>
   );
 }

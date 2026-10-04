@@ -2,11 +2,12 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsCalendar } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { EventRow, toRowData } from '@/components/live/EventRow';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { SectionLabel } from '@/components/SectionLabel';
 import { listState } from '@/lib/list-state';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
 
 const LIVE_HREF = '/(modal)/live' as const;
@@ -40,9 +41,14 @@ const LIVE_HREF = '/(modal)/live' as const;
  * block that must NOT collapse is `WeekSlot` beside it: that one reports the member's own Aura,
  * where silence and a wrong number are both claims about their worth.
  *
- * The whole `View` goes, eyebrow and «vedi Athanor Live ›» included — a header over nothing is
+ * The whole `View` goes, label and «Athanor Live ›» included — a header over nothing is
  * the untitled-header defect #119 catalogues, and this is why the collapse is a `return null`
  * here rather than a mode on `ListState`: a child cannot unmount its parent.
+ *
+ * Galleria (#921, 2026-10-05) converts the label row only: the gap under it is 8 and the link
+ * is an underlined foreground link, not cyan. The rows are still `live/EventRow`'s bordered cards, where the
+ * prototype draws one group of rows: that component has ten callers and converts with Athanor
+ * Live (Marco, 2026-10-05).
  */
 export function TodaySection({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -66,17 +72,19 @@ export function TodaySection({ locale }: { locale: Locale }) {
   if (state !== 'ready') return null;
 
   return (
-    <View className="gap-3">
-      <View className="flex-row items-center justify-between">
+    <View className="gap-2">
+      <View className="flex-row flex-wrap items-center justify-between gap-x-3">
         <SectionLabel>{t('home.upcoming.title', locale)}</SectionLabel>
         <Pressable
           onPress={() => router.push(LIVE_HREF)}
           accessibilityRole="link"
-          // A 13px label's line box (~16pt) plus HIT_SLOP's 11 each side reached ~38 —
-          // under §10. HIT_SLOP is sized for a 22pt icon, not for bare small text.
-          className="min-h-[44px] justify-center"
+          // The line box of a 15px label is under the 44pt floor of §10, and a `hitSlop` sized
+          // for a 22pt icon does not close the gap for bare small text: the box is the target.
+          className={cn('min-h-[44px] justify-center', PRESS_DIM)}
         >
-          <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
+          <Text className="type-small text-foreground underline">
+            {t('home.upcoming.seeLive', locale)}
+          </Text>
         </Pressable>
       </View>
       <View className="gap-3">

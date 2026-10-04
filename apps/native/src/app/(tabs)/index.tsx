@@ -9,6 +9,7 @@ import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraSnapshot } from '@athanor/schemas';
 import { ScrollView } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { RowGroup } from '@/components/RowGroup';
 import { Screen } from '@/components/Screen';
 import { DreamHeroCard } from '@/components/home/DreamHeroCard';
 import { FavorNudgeCard } from '@/components/home/FavorNudgeCard';
@@ -114,7 +115,7 @@ export default function HomeScreen() {
     <Screen>
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-7 px-5 pb-12 pt-4"
+        contentContainerClassName="gap-[26px] px-5 pb-12 pt-4"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -129,8 +130,8 @@ export default function HomeScreen() {
           locale={locale}
           onAction={onAction}
         />
-        {/* Block 2: M7 dream-hero — card owns the edition query and its states (#224):
-          announcement on a confirmed no-cycle, collapse on loading/error, card when live. */}
+        {/* Block 2: M7 dream-hero — the block owns the edition query and its states (#224):
+          announcement on a confirmed no-cycle, collapse on loading/error, the countdown when live. */}
         <DreamHeroCard locale={locale} />
         {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
         <MomentiCard locale={locale} />
@@ -140,7 +141,7 @@ export default function HomeScreen() {
         <WeekSlot locale={locale} />
         {/* Block 4: Esplora slot — Prime Stelle launch card while the flag is on (P4.2), nothing
           otherwise (#749: no «Presto qui» placeholder at launch). BELOW the week recap (#640): a
-          marketing card must not sit in fold 1 outranking «Hai un Momento», and its CTA is ghost
+          marketing block must not sit in fold 1 outranking «Hai un Momento», and its CTA is ghost
           for the same reason. */}
         <PrimeStelleCard locale={locale} />
         {/* Block 5: «Passa il favore» — M3 has landed, so this is the real block. It collapses to
@@ -150,11 +151,12 @@ export default function HomeScreen() {
           (#111), the deliberate half of that sort; `(modal)/live` owns the copy and the retry. */}
         <TodaySection locale={locale} />
 
-        {/* Block 7: real frame, read-only Aura snapshot → Profilo. */}
-        <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
-
-        {/* Block 8: real invite. */}
-        <InviteCard locale={locale} />
+        {/* Blocks 7 and 8, one group of two rows as the prototype draws them (#921): the stars
+          (read-only Aura snapshot → Profilo) and the invite. */}
+        <RowGroup>
+          <StarsMiniRow snapshot={aura} locale={locale} onPress={() => router.push('/profile')} />
+          <InviteCard locale={locale} />
+        </RowGroup>
       </ScrollView>
     </Screen>
   );

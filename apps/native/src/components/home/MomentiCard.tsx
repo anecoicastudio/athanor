@@ -2,19 +2,24 @@ import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
-import { AffinityRow } from '@/components/momenti/AffinityRow';
+import { Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
 import { DreamQuote } from '@/components/DreamQuote';
 import { SectionLabel } from '@/components/SectionLabel';
 import { topWaitingMomento } from '@/lib/momenti-home';
+import { momentoReasonText } from '@/lib/momenti-reason';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
 /**
  * Home block «Hai un Momento» (PRD 01-m1-identity §4.4 block 6, DESIGN §8.2) — issue #185.
- * The one thing that actually happened to a member, said on Home instead of only as a ✦ on
- * the tab bar. The whole card routes to the Momenti tab; `topWaitingMomento` decides what
+ * The one thing that actually happened to a member, said on Home instead of only as a dot on
+ * the tab bar. Its pill routes to the Momenti tab; `topWaitingMomento` decides what
  * (and whether) it shows.
+ *
+ * THE ONE BORDERED CARD ON HOME (#921, 2026-10-05; DESIGN §6: at most one per screen, for the
+ * thing that matters). Every other Home block is bare or a group of rows.
  *
  * NO `fallback` PROP, AND NO PLACEHOLDER — a DELIBERATE DEVIATION from #185's literal text
  * ("a `fallback` prop … is the established shape"), user-approved 2026-08-11. Every sibling
@@ -44,22 +49,20 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * deliberately is NOT the isError-wins rule of `lib/aura-display.ts` — a stale Aura number is a
  * claim about a person's worth, a stale proposal costs one wasted tap.
  *
- * Flat, per DESIGN §9 ("Moment cards add 1px `aura` border" — border, not shadow): the
- * `border-aura-line bg-raise` recipe is `MomentoCard`'s card surface minus its `flex-1` wrapper, so
- * Home and the tab render the same object. No `auraGlow()` — rule #4 permits one here but every
- * glow site in the app is a terminal confirmation (the match), not an invitation.
+ * The card is `Card` (DESIGN §9): `surface`, radius 28, a hairline. It had a cyan border
+ * until 2026-10-05. Nothing glows.
  *
- * One a11y label on the Pressable: VoiceOver reads one node, so it costs the peer's handle. The
- * trade is deliberate — `handle` is nullable, and a `{name}` label would read the «—» fallback
- * aloud as "dash". `InviteCard`'s `home.invite` label is the other card the argument covers.
+ * The pill is the one control (#921, 2026-10-05): the card itself is a plain view, where
+ * before the whole card was one `Pressable` named «Hai un Momento in attesa». A pressable
+ * card cannot hold a pill (no nested pressables, `source-audit` §21), and the prototype draws
+ * the pill. So the name, the reason and the quote are read as text now, and the pill carries
+ * the sentence the card carried (`home.momenti.a11y`): its visible label ends on a `›`.
  *
- * It does NOT cover `DreamHeroCard` and `StarsMiniRow` any more (#635). A static label is enough
- * where it already says what the card says — «Hai un Momento in attesa» IS the content here —
- * and is not enough where the card's content is a number. Those two compose their data into the
- * label now; this one still cannot, for the nullability reason above.
+ * ONE reason, as a grey line led by a ✓, written here and not through `momenti/AffinityRow`:
+ * that row is the Momenti tab's and still draws its ✓ in cyan until its own conversion.
  *
- * The label is plain grey since 2026-10-04 (#921): it was the one cyan eyebrow on Home, and a
- * label is not one of the five cyan marks. The waiting Momento's mark is a dot (DESIGN §2.3).
+ * The cyan here is the 8px dot beside the label, and nothing else: the waiting Momento's mark
+ * (DESIGN §2.3). The label is plain grey since 2026-10-04.
  */
 export function MomentiCard({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -80,34 +83,38 @@ export function MomentiCard({ locale }: { locale: Locale }) {
   const reason = top.reasons[0];
 
   return (
-    <Pressable
-      className="gap-3"
-      accessibilityRole="button"
-      accessibilityLabel={t('home.momenti.a11y', locale)}
-      onPress={() => router.push('/momenti')}
-    >
-      <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel>
-      <View className="gap-3 rounded-card border border-aura-line bg-raise p-5">
-        <View className="flex-row items-center gap-3">
-          <Avatar
-            handle={top.handle}
-            displayName={top.displayName}
-            avatarPath={top.avatarPath}
-            size={44}
-          />
-          <View className="flex-1">
-            {/* numberOfLines: handles run to 30 chars (handleSchema) and would wrap the row. */}
-            <Text numberOfLines={1} className="text-[15px] font-semibold text-foreground">
-              {memberLabel(top.displayName, top.handle) ?? '—'}
-            </Text>
-            {/* ONE reason, not MomentoCard's three: the tab is where the full case gets made. */}
-            {reason ? <AffinityRow reason={reason} locale={locale} /> : null}
-          </View>
-          <Text className="text-lg text-aura">✦</Text>
-        </View>
-        {top.dreamText ? <DreamQuote compact numberOfLines={2} text={top.dreamText} /> : null}
-        <Text className="text-[13px] text-aura">{t('home.momenti.cta', locale)}</Text>
+    <Card>
+      <View className="flex-row items-center gap-2">
+        <View className="h-2 w-2 rounded-full bg-aura" />
+        <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel>
       </View>
-    </Pressable>
+      <View className="flex-row items-center gap-[14px]">
+        <Avatar
+          decorative
+          handle={top.handle}
+          displayName={top.displayName}
+          avatarPath={top.avatarPath}
+          size={44}
+        />
+        <View className="flex-1 gap-0.5">
+          {/* numberOfLines: handles run to 30 chars (handleSchema) and would wrap the row. */}
+          <Text numberOfLines={1} className="type-h2 text-foreground">
+            {memberLabel(top.displayName, top.handle) ?? '—'}
+          </Text>
+          {/* ONE reason, not MomentoCard's three: the tab is where the full case gets made. */}
+          {reason ? (
+            <Text className="type-small text-muted-foreground">
+              ✓ {momentoReasonText(reason, locale)}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      {top.dreamText ? <DreamQuote compact numberOfLines={2} text={top.dreamText} /> : null}
+      <Button
+        label={t('home.momenti.cta', locale)}
+        accessibilityLabel={t('home.momenti.a11y', locale)}
+        onPress={() => router.push('/momenti')}
+      />
+    </Card>
   );
 }
