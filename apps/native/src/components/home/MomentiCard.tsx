@@ -34,8 +34,8 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * Same `useMomentiDeck()` entry as the tab bar's dot, with NO options: TanStack
  * dedupes the two observers, so this block costs zero extra network (`staleTime: 30_000`,
  * the default in `lib/query-client.ts`). Adding `enabled` / `refetchInterval` / `staleTime` here
- * would fork this observer's behaviour from the badge's for no gain — Home would then be able to
- * show a card the tab bar doesn't spark for. The tab's accept/pass mutations already invalidate
+ * would fork this observer's behaviour from the dot's for no gain — Home would then be able to
+ * show a card the tab bar has no dot for. The tab's accept/pass mutations already invalidate
  * this key (`invalidateMomenti` in `(tabs)/momenti.tsx`), so acting there refreshes Home on return
  * with no wiring.
  *

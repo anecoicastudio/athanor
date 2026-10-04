@@ -14,6 +14,9 @@ import {
   ProfiloGlyph,
 } from '@/components/glyphs';
 
+/** The tab glyph's size (DESIGN §9 «Tab bar»): stated here, not taken from the navigator. */
+const TAB_GLYPH = 24;
+
 export default function TabsLayout() {
   // The waiting-Momento dot: one 8px cyan dot on the Momenti glyph when ≥1 pending Momento
   // waits — never a numeric count (rule #3 / DESIGN §8). It was a ✦ in the navigator's badge
@@ -37,7 +40,7 @@ export default function TabsLayout() {
           // render their own in-content header and take their top inset from Screen.
           headerShown: false,
           // DESIGN §9 tab bar: the black ground under a 1px hairline (the prototype's
-          // `.tabs { border-top: 1px solid var(--hair) }`). Its height is the navigator's.
+          // `.tabs { border-top: 1px solid var(--hair) }`). No height is set here.
           tabBarStyle: {
             backgroundColor: galleria.background,
             borderTopColor: galleria.hair,
@@ -58,7 +61,7 @@ export default function TabsLayout() {
           options={{
             title: t('tabs.home', locale),
             tabBarAccessibilityLabel: t('tabs.home', locale),
-            tabBarIcon: ({ color, size }) => <HomeGlyph color={color} size={size} />,
+            tabBarIcon: ({ color }) => <HomeGlyph color={color} size={TAB_GLYPH} />,
           }}
         />
         <Tabs.Screen
@@ -66,7 +69,7 @@ export default function TabsLayout() {
           options={{
             title: t('tabs.community', locale),
             tabBarAccessibilityLabel: t('tabs.community', locale),
-            tabBarIcon: ({ color, size }) => <CommunityGlyph color={color} size={size} />,
+            tabBarIcon: ({ color }) => <CommunityGlyph color={color} size={TAB_GLYPH} />,
           }}
         />
         <Tabs.Screen
@@ -76,9 +79,9 @@ export default function TabsLayout() {
             // The dot stands off the glyph's top-right corner: 6 out, 4 up, where the
             // prototype puts it (`.tabs .dot { top: 6px; right: 6px }` in a 48×44 cell around
             // a 24 glyph). No label of its own: the tab's label below says a Momento waits.
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <View>
-                <MomentiGlyph color={color} size={size} />
+                <MomentiGlyph color={color} size={TAB_GLYPH} />
                 {hasUnseen ? (
                   <View className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-aura" />
                 ) : null}
@@ -94,7 +97,7 @@ export default function TabsLayout() {
           options={{
             title: t('tabs.costellazioni', locale),
             tabBarAccessibilityLabel: t('tabs.costellazioni', locale),
-            tabBarIcon: ({ color, size }) => <CostellazioniGlyph color={color} size={size} />,
+            tabBarIcon: ({ color }) => <CostellazioniGlyph color={color} size={TAB_GLYPH} />,
           }}
         />
         <Tabs.Screen
@@ -102,7 +105,7 @@ export default function TabsLayout() {
           options={{
             title: t('tabs.profile', locale),
             tabBarAccessibilityLabel: t('tabs.profile', locale),
-            tabBarIcon: ({ color, size }) => <ProfiloGlyph color={color} size={size} />,
+            tabBarIcon: ({ color }) => <ProfiloGlyph color={color} size={TAB_GLYPH} />,
           }}
         />
       </Tabs>

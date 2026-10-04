@@ -11,7 +11,7 @@ import { dismissesOnRelease, shouldClaimViewerDrag } from '@/lib/viewer-gesture'
 
 /**
  * Fullscreen viewer for ONE photo that is already signed (#576). Tap or swipe down dismisses,
- * and the ✕ is the dismissal a screen reader can reach — the ruling asks for a labelled control,
+ * and the close is the dismissal a screen reader can reach — the ruling asks for a labelled control,
  * not tap-only.
  *
  * Not `Lightbox`, deliberately: that one is the Momenti gallery — a `Moment[]` with dots,
@@ -75,7 +75,7 @@ export function PhotoViewer({
 
   return (
     // onRequestClose is the Android hardware back button — the third way out, and the one
-    // neither the ✕ nor the gestures cover.
+    // neither the close nor the gestures cover.
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       {/* RN <Modal> is its own native root — the app-level provider doesn't reach in (#161). */}
       <SafeAreaProvider>

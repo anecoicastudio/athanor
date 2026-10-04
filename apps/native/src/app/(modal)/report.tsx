@@ -41,7 +41,7 @@ export default function ReportScreen() {
 
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [note, setNote] = useState('');
-  // Track the auto-dismiss timer so an early close (✕) doesn't fire the exit after unmount.
+  // Track the auto-dismiss timer so an early close doesn't fire the exit after unmount.
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {

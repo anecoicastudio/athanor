@@ -5470,6 +5470,7 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
 });
 
 // ---------------------------------------------------------------------------------------
+// icons, header controls and the tab bar (#921)
 // ---------------------------------------------------------------------------------------
 
 /**
@@ -5547,6 +5548,8 @@ describe('icons, header controls and the tab bar keep the Galleria shape (#921)'
     expect(src, 'the rest = the one secondary').toMatch(
       /tabBarInactiveTintColor: galleria\.foregroundMuted\b/,
     );
+    expect(src, 'the glyph is 24').toMatch(/const TAB_GLYPH = 24;/);
+    expect(src.match(/size=\{TAB_GLYPH\}/g), 'on all five tabs').toHaveLength(5);
   });
 
   it('a waiting Momento is an 8px cyan dot, the only cyan in the bar', () => {

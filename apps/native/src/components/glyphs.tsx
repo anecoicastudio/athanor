@@ -168,7 +168,7 @@ export function SettingsIcon({ size = 22, color }: GlyphProps) {
  * that hides the drawing (`HeaderBack` / `HeaderClose` in `ModalHeader.tsx`).
  *
  * `back` and `close` replace the characters `‹` and `✕` in the shared header. The other seven
- * have no call site yet (2026-10-04): each arrives with the screen that needs it.
+ * have no call site as of 2026-10-04.
  */
 const icon = (size: number, children: React.ReactNode) => (
   <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
