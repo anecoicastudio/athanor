@@ -209,7 +209,11 @@ export const typography = {
 export interface TypeStyle {
   /** px at the default text size. */
   size: number;
-  /** px at the default text size; it grows with the member's text size, as `size` does. */
+  /**
+   * px at the default text size; it grows with the member's text size, as `size` does. Measured
+   * on an iPhone SE simulator (36 → 72 at the 2× cap, 2026-10-04); on Android by the source of
+   * react-native 0.86.3 (`TextAttributeProps.kt` converts `lineHeight` from SP), not measured.
+   */
   lineHeight: number;
   /** One of `typography.weights`: on device a weight is a font file, not a number. */
   weight: number;
@@ -234,8 +238,8 @@ export interface TypeStyle {
  *
  * Line heights are the prototype's ratios (1.12 · 1.2 · 1.4 · 1.3 · 1) rounded to a whole px.
  * Rendered on an iPhone SE simulator and a moto g17 on 2026-10-04: no accent or descender is
- * cut in the seven text styles. At a ratio of 1 iOS cuts the accent of a capital, so the two
- * numerals are for digits.
+ * cut in the seven text styles. At a ratio of 1 the simulator cuts the accent of a capital (the
+ * phone draws it outside the line box), so the two numerals are for digits.
  */
 export const galleriaType = {
   h1: { size: 32, lineHeight: 36, weight: 600, tracking: -0.02 }, // screen titles

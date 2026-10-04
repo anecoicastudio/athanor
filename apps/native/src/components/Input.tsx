@@ -31,9 +31,9 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
  *
  * ── WHY `pl-`/`pr-` AND NEVER `px-` ───────────────────────────────────────────────
  * Tailwind 4 compiles `px-*` to LOGICAL `padding-inline`, which `react-native-css` emits
- * as `paddingInlineStart`/`End`, and an Android `TextInput` drops that pair: measured on a
- * moto g17 (#749), the same `sm` field put its text ~7dp from the border with `px-4` and
- * ~17dp with `pl-4 pr-4`. iOS and the web build honour both, which is how the logical
+ * as `paddingInlineStart`/`End`, and an Android `TextInput` drops that pair: on a moto g17
+ * (#749, 2026-09-18, a 3.5px step) the same `sm` field put its text ~7dp from the border with
+ * `px-4` and ~17dp with `pl-4 pr-4`. iOS and the web build honour both, which is how the logical
  * spelling survived every pass that was not an Android device. The physical pair renders
  * identically everywhere. `source-audit.test.ts` §40 holds the line.
  *

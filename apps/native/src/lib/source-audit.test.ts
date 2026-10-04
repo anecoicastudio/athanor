@@ -4216,7 +4216,7 @@ describe('the profile editor pins its way out, and no screen nests two scroll ax
  *   (`RNCSafeAreaViewShadowNode::adjustLayoutWithState`) rebuilds the Yoga style from the props'
  *   PHYSICAL edges and writes it back over the resolved one, so the aliases are gone.
  *   `<Screen className="px-8">` rendered edge to edge on an iPhone SE and on the moto g17.
- * - **An Android `TextInput`.** Measured on the moto g17: the same compose field put its text
+ * - **An Android `TextInput`.** On the moto g17 (2026-09-18, a 3.5px step) a compose field put its text
  *   ~7dp from the border with `px-4` and ~17dp with `pl-4 pr-4`. iOS and the web build honour
  *   both, which is how eleven screens and every text field in the app shipped the logical
  *   spelling through every pass that was not an Android device.

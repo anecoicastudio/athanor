@@ -88,8 +88,8 @@ export function MomentFlash({ flash, locale }: { flash: string | null; locale: L
             className="h-20 w-20 items-center justify-center rounded-full border border-aura-line bg-raise"
           >
             {/* `ornament` (#639): the moment mark, hidden from assistive tech, inside a
-                hard 70pt disc that a scale animation drives. It does not clip at 2x today —
-                ~63pt in 70 — but it is the last box of the shape §10 names, and leaving one
+                hard 80pt disc that a scale animation drives. It does not clip at 2x today —
+                ~63pt in 80 — but it is the last box of the shape §10 names, and leaving one
                 uncapped is how the rule turns back into a suggestion. */}
             <Text
               className="text-3xl text-aura"
