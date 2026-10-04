@@ -1,12 +1,6 @@
 import { useCallback, useEffect } from 'react';
-// A bare `Switch` is an UNNAMED toggle: RN gives it the `switch` role and the checked state from
-// `value`, and nothing else — the label `Text` beside it is a sibling, not an association, so
-// VoiceOver announced «attivato, interruttore» with no subject (#635). Every instance below names
-// itself with the key its visible label already uses; no new copy, and the two can never drift.
-import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { galleria } from '@athanor/config';
 import { deriveVerifyState } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import {
@@ -23,6 +17,11 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+// An unnamed toggle announces its state and no subject: the label `Text` beside it is a sibling,
+// not an association, and VoiceOver said «attivato, interruttore» (#635). Every instance below
+// names itself with the key its visible label already uses; no new copy, and the two can never
+// drift. The app's `Switch` makes the label a required prop.
+import { Switch } from '@/components/Switch';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
@@ -219,8 +218,6 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.location.label', locale)}
                 value={grantedFor('location_approx', LOCATION_CONSENT_DEFAULT)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
-                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
-                thumbColor={galleria.foreground}
               />
             </View>
 
@@ -234,14 +231,7 @@ export default function TrustScreen() {
                   {t('gdpr.neverSold.desc', locale)}
                 </Text>
               </View>
-              <Switch
-                accessibilityLabel={t('gdpr.neverSold.label', locale)}
-                value
-                disabled
-                accessibilityState={{ disabled: true }}
-                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
-                thumbColor={galleria.foreground}
-              />
+              <Switch accessibilityLabel={t('gdpr.neverSold.label', locale)} value disabled />
             </View>
           </View>
         </View>
@@ -265,8 +255,6 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.consent.diagnostics', locale)}
                 value={grantedFor('analytics', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
-                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
-                thumbColor={galleria.foreground}
               />
             </View>
           </View>

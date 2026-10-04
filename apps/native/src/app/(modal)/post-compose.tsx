@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Switch } from 'react-native';
+import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { Field } from '@/components/Field';
 import { PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { Switch } from '@/components/Switch';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
@@ -460,18 +461,13 @@ export default function PostComposeScreen() {
               </Text>
               <Text className="text-[13px] text-faint">{t('post.compose.stepDesc', locale)}</Text>
             </View>
-            {/* Platform Switch, row-owned — same shape and reasons as story-compose (#748). */}
+            {/* The app's Switch, row-owned — same shape and reasons as story-compose (#748). */}
             <View
               pointerEvents="none"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              <Switch
-                accessibilityLabel={t('post.compose.stepTitle', locale)}
-                value={isStep}
-                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
-                thumbColor={galleria.foreground}
-              />
+              <Switch accessibilityLabel={t('post.compose.stepTitle', locale)} value={isStep} />
             </View>
           </Pressable>
         </ScrollView>

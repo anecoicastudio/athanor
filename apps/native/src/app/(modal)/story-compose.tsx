@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Switch } from 'react-native';
+import { Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
@@ -10,6 +10,7 @@ import { Field } from '@/components/Field';
 import { PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { Switch } from '@/components/Switch';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { isDraftDirty } from '@/lib/dirty-guard';
@@ -206,7 +207,7 @@ export default function StoryComposeScreen() {
               </Text>
               <Text className="text-[13px] text-faint">{t('story.add.stepDesc', locale)}</Text>
             </View>
-            {/* The platform Switch DESIGN.md §8.13 names for toggles (#748) — the bare ✦/○ glyph
+            {/* The app's Switch, which DESIGN.md §8.13 names for toggles (#748) — the bare ✦/○ glyph
                 rendered as a tiny unsized ○ on Android. The ROW is the control: it carries the
                 role, state and name, so the Switch is hidden from assistive tech and ignores
                 touches, and one tap anywhere flips it once. */}
@@ -215,12 +216,7 @@ export default function StoryComposeScreen() {
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              <Switch
-                accessibilityLabel={t('story.add.stepTitle', locale)}
-                value={isStep}
-                trackColor={{ false: galleria.raise2, true: galleria.auraSoft }}
-                thumbColor={galleria.foreground}
-              />
+              <Switch accessibilityLabel={t('story.add.stepTitle', locale)} value={isStep} />
             </View>
           </Pressable>
 

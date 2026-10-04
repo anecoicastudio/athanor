@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Linking, Share, useWindowDimensions } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -12,14 +12,13 @@ import { ScrollView, Text, View } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { LocaleChips } from '@/components/LocaleChips';
 import { ModalHeader } from '@/components/ModalHeader';
-import { SettingsGroup } from '@/components/settings/SettingsGroup';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { useToast } from '@/components/ToastHost';
-import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auraDisplayValue } from '@/lib/aura-display';
 import { useAuth } from '@/lib/auth-context';
 import { inviteShareMessage } from '@/lib/invite-share';
 import { legalUrl, supportMailto } from '@/lib/links';
-import { stacksTrailing } from '@/lib/type-scale';
 import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useFeatureFlags } from '@/hooks/use-remote-config';
@@ -41,7 +40,6 @@ import { useAuraScore } from '@/hooks/use-aura-score';
 export default function SettingsScreen() {
   const router = useRouter();
   const { session, profile, refreshProfile, signOut: endSession } = useAuth();
-  const stackLangChips = stacksTrailing(useWindowDimensions().fontScale);
   const { data: entitlement } = useEntitlement();
   const flags = useFeatureFlags();
   // #761: members see their status everywhere; an iOS non-member sees no Circle row at all;
@@ -137,15 +135,15 @@ export default function SettingsScreen() {
         </View>
 
         {/* Account */}
-        <SettingsGroup label={t('settings.section.account', locale)}>
-          <SettingsRow
+        <RowGroup label={t('settings.section.account', locale)}>
+          <Row
             title={t('settings.aura.title', locale)}
             description={t('settings.aura.desc', locale)}
             value={aura}
             onPress={() => router.push('/(modal)/aura')}
           />
           {circleRow !== 'reserved' ? (
-            <SettingsRow
+            <Row
               title={t('settings.circle.title', locale)}
               description={
                 circleRow === 'closed'
@@ -162,7 +160,7 @@ export default function SettingsScreen() {
               onPress={() => router.push('/(modal)/circle')}
             />
           ) : null}
-          <SettingsRow
+          <Row
             title={t('settings.payments.title', locale)}
             description={t('settings.payments.desc', locale)}
             onPress={() =>
@@ -171,28 +169,20 @@ export default function SettingsScreen() {
                 : showToast(t('settings.payments.soon', locale))
             }
           />
-        </SettingsGroup>
+        </RowGroup>
 
         {/* Preferenze */}
-        <SettingsGroup label={t('settings.section.prefs', locale)}>
-          {/* Lingua — functional inline toggle. At the accessibility sizes the chips move under
-              the title (#847): beside them the one-word description broke mid-word
+        <RowGroup label={t('settings.section.prefs', locale)}>
+          {/* Lingua — functional inline toggle. At the accessibility sizes `Row` moves the chips
+              under the title (#847): beside them the one-word description broke mid-word
               («Languag / e»). */}
-          <View
-            className={
-              stackLangChips
-                ? 'items-start gap-3 px-5 py-4'
-                : 'flex-row items-center justify-between gap-4 px-5 py-4'
-            }
-          >
-            <View className={stackLangChips ? 'gap-1' : 'flex-1 gap-1'}>
-              <Text className="text-base text-foreground">{t('settings.lang.title', locale)}</Text>
-              <Text className="text-[13px] text-faint">{t('settings.lang.desc', locale)}</Text>
-            </View>
-            <LocaleChips value={locale} onChange={switchLocale} />
-          </View>
+          <Row
+            title={t('settings.lang.title', locale)}
+            description={t('settings.lang.desc', locale)}
+            trailing={<LocaleChips value={locale} onChange={switchLocale} />}
+          />
           {/* Tema scuro — dark-only in Fase 1: display-on, non-interactive */}
-          <SettingsRow
+          <Row
             title={t('settings.theme.title', locale)}
             description={t('settings.theme.desc', locale)}
             value={t('settings.theme.on', locale)}
@@ -201,23 +191,23 @@ export default function SettingsScreen() {
           {/* Notifiche — a Preferences row opens the preferences (#749), not the inbox it used to:
             `notif-prefs` was reachable only from inside the inbox, and the inbox keeps its own
             entry on Home's bell. */}
-          <SettingsRow
+          <Row
             title={t('settings.notif.title', locale)}
             description={t('settings.notif.desc', locale)}
             onPress={() => router.push('/(modal)/notif-prefs')}
             showChevron
           />
-        </SettingsGroup>
+        </RowGroup>
 
         {/* Privacy e sicurezza */}
-        <SettingsGroup label={t('settings.section.privacy', locale)}>
-          <SettingsRow
+        <RowGroup label={t('settings.section.privacy', locale)}>
+          <Row
             title={t('settings.trust.title', locale)}
             description={t('settings.trust.desc', locale)}
             onPress={() => router.push('/(modal)/trust')}
             showChevron
           />
-          <SettingsRow
+          <Row
             title={t('block.list.title', locale)}
             description={
               blockedCount === 0
@@ -227,30 +217,30 @@ export default function SettingsScreen() {
             onPress={() => router.push('/(modal)/blocked')}
             showChevron
           />
-          <SettingsRow
+          <Row
             title={t('report.behavior.row', locale)}
             onPress={() =>
               router.push({ pathname: '/(modal)/report', params: { targetType: 'behavior' } })
             }
             showChevron
           />
-          <SettingsRow
+          <Row
             title={t('settings.export.title', locale)}
             description={t('settings.export.desc', locale)}
             onPress={() => router.push('/(modal)/data-export')}
             showChevron
           />
-          <SettingsRow
+          <Row
             title={t('account.delete.row', locale)}
-            danger
+            destructive
             onPress={() => router.push('/(modal)/delete-account')}
             showChevron
           />
-        </SettingsGroup>
+        </RowGroup>
 
         {/* Supporto */}
-        <SettingsGroup label={t('settings.section.support', locale)}>
-          <SettingsRow
+        <RowGroup label={t('settings.section.support', locale)}>
+          <Row
             title={t('settings.help.title', locale)}
             onPress={() => {
               // A mail draft, with a subject (#749): the app has no help centre, and a bare
@@ -260,7 +250,7 @@ export default function SettingsScreen() {
               );
             }}
           />
-          <SettingsRow
+          <Row
             title={t('settings.legal.terms', locale)}
             onPress={() => {
               WebBrowser.openBrowserAsync(legalUrl('terms', locale)).catch(() =>
@@ -268,7 +258,7 @@ export default function SettingsScreen() {
               );
             }}
           />
-          <SettingsRow
+          <Row
             title={t('settings.legal.privacy', locale)}
             onPress={() => {
               WebBrowser.openBrowserAsync(legalUrl('privacy', locale)).catch(() =>
@@ -276,7 +266,7 @@ export default function SettingsScreen() {
               );
             }}
           />
-          <SettingsRow
+          <Row
             title={t('settings.invite.title', locale)}
             description={t('settings.invite.desc', locale)}
             onPress={() => {
@@ -298,17 +288,17 @@ export default function SettingsScreen() {
                 });
             }}
           />
-        </SettingsGroup>
+        </RowGroup>
 
         {/* Esci (danger) */}
-        <SettingsGroup>
-          <SettingsRow
+        <RowGroup>
+          <Row
             title={t('auth.signOut', locale)}
-            danger
+            destructive
             showChevron={false}
             onPress={signOut}
           />
-        </SettingsGroup>
+        </RowGroup>
 
         {/* Version footer */}
         <Text className="text-center text-xs text-faint">

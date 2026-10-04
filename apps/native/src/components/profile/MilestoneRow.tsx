@@ -33,13 +33,13 @@ const HELP_LABEL_KEY = {
  * be the trailing «Aiuta» alone, next to a `○` that is the row's largest glyph (`text-base`
  * inlines at 14 on device against the label's literal 13px) and reads exactly like a
  * selection control — a tester kept pressing the left side, which did nothing. Two changes,
- * both from DESIGN.md: the row becomes one accessible button, `SettingsRow`'s shape and
+ * both from DESIGN.md: the row becomes one accessible button, the shape of `Row` and
  * §8.13's «rows are single accessible buttons» (so the `○` honestly participates instead of
  * lying), and «Aiuta» takes the framed chip geometry `FavorRow` already ships for the same
  * word, so the CTA stops reading as a link to an explainer.
  *
- * Only the SHAPE is borrowed from §8.13, not its floor: that section's ≥56pt is the settings
- * list's own geometry, which `SettingsRow` implements. A tappa row is not a settings row, so
+ * Only the SHAPE is borrowed from §8.13, not its floor: that section's ≥60pt is the grouped
+ * list's own geometry, which `Row` implements. A tappa row is not a settings row, so
  * it takes §10's ≥44pt instead.
  *
  * The chip is a `View`, never a nested `Pressable`: source-audit §21 forbids one inside
@@ -127,7 +127,7 @@ export function MilestoneRow({
         // says which tappa and in what state (#635). A labelled ancestor is reported to
         // override its children rather than concatenate them, which would make this belt and
         // braces — but no device is reachable here to confirm that, so the glyph does not
-        // rely on it. `SettingsRow`'s children carry no labels either.
+        // rely on it. The children of `Row` carry no labels either.
         accessibilityLabel={
           offerable ? undefined : t(done ? 'milestone.a11y.done' : 'milestone.a11y.open', locale)
         }

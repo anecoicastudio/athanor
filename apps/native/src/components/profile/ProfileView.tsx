@@ -8,7 +8,7 @@ import { t, tagLabel } from '@athanor/i18n';
 import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
-import { SettingsRow } from '@/components/settings/SettingsRow';
+import { Row } from '@/components/Row';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
@@ -114,8 +114,8 @@ export function ProfileView({
         dream={dreamSlot}
         afterStats={
           /* Connessioni — hub for established connections + the Richieste inbox (M5). */
-          <View className="-mx-5 border-y border-hair">
-            <SettingsRow
+          <View className="-mx-5 border-y border-hair px-5">
+            <Row
               title={t('connection.hub.title', locale)}
               accessibilityLabel={t('connection.a11y.hub', locale)}
               onPress={() => router.push('/connections')}

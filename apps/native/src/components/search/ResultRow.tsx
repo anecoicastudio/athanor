@@ -22,7 +22,7 @@ import { searchRowLabel } from '@/lib/search-row-label';
  * no motion — rule #4). Unmatched spans → `text-foreground` (title) /
  * `text-muted-foreground` (subtitle).
  *
- * Trailing chevron: `›` in `text-faint`, same pattern as SettingsRow.
+ * Trailing chevron: `›` in `text-faint`, the character `Row` draws too.
  *
  * Min-height ≥44pt for accessibility.
  */
