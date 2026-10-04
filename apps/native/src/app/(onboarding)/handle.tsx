@@ -114,13 +114,10 @@ export default function HandleStepScreen() {
 
           <View className="grow justify-center">
             <View className="gap-4">
-              <Text
-                accessibilityRole="header"
-                className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-              >
+              <Text accessibilityRole="header" className="type-h1 text-foreground">
                 {t('onboarding.handle.title', locale)}
               </Text>
-              <Text className="text-muted-foreground">
+              <Text className="type-small text-muted-foreground">
                 {t(
                   suggested !== null && suggested === handle
                     ? 'onboarding.handle.subSuggested'

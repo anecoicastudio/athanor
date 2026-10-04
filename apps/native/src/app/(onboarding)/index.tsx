@@ -36,6 +36,7 @@ import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
+import { PRESS_DIM } from '@/lib/press';
 import { Screen } from '@/components/Screen';
 
 /** identity → birth → seeking → dream → face. The last one is skippable and writes nothing required. */
@@ -239,11 +240,14 @@ export default function OnboardingScreen() {
             <Pressable
               onPress={goLogin}
               accessibilityRole="button"
-              // A 13px label + `hitSlop={8}` reached 33pt tall — under §10. The row is
+              // A line of text + `hitSlop={8}` reached 33pt tall — under §10. The row is
               // already 44 tall (the reserved back slot), so a real box costs no layout.
-              className="min-h-[44px] shrink justify-center"
+              // Hand-rolled rather than `Button ghost`: that link centres its words and pads
+              // them 24pt in, and this one sits on the right gutter and wraps to the right.
+              // Same look: small, foreground, underlined — cyan until 2026-10-04 (#921).
+              className={cn('min-h-[44px] shrink justify-center', PRESS_DIM)}
             >
-              <Text className="text-right text-[13px] font-semibold text-aura">
+              <Text className="text-right type-small text-foreground underline">
                 {t('auth.haveAccount', locale)}
               </Text>
             </Pressable>
@@ -264,13 +268,10 @@ export default function OnboardingScreen() {
               {step === 0 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
+                  <Text accessibilityRole="header" className="type-h1 text-foreground">
                     {t('onboarding.identity.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">
+                  <Text className="type-small text-muted-foreground">
                     {t('onboarding.identity.sub', locale)}
                   </Text>
                   <View className="flex-row flex-wrap gap-3">
@@ -284,8 +285,8 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                   {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
-                  step of its own. The small variant keeps it visually apart from
-                  the identity tags above. */}
+                  step of its own, under a label that keeps it apart from the identity
+                  tags above. */}
                   <View className="gap-3 pt-2">
                     <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
                     <LocaleChips value={locale} onChange={switchLocale} />
@@ -296,13 +297,10 @@ export default function OnboardingScreen() {
               {step === 1 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
+                  <Text accessibilityRole="header" className="type-h1 text-foreground">
                     {t('onboarding.birth.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">
+                  <Text className="type-small text-muted-foreground">
                     {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
                   </Text>
                   {Platform.OS === 'web' ? (
@@ -325,12 +323,17 @@ export default function OnboardingScreen() {
                       />
                     </View>
                   ) : (
+                    // The date pill: a field's shape (`surface`, fully round, at least 50pt,
+                    // no border) on a control that opens the wheel instead of a keyboard.
                     <Pressable
                       onPress={() => setShowPicker(true)}
                       accessibilityRole="button"
-                      className="rounded-card border border-hair bg-raise p-5"
+                      className={cn(
+                        'min-h-[50px] justify-center rounded-full bg-surface px-5 py-3',
+                        PRESS_DIM,
+                      )}
                     >
-                      <Text className="text-[15px] text-foreground">
+                      <Text className="type-body text-foreground">
                         {birthDate
                           ? calendarDay(birthDate, locale)
                           : t('onboarding.birth.pick', locale)}
@@ -360,7 +363,7 @@ export default function OnboardingScreen() {
                     />
                   ) : null}
                   {tooYoung ? (
-                    <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                    <Text className="text-[14px] text-error" accessibilityLiveRegion="polite">
                       {t('onboarding.birth.tooYoung', locale, { age: MIN_MEMBER_AGE })}
                     </Text>
                   ) : null}
@@ -372,10 +375,10 @@ export default function OnboardingScreen() {
                           accessibilityElementsHidden
                           importantForAccessibility="no-hide-descendants"
                         >
-                          <ZodiacGlyph sign={sign} size={32} color={galleria.ink2} />
+                          <ZodiacGlyph sign={sign} size={32} color={galleria.foreground} />
                         </View>
                         <Text
-                          className="text-lg font-semibold text-foreground"
+                          className="type-body font-semibold text-foreground"
                           accessibilityLiveRegion="polite"
                         >
                           {t('onboarding.birth.reveal', locale, {
@@ -391,13 +394,10 @@ export default function OnboardingScreen() {
               {step === 2 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
+                  <Text accessibilityRole="header" className="type-h1 text-foreground">
                     {t('onboarding.seeking.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">
+                  <Text className="type-small text-muted-foreground">
                     {t('onboarding.seeking.sub', locale)}
                   </Text>
                   <View className="flex-row flex-wrap gap-3">
@@ -416,13 +416,12 @@ export default function OnboardingScreen() {
               {step === 3 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
+                  <Text accessibilityRole="header" className="type-h1 text-foreground">
                     {t('onboarding.dream.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
+                  <Text className="type-small text-muted-foreground">
+                    {t('onboarding.dream.sub', locale)}
+                  </Text>
                   <View ref={reveal.rowRef('dream')}>
                     <Field
                       {...reveal.fieldProps('dream')}
@@ -441,17 +440,16 @@ export default function OnboardingScreen() {
               {step === 4 ? (
                 <View className="gap-4">
                   <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
+                  <Text accessibilityRole="header" className="type-h1 text-foreground">
                     {t('onboarding.face.title', locale)}
                   </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.face.sub', locale)}</Text>
+                  <Text className="type-small text-muted-foreground">
+                    {t('onboarding.face.sub', locale)}
+                  </Text>
                   <View className="items-center gap-4 pt-2">
                     {/* No Avatar here: it resolves a STORAGE key through a signed URL, and this
                     photo has no key yet — it is a local file that nobody has uploaded. */}
-                    <View className="h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface-muted">
+                    <View className="h-[104px] w-[104px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface">
                       {avatarUri ? (
                         <Image
                           source={{ uri: avatarUri }}
@@ -462,8 +460,8 @@ export default function OnboardingScreen() {
                         // The empty avatar slot's placeholder. Decorative: the «Aggiungi una
                         // foto» control below is what names this (#635).
                         <Text
-                          className="text-[40px] text-faint"
-                          // `ornament` (#639): a 40px mark inside a hard 116pt disc, already
+                          className="text-[34px] text-muted-foreground"
+                          // `ornament` (#639): a 34px mark inside a hard 104pt disc, already
                           // hidden from assistive tech — scaling it only pushes it out.
                           maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                           accessibilityElementsHidden
@@ -473,32 +471,27 @@ export default function OnboardingScreen() {
                         </Text>
                       )}
                     </View>
-                    {/* The only control that performs step 5 — the 116pt avatar above is a
-                    View, not a target. Bare, it was a 15px line box ≈19.5pt tall (§10). */}
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setSheetOpen(true)}
-                      className="min-h-[44px] justify-center px-4"
-                    >
-                      <Text className="text-[15px] font-semibold text-aura">
-                        {avatarUri
+                    {/* The only control that performs step 5 — the 104pt avatar above is a
+                    View, not a target. The shared text link, in its 44pt box (§10); it was a
+                    cyan line until 2026-10-04 (#921). */}
+                    <Button
+                      variant="ghost"
+                      label={
+                        avatarUri
                           ? t('onboarding.face.change', locale)
-                          : t('onboarding.face.add', locale)}
-                      </Text>
-                    </Pressable>
+                          : t('onboarding.face.add', locale)
+                      }
+                      onPress={() => setSheetOpen(true)}
+                    />
                     {avatarUri ? (
-                      <Pressable
-                        accessibilityRole="button"
+                      <Button
+                        variant="ghost"
+                        label={t('onboarding.face.remove', locale)}
                         onPress={() => {
                           setAvatarUri(null);
                           void persist({ avatar_uri: null });
                         }}
-                        className="min-h-[44px] justify-center px-4"
-                      >
-                        <Text className="text-[13px] text-muted-foreground">
-                          {t('onboarding.face.remove', locale)}
-                        </Text>
-                      </Pressable>
+                      />
                     ) : null}
                   </View>
                 </View>
@@ -520,7 +513,7 @@ export default function OnboardingScreen() {
             ) : (
               <View className="gap-3">
                 {finishFailed ? (
-                  <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                  <Text className="text-[14px] text-error" accessibilityLiveRegion="polite">
                     {t('onboarding.error.submit', locale)}
                   </Text>
                 ) : null}

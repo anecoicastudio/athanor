@@ -5,9 +5,10 @@ import { Text, View, cn } from '@/tw';
 import { Input } from '@/components/Input';
 import { handleStatusLine, type HandleStatus } from '@/lib/handle-status';
 
+/** A free handle reads in foreground: the mobile look has no green (DESIGN §2.3, §8.1). */
 const TONE_CLASS = {
   error: 'text-error',
-  success: 'text-success',
+  success: 'text-foreground',
   muted: 'text-muted-foreground',
 } as const;
 
@@ -73,15 +74,13 @@ export function HandleField({
         onSubmitEditing={onSubmitEditing}
       />
       {lockedNote !== null ? (
-        <Text className="text-[13px] leading-snug text-muted-foreground">{lockedNote}</Text>
+        <Text className="type-small text-muted-foreground">{lockedNote}</Text>
       ) : (
         <>
-          <Text className="text-[13px] leading-snug text-muted-foreground">
-            {t('handle.rules', locale)}
-          </Text>
+          <Text className="type-small text-muted-foreground">{t('handle.rules', locale)}</Text>
           {line ? (
             <Text
-              className={cn('text-[13px] leading-snug', TONE_CLASS[line.tone])}
+              className={cn('text-[14px]', TONE_CLASS[line.tone])}
               accessibilityLiveRegion="polite"
             >
               {line.text}
