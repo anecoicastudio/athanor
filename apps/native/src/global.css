@@ -100,9 +100,11 @@
  *
  * Placed by precedence, like the rest of this file: after `.font-app`, so the
  * class's face beats the wrapper's default, and before the weight remaps, so a
- * `font-bold` at the call site still wins. Size, line height and tracking are
- * the class's own: on the simulator a `text-[30px]`, a `tracking-widest` or a
- * `leading-6` beside one changed nothing, in either order. Colour is the call site's.
+ * `font-bold` at the call site still wins. Size and line height are the class's
+ * own, and tracking where the class states one: on the simulator `text-[30px]`
+ * or `leading-6` beside `type-body`, and `tracking-widest` beside `type-h1`,
+ * changed nothing, in either order. The four classes that state no tracking do
+ * not override a `tracking-*` utility. Colour is the call site's.
  * `font-weight: 400` for the reason the remaps give below.
  */
 .type-h1 {

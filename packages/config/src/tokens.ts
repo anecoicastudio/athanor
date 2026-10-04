@@ -239,7 +239,7 @@ export interface TypeStyle {
  * Line heights are the prototype's ratios (1.12 · 1.2 · 1.4 · 1.3 · 1) rounded to a whole px.
  * Rendered on an iPhone SE simulator and a moto g17 on 2026-10-04: no accent or descender is
  * cut in the seven text styles. At a ratio of 1 the simulator cuts the accent of a capital (the
- * phone draws it outside the line box), so the two numerals are for digits.
+ * moto g17 draws it above the line box), so the two numerals are for digits.
  */
 export const galleriaType = {
   h1: { size: 32, lineHeight: 36, weight: 600, tracking: -0.02 }, // screen titles

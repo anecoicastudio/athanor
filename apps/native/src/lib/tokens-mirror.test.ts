@@ -255,8 +255,9 @@ describe('global.css carries the type scale', () => {
   // react-native-css settles two classes that set the same property by where their rules sit
   // in the stylesheet, not by their order in `className`. After `.font-app`, a type class beats
   // the default face the `Text` wrapper prepends; before the weight remaps, a `font-bold` at
-  // the call site still beats the class. Both seen on an iPhone SE simulator, 2026-10-04,
-  // where a size, tracking or `leading-*` utility beside a type class also changed nothing.
+  // the call site still beats the class. Both seen on an iPhone SE simulator, 2026-10-04.
+  // There a size or `leading-*` utility beside `type-body`, and a tracking utility beside
+  // `type-h1`, changed nothing; a class that states no tracking does not override one.
   it('the type classes sit after .font-app and before the weight remaps', () => {
     const fontApp = device.indexOf('.font-app {');
     const firstRemap = device.indexOf('.font-light {');

@@ -52,10 +52,10 @@ import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
  *   from a call site is INVISIBLE to the nested-Pressable guard. Owning it here keeps
  *   it in a file the walk actually reads.
  *
- * It is `md`-only, enforced in the type rather than in prose: the `sm` pill is ~32pt, so
- * a 44pt target inside it is impossible, and the only fix — vertical hitSlop — pushes
- * the touch rect outside the wrapper, which Android does not deliver. A compose bar puts
- * its controls BESIDE the field instead (chat's `+` and `›`).
+ * It is `md`-only, enforced in the type rather than in prose: the `sm` pill is ~38pt (16 of
+ * padding, a 15px line, the border), so a 44pt target inside it is impossible, and the only
+ * fix — vertical hitSlop — pushes the touch rect outside the wrapper, which Android does not
+ * deliver. A compose bar puts its controls BESIDE the field instead (chat's `+` and `›`).
  *
  * A field with a `trailing` control must sit under a `keyboardShouldPersistTaps="handled"`
  * scroll parent. With the default `"never"` the ScrollView eats the first tap to dismiss
