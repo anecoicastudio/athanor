@@ -15,6 +15,7 @@ import { type DreamCandidacy, type FundEdition, projectCategorySchema } from '@a
 import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { DreamQuote } from '@/components/DreamQuote';
@@ -369,18 +370,15 @@ function WizardForm({
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header: back chevron + eyebrow */}
+          {/* Header: back + eyebrow */}
           <View className="flex-row items-center gap-3">
-            {/* Real 44pt tap target (DESIGN §10, #164) — was a bare glyph + hitSlop ≈38pt
-            wide. -ml-3 keeps the glyph optically near the gutter. */}
-            <Pressable
+            {/* `HeaderBack`: the drawn back in a real 44pt target (DESIGN §10, #164), placed
+            near the gutter by `BACK_ON_GUTTER`. */}
+            <HeaderBack
+              label={t('common.back', locale)}
               onPress={() => (step > 0 ? setStep((s) => s - 1) : leave())}
-              className="-ml-3 min-h-[44px] min-w-[44px] items-center justify-center"
-              accessibilityRole="button"
-              accessibilityLabel={t('common.back', locale)}
-            >
-              <Text className="text-2xl text-foreground">‹</Text>
-            </Pressable>
+              className={BACK_ON_GUTTER}
+            />
             <SectionLabel numberOfLines={1} className="shrink">
               {t('candidacy.eyebrow', locale)}
             </SectionLabel>

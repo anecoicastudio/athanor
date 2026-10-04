@@ -3,8 +3,8 @@ import type { MomentoDeckCard } from '@athanor/schemas';
 /**
  * What the Home «Hai un Momento» block shows: THE top waiting proposal, or nothing (issue #185).
  *
- * One card, never a count. Rule #3 is spelled out on the tab-bar badge itself — "a single cyan
- * spark … never a numeric count" (the ✦ badge comment in `(tabs)/_layout.tsx`) — and Home is the
+ * One card, never a count. Rule #3 is spelled out on the tab bar's dot itself — "one 8px cyan
+ * dot … never a numeric count" (the dot's comment in `(tabs)/_layout.tsx`) — and Home is the
  * same claim in a bigger frame, so it must not turn `deck.data.length` into «3 Momenti ti
  * aspettano». Returning the card rather than a boolean is what keeps that impossible to write by
  * accident: the caller never holds the array.
@@ -17,7 +17,7 @@ import type { MomentoDeckCard } from '@athanor/schemas';
  *
  * `undefined` covers all three non-answers — loading, idle, and a cold error with no cached
  * data — and collapses with `[]` into the same `null`. That is deliberate, not a shortcut: the
- * ✦ badge already carries has/hasn't, so an absent block and an unknown one look identical on
+ * tab bar's dot already carries has/hasn't, so an absent block and an unknown one look identical on
  * purpose. See `MomentiCard.tsx` for why this Home block has no placeholder at all.
  *
  * Extracted from the .tsx for the same reason as `starsBlockMode` (`lib/star.ts`): this

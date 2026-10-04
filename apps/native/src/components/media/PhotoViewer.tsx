@@ -80,7 +80,7 @@ export function PhotoViewer({
       {/* RN <Modal> is its own native root — the app-level provider doesn't reach in (#161). */}
       <SafeAreaProvider>
         <Screen>
-          {/* Immersive media chrome: ✕ left, label left-aligned (DESIGN §6). */}
+          {/* Immersive media chrome: close left, label left-aligned (DESIGN §6). */}
           <ModalHeader
             leading="close"
             backLabel={t('common.close', locale)}
@@ -90,7 +90,7 @@ export function PhotoViewer({
 
           {/* The stage stays a plain View: a Pressable here would be an accessibility element,
             and on iOS an atomic one, which would swallow the frame's own «Caricamento…» and
-            «Questa foto non si carica» labels. The ✕ above is the reachable exit; these
+            «Questa foto non si carica» labels. The close above is the reachable exit; these
             gestures are the sighted shortcut to it. */}
           <View className="flex-1" {...pan.panHandlers}>
             <MediaFrame

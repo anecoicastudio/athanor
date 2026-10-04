@@ -86,7 +86,7 @@ export default function ReportScreen() {
 
   return (
     <Screen {...MODAL_A11Y}>
-      {/* head — title + close ✕ only (#754): a sheet, so `HeaderClose` on the right and no
+      {/* head — title + close only (#754): a sheet, so `HeaderClose` on the right and no
           back chevron beside it — both did the same thing (DESIGN §6). */}
       <ModalHeader
         title={t('report.title', locale)}

@@ -21,7 +21,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * that takes one (`DreamHeroCard`, `PrimeStelleCard`) is a block whose MILESTONE hasn't landed:
  * the placeholder promises a feature. This block has landed; its empty state is a fact about
  * today, and «Presto qui» over it would be a lie. #177 settled that a short honest Home beats a
- * full one made of promises, and the tab-bar ✦ (`hasUnseen` in `(tabs)/_layout.tsx`) is already the
+ * full one made of promises, and the tab bar's dot (`hasUnseen` in `(tabs)/_layout.tsx`) is already the
  * has/hasn't signal, so a silent slot loses nothing. Don't add one back.
  *
  * ROUTE-ONLY — a second DELIBERATE DEVIATION, from DESIGN §8.2's `[Scopri][passa]` mockup,
@@ -31,7 +31,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * on a scrolling Home must not be able to spend either. Don't "restore" the buttons from the
  * mockup.
  *
- * Same `useMomentiDeck()` entry as the tab-bar badge, with NO options: TanStack
+ * Same `useMomentiDeck()` entry as the tab bar's dot, with NO options: TanStack
  * dedupes the two observers, so this block costs zero extra network (`staleTime: 30_000`,
  * the default in `lib/query-client.ts`). Adding `enabled` / `refetchInterval` / `staleTime` here
  * would fork this observer's behaviour from the badge's for no gain — Home would then be able to

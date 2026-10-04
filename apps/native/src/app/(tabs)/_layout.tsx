@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { t } from '@athanor/i18n';
 import { galleria } from '@athanor/config';
+import { View } from '@/tw';
 import { NotificationRouter } from '@/components/boot/NotificationRouter';
 import { PushPermissionAsk } from '@/components/boot/PushPermissionAsk';
 import { useLocale } from '@/hooks/use-locale';
@@ -14,8 +15,9 @@ import {
 } from '@/components/glyphs';
 
 export default function TabsLayout() {
-  // ✦ badge: light a single cyan spark when ≥1 pending Momento waits — never a
-  // numeric count (rule #3 / DESIGN §8). (tabs) renders inside the query provider.
+  // The waiting-Momento dot: one 8px cyan dot on the Momenti glyph when ≥1 pending Momento
+  // waits — never a numeric count (rule #3 / DESIGN §8). It was a ✦ in the navigator's badge
+  // until Galleria (2026-10-04, #921). (tabs) renders inside the query provider.
   const deck = useMomentiDeck();
   const hasUnseen = (deck.data?.length ?? 0) > 0;
   const locale = useLocale();
@@ -34,8 +36,14 @@ export default function TabsLayout() {
           // No native title bar anywhere (DESIGN §6 → Screen headers, #162): tab roots
           // render their own in-content header and take their top inset from Screen.
           headerShown: false,
-          tabBarStyle: { backgroundColor: galleria.surfaceMuted, borderTopColor: galleria.border },
-          // DESIGN §9 tab bar: active = foreground — cyan stays on the ✦ badge only.
+          // DESIGN §9 tab bar: the black ground under a 1px hairline (the prototype's
+          // `.tabs { border-top: 1px solid var(--hair) }`). Its height is the navigator's.
+          tabBarStyle: {
+            backgroundColor: galleria.background,
+            borderTopColor: galleria.hair,
+            borderTopWidth: 1,
+          },
+          // Active = foreground, never cyan: the only cyan in the bar is the dot below.
           // Icons only: labels don't fit the 5-tab slot in either language
           // («Costellazioni»). So every tab names itself through `tabBarAccessibilityLabel`
           // (DESIGN §6): the bottom-tab bar derives a label from `title` on iOS ONLY
@@ -65,9 +73,17 @@ export default function TabsLayout() {
           name="momenti"
           options={{
             title: t('tabs.momenti', locale),
-            tabBarIcon: ({ color, size }) => <MomentiGlyph color={color} size={size} />,
-            tabBarBadge: hasUnseen ? '✦' : undefined,
-            tabBarBadgeStyle: { backgroundColor: 'transparent', color: galleria.aura },
+            // The dot stands off the glyph's top-right corner: 6 out, 4 up, where the
+            // prototype puts it (`.tabs .dot { top: 6px; right: 6px }` in a 48×44 cell around
+            // a 24 glyph). No label of its own: the tab's label below says a Momento waits.
+            tabBarIcon: ({ color, size }) => (
+              <View>
+                <MomentiGlyph color={color} size={size} />
+                {hasUnseen ? (
+                  <View className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-aura" />
+                ) : null}
+              </View>
+            ),
             tabBarAccessibilityLabel: hasUnseen
               ? t('tabs.a11y.momentiUnread', locale)
               : t('tabs.momenti', locale),

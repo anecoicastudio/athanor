@@ -13,8 +13,9 @@ import {
 import { localeTag, t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { birthDateSchema, type Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { ZodiacGlyph } from '@/components/glyphs';
@@ -219,32 +220,19 @@ export default function OnboardingScreen() {
             target (DESIGN §10 — the old bare glyph + hitSlop measured ~38pt wide). Literal
             `min-h-[44px] min-w-[44px]`, not `h-11`: until 2026-10-04 (#921) a spacing step was
             3.5px on device, so `h-11` was 38.5pt there while measuring a passing 44px on web —
-            the trap `Input.tsx` records. -ml-3 keeps the glyph optically near the gutter. Step 0
-            renders a hidden placeholder, not a disabled button, so screen readers gain no
-            phantom control. */}
-            <View className="-ml-3 min-h-[44px] min-w-[44px]">
+            the trap `Input.tsx` records. `BACK_ON_GUTTER` keeps the drawing near the gutter.
+            Step 0 leaves the slot empty, not a disabled button, so screen readers gain no
+            phantom control. The control is `HeaderBack`, a drawing whose size the member's
+            text size does not move, so the empty slot is as tall as the full one; while the
+            back was the character `‹` it grew at AX sizes and step 0 held an invisible copy
+            to keep the screen from jumping (#754). */}
+            <View className={cn(BACK_ON_GUTTER, 'min-h-[44px] min-w-[44px]')}>
               {step > 0 ? (
-                <Pressable
+                <HeaderBack
+                  label={t('onboarding.back', locale)}
                   onPress={() => setStep((s) => s - 1)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('onboarding.back', locale)}
-                  className="min-h-[44px] min-w-[44px] items-center justify-center"
-                >
-                  <Text className="text-2xl text-foreground">‹</Text>
-                </Pressable>
-              ) : (
-                // Step 0 reserves the glyph's HEIGHT too, not only the 44pt box: at AX sizes
-                // the scaled ‹ makes the button taller than 44, and an empty slot let the whole
-                // screen below it jump between step 0 and 1 (#754). Invisible and silent — no
-                // phantom control.
-                <View
-                  className="min-h-[44px] min-w-[44px] items-center justify-center opacity-0"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                >
-                  <Text className="text-2xl text-foreground">‹</Text>
-                </View>
-              )}
+                />
+              ) : null}
             </View>
             {/* `shrink`: at AX sizes the link may need two lines rather than push the row
             past the gutter; the back slot is the fixed side now. */}
