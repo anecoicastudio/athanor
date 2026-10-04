@@ -1,18 +1,19 @@
 import type { ComponentType } from 'react';
 import type { ColorValue } from 'react-native';
-import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { galleria } from '@athanor/config';
 import type { ZodiacSign } from '@athanor/schemas';
 
 // The single home for the app's SVG icon set: tab-bar esoteric glyphs (below),
-// the header line icons, and the media/state marks that replaced emoji-capable
-// characters (#753). Unicode-glyph stand-ins elsewhere (trust/notifTypes.ts)
+// the header line icons, the nine interface icons (back, close, more, add, share, send,
+// people, clock, pin; DESIGN §6, Galleria), and the media/state marks that replaced
+// emoji-capable characters (#753). Unicode-glyph stand-ins elsewhere (trust/notifTypes.ts)
 // remain Foundation debt — none of them is emoji-capable, which source-audit §42
 // keeps true.
 
 /**
- * Tab-bar esoteric glyphs (DESIGN.md §6 / §8) — sacred-geometry, stroke-only,
- * `currentColor`, ~1.6–1.8px, round caps, never filled except a center point.
+ * Tab-bar glyphs (DESIGN.md §6 / §8) — sacred-geometry, stroke-only,
+ * `currentColor`, 1.8px, round caps, never filled except a center point.
  * One glyph per actual tab (the app uses Costellazioni as a tab where the spec
  * sketch listed Live — Live is a modal here). The full 20-glyph content set
  * (marketplace thumbnails, feature cards) remains Foundation debt.
@@ -22,7 +23,9 @@ import type { ZodiacSign } from '@athanor/schemas';
  *   Community     → triad              (three, the people)
  *   Momenti       → the ✦ spark        (the instant)
  *   Costellazioni → constellation      (joined stars, the projects)
- *   Profilo       → sphere of meridians (the self that evolves)
+ *   Profilo       → the person         (a head over a shoulder arc; Galleria, 2026-10-03.
+ *                                        It was the sphere of meridians, which stays an
+ *                                        illustration motif in DESIGN §6)
  */
 // `ColorValue`, not `string`: react-navigation hands `tabBarIcon` a `ColorValue` since RN 0.86's
 // types, and react-native-svg's `stroke` takes the same type, so nothing narrows in between.
@@ -30,9 +33,13 @@ export type GlyphProps = { size?: number; color?: ColorValue };
 
 const VB = 24;
 
+/** The one stroke of every drawing in this file (DESIGN §6). Header icons drew at 2 until
+ *  Galleria (2026-10-04, #921); `source-audit.test.ts` holds that no second width returns. */
+const STROKE = 1.8;
+
 const line = (color?: ColorValue) => ({
   stroke: color ?? galleria.foregroundMuted,
-  strokeWidth: 1.8,
+  strokeWidth: STROKE,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
   fill: 'none' as const,
@@ -85,31 +92,23 @@ export function CostellazioniGlyph({ size = 24, color }: GlyphProps) {
 export function ProfiloGlyph({ size = 24, color }: GlyphProps) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Circle cx={12} cy={12} r={8} {...line(color)} />
-      <Ellipse cx={12} cy={12} rx={3.2} ry={8} {...line(color)} />
-      <Line x1={4} y1={12} x2={20} y2={12} {...line(color)} />
+      <Circle cx={12} cy={8.5} r={3.6} {...line(color)} />
+      <Path d="M4.5 20a7.5 7.5 0 0 1 15 0" {...line(color)} />
     </Svg>
   );
 }
 
 /**
- * Header line icons (search / messages / notifiche) — heavier 2px stroke and
- * 22px default, matching the prototype's inline SVGs (deliberately weightier
- * than the 1.8px tab glyphs). Formerly components/home/icons.tsx.
+ * Header line icons (search / messages / notifiche / the gear) — 22px by default, at the
+ * same 1.8 stroke as everything else here (they drew at 2 until Galleria).
+ * Formerly components/home/icons.tsx.
  */
-const stroke = (color?: ColorValue) => ({
-  stroke: color ?? galleria.foregroundMuted,
-  strokeWidth: 2,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-  fill: 'none' as const,
-});
 
 export function SearchIcon({ size = 22, color }: GlyphProps) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Circle cx={11} cy={11} r={7} {...stroke(color)} />
-      <Line x1={21} y1={21} x2={16.65} y2={16.65} {...stroke(color)} />
+      <Circle cx={11} cy={11} r={7} {...line(color)} />
+      <Line x1={21} y1={21} x2={16.65} y2={16.65} {...line(color)} />
     </Svg>
   );
 }
@@ -119,7 +118,7 @@ export function MessageIcon({ size = 22, color }: GlyphProps) {
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       <Path
         d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-        {...stroke(color)}
+        {...line(color)}
       />
     </Svg>
   );
@@ -128,8 +127,8 @@ export function MessageIcon({ size = 22, color }: GlyphProps) {
 export function BellIcon({ size = 22, color }: GlyphProps) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" {...stroke(color)} />
-      <Path d="M13.73 21a2 2 0 0 1-3.46 0" {...stroke(color)} />
+      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" {...line(color)} />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" {...line(color)} />
     </Svg>
   );
 }
@@ -137,7 +136,7 @@ export function BellIcon({ size = 22, color }: GlyphProps) {
 export function SettingsIcon({ size = 22, color }: GlyphProps) {
   // Sun-wheel: circumpunct + eight radial ticks — the icon system's gear
   // (compass-and-ruler geometry per DESIGN §6, replacing a U+2699 text char
-  // that fell back to the emoji font). Same 2px header stroke as above.
+  // that fell back to the emoji font). The same stroke as every icon here.
   const c = color ?? galleria.foregroundMuted;
   const ticks = Array.from({ length: 8 }, (_, i) => {
     const a = (i * Math.PI) / 4;
@@ -150,26 +149,123 @@ export function SettingsIcon({ size = 22, color }: GlyphProps) {
   });
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
-      <Circle cx={12} cy={12} r={5.6} {...stroke(c)} />
+      <Circle cx={12} cy={12} r={5.6} {...line(c)} />
       <Circle cx={12} cy={12} r={1.5} fill={c} />
       {ticks.map((p, i) => (
-        <Line key={i} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} {...stroke(c)} />
+        <Line key={i} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} {...line(c)} />
       ))}
     </Svg>
   );
 }
 
 /**
+ * Interface icons (DESIGN §6, addendum 2026-10-03 — Galleria): the chrome every screen shares.
+ * Nine plain drawings, paths taken from the approved prototype (`ICONS` in its `build.py`),
+ * stroke only except the three dots of `more`. 22px by default, the size the prototype draws
+ * them at inside a 44pt control.
+ *
+ * No a11y props here, the same split as the marks below: the caller is a labelled control
+ * that hides the drawing (`HeaderBack` / `HeaderClose` in `ModalHeader.tsx`).
+ *
+ * `back` and `close` replace the characters `‹` and `✕` in the shared header. The other seven
+ * have no call site as of 2026-10-04.
+ */
+const icon = (size: number, children: React.ReactNode) => (
+  <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
+    {children}
+  </Svg>
+);
+
+export function BackIcon({ size = 22, color }: GlyphProps) {
+  return icon(size, <Path d="M15 5 8 12l7 7" {...line(color)} />);
+}
+
+export function CloseIcon({ size = 22, color }: GlyphProps) {
+  return icon(size, <Path d="M6 6l12 12M18 6 6 18" {...line(color)} />);
+}
+
+export function MoreIcon({ size = 22, color }: GlyphProps) {
+  const c = color ?? galleria.foregroundMuted;
+  return icon(
+    size,
+    <>
+      <Circle cx={5.5} cy={12} r={1.4} fill={c} />
+      <Circle cx={12} cy={12} r={1.4} fill={c} />
+      <Circle cx={18.5} cy={12} r={1.4} fill={c} />
+    </>,
+  );
+}
+
+export function AddIcon({ size = 22, color }: GlyphProps) {
+  return icon(size, <Path d="M12 5v14M5 12h14" {...line(color)} />);
+}
+
+export function ShareIcon({ size = 22, color }: GlyphProps) {
+  return icon(size, <Path d="M12 15V4M8 8l4-4 4 4M5 13v7h14v-7" {...line(color)} />);
+}
+
+export function SendIcon({ size = 22, color }: GlyphProps) {
+  return icon(size, <Path d="M5 12h14M13 6l6 6-6 6" {...line(color)} />);
+}
+
+export function PeopleIcon({ size = 22, color }: GlyphProps) {
+  return icon(
+    size,
+    <>
+      <Circle cx={9} cy={9} r={3.2} {...line(color)} />
+      <Circle cx={17} cy={10.5} r={2.4} {...line(color)} />
+      <Path d="M3.5 19a5.5 5.5 0 0 1 11 0M15.5 19a4 4 0 0 1 5.5-3.2" {...line(color)} />
+    </>,
+  );
+}
+
+export function ClockIcon({ size = 22, color }: GlyphProps) {
+  return icon(
+    size,
+    <>
+      <Circle cx={12} cy={12} r={8} {...line(color)} />
+      <Path d="M12 7.5V12l3 2" {...line(color)} />
+    </>,
+  );
+}
+
+export function PinIcon({ size = 22, color }: GlyphProps) {
+  return icon(
+    size,
+    <>
+      <Path
+        d="M12 21C7 15.5 5.5 12.5 5.5 10a6.5 6.5 0 0 1 13 0c0 2.5-1.5 5.5-6.5 11Z"
+        {...line(color)}
+      />
+      <Circle cx={12} cy={10} r={2.2} {...line(color)} />
+    </>,
+  );
+}
+
+/** The nine, by the names DESIGN §6 gives them. `source-audit.test.ts` pins the set. */
+export const INTERFACE_ICONS = {
+  back: BackIcon,
+  close: CloseIcon,
+  more: MoreIcon,
+  add: AddIcon,
+  share: ShareIcon,
+  send: SendIcon,
+  people: PeopleIcon,
+  clock: ClockIcon,
+  pin: PinIcon,
+} satisfies Record<string, ComponentType<GlyphProps>>;
+
+/**
  * The `eye` from the 20-glyph esoteric set (DESIGN §6), ported from the prototype's
  * `GLYPHS.eye` rather than drawn fresh — the set names it, so this is unported debt
  * (`glyphs.tsx` header above; `trust/notifTypes.ts` still stands in with a `◎` char)
  * being paid down, not a new mark. `line()`'s 1.8px, because §6 specifies 1.2–1.8 for
- * set glyphs; the 2px `stroke()` family above is a deliberate deviation for header icons.
+ * set glyphs (the header icons above drew at 2 until Galleria).
  *
  * Two collisions the geometry has to survive, both settled by the lashes:
  * - The lid outline ALONE is a vesica, and §6 reserves the mandorla to the logo.
- * - `ProfiloGlyph` is a circle with an ellipse through it; an eye is an ellipse with a
- *   circle in it, and at 20px on the dark canvas the two would otherwise read alike.
+ * - Until Galleria `ProfiloGlyph` was a circle with an ellipse through it; an eye is an
+ *   ellipse with a circle in it, and at 20px the two would otherwise have read alike.
  *
  * The iris stays UNFILLED — §6: "never filled except a center point", and this is not
  * the center point of a circumpunct.
@@ -237,7 +333,7 @@ export function EyeOffGlyph({ size = 22, color }: GlyphProps) {
  * the same way `EyeGlyph` was — `scales` is named by the set, so it is debt paid down, not a new
  * mark. Three are NEW, drawn in the set's compass-and-ruler system and recorded in DESIGN §6's
  * addendum (ruled 2026-09-19): the set has no mark that honestly means play, pause or locked.
- * All four use `line()`'s 1.8px — they are content marks, not header icons — and nothing is
+ * All four use `line()`'s 1.8px, like every drawing here, and nothing is
  * filled except `LockGlyph`'s keyhole, the one centre point §6 allows a new mark.
  *
  * 🎧 has NO mark of its own, deliberately. The set's `waves` was ported for it and then dropped

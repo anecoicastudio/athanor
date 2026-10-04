@@ -1922,7 +1922,7 @@ describe('a (modal) screen always has a way out (#578)', () => {
     );
     expect(
       unlabelled,
-      'a ModalHeader that renders a chevron or a ✕ with no accessibilityLabel. Since #578 the ' +
+      'a ModalHeader that renders a back or a close with no accessibilityLabel. Since #578 the ' +
         'affordance renders unconditionally on every `leading` other than "none", so a missing ' +
         'backLabel is now an unlabelled button on every load rather than on a lucky one — ' +
         'VoiceOver announces it as just «button». `common.back` exists in both catalogs.',
@@ -2672,7 +2672,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
-    'app/(onboarding)/index.tsx:466':
+    'app/(onboarding)/index.tsx:454':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
@@ -5466,5 +5466,107 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
       .filter(([, src]) => /\bSettings(?:Group|Row)\b/.test(src))
       .map(([at]) => at);
     expect(hits, '`SettingsGroup` / `SettingsRow` became `RowGroup` / `Row`').toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// icons, header controls and the tab bar (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the icons, the header controls and the tab bar (#921, 2026-10-04).
+ *
+ * One drawn icon set at one stroke (DESIGN §6 «Interface icons»): the nine interface icons
+ * live in `components/glyphs.tsx` beside the tab glyphs, and every drawing there takes its
+ * stroke from one constant. A header's back and close are those drawings inside one 44pt
+ * control (`HeaderBack`, `HeaderClose` in `components/ModalHeader.tsx`), never a typed
+ * character. The tab bar is black under a hairline, and a waiting Momento is an 8px cyan dot
+ * on the Momenti glyph (§9 «Tab bar»), the only cyan in the bar.
+ */
+describe('icons, header controls and the tab bar keep the Galleria shape (#921)', () => {
+  const glyphs = () => stripComments(read(`${SRC}components/glyphs.tsx`));
+  const header = () => stripComments(read(`${SRC}components/ModalHeader.tsx`));
+  const tabs = () => stripComments(read(`${SRC}app/(tabs)/_layout.tsx`));
+  const INTERFACE = ['add', 'back', 'clock', 'close', 'more', 'people', 'pin', 'send', 'share'];
+
+  it('every drawing takes the one 1.8 stroke', () => {
+    const src = glyphs();
+    expect(src, 'the stroke, stated once').toMatch(/const STROKE = 1\.8;/);
+    expect(
+      src.match(/strokeWidth\b[^,\n]*/g),
+      'a `strokeWidth` that is not the constant: header icons drew at 2 until Galleria',
+    ).toEqual(['strokeWidth: STROKE']);
+  });
+
+  it('the interface icons are the nine of DESIGN §6', () => {
+    const table = /export const INTERFACE_ICONS = \{([^}]*)\}/.exec(glyphs())?.[1] ?? '';
+    const names = [...table.matchAll(/(\w+):/g)].map((m) => m[1]).sort();
+    expect(names).toEqual(INTERFACE);
+  });
+
+  it('the Profilo tab is the person, not the meridian sphere', () => {
+    const body = /export function ProfiloGlyph[\s\S]*?\n\}/.exec(glyphs())?.[0] ?? '';
+    expect(body, 'a head').toMatch(/<Circle cx=\{12\} cy=\{8\.5\} r=\{3\.6\}/);
+    expect(body, 'over a shoulder arc').toMatch(/<Path d="M4\.5 20a7\.5 7\.5 0 0 1 15 0"/);
+    expect(body, 'no meridian').not.toMatch(/Ellipse|<Line/);
+  });
+
+  it('a header control is a drawing in a 44pt labelled button, never a typed character', () => {
+    const src = header();
+    expect(src, 'a typed back or close').not.toMatch(/[‹›✕×]/);
+    for (const name of ['HeaderBack', 'HeaderClose']) {
+      expect(src, `${name} is exported`).toMatch(new RegExp(`export function ${name}\\(`));
+    }
+    expect(src, 'the drawn back').toMatch(/<BackIcon\b/);
+    expect(src, 'the drawn close').toMatch(/<CloseIcon\b/);
+    const box = /const ICON_BUTTON =\s*'([^']*)'/.exec(src)?.[1] ?? '';
+    expect(box, 'the 44pt box (DESIGN §10)').toMatch(/min-h-\[44px\] min-w-\[44px\]/);
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(src, 'the label is required').toMatch(/label: string/);
+    expect(src, 'the role').toMatch(/accessibilityRole="button"/);
+    expect(src, 'the drawing is silent on iOS').toMatch(/accessibilityElementsHidden/);
+    expect(src, 'and on Android').toMatch(/importantForAccessibility="no-hide-descendants"/);
+  });
+
+  it('no screen hand-rolls the back control', () => {
+    const hits = codeLines()
+      .filter(([where]) => !/\.test\.tsx?:/.test(where))
+      .filter(([, text]) => /‹/.test(text))
+      .map(([where]) => where.replace('apps/native/src/', '').replace(/:\d+$/, ''));
+    expect(
+      hits,
+      'a typed `‹`: the back control is `HeaderBack` from `@/components/ModalHeader`',
+    ).toEqual([]);
+  });
+
+  it('the tab bar is black under a hairline, white when selected', () => {
+    const src = tabs().replace(/\s+/g, ' ');
+    expect(src, 'the ground').toMatch(/backgroundColor: galleria\.background\b/);
+    expect(src, 'the hairline colour').toMatch(/borderTopColor: galleria\.hair\b/);
+    expect(src, 'the hairline').toMatch(/borderTopWidth: 1\b/);
+    expect(src, 'selected = foreground').toMatch(/tabBarActiveTintColor: galleria\.foreground\b/);
+    expect(src, 'the rest = the one secondary').toMatch(
+      /tabBarInactiveTintColor: galleria\.foregroundMuted\b/,
+    );
+    expect(src, 'the glyph is 24').toMatch(/const TAB_GLYPH = 24;/);
+    expect(src.match(/size=\{TAB_GLYPH\}/g), 'on all five tabs').toHaveLength(5);
+  });
+
+  it('a waiting Momento is an 8px cyan dot, the only cyan in the bar', () => {
+    const src = tabs();
+    expect(src, 'no navigator badge: it was the ✦ character').not.toMatch(/tabBarBadge|✦/);
+    expect(src, 'the dot').toMatch(/h-2 w-2 rounded-full bg-aura/);
+    expect(src.match(/aura/g), 'one cyan, and none read in TS').toHaveLength(1);
+    // The dot stands only while a Momento waits, and the tab says so in words in the same case.
+    const flat = src.replace(/\s+/g, ' ');
+    expect(flat, 'waiting = the deck is not empty').toMatch(
+      /const hasUnseen = \(deck\.data\?\.length \?\? 0\) > 0;/,
+    );
+    expect(flat, 'no dot when nothing waits').toMatch(
+      /\{hasUnseen \? \( <View className="[^"]*\bbg-aura\b[^"]*" \/> \) : null\}/,
+    );
+    expect(flat, 'the label follows the same flag').toMatch(
+      /tabBarAccessibilityLabel: hasUnseen \? t\('tabs\.a11y\.momentiUnread', locale\) : t\('tabs\.momenti', locale\)/,
+    );
   });
 });

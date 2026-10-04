@@ -48,7 +48,7 @@ export function Lightbox({
       {/* RN <Modal> is its own native root — the app-level provider doesn't reach in (#161). */}
       <SafeAreaProvider>
         <Screen>
-          {/* lb-top — immersive media chrome: ✕ left, label left-aligned (DESIGN §6). */}
+          {/* lb-top — immersive media chrome: close left, label left-aligned (DESIGN §6). */}
           <ModalHeader
             leading="close"
             backLabel={t('common.back', locale)}

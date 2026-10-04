@@ -3,8 +3,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { useRef, useState } from 'react';
 import { t, type Locale, type MessageKey } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View, type TextInputRef } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn, type TextInputRef } from '@/tw';
 import { Button } from '@/components/Button';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { providerMark } from '@/components/provider-marks';
 import { Input } from '@/components/Input';
@@ -337,18 +338,11 @@ export default function WelcomeScreen() {
             slot, not a disabled button, so screen readers gain no phantom control. */}
           {/* `min-h` but a pinned `w` (#639): this slot is a COLUMN child of the ScrollView
             content container, where `align-items: stretch` would take a `min-w` box to the
-            full width and centre the chevron mid-screen. The glyph never needed to grow
-            sideways — only down. The `flex-row` slots elsewhere can use both. */}
-          <View className="-ml-3 min-h-[44px] w-[44px]">
+            full width and centre the back mid-screen. The `flex-row` slots elsewhere can
+            use both. The control inside is `HeaderBack`, the drawn back in its 44pt box. */}
+          <View className={cn(BACK_ON_GUTTER, 'min-h-[44px] w-[44px]')}>
             {router.canGoBack() ? (
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.back', locale)}
-                className="min-h-[44px] w-[44px] items-center justify-center"
-              >
-                <Text className="text-2xl text-foreground">‹</Text>
-              </Pressable>
+              <HeaderBack label={t('common.back', locale)} onPress={() => router.back()} />
             ) : null}
           </View>
 
