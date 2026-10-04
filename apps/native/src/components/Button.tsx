@@ -76,7 +76,7 @@ import { PRESS_DIM, pillPress } from '@/lib/press';
  * `left`/`right`, so under an RTL locale the pill would mirror and the mark would not. The
  * catalogs are IT/EN, so this cannot bite today; it is the line to change if RTL is ever on.
  *
- * The mark is hidden while `loading` — the spinner has already replaced the label, and a
+ * The mark is hidden while `loading` — the spinner already stands over the label, and a
  * brand mark beside a spinner reads as a second, stalled control.
  *
  * **The label is one line by LAYOUT, not by cap** (#833, Marco's ruling 2026-09-23). DESIGN §10
@@ -123,7 +123,7 @@ export function Button({
   /** `sm` is the small pill (44pt floor, 14px label). The `ghost` link has one size. */
   size?: 'md' | 'sm';
   disabled?: boolean;
-  /** Spinner in place of the label. Implies `disabled` — a busy control is not pressable. */
+  /** A spinner over the label, which stays in the layout. Implies `disabled`: busy is inert. */
   loading?: boolean;
   /**
    * Leading mark, in a reserved gutter that leaves the label centred. Decorative only — the

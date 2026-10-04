@@ -25,6 +25,12 @@ import { View, cn } from '@/tw';
  * `Button` keeps its label in the layout while it is busy for the same reason: the baseline is
  * the label's. `source-audit.test.ts` section 43 holds both, and says what the two other
  * alignments measured.
+ *
+ * How a cell finds its baseline (`calculateBaseline` in Yoga's `algorithm/Baseline.cpp`, as
+ * shipped in react-native 0.86.3; read 2026-10-04): a text node reports its own; any other
+ * node takes its first child in the flow, and skips an absolutely positioned one; a node with
+ * no such child reports its own height. So a cell may hold a `Button`, a stack or a nested row
+ * and still line up by its first label, and the icon gutter and the spinner never count.
  */
 export function ButtonRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
