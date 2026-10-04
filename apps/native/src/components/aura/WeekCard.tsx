@@ -1,9 +1,11 @@
+import { useWindowDimensions } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { WeekRecap } from '@athanor/core';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View, cn } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
 import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 
 /**
  * The week recap on Home (M6 §3.4 Home block «La settimana»), in its data state: the label
@@ -26,6 +28,7 @@ export function WeekCard({
   locale: Locale;
   onPress: () => void;
 }) {
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   const stats = [
     {
       key: 'aura',
@@ -51,16 +54,29 @@ export function WeekCard({
       onPress={onPress}
       className={cn('gap-2', PRESS_DIM)}
     >
-      <View className="flex-row flex-wrap items-center justify-between gap-x-3">
-        <SectionLabel>{t('recap.weekTitle' as MessageKey, locale)}</SectionLabel>
+      {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
+          Beside, the label takes the width that is left (`flex-1`): sized to its own text, the
+          moto g17 broke «Your week» over two lines in a box exactly as wide as the words
+          (Android 15, dev client, font scale 1.0, 2026-10-05). */}
+      <View className={stacked ? 'gap-1' : 'flex-row items-center justify-between gap-3'}>
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
+          {t('recap.weekTitle' as MessageKey, locale)}
+        </SectionLabel>
         <Text className="type-small text-muted-foreground">
           {t('recap.weekHint' as MessageKey, locale)}
         </Text>
       </View>
 
-      {/* Three figures, each over its word, left-aligned. `flex-wrap`: at the largest sizes
-          three columns do not fit one line, and a column drops under the others. */}
-      <View className="flex-row flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      {/* Three figures, each over its word, left-aligned. At the accessibility text sizes
+          three columns do not fit one line, so the row wraps there and a column drops under
+          the others. */}
+      <View
+        className={
+          stacked
+            ? 'flex-row flex-wrap items-start gap-x-6 gap-y-2'
+            : 'flex-row items-start justify-between gap-3'
+        }
+      >
         {stats.map(({ key, figure, label }) => (
           <View key={key} className="gap-1">
             <Text className="type-num-m text-foreground">{figure}</Text>

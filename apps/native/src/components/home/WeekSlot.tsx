@@ -25,7 +25,8 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  *
  * `(modal)/recap.tsx` already held the correct four-state shape for the same query; this
  * is that shape moved into the slot. It has since been lifted, as that note anticipated: the
- * branch rule is `listState` (`lib/list-state.ts`) and the arms are `ListState`, both #111.
+ * branch rule is `listState` (`lib/list-state.ts`, #111); the arms were the `ListState`
+ * component until 2026-10-05 (see «NO CARD» below).
  * `weekSlotState` is gone; `weekRecapIsEmpty` survives it as the `isEmpty` argument, because
  * what counts as a quiet week was never a question about queries.
  *

@@ -13,10 +13,9 @@ import { momentoReasonText } from '@/lib/momenti-reason';
  * focused: the row announced its two `Text` children separately and the «Motivo di affinità»
  * framing was announced by nothing at all.
  *
- * Load-bearing under `MomentoCard`, which wraps nothing accessible around it. NOT under
- * `home/MomentiCard.tsx`, whose whole card is one atomic `Pressable` carrying a static label
- * that replaces every descendant on iOS — the framing still reaches nobody there, and that is
- * the deliberate one-node trade that card's own docblock argues for.
+ * Load-bearing under `MomentoCard`, which wraps nothing accessible around it.
+ * `home/MomentiCard.tsx` rendered this row until 2026-10-05; it writes its one reason itself
+ * now (#921).
  */
 export function AffinityRow({ reason, locale }: { reason: MomentoReason; locale: Locale }) {
   const text = momentoReasonText(reason, locale);

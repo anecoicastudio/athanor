@@ -84,7 +84,9 @@ export function PrimeStelleCard({ locale }: { locale: Locale }) {
   return (
     <View className="gap-2">
       <View className="flex-row items-center justify-between gap-2">
-        <SectionLabel>{t('prime.card.label', locale)}</SectionLabel>
+        {/* `flex-1`: the label takes the width the close leaves, so its words are never
+            measured to fit (see `aura/WeekCard`). */}
+        <SectionLabel className="flex-1">{t('prime.card.label', locale)}</SectionLabel>
         <HeaderClose label={t('common.close', locale)} onPress={dismiss} />
       </View>
       <Text className="type-h2 text-foreground">{t('prime.card.title', locale)}</Text>

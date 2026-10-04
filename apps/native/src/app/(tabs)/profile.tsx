@@ -188,7 +188,7 @@ function ProfileEditor({
             keyboardShouldPersistTaps="handled"
           >
             {/* Header row: share + edit toggle — sized to the 24px icon scale
-            (tab glyphs / modal chevrons), HIT_SLOP like HomeHeader. gap-6 (24px)
+            (tab glyphs / modal chevrons), HIT_SLOP as HomeHeader had until 2026-10-05. gap-6 (24px)
             keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
             side, so anything under 22px overlaps and taps cross-fire. */}
             <View className="flex-row items-center justify-end gap-6">

@@ -135,7 +135,7 @@ export default function HomeScreen() {
         <DreamHeroCard locale={locale} />
         {/* Block 2b: «Hai un Momento» — renders only when one waits; no placeholder (see docblock). */}
         <MomentiCard locale={locale} />
-        {/* Block 3: «La tua settimana» — the card owns the recap query and says which of its four
+        {/* Block 3: «La tua settimana» — the slot owns the recap query and says which of its four
           states it is in (#100). It used to render «Presto qui» for loading, error and a quiet
           week alike, over a feature that shipped in M6. */}
         <WeekSlot locale={locale} />

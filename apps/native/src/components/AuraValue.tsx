@@ -10,7 +10,8 @@ import { spoken } from '@/lib/star';
 /**
  * The member's OWN Aura numeral, animated (spec §4 DRY) — one of the five cyan marks of the
  * mobile look (DESIGN §2.3), so it is mounted only where the number is the signed-in member's:
- * the Aura screen and Home's stars row. Someone else's Aura is a plain `Text`.
+ * the Aura screen. Someone else's Aura is a plain `Text`. (Home's stars row mounted it until
+ * 2026-10-05; that row shows the lit stars only now.)
  * Tweens from previous to `value` over 700ms cubic ease.
  * Reduced-motion: snaps immediately.
  * Announces final value via AccessibilityInfo on settle.
@@ -24,7 +25,8 @@ export function AuraValue({
   value: number;
   /**
    * Omit it: the numeral is `type-num` (44/800, DESIGN §4). A number is the old inline size,
-   * kept for Home's stars row until that screen converts (#921, open as of 2026-10-04).
+   * kept for Home's stars row, which no longer mounts this (#921, 2026-10-05): no caller
+   * passes it today.
    */
   size?: number;
   flashOnIncrease?: boolean;

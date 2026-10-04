@@ -13,7 +13,7 @@ import { star } from '@/lib/star';
  *
  * SHAPE carries the state, not colour alone: since `faint` was retuned for AA it no longer
  * reads clearly "off" against `aura` at a glance, and an assertive unlit star is exactly what
- * rule #3 doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell, StarsMiniRow).
+ * rule #3 doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell).
  * Reduced-motion → opacity cut, no transform (frontend §9; MomentFlash pattern).
  */
 export function ReactionStar({

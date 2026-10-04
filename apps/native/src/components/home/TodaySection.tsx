@@ -1,3 +1,4 @@
+import { useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsCalendar } from '@athanor/api';
@@ -8,6 +9,7 @@ import { useEntitlement } from '@/hooks/use-entitlement';
 import { SectionLabel } from '@/components/SectionLabel';
 import { listState } from '@/lib/list-state';
 import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { supabase } from '@/lib/supabase';
 
 const LIVE_HREF = '/(modal)/live' as const;
@@ -46,9 +48,9 @@ const LIVE_HREF = '/(modal)/live' as const;
  * here rather than a mode on `ListState`: a child cannot unmount its parent.
  *
  * Galleria (#921, 2026-10-05) converts the label row only: the gap under it is 8 and the link
- * is an underlined foreground link, not cyan. The rows are still `live/EventRow`'s bordered cards, where the
- * prototype draws one group of rows: that component has ten callers and converts with Athanor
- * Live (Marco, 2026-10-05).
+ * is an underlined foreground link, not cyan. The rows are still `live/EventRow`'s bordered
+ * cards, where the prototype draws one group of rows: that component has ten callers and
+ * converts with Athanor Live (Marco, 2026-10-05).
  */
 export function TodaySection({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -59,6 +61,7 @@ export function TodaySection({ locale }: { locale: Locale }) {
   const events = query.data?.events ?? [];
   const { data: entitlement } = useEntitlement();
   const premiumEnabled = entitlement?.features.premiumEvents ?? false;
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   // `staleWins`: three event rows an hour old are still three real events, and the member is
   // one tap from the surface that re-reads them. Nothing here is a claim about a person.
@@ -73,8 +76,14 @@ export function TodaySection({ locale }: { locale: Locale }) {
 
   return (
     <View className="gap-2">
-      <View className="flex-row flex-wrap items-center justify-between gap-x-3">
-        <SectionLabel>{t('home.upcoming.title', locale)}</SectionLabel>
+      {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
+          Beside, the label takes the width that is left (`flex-1`): sized to its own text, the
+          moto g17 broke «Your week» over two lines in a box exactly as wide as the words
+          (Android 15, dev client, font scale 1.0, 2026-10-05). */}
+      <View className={stacked ? 'items-start' : 'flex-row items-center justify-between gap-3'}>
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
+          {t('home.upcoming.title', locale)}
+        </SectionLabel>
         <Pressable
           onPress={() => router.push(LIVE_HREF)}
           accessibilityRole="link"

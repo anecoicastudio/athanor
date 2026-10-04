@@ -1,3 +1,4 @@
+import { useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
@@ -9,6 +10,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { useOpenNeeds } from '@/hooks/use-open-needs';
 import { topOpenNeeds } from '@/lib/favor-home';
 import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 
 /**
  * Home block «Passa il favore» — people with an open need, and a way in (issue #99).
@@ -42,15 +44,16 @@ import { PRESS_DIM } from '@/lib/press';
  * «Vedi chi ha bisogno ›», stands at the right of the label as an underlined foreground
  * link; it was cyan text at the foot of the card.
  *
- * One a11y label on the Pressable, like the fund and week blocks: VoiceOver reads one node. It costs
- * the handles, which is the same trade `MomentiCard`'s a11y note names — `target_handle` is
- * nullable, and a `{name}` label would read the «—» fallback aloud as "dash".
+ * One a11y label on the Pressable, like the fund and week blocks: VoiceOver reads one node.
+ * It costs the handles, a deliberate trade — `target_handle` is nullable, and a `{name}` label
+ * would read the «—» fallback aloud as "dash".
  *
  * Rule #1: this reads `favor_needs` and writes nothing. Aura stays the score-engine's business.
  */
 export function FavorNudgeCard({ locale }: { locale: Locale }) {
   const router = useRouter();
   const query = useOpenNeeds();
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   const needs = topOpenNeeds(query.data?.pages);
 
   // Nothing open, or nothing known yet — the slot collapses entirely (see docblock).
@@ -63,8 +66,14 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
       onPress={() => router.push('/(modal)/favor')}
       className={cn('gap-2', PRESS_DIM)}
     >
-      <View className="flex-row flex-wrap items-center justify-between gap-x-3">
-        <SectionLabel>{t('home.nudge.title', locale)}</SectionLabel>
+      {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
+          Beside, the label takes the width that is left (`flex-1`): sized to its own text, the
+          moto g17 broke «Your week» over two lines in a box exactly as wide as the words
+          (Android 15, dev client, font scale 1.0, 2026-10-05). */}
+      <View className={stacked ? 'gap-1' : 'flex-row items-center justify-between gap-3'}>
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
+          {t('home.nudge.title', locale)}
+        </SectionLabel>
         <Text className="type-small text-foreground underline">{t('home.nudge.cta', locale)}</Text>
       </View>
       <RowGroup>

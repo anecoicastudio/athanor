@@ -1,3 +1,4 @@
+import { useWindowDimensions } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { fundKeys, getFundAggregate } from '@athanor/api';
@@ -8,6 +9,7 @@ import { Pressable, Text, View, cn } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
 import { dreamHeroSlot, fundCycleState } from '@/lib/fund-cycle';
 import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { supabase } from '@/lib/supabase';
 import { useNow } from '@/hooks/use-now';
 import { useActiveEdition } from '@/hooks/use-active-edition';
@@ -51,6 +53,7 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
   // Above the early returns: a hook below them would run in a different order on the
   // render where the cycle appears.
   const now = useNow(60_000);
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   const slot = dreamHeroSlot(
     fundCycleState({
@@ -82,14 +85,14 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
       The label CARRIES the block's three numbers (#635). This Pressable is an accessibility
       element, so on iOS it is atomic: VoiceOver reads its label and never descends, and a label
       of «Dai Vita al Tuo Sogno» alone left the countdown, the total and the contributor count
-      unreachable — the whole payload of the card.
+      unreachable — the whole payload of the block.
 
-      That is a deliberate DEPARTURE from the one-static-node shape `MomentiCard` and
-      `FavorNudgeCard` document, and the departure has a rule: a static label is enough when it
-      already says what the card says («Hai un Momento in attesa»), and is not enough when the
-      card's content is DATA. Nothing here is nullable — `days`, `fundTotal` and `contributors`
+      That is a deliberate DEPARTURE from the one-static-node shape `FavorNudgeCard`
+      documents, and the departure has a rule: a static label is enough when it already says
+      what the block says («Qualcuno ha bisogno di una mano»), and is not enough when the
+      block's content is DATA. Nothing here is nullable — `days`, `fundTotal` and `contributors`
       all resolve to a rendered number before this branch — so the «—»-read-aloud argument that
-      keeps `MomentiCard`'s handle out of its label does not apply.
+      keeps a handle out of `FavorNudgeCard`'s label does not apply.
     */
     <Pressable
       accessibilityRole="button"
@@ -103,14 +106,16 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         people: tn('home.dream.a11y.people', contributors, locale),
       })}
       onPress={() => router.push('/annual')}
-      // `flex-wrap`: at the largest sizes the grey line does not fit beside the numeral and
-      // drops under it instead of leaving the screen. Nothing wraps at the default size.
+      // At the accessibility text sizes (`stacksTrailing`) the grey line goes under the numeral.
+      // Beside it, the line takes the width that is left (`flex-1`) and is not sized to its
+      // own text: sized to fit inside a wrapping row, the moto g17 drew «€ 9,852 · 7» and
+      // lost «people ›» (Android 15, dev client, font scale 1.0, 2026-10-05).
       className={cn(
-        'min-h-[56px] flex-row flex-wrap items-end justify-between gap-x-3 gap-y-2',
+        stacked ? 'gap-2' : 'min-h-[56px] flex-row items-end justify-between gap-3',
         PRESS_DIM,
       )}
     >
-      <View className="gap-2">
+      <View className={stacked ? 'gap-2' : 'shrink-0 gap-2'}>
         <SectionLabel>{t('home.dream.title', locale)}</SectionLabel>
         {/* `flex-wrap` (#639): the numeral and its word sit on one baseline row with no
             shrink, so at AX sizes the word left the screen; wrapping drops it to a second
@@ -123,7 +128,7 @@ export function DreamHeroCard({ locale }: { locale: Locale }) {
         </View>
       </View>
       {/* Fund total + contributor count. `tn`: one contributor is «1 persona». */}
-      <Text className="type-small text-muted-foreground">
+      <Text className={cn('type-small text-muted-foreground', !stacked && 'flex-1 text-right')}>
         {fundTotal} · {tn('home.dream.a11y.people', contributors, locale)} ›
       </Text>
     </Pressable>
