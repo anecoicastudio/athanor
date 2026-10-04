@@ -117,7 +117,7 @@ export default function ForgotPasswordScreen() {
           ) : (
             <>
               <View className="mt-6 gap-3">
-                <SectionLabel tone="aura">{t('auth.forgot.eyebrow', locale)}</SectionLabel>
+                <SectionLabel>{t('auth.forgot.eyebrow', locale)}</SectionLabel>
                 <Text
                   accessibilityRole="header"
                   className="text-[28px] font-bold tracking-[-0.02em] text-foreground"

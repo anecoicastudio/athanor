@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { auraKeys, getAuraScoreFull } from '@athanor/api';
-import { auraGlowLevel, breakdownRows } from '@athanor/core';
+import { breakdownRows } from '@athanor/core';
 import { galleria } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import { Pressable, ScrollView, Text, View } from '@/tw';
@@ -51,7 +51,6 @@ export default function AuraScreen() {
 
   const full = query.data;
   const score = full?.score ?? 0;
-  const glowLevel = auraGlowLevel(score);
 
   // Decay caption: show only when idle > 30 days from lastQualifyingActionAt
   const now = useNow();
@@ -70,27 +69,25 @@ export default function AuraScreen() {
       <ScrollView contentContainerClassName="px-5 pb-12">
         {/* Hero */}
         <View className="items-center gap-3 py-8">
-          <Mandorla size={96} glowLevel={glowLevel}>
-            {null}
-          </Mandorla>
+          <Mandorla size={96}>{null}</Mandorla>
           {/* Gate on `full === undefined`, not `isLoading`, and match the sources shimmer below.
               `isLoading` is `isPending && isFetching` in TanStack v5, so a DISABLED query — which
               this is until `me` resolves, since the session hydrates async — reports
               `isLoading: false` with no data and would fall straight through to a confident 0.
               `isError` is folded in because the EmptyState below already says the read failed,
               and a number next to that message contradicts it.
-              Colour is `text-faint`, not `text-aura`: DESIGN §11 reserves the cyan for the Aura
-              number itself ("Aura is status, not a moment"), and a placeholder is not a number. */}
+              Colour is `text-faint`, not `text-aura`: the cyan is the member's own Aura numeral
+              (DESIGN §2.3), and a placeholder is not a number. 44 is `AuraValue`'s size. */}
           {full === undefined || query.isError ? (
             <Text
               accessibilityLabel={t('aura.unknown', locale)}
               className="text-faint font-extrabold"
-              style={{ fontSize: 56, fontVariant: ['tabular-nums'] }}
+              style={{ fontSize: 44, fontVariant: ['tabular-nums'] }}
             >
               {AURA_UNKNOWN}
             </Text>
           ) : (
-            <AuraValue value={score} size={56} flashOnIncrease />
+            <AuraValue value={score} flashOnIncrease />
           )}
           <Text className="text-[13px] text-muted-foreground">{t('aura.tagline', locale)}</Text>
         </View>

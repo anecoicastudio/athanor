@@ -359,10 +359,10 @@ export default function WelcomeScreen() {
               has happened to the member yet; an account exists and a mail is in flight, and
               the screen's job is to send them to their inbox. `success` carries the state, the
               same reason the password checklist uses it («a satisfied form rule is a
-              confirmation, not a moment»). The eyebrow keeps the screen's own hero slot —
-              flat cyan text, which rule #4 allows; it is the glow that is reserved. */
+              confirmation, not a moment»). The label keeps the screen's own hero slot, in the
+              plain grey every label has since 2026-10-04 (#921). */
             <View className="mt-6 gap-4">
-              <SectionLabel tone="aura">{t('auth.confirm.eyebrow', locale)}</SectionLabel>
+              <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
               <Text
                 accessibilityRole="header"
                 className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
@@ -399,7 +399,7 @@ export default function WelcomeScreen() {
           ) : (
             <>
               <View className="mt-6 gap-2">
-                <SectionLabel tone="aura">{copy('eyebrow')}</SectionLabel>
+                <SectionLabel>{copy('eyebrow')}</SectionLabel>
                 <Text
                   accessibilityRole="header"
                   className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
@@ -463,7 +463,7 @@ export default function WelcomeScreen() {
 
                   <View className="my-6 flex-row items-center gap-3">
                     <View className="h-px flex-1 bg-hair" />
-                    <SectionLabel tone="muted">{t('auth.orEmail', locale)}</SectionLabel>
+                    <SectionLabel>{t('auth.orEmail', locale)}</SectionLabel>
                     <View className="h-px flex-1 bg-hair" />
                   </View>
                 </>

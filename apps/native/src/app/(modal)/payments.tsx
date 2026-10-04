@@ -75,7 +75,7 @@ export default function PaymentsScreen() {
 
       {query.isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={galleria.aura} />
+          <ActivityIndicator color={galleria.foreground} />
         </View>
       ) : null}
 
@@ -113,7 +113,7 @@ export default function PaymentsScreen() {
           }}
           ListFooterComponent={
             <View className="gap-4 pt-4">
-              {query.isFetchingNextPage ? <ActivityIndicator color={galleria.aura} /> : null}
+              {query.isFetchingNextPage ? <ActivityIndicator color={galleria.foreground} /> : null}
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}
               </Text>

@@ -98,7 +98,7 @@ export default function NewPasswordScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View className="mt-6 gap-3">
-            <SectionLabel tone="aura">{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
+            <SectionLabel>{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
             <Text
               accessibilityRole="header"
               className="text-[28px] font-bold tracking-[-0.02em] text-foreground"

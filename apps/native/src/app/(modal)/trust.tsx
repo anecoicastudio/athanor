@@ -130,7 +130,7 @@ export default function TrustScreen() {
 
         {/* Identity (read-only — verify flow is the identity-verify slice) */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.identity.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.identity.section', locale)}</SectionLabel>
           <Pressable
             onPress={() => {
               if (verifyState !== 'verified') router.push('/(modal)/verify');
@@ -177,7 +177,7 @@ export default function TrustScreen() {
 
         {/* Privacy by design · GDPR */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.privacy.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.privacy.section', locale)}</SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             {/* dream visibility — navigational cross-link to the inline editor's
                 «Il mio sogno» visibility control (no duplicate toggle); `edit=1`
@@ -248,7 +248,7 @@ export default function TrustScreen() {
 
         {/* Consent management (§3.5.3) — diagnostics opt-in (default OFF) */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('gdpr.consent.section', locale)}</SectionLabel>
+          <SectionLabel>{t('gdpr.consent.section', locale)}</SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             {/* Diagnostics — default OFF; gates Sentry egress (P1.4 / B-5): SentryConsentGate
                 inits the SDK only once this is on and closes it, native side included, when off. */}
@@ -274,7 +274,7 @@ export default function TrustScreen() {
 
         {/* Ethical moderation + report CTA */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.moderation.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.moderation.section', locale)}</SectionLabel>
           <View className="gap-3 rounded-card border border-hair bg-raise p-5">
             <Text className="text-[13px] leading-relaxed text-muted-foreground">
               {t('trust.moderation.intro', locale)}

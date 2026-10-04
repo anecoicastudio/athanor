@@ -70,7 +70,7 @@ function EntityIcon({
         handle={title}
         displayName={displayName}
         avatarPath={avatarPath}
-        size={40}
+        size={44}
       />
     );
   }

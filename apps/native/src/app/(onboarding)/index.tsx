@@ -427,7 +427,7 @@ export default function OnboardingScreen() {
 
               {step === 3 ? (
                 <View className="gap-4">
-                  <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
+                  <SectionLabel>{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
                   <Text
                     accessibilityRole="header"
                     className="text-[30px] font-bold tracking-[-0.02em] text-foreground"

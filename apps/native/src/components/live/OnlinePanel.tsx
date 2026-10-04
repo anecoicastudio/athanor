@@ -49,7 +49,7 @@ export function OnlinePanel({
         {all.length === 0 && !query.isLoading ? (
           <EmptyState>{t('live.calendar.empty', locale)}</EmptyState>
         ) : null}
-        {query.isLoading ? <ActivityIndicator color={galleria.aura} /> : null}
+        {query.isLoading ? <ActivityIndicator color={galleria.foreground} /> : null}
       </View>
     </ScrollView>
   );

@@ -35,13 +35,13 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  * client persists to AsyncStorage with a 24h `gcTime` and Aura decays, so a stale week
  * presented as this week is the false confidence `aura-display.ts` refused for the score.
  *
- * THE EYEBROW IS FAINT, NOT `tone="aura"`, even though `WeekCard` renders the data state's
- * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: `SectionLabel`'s
- * docblock warns that a second cyan eyebrow on one scroll costs the first its rank, Home already
- * has two (`WeekCard` and `MomentiCard`), and `WeekCard`'s «Section label row» comment says the
- * fold-to-11px fix is a visual decision that does not belong in a drive-by. A third would make it
- * worse, so the three non-data states keep exactly the header `ComingSoonSection` was rendering
- * yesterday.
+ * THE LABEL IS THE PLAIN GREY ONE, even though `WeekCard` renders the data state's
+ * eyebrow in cyan. That is not an oversight and not a thing to harmonise here: a `SectionLabel`
+ * is grey everywhere but on a celebration screen (#921, 2026-10-04), `WeekCard`'s inline cyan
+ * title is its own screen's conversion, and `WeekCard`'s «Section label row» comment says the
+ * fold-to-11px fix is a visual decision that does not belong in a drive-by. So the three
+ * non-data states keep the header `ComingSoonSection` was rendering, in the label style
+ * every section has now.
  *
  * NO `staleTime` — same key, same queryFn, no options, the discipline `MomentiCard`
  * documents. `AnalyticsLiteCard`'s `recapQuery` already sets `staleTime: 60_000` on
@@ -115,9 +115,9 @@ export function WeekSlot({ locale }: { locale: Locale }) {
           // would push a Home slot down a third of the screen.
           className=""
           loading={
-            // `bg-raise-2` ghosts, NOT `ShimmerBar` — that component is `bg-raise` and so is
-            // `Card`, so a bar inside a card is invisible. `recap.tsx`'s loading arm gets away
-            // with ShimmerBar because its bars sit on `bg-background`; `feed/FeedSkeleton.tsx` is
+            // `bg-raise-2` ghosts, NOT `ShimmerBar` — until 2026-10-04 that component had the
+            // fill of `Card` itself, so a bar inside a card was invisible (it is `hair` now, and
+            // this arm can take it when Home converts). `feed/FeedSkeleton.tsx` is
             // the in-card precedent and is where this tone comes from. (FeedSkeleton itself is not
             // reusable here: no props, three hardcoded cards, and it bakes a `px-5` that would
             // double inside Home's own `px-5` ScrollView.) Static, so reduced-motion safe.

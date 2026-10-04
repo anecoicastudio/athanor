@@ -15,8 +15,8 @@ import { Screen } from '@/components/Screen';
 
 /**
  * Match overlay — fired on a MUTUAL Momento match (the deck navigates here on a
- * matched accept). This is the one glowing surface of the swipe-deck slice
- * (rule #4 — a moment happened): a glowing <Mandorla> burst with the ✦ mark.
+ * matched accept). This is the one celebration screen of the swipe-deck slice
+ * (rule 4 — a moment happened): the ✦ mark inside a hairline <Mandorla>, no glow.
  *
  * Reduced-motion safe: under Reduce Motion the burst fades opacity only (no
  * scale/transform), following the MomentFlash/AccessibilityInfo pattern.
@@ -89,13 +89,13 @@ export default function MatchOverlay() {
 
         <View className="flex-1 items-center justify-center">
           <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-            {/* glowing Mandorla burst — high glow (glowLevel 1), ✦ mark inside (rule #4) */}
-            <Mandorla size={140} glowLevel={1}>
+            {/* the mandorla around the ✦ mark — a hairline, no glow (rule 4) */}
+            <Mandorla size={140}>
               <Text className="text-4xl text-aura">✦</Text>
             </Mandorla>
           </Animated.View>
 
-          <SectionLabel tone="aura" className="mt-6">
+          <SectionLabel tone="celebration" className="mt-6">
             {accepted ? t('match.accepted.eyebrow', locale) : t('match.eyebrow', locale)}
           </SectionLabel>
           <Text

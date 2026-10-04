@@ -139,7 +139,7 @@ export default function CostellazioniScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={onRefresh}
-            tintColor={galleria.aura}
+            tintColor={galleria.foreground}
           />
         }
         onEndReachedThreshold={0.5}

@@ -84,7 +84,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Categoria ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.category', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.category', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             <Chip
               label={t('live.filter.category.any', locale)}
@@ -104,7 +104,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Città ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.city', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.city', locale)}</SectionLabel>
           <Input
             placeholder={t('live.filter.city.placeholder', locale)}
             value={city}
@@ -117,7 +117,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Quando ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.date', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.date', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {DATE_PRESETS.map((p) => (
               <Chip

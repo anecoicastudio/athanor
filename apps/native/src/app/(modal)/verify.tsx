@@ -150,7 +150,7 @@ export default function VerifyScreen() {
               verified ? t('verify.a11y.verified', locale) : t('verify.a11y.unverified', locale)
             }
           >
-            <Mandorla size={92} glowLevel={verified ? 1 : 0.4}>
+            <Mandorla size={92}>
               <Text
                 className="text-3xl text-aura"
                 accessibilityElementsHidden

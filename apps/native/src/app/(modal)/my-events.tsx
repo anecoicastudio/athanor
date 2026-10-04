@@ -45,7 +45,7 @@ export default function MyEventsScreen() {
           variant="primary"
         />
 
-        {query.isLoading ? <ActivityIndicator color={galleria.aura} /> : null}
+        {query.isLoading ? <ActivityIndicator color={galleria.foreground} /> : null}
 
         {query.isError ? (
           <View className="items-center gap-4 pt-8">

@@ -116,7 +116,11 @@ export default function HomeScreen() {
         className="flex-1"
         contentContainerClassName="gap-7 px-5 pb-12 pt-4"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={galleria.aura} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={galleria.foreground}
+          />
         }
       >
         <HomeHeader

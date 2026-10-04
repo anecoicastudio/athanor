@@ -37,7 +37,7 @@ export default function TicketViewerScreen() {
 
         {ticketQ.isLoading ? (
           <View className="items-center pt-16">
-            <ActivityIndicator color={galleria.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           </View>
         ) : ticket?.status === 'refunded' ? (
           // The webhook nulls qr_token on refund/dispute, but say WHY instead of falling

@@ -58,8 +58,8 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * and is not enough where the card's content is a number. Those two compose their data into the
  * label now; this one still cannot, for the nullability reason above.
  *
- * `tone="aura"` is safe HERE only because Home has no other cyan eyebrow — `SectionLabel`'s
- * docblock warns that a second one costs the first its rank. Check that before adding one.
+ * The label is plain grey since 2026-10-04 (#921): it was the one cyan eyebrow on Home, and a
+ * label is not one of the five cyan marks. The waiting Momento's mark is a dot (DESIGN §2.3).
  */
 export function MomentiCard({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -86,14 +86,14 @@ export function MomentiCard({ locale }: { locale: Locale }) {
       accessibilityLabel={t('home.momenti.a11y', locale)}
       onPress={() => router.push('/momenti')}
     >
-      <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
+      <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel>
       <View className="gap-3 rounded-card border border-aura-line bg-raise p-5">
         <View className="flex-row items-center gap-3">
           <Avatar
             handle={top.handle}
             displayName={top.displayName}
             avatarPath={top.avatarPath}
-            size={48}
+            size={44}
           />
           <View className="flex-1">
             {/* numberOfLines: handles run to 30 chars (handleSchema) and would wrap the row. */}

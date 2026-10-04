@@ -139,7 +139,7 @@ export default function MomentiScreen() {
   });
 
   // Every claim this screen makes about the deck comes from one derivation, tested in
-  // `lib/momenti-deck-state.ts`: which arm renders, whether the cyan eyebrow may say «Hai un
+  // `lib/momenti-deck-state.ts`: which arm renders, whether the label may say «Hai un
   // Momento», and which of the two empty sentences is true (#594).
   const { hasMomento, exhausted, neverHadOne } = momentiDeckView({
     isLoading: deck.isLoading,
@@ -183,9 +183,7 @@ export default function MomentiScreen() {
         contentContainerClassName="px-5 pt-4 pb-12"
         onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
       >
-        {hasMomento ? (
-          <SectionLabel tone="aura">{t('momenti.eyebrow', locale)}</SectionLabel>
-        ) : null}
+        {hasMomento ? <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel> : null}
         {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
           {t('momenti.title', locale)}

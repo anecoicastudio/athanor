@@ -201,7 +201,7 @@ export default function LedgerScreen() {
           ListFooterComponent={
             query.isFetchingNextPage ? (
               <View className="py-6">
-                <ActivityIndicator color={galleria.aura} />
+                <ActivityIndicator color={galleria.foreground} />
               </View>
             ) : null
           }

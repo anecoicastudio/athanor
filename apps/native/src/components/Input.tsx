@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { galleria } from '@athanor/config';
 import { Pressable, TextInput, View, cn, type TextInputProps } from '@/tw';
+import { useInsideCard } from '@/components/Card';
 
 /**
  * The one pill text field (DESIGN §9 Input, Galleria since 2026-10-04, #921): radius full, a
@@ -130,6 +131,7 @@ export function Input({
   ...rest
 }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const insideCard = useInsideCard();
 
   // The wrapper below is CONDITIONAL, which `Field.tsx` rules out for its own error
   // wrapper — and for a reason that binds here too. Flipping `trailing`'s truthiness
@@ -169,7 +171,10 @@ export function Input({
   const field = (
     <TextInput
       className={cn(
-        'border bg-surface text-[17px] text-foreground',
+        'border text-[17px] text-foreground',
+        // Inside a `Card` the field's own fill is the card's and the field would vanish at rest;
+        // there it is a black well (`useInsideCard`, #921 2026-10-04).
+        insideCard ? 'bg-background' : 'bg-surface',
         trailing ? TRAILING_CLASSES : SIZE_CLASSES[size],
         invalid ? 'border-error' : focused ? 'border-foreground' : 'border-transparent',
         className,

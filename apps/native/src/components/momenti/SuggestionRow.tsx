@@ -59,7 +59,7 @@ export function SuggestionRow({
         handle={suggestion.handle}
         displayName={suggestion.displayName}
         avatarPath={suggestion.avatarPath}
-        size={48}
+        size={44}
       />
       {/* Plain `flex-1`: no floor. This column is basis-0 with grow 1, so it already takes every
           pixel the pill does not need — a `min-w` on top of that pushes it past its flex result

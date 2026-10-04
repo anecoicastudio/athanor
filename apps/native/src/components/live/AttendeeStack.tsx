@@ -31,7 +31,7 @@ function AttendeeAvatar({
         handle={data?.handle ?? null}
         displayName={data?.display_name ?? null}
         avatarPath={data?.avatar_path ?? null}
-        size={28}
+        size={30}
       />
     </Pressable>
   );

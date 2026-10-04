@@ -50,13 +50,13 @@ export default function CandidacySuccessOverlay() {
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
       <Screen className="items-center justify-center pl-8 pr-8">
         <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-          {/* glowing Mandorla burst — high glow (glowLevel 1), rule #4: a moment happened */}
-          <Mandorla size={96} glowLevel={1}>
+          {/* the mandorla around the ✦ — a hairline, no glow (rule 4): a moment happened */}
+          <Mandorla size={96}>
             <Text className="text-3xl text-aura">✦</Text>
           </Mandorla>
         </Animated.View>
 
-        <SectionLabel tone="aura" className="mt-6">
+        <SectionLabel tone="celebration" className="mt-6">
           {t('candidacy.success.eyebrow', locale)}
         </SectionLabel>
         <Text

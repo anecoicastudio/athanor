@@ -39,7 +39,6 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
   const label = profile?.removed
     ? t('profile.removed.name', locale)
     : memberLabel(profile?.display_name, handle);
-  const avatarSize = size === 'sm' ? 28 : 36;
   const nameClass = size === 'sm' ? 'text-[13px]' : 'text-[14px]';
   return (
     <Pressable
@@ -58,7 +57,7 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
         handle={handle}
         displayName={profile?.display_name ?? null}
         avatarPath={profile?.avatar_path ?? null}
-        size={avatarSize}
+        size={30}
       />
       <Text
         className={`${nameClass} shrink font-semibold text-foreground`}

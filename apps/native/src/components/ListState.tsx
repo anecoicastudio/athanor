@@ -58,11 +58,9 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  * and the paddings differ. Same division `MediaFrame` draws for the media surfaces (#135).
  *
  * The retry is `Button variant="ghost"`, which is what `payments`, `my-events`, `aura`,
- * `aura/ledger` and `recap` already use. Deliberately NOT the `border-aura-line bg-aura-soft`
- * pill the other error branches hand-rolled — not because rule #4 reserves that surface (the
- * framed pair without a shadow is the ordinary active one, §2.3, ruled 2026-09-07) but because
- * an error state is the one place the eye should be pulled by the message, not by the control
- * under it.
+ * `aura/ledger` and `recap` already use. Deliberately NOT a pill: an error state is the one
+ * place the eye should be pulled by the message, not by the control under it. (Until Galleria
+ * the other error branches hand-rolled a cyan framed pill here; the choice predates it.)
  *
  * `idle` and `ready` render nothing. `idle` is the disabled query — a screen waiting on a
  * hydrating session says nothing rather than asserting emptiness — and `ready` means the
@@ -104,7 +102,7 @@ export function ListState({
       <>{loading}</>
     ) : (
       <View className={cn('items-center', padding)}>
-        <ActivityIndicator color={galleria.faint} />
+        <ActivityIndicator color={galleria.foregroundMuted} />
       </View>
     );
   }
@@ -112,7 +110,7 @@ export function ListState({
   if (state === 'error') {
     return (
       <View className={cn('items-center gap-4', padding)}>
-        <EmptyState>{errorLabel}</EmptyState>
+        <EmptyState line="body">{errorLabel}</EmptyState>
         <Button label={t('common.retry', locale)} variant="ghost" onPress={onRetry} />
       </View>
     );

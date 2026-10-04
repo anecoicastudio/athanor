@@ -180,7 +180,7 @@ export function CandidateCard({
           </View>
         ) : voteState === 'voting' ? (
           <View className="min-h-[36px] items-center justify-center px-4">
-            <ActivityIndicator color={galleria.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           </View>
         ) : voteState === 'voteElsewhere' ? (
           // #633: the member's one vote sits on ANOTHER candidacy. «Vota» here would promise

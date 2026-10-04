@@ -41,9 +41,9 @@ import { topOpenNeeds } from '@/lib/favor-home';
  * belongs: the completion overlay, after a favor is actually lit. The CTA is flat cyan text,
  * which rule #4 allows.
  *
- * The eyebrow is the default faint, NOT `tone="aura"` — `SectionLabel`'s docblock warns a second
- * cyan eyebrow costs the first its rank, and Home already has two (`MomentiCard`'s
- * `SectionLabel tone="aura"`, `WeekCard`'s inline `text-aura` title).
+ * The label is the plain grey `SectionLabel`, as every label is outside a celebration screen
+ * (#921, 2026-10-04). One cyan title is left on Home until that screen converts: `WeekCard`'s
+ * inline `text-aura` one.
  *
  * One a11y label on the Pressable, like every Home sibling: VoiceOver reads one node. It costs
  * the handles, which is the same trade `MomentiCard`'s a11y note names — `target_handle` is
@@ -74,7 +74,7 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
               handle={need.target_handle}
               displayName={need.target_display_name}
               avatarPath={need.target_avatar_path}
-              size={40}
+              size={44}
             />
             <View className="flex-1 gap-0.5">
               <Text className="text-[14px] text-foreground" numberOfLines={1}>

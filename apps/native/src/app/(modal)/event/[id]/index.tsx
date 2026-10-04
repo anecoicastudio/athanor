@@ -238,7 +238,7 @@ export default function EventDetailScreen() {
             className="px-5 pt-16"
             loading={
               <View className="items-center pt-16">
-                <ActivityIndicator color={galleria.aura} />
+                <ActivityIndicator color={galleria.foreground} />
               </View>
             }
           />

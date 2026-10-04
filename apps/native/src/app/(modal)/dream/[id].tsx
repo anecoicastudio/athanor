@@ -91,7 +91,7 @@ export default function DreamDeepLinkScreen() {
       <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12 pt-2">
         <View className="gap-6">
           {author ? (
-            <SectionLabel tone="aura">
+            <SectionLabel>
               {t('publicDream.titleWithAuthor', locale, { handle: author.handle })}
             </SectionLabel>
           ) : null}

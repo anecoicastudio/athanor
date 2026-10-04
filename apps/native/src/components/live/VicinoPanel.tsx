@@ -43,7 +43,7 @@ function AthanorDaysCard({
 }) {
   return (
     <View className="gap-2 rounded-hero border border-aura-line bg-aura-soft p-5">
-      <SectionLabel tone="aura">{t('live.athanorDays.label', locale)}</SectionLabel>
+      <SectionLabel>{t('live.athanorDays.label', locale)}</SectionLabel>
       {/* Borderline under §10 and decided here: the eyebrow is the product's name, this line is
           the display title, so the title takes the header. `CalendarPanel` lands on the other
           half of the same rule — its month label is the group's only text, so there the eyebrow

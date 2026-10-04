@@ -45,7 +45,7 @@ export function ConnectionRequestRow({
           handle={item.peerHandle}
           displayName={item.peerDisplayName}
           avatarPath={item.peerAvatarPath}
-          size={48}
+          size={44}
         />
         {/* A lone-word handle ellipsizes (DESIGN §10); `connection.a11y.open` keeps it whole. */}
         <Text
