@@ -152,11 +152,12 @@ export default function ProjectComposeScreen() {
                 if (titleMissing) setTitleMissing(false);
               }}
               maxLength={140}
+              invalid={titleMissing}
             />
             {/* Inside the row, so revealing the row reveals the reason (#769). `Field`'s caption
-                recipe; `Input` has no `error` prop of its own. */}
+                recipe: `Input` takes `invalid` for the border and leaves the reason to its row. */}
             {titleMissing ? (
-              <Text className="text-sm text-error">{t('project.compose.error', locale)}</Text>
+              <Text className="text-[14px] text-error">{t('project.compose.error', locale)}</Text>
             ) : null}
           </View>
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
@@ -170,7 +171,6 @@ export default function ProjectComposeScreen() {
               {CATEGORIES.map((c) => (
                 <Chip
                   key={c}
-                  small
                   label={t(`costellazioni.filter.${c}` as MessageKey, locale)}
                   selected={c === category}
                   onPress={() => setCategory(c)}

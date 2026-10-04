@@ -3,29 +3,30 @@ import { galleria } from '@athanor/config';
 import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
 
 /**
- * The one BLOCK text field — the `rounded-hero` sibling of `Input`'s pill.
+ * The one form field that stands under a `SectionLabel` (DESIGN §9 Field, Galleria since
+ * 2026-10-04, #921). Two shapes, chosen by `multiline`:
  *
- * DESIGN §9 documents a single input shape, the pill (radius full), and `Input` implements it.
- * The app ships a SECOND shape that §9 never described: radius `hero` (26 — "hero blocks, media,
- * sheet tops"), the field that sits as a block in a sheet or a form, under a `SectionLabel` and
- * over a hint. Twelve of them, spelled by hand. Everything except the radius comes from that §9
- * Input row: `raise` bg (#498), hairline border, foreground text, placeholder `foregroundMuted`,
- * focus = foreground ring 1px, error = `error` ring + caption below.
+ *   - multi-line — the block: radius 24, a min height in two steps (below), body text;
+ *   - single-line — a pill, the same one `Input` draws: at least 50pt, radius full.
  *
- * The census on `dev` @ b94fd10 found all twelve sharing `rounded-hero border bg-raise px-5 py-4
- * text-foreground` exactly, and diverging on four axes. Three were drift, one was meaning:
+ * Both fill with `surface` and show no border at rest. The border is there, transparent, so
+ * that focus (foreground) and error (`error`, which outranks focus: an errored field stays red
+ * while you fix it) colour it without moving the text. The reason of an error is rendered here,
+ * under the field, in `error` at 14px — one of the two fixed sizes outside the type scale
+ * (DESIGN §4).
  *
- * (The family is really fifteen. The three compose screens — story, post, project — were the same
- * shape with their own padding, type and height, and #499 left them out of its count because they
- * already passed the placeholder prop it was filed about, not because it judged them a different
- * shape. #504's ruling folded them in on 2026-08-30, so `source-audit.test.ts` §15 now names this
- * file and nothing else.)
+ * Before Galleria this was the `rounded-hero` block (radius 26, `raise` fill, a hairline), and
+ * a single-line field had the same block shape. It exists because the same field was spelled
+ * by hand fifteen times: twelve sharing `rounded-hero border bg-raise px-5 py-4 text-foreground`
+ * (the census on `dev` @ b94fd10), plus the three compose screens — story, post, project —
+ * which #504's ruling folded in on 2026-08-30. `source-audit.test.ts` §15 names this file as
+ * the only place the block is built.
  *
  * ── WHY TWO SIZES AND NOT THREE ───────────────────────────────────────────────────────────
- * `min-h-36` ×2, `min-h-32` ×2, `min-h-28` ×3. Only one boundary is a design decision: whether
- * the field IS the screen (the dream, the help message, the candidacy prose — the step exists to
- * hold it) or is one field among several (the report's optional note, the profile's bio and
- * mission). 36-vs-32 draws no such line, so it collapses.
+ * `min-h-36` ×2, `min-h-32` ×2, `min-h-28` ×3 was the spread. Only one boundary is a design
+ * decision: whether the field IS the screen (the dream, the help message, the candidacy prose
+ * — the step exists to hold it) or is one field among several (the report's optional note, the
+ * profile's bio and mission). 36-vs-32 draws no such line, so it collapses.
  *
  * - `md` (default) — a field among fields. `min-h-28` (112px). The story
  *   caption, which sits beside the media it annotates.
@@ -35,29 +36,19 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * A single-line field takes neither: `size` applies only when `multiline` is set, because
  * without it there is no box to give a floor to.
  *
- * ── WHY ONE TEXT SIZE ─────────────────────────────────────────────────────────────────────
- * Eight of the twelve set `text-lg`; four set nothing at all (`CityPicker`, and `ProfileEditForm`'s
- * name/bio/mission), so their text rendered at whatever size the PLATFORM defaults a `TextInput`
- * to — the same failure as the placeholder colour this primitive exists to fix, one axis over.
- * The majority spelling wins and the four join it. What `text-lg` RENDERS depends on the platform,
- * which is worth knowing before anyone quotes a number at it. On device, `react-native-css` inlines
- * `rem` at **14**, so 1.125rem is **15.75px**; the react-native-web build takes the browser's 16
- * instead, so the same class measures **18px** there. (Spacing stopped following the rem on
- * 2026-10-04, #921: `--spacing` is 4px in `global.css`, so the `min-h-*` above are the same in
- * both builds.) `Input`'s `text-[15px]` is 15 on both. The two input families are 0.75px apart on
- * device and 3px apart on web. `Input`'s 15 is §4's `small`; this field's 15.75 is on no step of
- * §4's mobile scale (small 15, body 17). Reconciling them against that scale is a separate
- * question and is NOT settled here.
+ * ── THE TEXT: BODY, AND WHY A PILL DOES NOT SAY `type-body` ────────────────────────────────
+ * A field's text is body, 17px. A multi-line field takes the `type-body` class, so its lines
+ * stand 24 apart like the prose around it. A single-line one writes the size alone,
+ * `text-[17px]`: it has no second line to space, and on iOS a line height on a one-line field
+ * pushes the text down inside the pill. `Input`'s docblock has the measurement, and the one
+ * that makes the vertical padding `pt-`/`pb-` rather than `py-`.
  *
  * ── WHY `register` IS A PROP AND `font-dream` IS NOT A CLASS ───────────────────────────────
- * Three fields carry `font-dream` and all three hold a dream (§4: the italic register is the
- * dream voice, never decoration). That is meaning, not drift, so it survives as a named prop —
- * which also makes "which fields are dream-register?" a grep rather than a reading.
- *
- * ── WHY A FOCUS RING APPEARS THAT NO CALL SITE HAD ────────────────────────────────────────
- * None of the twelve implemented one, while §9 specifies `focus = foreground ring 1px` and
- * `Input` has it. Twelve-for-twelve absence is uniform drift, not a decision — the documented
- * recipe ships. `error` outranks `focus`: an errored field stays red while you fix it.
+ * Three fields hold a dream (§4: the italic register is the dream voice, never decoration).
+ * That is meaning, not drift, so it survives as a named prop — which also makes "which fields
+ * are dream-register?" a grep rather than a reading. A dream field takes `type-quote`, §4's
+ * dream style (18/23 italic), so the words stand in the field as `DreamQuote` will set them.
+ * No weight goes beside it (`source-audit.test.ts` section 48).
  *
  * `className` is for LAYOUT — never for re-padding or re-coloring. Two Tailwind paddings on one
  * element resolve by stylesheet source order, not string order, so a caller's `py-3` would win or
@@ -68,6 +59,12 @@ import { View, Text, TextInput, cn, type TextInputProps } from '@/tw';
  * requires as a value rather than a class, and leaving it settable would let the platform grey
  * back in through the very primitive that exists to remove it. `source-audit.test.ts` §15 asserts
  * no `<TextInput>` with a `placeholder` ever ships without one.
+ *
+ * Measured on 2026-10-04 at the default text size, on an iPhone SE simulator (iOS 26.3, Expo
+ * Go) and a moto g17 (Android 15, dev client) alike: a single-line field 50, `md` 112, `lg`
+ * 144, and a one-line reason adds about 24 under the field (6 of gap and its line). At the largest
+ * text size the simulator gave a single-line field 70.5 and three lines of `md` 170; the phone
+ * at a font scale of 2.0 gave a single-line field 64.4.
  */
 type Size = 'md' | 'lg';
 
@@ -79,7 +76,7 @@ const SIZE_CLASSES: Record<Size, string> = {
 export type FieldProps = Omit<TextInputProps, 'placeholderTextColor'> & {
   size?: Size;
   register?: 'app' | 'dream';
-  /** The caption to render under the field. Truthy also lights the `error` ring. */
+  /** The reason to render under the field. Truthy also lights the `error` border. */
   error?: string | null | false;
 };
 
@@ -111,15 +108,16 @@ export function Field({
   // TextInput — which drops the keyboard mid-sentence on the two screens that clear their
   // error on the next keystroke.
   return (
-    <View className="gap-2">
+    <View className="gap-1.5">
       <TextInput
         className={cn(
-          // `pl-5 pr-5`, never `px-5`: Android's TextInput drops logical padding (#749 — see
-          // `Input`'s docblock for the device measurement).
-          'rounded-hero border bg-raise pl-5 pr-5 py-4 text-lg text-foreground',
-          multiline && SIZE_CLASSES[size],
-          register === 'dream' && 'font-dream',
-          error ? 'border-error' : focused ? 'border-foreground' : 'border-hair',
+          // Physical on both axes, never `px-*` or `py-*`: Android's TextInput drops logical
+          // inline padding (#749) and an iOS multi-line one drops logical block padding — see
+          // `Input`'s docblock for both measurements.
+          'border bg-surface pb-3 pl-5 pr-5 pt-3 text-foreground',
+          multiline ? cn('rounded-[24px]', SIZE_CLASSES[size]) : 'min-h-[50px] rounded-full',
+          register === 'dream' ? 'type-quote' : multiline ? 'type-body' : 'text-[17px]',
+          error ? 'border-error' : focused ? 'border-foreground' : 'border-transparent',
           className,
         )}
         multiline={multiline}
@@ -134,7 +132,7 @@ export function Field({
         onFocus={handleFocus}
         onBlur={handleBlur}
       />
-      {error ? <Text className="text-sm text-error">{error}</Text> : null}
+      {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
     </View>
   );
 }

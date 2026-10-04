@@ -18,7 +18,7 @@ export function DreamQuote({
   /**
    * Row-scale preview (SuggestionRow): 13px body-weight text instead of the display quote.
    * `ink-2`, not `faint` — inside a row the dream is the payload and has to outrank the
-   * metadata Tag beside it, which is a bordered raise-2 pill and wins any colour tie.
+   * metadata Tag beside it, which is a bordered pill and wins any colour tie.
    */
   compact?: boolean;
   numberOfLines?: number;

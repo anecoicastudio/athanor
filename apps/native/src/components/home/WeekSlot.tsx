@@ -51,8 +51,8 @@ import { weekRecapIsEmpty } from '@/lib/week-slot';
  *
  * The retry is `Button variant="ghost"`, NOT a `border-aura-line bg-aura-soft` pill. Rule #4
  * permits that pair on any control — without a shadow it is the ordinary selected/active surface
- * (§2.3, ruled 2026-09-07), which is how `Chip` draws a selected chip and `AmountRow` the active
- * amount — so the reason here is weight, not permission: a failed fetch should not be the
+ * (§2.3, ruled 2026-09-07), which is how `AmountRow` draws the active amount and how `Chip` drew
+ * a selected chip until 2026-10-04 — so the reason here is weight, not permission: a failed fetch should not be the
  * loudest block on the home screen. The defect #119 (closed) counted was the hand-rolled copies
  * of the pill. (This docblock used to cite `favor.tsx` and `costellazioni.tsx` as two of them,
  * with line numbers. That was true when written and has rotted since: the #119 sweep took those

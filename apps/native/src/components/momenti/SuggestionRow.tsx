@@ -13,10 +13,10 @@ import { reasonChipLabel } from '@/lib/momenti-reason';
  * The trailing marker is a quiet `Tag`, not a cyan pill. This is a DELIBERATE DEVIATION from
  * the ratified prototype (`chip live`, athanor-prototype.html:1391) and frontend spec
  * `05-m5-momenti.md` §70, user-approved 2026-08-08 — not a spec correction, and not a rule-#4
- * fix either: aura-soft/aura-line WITHOUT a shadow is the ordinary accent surface (~50 sites,
- * incl. Chip's selected state), and the glow rule 4 reserves is auraGlow(), which this never had.
+ * fix either: aura-soft/aura-line WITHOUT a shadow was the ordinary accent surface (~50 sites,
+ * incl. Chip's selected state then), and the glow rule 4 reserved was auraGlow(), which this never had.
  *
- * The reason is affordance: every other cyan aura-soft pill in this app is interactive or
+ * The reason is affordance: every other cyan aura-soft pill in this app was interactive or
  * stateful (Chip selected, filter tabs, the retry pressable on this same screen), so a static
  * cyan pill inside a Pressable row reads as a control it isn't. `Tag` is the app's static
  * equivalent — IncomingOfferRow uses the identical Avatar + flex-1 + Tag composition.

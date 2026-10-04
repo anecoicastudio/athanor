@@ -176,9 +176,9 @@ export type RevealOnFocus = {
 export type PressInEvent = { currentTarget?: unknown; nativeEvent: { locationY: number } };
 
 /**
- * Half the height of the band a caret reveal keeps on screen, in points: about one line of the
- * block field's `text-lg` either side of the touch, so the line being edited and its neighbour
- * are visible, not just the caret's own pixel row.
+ * Half the height of the band a caret reveal keeps on screen, in points: one line of the
+ * multi-line field's body text (`type-body`, 24) either side of the touch, so the line being
+ * edited and its neighbour are visible, not just the caret's own pixel row.
  */
 export const CARET_LINE = 24;
 

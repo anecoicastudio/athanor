@@ -429,7 +429,6 @@ export function ProfileEditForm({
                 <Chip
                   key={opt}
                   role="radio"
-                  small
                   label={t(`visibility.${opt}`, locale)}
                   selected={
                     ((visibility.identity ?? 'public') === 'public' ? 'public' : 'members') === opt

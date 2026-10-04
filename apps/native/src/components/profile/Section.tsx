@@ -41,7 +41,6 @@ export function Section({
               <Chip
                 key={opt}
                 role="radio"
-                small
                 label={t(`visibility.${opt}` as MessageKey, locale)}
                 selected={(visibility[field] ?? 'members') === opt}
                 onPress={() => setVis(field, opt)}

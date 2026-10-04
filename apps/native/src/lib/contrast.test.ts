@@ -20,7 +20,7 @@ import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from '@athanor/config/con
 const CANVAS = galleria.background; // #000000 — the stage: screens, modals
 const SURFACE = galleria.surface; // #1D1D1F — charcoal: grouped blocks, cards, sheets
 const RAISE = galleria.raise; // #1D1D1F — a card / list row: the same charcoal as SURFACE
-const RAISE2 = galleria.raise2; // #2C2C2E — a chip, on the canvas or inside a card alike
+const RAISE2 = galleria.raise2; // #2C2C2E — the legacy chip fill, on the canvas or in a card
 const AURA_SOFT = over(galleria.auraSoft, CANVAS); // #041515 — accent surface on the canvas
 const AURA_SOFT_ON_RAISE = over(galleria.auraSoft, RAISE); // #1e2f31 — accent chip INSIDE a card
 
@@ -82,6 +82,9 @@ describe('the Galleria pairs (DESIGN.md §3)', () => {
  * Galleria closes that trap for the card and the chip — an opaque chip is one surface wherever
  * it sits — and leaves an interim failure in its place: `raise2` has to be lighter than
  * charcoal to stay visible inside a card, and the one secondary grey does not clear it.
+ *
+ * `Tag` itself left that surface on 2026-10-04: the Galleria tag is a hairline pill with no
+ * fill (DESIGN §9), so its label reads on whatever the tag stands on.
  */
 describe('the nested-surface trap (regression)', () => {
   it('is closed for the card and the chip: both are opaque', () => {
@@ -92,12 +95,22 @@ describe('the nested-surface trap (regression)', () => {
     }
   });
 
-  it('INTERIM: the secondary grey is under AA on a chip — Tag quiet, search, EventRow', () => {
-    // Three sites set readable copy in `muted-foreground` on `bg-raise-2`: `components/Tag.tsx`
-    // (`quiet`), `app/(modal)/search.tsx` and `components/live/EventRow.tsx`. Each stops when
-    // its screens are converted (#921, open as of 2026-10-03). Charcoal would clear (4.65) but
-    // hides the unbordered blocks inside cards, so the chip is a step lighter and this is the
-    // cost. A mark in the same grey on the same fill is above the 3:1 non-text floor.
+  it('a quiet Tag has no fill: its grey reads on the stage and on a charcoal row', () => {
+    // `components/Tag.tsx` draws a hairline and nothing behind the label (`source-audit` section
+    // 50 holds that), so the pair is the grey on what the tag stands on: the stage under
+    // `BenefitRow`, a `bg-raise` row in `SuggestionRow` and `IncomingOfferRow`.
+    expect(ratio(galleria.foregroundMuted, CANVAS)).toBeCloseTo(5.8, 2);
+    expect(ratio(galleria.foregroundMuted, RAISE)).toBeCloseTo(4.65, 2);
+    expect(ratio(galleria.foregroundMuted, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it('INTERIM: the secondary grey is under AA on a chip — search, EventRow', () => {
+    // Two sites set readable copy in `muted-foreground` on `bg-raise-2`:
+    // `app/(modal)/search.tsx` and `components/live/EventRow.tsx`. Each stops when its screens
+    // are converted (#921, open as of 2026-10-04); `Tag` (`quiet`) was the third until that
+    // day. Charcoal would clear (4.65) but hides the unbordered blocks inside cards, so that
+    // fill is a step lighter and this is the cost. A mark in the same grey on the same fill is
+    // above the 3:1 non-text floor.
     expect(ratio(galleria.foregroundMuted, RAISE2)).toBeCloseTo(3.85, 2);
     expect(ratio(galleria.foregroundMuted, RAISE2)).toBeLessThan(AA_NORMAL);
     expect(ratio(galleria.foregroundMuted, RAISE2)).toBeGreaterThanOrEqual(AA_LARGE);
@@ -155,12 +168,11 @@ describe('the tone ladder', () => {
   it('INTERIM: SuggestionRow reads handle = dream > marker on bg-raise', () => {
     const handle = ratio(galleria.foreground, RAISE); // 15.46
     const dream = ratio(galleria.ink2, RAISE); // 15.46 — ink2 is foreground for now
-    const marker = ratio(galleria.foregroundMuted, RAISE2); // 3.85 — in the pill
+    // 4.65 — the quiet Tag has no fill since 2026-10-04, so its label is on the row itself.
+    const marker = ratio(galleria.foregroundMuted, RAISE);
     expect(handle).toBe(dream);
     expect(dream).toBeGreaterThan(marker);
-    for (const r of [handle, dream]) expect(r).toBeGreaterThanOrEqual(AA_NORMAL);
-    // The marker is the chip failure named above, not a second one.
-    expect(marker).toBeLessThan(AA_NORMAL);
+    for (const r of [handle, dream, marker]) expect(r).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
   it('INTERIM: a quiet Tag ties a faint payload and never outranks an ink2 one', () => {
