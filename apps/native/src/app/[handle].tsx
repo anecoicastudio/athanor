@@ -67,7 +67,7 @@ export default function HandleCatchScreen() {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center gap-6 px-8">
-          <Text className="text-center text-base text-muted-foreground">
+          <Text className="text-center type-body text-muted-foreground">
             {t('profile.unavailable', locale)}
           </Text>
           <Button

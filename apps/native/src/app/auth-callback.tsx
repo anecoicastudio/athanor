@@ -195,7 +195,7 @@ function CallbackBody({
   return (
     <Screen>
       <View className="flex-1 items-center justify-center gap-6 px-8">
-        <Text className="text-center text-base text-muted-foreground">{message}</Text>
+        <Text className="text-center type-body text-muted-foreground">{message}</Text>
         <View className="gap-3 self-stretch">
           {recoveryEmail ? (
             <Button
@@ -208,7 +208,7 @@ function CallbackBody({
           ) : null}
           {/* Under the control it is about, like the OAuth line in welcome.tsx (#855). */}
           {resendError ? (
-            <Text className="text-center text-sm text-error" accessibilityLiveRegion="polite">
+            <Text className="text-center text-[14px] text-error" accessibilityLiveRegion="polite">
               {resendError}
             </Text>
           ) : null}

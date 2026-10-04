@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View, cn } from '@/tw';
+import { ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { Input } from '@/components/Input';
@@ -110,23 +110,18 @@ export default function ForgotPasswordScreen() {
             />
           ) : (
             <>
-              <View className="mt-6 gap-3">
+              <View className="mt-[26px] gap-2">
                 <SectionLabel>{t('auth.forgot.eyebrow', locale)}</SectionLabel>
-                <Text
-                  accessibilityRole="header"
-                  className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-                >
+                <Text accessibilityRole="header" className="type-h1 text-foreground">
                   {t('auth.forgot.display', locale)}
                 </Text>
-                <Text className="text-[15px] leading-[22px] text-muted-foreground">
+                <Text className="type-small text-muted-foreground">
                   {t('auth.forgot.sub', locale)}
                 </Text>
               </View>
 
-              <View className="mt-8 gap-2" ref={reveal.rowRef('email')}>
-                <Text className="text-xs font-medium text-muted-foreground">
-                  {t('auth.email.label', locale)}
-                </Text>
+              <View className="mt-[26px] gap-[6px]" ref={reveal.rowRef('email')}>
+                <SectionLabel>{t('auth.email.label', locale)}</SectionLabel>
                 <Input
                   {...reveal.fieldProps('email')}
                   autoCapitalize="none"
@@ -148,10 +143,10 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
 
-              {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+              {error ? <Text className="mt-3 text-[14px] text-error">{error}</Text> : null}
 
               {/* Revealed with the email row (#752) — see the same block in welcome.tsx. */}
-              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+              <View className="mt-[26px] gap-3" ref={reveal.submitRef()}>
                 <Button
                   variant="primary"
                   label={t('auth.forgot.cta', locale)}
@@ -160,7 +155,7 @@ export default function ForgotPasswordScreen() {
                   onPress={submit}
                 />
                 {submitting ? (
-                  <Text className="text-center text-[13px] text-muted-foreground">
+                  <Text className="text-center type-small text-muted-foreground">
                     {t('auth.forgot.sending', locale)}
                   </Text>
                 ) : null}

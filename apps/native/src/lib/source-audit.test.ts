@@ -2672,7 +2672,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
-    'app/(onboarding)/index.tsx:454':
+    'app/(onboarding)/index.tsx:462':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
@@ -5568,5 +5568,101 @@ describe('icons, header controls and the tab bar keep the Galleria shape (#921)'
     expect(flat, 'the label follows the same flag').toMatch(
       /tabBarAccessibilityLabel: hasUnseen \? t\('tabs\.a11y\.momentiUnread', locale\) : t\('tabs\.momenti', locale\)/,
     );
+  });
+});
+
+/*
+ * The entry screens (#921, the first screen chunk): what a person sees before they are a member,
+ * and the four screens the boot can stop on. None of them is a celebration, so none carries cyan
+ * (DESIGN §2.3 lists the five marks, and none stands here), and the mobile look has no green.
+ * `BrandSplash` is the one exception by ruling: the splash animation stays as it was, only the
+ * ground under it went black.
+ */
+describe('the entry screens keep the Galleria look (#921)', () => {
+  const ENTRY_ROUTES = [
+    'app/(auth)/_layout.tsx',
+    'app/(auth)/forgot-password.tsx',
+    'app/(auth)/welcome.tsx',
+    'app/(modal)/new-password.tsx',
+    'app/(onboarding)/_layout.tsx',
+    'app/(onboarding)/handle.tsx',
+    'app/(onboarding)/index.tsx',
+    'app/+not-found.tsx',
+    'app/[handle].tsx',
+    'app/auth-callback.tsx',
+    'app/invite/[code].tsx',
+    'app/momento/[id].tsx',
+  ];
+  const BOOT = FILES.filter((p) => !isTest(p) && p.includes('/components/boot/')).map((p) =>
+    rel(p).replace('apps/native/src/', ''),
+  );
+  /** Ruling 6: the splash animation keeps its colours. */
+  const SPLASH = 'components/boot/BrandSplash.tsx';
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** A colour class or a token read; `result.success` and the word in prose are neither. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border)-(?:aura|success)\b|\bgalleria\.(?:aura|success)\w*|\bauraGlow\b/;
+
+  it('the boot folder is the ten files this section was written against', () => {
+    expect(BOOT.sort()).toEqual([
+      'components/boot/AppErrorScreen.tsx',
+      'components/boot/BootGate.tsx',
+      'components/boot/BrandSplash.tsx',
+      'components/boot/CrashTrailGate.tsx',
+      'components/boot/ForceUpdateScreen.tsx',
+      'components/boot/MaintenanceScreen.tsx',
+      'components/boot/NotificationRouter.tsx',
+      'components/boot/ProfileErrorScreen.tsx',
+      'components/boot/PushPermissionAsk.tsx',
+      'components/boot/SentryConsentGate.tsx',
+    ]);
+  });
+
+  it('no entry screen carries cyan, green or a glow', () => {
+    const hits = [
+      ...ENTRY_ROUTES,
+      ...BOOT.filter((f) => f !== SPLASH),
+      'components/profile/HandleField.tsx',
+    ]
+      .filter((file) => CYAN_OR_GREEN.test(code(file)))
+      .sort();
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3) and none is an entry screen; green left the mobile palette',
+    ).toEqual([]);
+  });
+
+  it('the splash is the only boot file that reads cyan', () => {
+    expect(BOOT.filter((file) => /galleria\.aura\b/.test(code(file)))).toEqual([SPLASH]);
+  });
+
+  it('a boot screen draws the outline mandorla, not the vertical lens', () => {
+    const lens = BOOT.filter((file) => /@\/components\/Mandorla'/.test(code(file)));
+    expect(lens, '`Mandorla` frames an avatar or a ✦; a state screen takes `MandorlaMark`').toEqual(
+      [],
+    );
+    const marked = BOOT.filter((file) => /<MandorlaMark\b/.test(code(file))).sort();
+    expect(marked).toEqual([
+      'components/boot/AppErrorScreen.tsx',
+      'components/boot/ForceUpdateScreen.tsx',
+      'components/boot/MaintenanceScreen.tsx',
+      'components/boot/ProfileErrorScreen.tsx',
+    ]);
+  });
+
+  it('an entry screen sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE = /(?<![\w-])(?:leading-[\w[\].-]+|rounded-(?:card|hero|ctl)\b|bg-raise\b)/;
+    const hits = [
+      ...ENTRY_ROUTES,
+      ...BOOT.filter((f) => f !== SPLASH),
+      'components/profile/HandleField.tsx',
+    ]
+      .filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)))
+      .sort();
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits nothing',
+    ).toEqual([]);
   });
 });
