@@ -357,24 +357,23 @@ export default function WelcomeScreen() {
               account exists and a mail is in flight, and the screen's job is to send them to
               their inbox. A ✓ in foreground and words carry the state, as in `RecoverySent`,
               whose shape this is: the mobile look has no green (DESIGN §2.3). */
-            <View className="mt-6 gap-4">
-              <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
-              <Text accessibilityRole="header" className="type-h1 text-foreground">
-                {t('auth.confirm.title', locale)}
-              </Text>
+            <View className="mt-[26px] gap-[26px]">
+              <View className="gap-2">
+                <SectionLabel>{t('auth.confirm.eyebrow', locale)}</SectionLabel>
+                <Text accessibilityRole="header" className="type-h1 text-foreground">
+                  {t('auth.confirm.title', locale)}
+                </Text>
+              </View>
 
               <Card>
-                {/* The mark is decoration over text that already says it (G2: state is never
-                  carried by colour or a glyph alone), so it is hidden from the reader. */}
+                {/* The mark leads the sentence it belongs to. It is decoration over words that
+                  already say it (G2: state is never carried by a glyph alone), so the reader
+                  gets the sentence without it. */}
                 <Text
-                  className="type-title text-foreground"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
+                  className="type-body text-foreground"
+                  accessibilityLabel={t('auth.confirm.body', locale, { email: email.trim() })}
                 >
-                  ✓
-                </Text>
-                <Text className="type-body text-foreground">
-                  {t('auth.confirm.body', locale, { email: email.trim() })}
+                  ✓ {t('auth.confirm.body', locale, { email: email.trim() })}
                 </Text>
                 <Text className="type-small text-muted-foreground">
                   {t('auth.confirm.hint', locale)}
@@ -391,7 +390,7 @@ export default function WelcomeScreen() {
             </View>
           ) : (
             <>
-              <View className="mt-6 gap-2">
+              <View className="mt-4 gap-2">
                 <SectionLabel>{copy('eyebrow')}</SectionLabel>
                 <Text accessibilityRole="header" className="type-h1 text-foreground">
                   {copy('display')}
@@ -409,7 +408,7 @@ export default function WelcomeScreen() {
                     decorative: each Button already speaks «Continua con …». Both are
                     the vendors' own files (`packages/config/assets/`), transcribed in
                     `components/provider-marks.tsx`. */}
-                  <View className="mt-7 gap-3">
+                  <View className="mt-4 gap-2">
                     {appleEnabled ? (
                       <Button
                         variant="apple"
@@ -451,14 +450,14 @@ export default function WelcomeScreen() {
                     />
                   </View>
 
-                  <View className="my-6 flex-row items-center gap-3">
+                  <View className="my-4 flex-row items-center gap-[10px]">
                     <View className="h-px flex-1 bg-hair" />
                     <SectionLabel>{t('auth.orEmail', locale)}</SectionLabel>
                     <View className="h-px flex-1 bg-hair" />
                   </View>
                 </>
               ) : (
-                <View className="mt-7" />
+                <View className="mt-4" />
               )}
 
               <View className="gap-4">
@@ -484,7 +483,7 @@ export default function WelcomeScreen() {
                   The name field renders on the signup branch only, so its `none` is
                   unconditional — there is no sign-in half of it to keep a fill for. */}
                 {!login ? (
-                  <View className="gap-2" ref={reveal.rowRef('name')}>
+                  <View className="gap-[6px]" ref={reveal.rowRef('name')}>
                     <SectionLabel>{t('auth.name.label', locale)}</SectionLabel>
                     <Input
                       {...reveal.fieldProps('name')}
@@ -503,7 +502,7 @@ export default function WelcomeScreen() {
                   </View>
                 ) : null}
 
-                <View className="gap-2" ref={reveal.rowRef('email')}>
+                <View className="gap-[6px]" ref={reveal.rowRef('email')}>
                   <SectionLabel>{t('auth.email.label', locale)}</SectionLabel>
                   <Input
                     {...reveal.fieldProps('email')}
@@ -524,7 +523,7 @@ export default function WelcomeScreen() {
                 {/* The row, not the field: what has to end up visible is the label, the field
                   and the checklist under it — which does not exist yet at the moment of the tap
                   (it mounts on the first keystroke), so the reveal fires again as it grows. */}
-                <View className="gap-2" ref={reveal.rowRef('password')}>
+                <View className="gap-[6px]" ref={reveal.rowRef('password')}>
                   <SectionLabel>{t('auth.password.label', locale)}</SectionLabel>
                   {/* Per the note above, signup takes `none` here: `newPassword` is what puts
                     iOS's strong-password overlay on the field, and the overlay's suggestion is
@@ -624,7 +623,7 @@ export default function WelcomeScreen() {
                 #752: the reveal brings this block up WITH the focused field — the password row
                 ends at the forgot link, so revealing the row alone left the CTA under the
                 keyboard. The whole block, so signup's consent notice rides with its button. */}
-              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+              <View className="mt-4 gap-4" ref={reveal.submitRef()}>
                 <Button
                   variant="primary"
                   label={t(login ? 'auth.login.cta' : 'auth.signup.cta', locale)}
@@ -653,7 +652,7 @@ export default function WelcomeScreen() {
               </View>
 
               {/* The other mode, as the shared text link: a 44pt target across the row (§10). */}
-              <View className="mt-6">
+              <View className="mt-4">
                 <Button
                   variant="ghost"
                   label={t(login ? 'auth.noAccount' : 'auth.haveAccount', locale)}

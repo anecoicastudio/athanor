@@ -2672,7 +2672,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
     'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
-    'app/(onboarding)/index.tsx:452':
+    'app/(onboarding)/index.tsx:462':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',

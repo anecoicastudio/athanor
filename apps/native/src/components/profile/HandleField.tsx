@@ -52,7 +52,7 @@ export function HandleField({
     ? { text: refusal, tone: 'error' as const }
     : handleStatusLine(status, locale);
   return (
-    <View className="gap-2">
+    <View className="gap-[6px]">
       <Input
         value={value}
         onChangeText={(next) => onChangeText(normalizeHandleInput(next))}

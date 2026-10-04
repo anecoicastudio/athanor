@@ -110,7 +110,7 @@ export default function ForgotPasswordScreen() {
             />
           ) : (
             <>
-              <View className="mt-6 gap-3">
+              <View className="mt-[26px] gap-2">
                 <SectionLabel>{t('auth.forgot.eyebrow', locale)}</SectionLabel>
                 <Text accessibilityRole="header" className="type-h1 text-foreground">
                   {t('auth.forgot.display', locale)}
@@ -120,7 +120,7 @@ export default function ForgotPasswordScreen() {
                 </Text>
               </View>
 
-              <View className="mt-8 gap-2" ref={reveal.rowRef('email')}>
+              <View className="mt-[26px] gap-[6px]" ref={reveal.rowRef('email')}>
                 <SectionLabel>{t('auth.email.label', locale)}</SectionLabel>
                 <Input
                   {...reveal.fieldProps('email')}
@@ -146,7 +146,7 @@ export default function ForgotPasswordScreen() {
               {error ? <Text className="mt-3 text-[14px] text-error">{error}</Text> : null}
 
               {/* Revealed with the email row (#752) — see the same block in welcome.tsx. */}
-              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+              <View className="mt-[26px] gap-3" ref={reveal.submitRef()}>
                 <Button
                   variant="primary"
                   label={t('auth.forgot.cta', locale)}

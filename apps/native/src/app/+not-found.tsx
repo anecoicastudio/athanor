@@ -28,10 +28,9 @@ export default function NotFoundScreen() {
             {t('notFound.body', locale)}
           </Text>
         </View>
-        {/* The one way out of a dead end is the screen's primary action. */}
-        <View className="self-stretch">
-          <Button label={t('notFound.home', locale)} onPress={() => router.replace('/(tabs)')} />
-        </View>
+        {/* The one way out of a dead end is the screen's primary action; the pill hugs its
+          words, centred, as the prototype draws it. */}
+        <Button label={t('notFound.home', locale)} onPress={() => router.replace('/(tabs)')} />
       </View>
     </Screen>
   );

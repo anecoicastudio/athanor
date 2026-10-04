@@ -97,7 +97,7 @@ export default function NewPasswordScreen() {
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="mt-6 gap-3">
+          <View className="mt-11 gap-2">
             <SectionLabel>{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
             <Text accessibilityRole="header" className="type-h1 text-foreground">
               {t('auth.newPassword.display', locale)}
@@ -107,7 +107,7 @@ export default function NewPasswordScreen() {
             </Text>
           </View>
 
-          <View className="mt-8 gap-2" ref={reveal.rowRef('password')}>
+          <View className="mt-[26px] gap-[6px]" ref={reveal.rowRef('password')}>
             <SectionLabel>{t('auth.password.label', locale)}</SectionLabel>
             <Input
               {...reveal.fieldProps('password')}
@@ -170,7 +170,7 @@ export default function NewPasswordScreen() {
           {/* Revealed with the password row (#766) — see the same block in (auth)/welcome.tsx.
             The whole block, so «Più tardi» rides along too: skipping is the sheet's other way
             out, and dismissing it only re-presents it. */}
-          <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+          <View className="mt-[26px] gap-2" ref={reveal.submitRef()}>
             <Button
               variant="primary"
               label={t('auth.newPassword.cta', locale)}

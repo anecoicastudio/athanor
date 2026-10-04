@@ -260,21 +260,23 @@ export default function OnboardingScreen() {
 
           {/* The active step, TOP-anchored (#754). It was centred on its own height, so the
           heading sat at a different y on every step and jumped again when the keyboard or the
-          date picker changed the space around it. `pt-8` is the fixed gap under the header —
+          date picker changed the space around it. `pt-[26px]` is the fixed gap under the header —
           with the keyboard up the step's own eyebrow no longer rides up into the step bars.
           `grow` keeps the CTA below at the bottom of a short step. */}
-          <View className="grow pt-8">
+          <View className="grow pt-[26px]">
             <View>
               {step === 0 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
-                  <Text accessibilityRole="header" className="type-h1 text-foreground">
-                    {t('onboarding.identity.title', locale)}
-                  </Text>
-                  <Text className="type-small text-muted-foreground">
-                    {t('onboarding.identity.sub', locale)}
-                  </Text>
-                  <View className="flex-row flex-wrap gap-3">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.identity.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.identity.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
                     {IDENTITY_TAGS.map((tag) => (
                       <Chip
                         key={tag}
@@ -287,7 +289,7 @@ export default function OnboardingScreen() {
                   {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
                   step of its own, under a label that keeps it apart from the identity
                   tags above. */}
-                  <View className="gap-3 pt-2">
+                  <View className="gap-2">
                     <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
                     <LocaleChips value={locale} onChange={switchLocale} />
                   </View>
@@ -295,14 +297,16 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 1 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
-                  <Text accessibilityRole="header" className="type-h1 text-foreground">
-                    {t('onboarding.birth.title', locale)}
-                  </Text>
-                  <Text className="type-small text-muted-foreground">
-                    {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
-                  </Text>
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.birth.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
+                    </Text>
+                  </View>
                   {Platform.OS === 'web' ? (
                     // QA fallback only: @react-native-community/datetimepicker renders NOTHING
                     // on react-native-web (its src/datetimepicker.js warns «not supported on:
@@ -369,7 +373,7 @@ export default function OnboardingScreen() {
                   ) : null}
                   {sign && !tooYoung ? (
                     <Animated.View style={{ opacity: revealOpacity }}>
-                      <View className="flex-row items-center gap-3 pt-2">
+                      <View className="flex-row items-center gap-3">
                         {/* The drawing is decorative; the line beside it is the announcement. */}
                         <View
                           accessibilityElementsHidden
@@ -392,15 +396,17 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 2 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
-                  <Text accessibilityRole="header" className="type-h1 text-foreground">
-                    {t('onboarding.seeking.title', locale)}
-                  </Text>
-                  <Text className="type-small text-muted-foreground">
-                    {t('onboarding.seeking.sub', locale)}
-                  </Text>
-                  <View className="flex-row flex-wrap gap-3">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.seeking.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.seeking.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
                     {SEEKING_TAGS.map((tag) => (
                       <Chip
                         key={tag}
@@ -414,14 +420,16 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 3 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                  <Text accessibilityRole="header" className="type-h1 text-foreground">
-                    {t('onboarding.dream.title', locale)}
-                  </Text>
-                  <Text className="type-small text-muted-foreground">
-                    {t('onboarding.dream.sub', locale)}
-                  </Text>
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.dream.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.dream.sub', locale)}
+                    </Text>
+                  </View>
                   <View ref={reveal.rowRef('dream')}>
                     <Field
                       {...reveal.fieldProps('dream')}
@@ -438,15 +446,17 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 4 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
-                  <Text accessibilityRole="header" className="type-h1 text-foreground">
-                    {t('onboarding.face.title', locale)}
-                  </Text>
-                  <Text className="type-small text-muted-foreground">
-                    {t('onboarding.face.sub', locale)}
-                  </Text>
-                  <View className="items-center gap-4 pt-2">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.face.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.face.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="items-center gap-2">
                     {/* No Avatar here: it resolves a STORAGE key through a signed URL, and this
                     photo has no key yet — it is a local file that nobody has uploaded. */}
                     <View className="h-[104px] w-[104px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface">
@@ -501,7 +511,7 @@ export default function OnboardingScreen() {
 
           {/* CTA pinned at the bottom — the `primary` pill. */}
           {/* Rides along with the revealed field, so «Continua» is never left under the keyboard. */}
-          <View className="mt-6" ref={reveal.submitRef()}>
+          <View className="mt-[26px]" ref={reveal.submitRef()}>
             {step < STEPS - 1 ? (
               <Button
                 variant="primary"

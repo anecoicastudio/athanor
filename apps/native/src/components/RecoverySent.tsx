@@ -24,22 +24,21 @@ export function RecoverySent({
   onChangeEmail: () => void;
 }) {
   return (
-    <View className="mt-6 gap-4">
-      <SectionLabel>{t('auth.forgot.sent.eyebrow', locale)}</SectionLabel>
-      <Text accessibilityRole="header" className="type-h1 text-foreground">
-        {t('auth.forgot.sent.title', locale)}
-      </Text>
+    <View className="mt-[26px] gap-[26px]">
+      <View className="gap-2">
+        <SectionLabel>{t('auth.forgot.sent.eyebrow', locale)}</SectionLabel>
+        <Text accessibilityRole="header" className="type-h1 text-foreground">
+          {t('auth.forgot.sent.title', locale)}
+        </Text>
+      </View>
 
       <Card>
+        {/* The ✓ leads its sentence; the reader gets the sentence without the mark. */}
         <Text
-          className="type-title text-foreground"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
+          className="type-body text-foreground"
+          accessibilityLabel={t('auth.forgot.sent.body', locale, { email })}
         >
-          ✓
-        </Text>
-        <Text className="type-body text-foreground">
-          {t('auth.forgot.sent.body', locale, { email })}
+          ✓ {t('auth.forgot.sent.body', locale, { email })}
         </Text>
         {/* The one failure copy can prevent: a link opened on another device
           has no code-verifier to meet it (PKCE) and dies as «varco scaduto». */}
