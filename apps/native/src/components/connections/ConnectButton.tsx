@@ -20,8 +20,8 @@ import { supabase } from '@/lib/supabase';
 
 /**
  * Profile action: send / cancel / accept-decline / connected, driven by the live
- * connection status for `peerId`. Flat cyan only (rule #4) — a connection is routine,
- * never a glow moment, which is also why its toasts carry no tone mark. Aura is never
+ * connection status for `peerId`. `primary` pills and text links — a connection is routine,
+ * never a moment, which is also why its toasts carry no tone mark. Aura is never
  * written here (rule #1). Feedback goes through the global toast host (#118); the
  * private pill this component hand-rolled was the last ad-hoc Toast variant on the
  * profile screen.
@@ -102,7 +102,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       {state === 'none' ? (
         <Button
           label={t('connection.cta', locale)}
-          variant="light"
+          variant="primary"
           disabled={pending || statusQuery.isLoading}
           onPress={() => sendMutation.mutate()}
         />
@@ -133,7 +133,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
         <ButtonRow>
           <Button
             label={t('connection.accept', locale)}
-            variant="light"
+            variant="primary"
             disabled={pending || !requestId}
             onPress={() => requestId && respondMutation.mutate({ requestId, accept: true })}
           />

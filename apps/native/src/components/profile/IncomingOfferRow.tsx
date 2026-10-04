@@ -76,7 +76,7 @@ export function IncomingOfferRow({
         <ButtonRow>
           <Button
             label={t('help.owner.accept', locale)}
-            variant="light"
+            variant="primary"
             disabled={mutating}
             onPress={onAccept}
           />
@@ -92,7 +92,7 @@ export function IncomingOfferRow({
           <Text className="text-[12px] text-faint">{t('help.state.accepted', locale)}</Text>
           <Button
             label={t('help.owner.confirm', locale)}
-            variant="light"
+            variant="primary"
             disabled={mutating}
             onPress={onConfirm}
           />

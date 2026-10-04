@@ -71,7 +71,7 @@ export default function CandidacySuccessOverlay() {
 
         <View className="mt-8 w-full gap-3">
           <Button
-            variant="light"
+            variant="celebration"
             label={t('candidacy.success.toFund', locale)}
             onPress={() => router.replace('/(modal)/annual')}
           />

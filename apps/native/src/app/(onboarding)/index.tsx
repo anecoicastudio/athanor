@@ -518,12 +518,12 @@ export default function OnboardingScreen() {
             </View>
           </View>
 
-          {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
+          {/* CTA pinned at the bottom — the `primary` pill. */}
           {/* Rides along with the revealed field, so «Continua» is never left under the keyboard. */}
           <View className="mt-6" ref={reveal.submitRef()}>
             {step < STEPS - 1 ? (
               <Button
-                variant="light"
+                variant="primary"
                 label={t('onboarding.next', locale)}
                 accessibilityLabel={t('onboarding.next', locale)}
                 disabled={!canNext}
@@ -537,7 +537,7 @@ export default function OnboardingScreen() {
                   </Text>
                 ) : null}
                 <Button
-                  variant="light"
+                  variant="primary"
                   label={t(session ? 'onboarding.next' : 'onboarding.createAccount', locale)}
                   accessibilityLabel={t(
                     session ? 'onboarding.next' : 'onboarding.createAccount',

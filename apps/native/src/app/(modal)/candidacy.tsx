@@ -582,7 +582,7 @@ function WizardForm({
           {/* Footer: primary CTA + legal note */}
           <View className="mt-6 gap-3">
             <Button
-              variant="light"
+              variant="primary"
               label={
                 isLast
                   ? t(mode === 'edit' ? 'candidacy.edit.submit' : 'candidacy.submit', locale)

@@ -19,8 +19,8 @@ import { MilestoneRow } from './MilestoneRow';
  *   is read-only (no editor), each tappa shows the «Aiuta» affordance via `helpStateById`/
  *   `onHelpMilestone`, and the add-tappa row is hidden. The empty state shows no owner CTA.
  *
- * Both variants render the «Fai accadere questo sogno» rally CTA (flat `light`, never the
- * glow — rule #4) when a dream is present and `onMakeHappen` is wired. Never writes Aura.
+ * Both variants render the «Fai accadere questo sogno» rally CTA (the `primary` pill) when a
+ * dream is present and `onMakeHappen` is wired. Never writes Aura.
  */
 export function DreamCard({
   dream,
@@ -141,7 +141,7 @@ export function DreamCard({
       ) : null}
 
       {dream && onMakeHappen ? (
-        <Button label={t('dream.makeHappenCta', locale)} variant="light" onPress={onMakeHappen} />
+        <Button label={t('dream.makeHappenCta', locale)} variant="primary" onPress={onMakeHappen} />
       ) : null}
     </View>
   );

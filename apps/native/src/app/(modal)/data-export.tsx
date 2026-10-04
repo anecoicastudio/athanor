@@ -21,8 +21,8 @@ import { Screen } from '@/components/Screen';
  * never a Download button on a dead link. The archive is assembled server-side
  * by the gdpr-export-job; BOTH terminal outcomes send a gdprExport notification that routes back
  * here — ready (#129), where the time-limited signed link is served, and failed (#721), where the
- * request button is the retry. Neutral chrome, flat cyan
- * CTA — no glow (rule #4).
+ * request button is the retry. Neutral chrome; both CTAs
+ * are the `primary` pill.
  */
 export default function DataExportScreen() {
   const locale = useLocale();
@@ -95,7 +95,7 @@ export default function DataExportScreen() {
           <View className="gap-3 rounded-card border border-hair bg-raise p-5">
             <Text className="text-base text-foreground">{t('gdpr.export.ready', locale)}</Text>
             <Button
-              variant="light"
+              variant="primary"
               label={t('gdpr.export.download', locale)}
               onPress={() => {
                 const url = job.data?.download_url;
@@ -109,7 +109,7 @@ export default function DataExportScreen() {
 
         {!ready ? (
           <Button
-            variant="light"
+            variant="primary"
             label={pending ? t('gdpr.export.requesting', locale) : t('gdpr.export.cta', locale)}
             disabled={pending || request.isPending}
             onPress={() => request.mutate()}

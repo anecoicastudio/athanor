@@ -199,7 +199,7 @@ function CallbackBody({
         <View className="gap-3 self-stretch">
           {recoveryEmail ? (
             <Button
-              variant="light"
+              variant="primary"
               label={t('auth.callback.resend', locale)}
               loading={resend === 'sending'}
               disabled={resend === 'sending'}

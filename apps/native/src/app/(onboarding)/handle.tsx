@@ -144,7 +144,7 @@ export default function HandleStepScreen() {
 
           <View className="mt-6">
             <Button
-              variant="light"
+              variant="primary"
               label={t('onboarding.next', locale)}
               accessibilityLabel={t('onboarding.next', locale)}
               disabled={!canSubmit}

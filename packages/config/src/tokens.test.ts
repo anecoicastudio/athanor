@@ -113,12 +113,13 @@ describe('galleria tokens', () => {
   });
 
   /**
-   * The legacy aliases. Galleria has no counterpart for these ten roles, and every screen that
+   * The legacy aliases. Galleria has no counterpart for these nine roles, and every screen that
    * has not been converted still names them, so each answers with an interim value that keeps
-   * the screen legible before its own conversion (#921, open as of 2026-10-03). The rule the
+   * the screen legible before its own conversion (#921, open as of 2026-10-04). The rule the
    * table follows: an alias resolves to a Galleria role, or keeps the dark world's value where
    * its sites convert later. `raise2` is the one colour of its own — a chip inside a charcoal
-   * card has to stay visible.
+   * card has to stay visible. They were ten: `onError` left on 2026-10-04 with its one reader,
+   * the filled danger button.
    */
   test('a legacy alias resolves to a Galleria role or keeps its old value', () => {
     expect(galleria.raise).toBe(galleria.surface);
@@ -127,7 +128,7 @@ describe('galleria tokens', () => {
     expect(galleria.faint).toBe(galleria.foregroundMuted);
     expect(galleria.border).toBe(galleria.hair);
     expect(galleria.raise2).toBe('#2C2C2E');
-    for (const kept of ['auraSoft', 'auraLine', 'onError', 'success'] as const) {
+    for (const kept of ['auraSoft', 'auraLine', 'success'] as const) {
       expect(galleria[kept], kept).toBe(semantic[kept]);
     }
   });

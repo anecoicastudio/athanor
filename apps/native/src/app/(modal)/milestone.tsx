@@ -86,10 +86,9 @@ export default function MilestoneScreen() {
           />
         </View>
 
-        {/* flat light CTA — adding a tappa is not moment-grade, so no glow (rule #4). */}
         <Button
           label={t('milestone.sheet.cta', locale)}
-          variant="light"
+          variant="primary"
           disabled={saving}
           onPress={add}
         />

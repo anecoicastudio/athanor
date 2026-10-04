@@ -9,9 +9,10 @@ import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from '@athanor/config/con
  * file from collecting. `auraSoft` is the one translucent surface left, so it is still composed
  * in render order, outermost backdrop last.
  *
- * `raise`, `raise2`, `auraSoft`, `faint`, `ink2`, `success` and `onError` are legacy aliases
- * carrying interim values (`galleria` in packages/config/src/tokens.ts). A block below that is
- * about one of them states the interim truth, and is retired with the alias it is about.
+ * `raise`, `raise2`, `auraSoft`, `faint`, `ink2` and `success` are legacy aliases carrying
+ * interim values (`galleria` in packages/config/src/tokens.ts). A block below that is about one
+ * of them states the interim truth, and is retired with the alias it is about — as the one
+ * about `onError` was on 2026-10-04, when the filled danger button it inked became an outline.
  *
  * The arithmetic lives with the tokens, in packages/config/src/contrast.ts, and so do its own
  * tests and the web's pairs (`contrast.test.ts` there). This file is the app's surfaces.
@@ -201,7 +202,8 @@ describe('the rejected inert value #615A7E', () => {
  *     a chip inside DreamCard's `bg-raise`.
  *   - SubscriptionStatusCard's past-due warning moved OUT of the aura-soft glow card onto the
  *     modal canvas.
- *   - `onError` went `#F0EDF7` → `#1A050D`; that one asserts its PASS below.
+ *   - `onError` went `#F0EDF7` → `#1A050D`. The filled danger button it inked became an
+ *     outline on 2026-10-04 and the token left with it: the destructive pill is certified below.
  *   - DateBadge's month label switched to `muted-foreground` when highlighted — found only
  *     after this block existed, because `AURA_SOFT` was composed over the canvas and nothing
  *     modelled an accent chip inside a card. Hence `AURA_SOFT_ON_RAISE`.
@@ -259,27 +261,35 @@ describe('forbidden pairs — no call site may use these', () => {
     expect(ratio(galleria.foregroundMuted, AURA_SOFT)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('the old near-white onError stays unusable on the error fill', () => {
-    // A near-white like the one `onError` used to hold (#F0EDF7 then; `foreground` is #F5F5F7).
-    // Pinned so the revert is visibly a regression.
+  it('light text on an error FILL stays unusable', () => {
+    // The pair a filled destructive button would draw if it came back with a light label
+    // (`foreground` is #F5F5F7). No surface fills with `error` today; pinned so that revert is
+    // visibly a regression.
     expect(ratio(galleria.foreground, galleria.error)).toBeCloseTo(3.33, 2);
     expect(ratio(galleria.foreground, galleria.error)).toBeLessThan(AA_NORMAL);
   });
 
-  it('PASSES NOW: the danger Button — dark onError on its error fill', () => {
-    // Button.tsx `VARIANT_CLASSES.danger` = { bg: 'bg-error', text: 'text-on-error' }, on the
-    // account-deletion CTA in (modal)/delete-account.tsx. Every filled variant is
-    // dark-ink-on-light-fill. (Symbols, not line numbers: adding four comment lines to Button
-    // moved this one, in the very module that exists because a claim drifted from its code.)
-    expect(ratio(galleria.onError, galleria.error)).toBeCloseTo(5.41, 2);
-    expect(ratio(galleria.onError, galleria.error)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('the destructive pill — error ink and border, no fill, on the stage', () => {
+    // Button.tsx `VARIANT_CLASSES.destructive` is an outline: `error` on the label and on the
+    // 1px border, nothing behind them. Its one call site is the account-deletion CTA in
+    // (modal)/delete-account.tsx, which stands on the canvas. The label needs AA; the border is
+    // a boundary and needs the 3:1 non-text floor, which the same figure clears.
+    expect(ratio(galleria.error, CANVAS)).toBeCloseTo(5.8, 2);
+    expect(ratio(galleria.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it('the outline pill — its grey border is a boundary on the stage and on a block', () => {
+    // Button.tsx `VARIANT_CLASSES.outline`: a 1px `foregroundMuted` border, foreground label.
+    expect(ratio(galleria.foregroundMuted, CANVAS)).toBeGreaterThanOrEqual(AA_LARGE);
+    expect(ratio(galleria.foregroundMuted, SURFACE)).toBeGreaterThanOrEqual(AA_LARGE);
   });
 
   it('the Apple Sign-In button — black ink on its HIG-mandated white fill', () => {
     // Button.tsx `VARIANT_CLASSES.apple` = { bg: 'apple-button-bg', text: 'apple-button-ink' },
     // welcome.tsx's Apple CTA only. Pure white/black, not Athanor's near-white/near-black roles
-    // (ruled 2026-09-19 on #79) — trivially AA, asserted for the same reason every other filled
-    // variant is: a retune here should fail a test, not just look wrong on a phone.
+    // (ruled 2026-09-19 on #79) — trivially AA, asserted for the same reason the two other
+    // filled variants are (`primary` and `celebration`, in the Galleria pairs above): a retune
+    // here should fail a test, not just look wrong on a phone.
     expect(ratio(galleria.appleButtonInk, galleria.appleButtonBg)).toBeGreaterThanOrEqual(
       21 - 0.01,
     );

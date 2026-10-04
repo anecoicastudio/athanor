@@ -360,10 +360,10 @@ export default function RealizationPlanScreen() {
               <Button
                 label={t('fund.plan.publish.cta', locale)}
                 onPress={onPublish}
-                variant="light"
+                variant="outline"
                 disabled={busy}
-                // Flat cyan CTA — no glow (rule #4): the moment is the publication itself,
-                // and it is announced by the state it leaves behind, not by the button.
+                // The second action beside a primary is the outline (DESIGN §9): saving the
+                // draft is the white pill, and a second white pill under it would be a twin.
               />
             ) : null}
           </View>

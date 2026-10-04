@@ -18,10 +18,14 @@ import { View, cn } from '@/tw';
  * the browser does not, and an over-wide pill would otherwise run off the page there.
  *
  * `null` / `false` children are skipped, so a conditional pill leaves no empty cell and no gap.
+ *
+ * `items-center`: a row can hold a pill and a `ghost` link, and they differ in height (50pt
+ * against 44pt at the default text size). Aligned by their tops, the two labels sat 3pt apart;
+ * centred on the cross axis, each line of the row shares one centre line.
  */
 export function ButtonRow({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <View className={cn('flex-row flex-wrap gap-3', className)}>
+    <View className={cn('flex-row flex-wrap items-center gap-3', className)}>
       {Children.toArray(children).map((child, i) => (
         <View key={i} className="max-w-full shrink-0 grow basis-auto">
           {child}

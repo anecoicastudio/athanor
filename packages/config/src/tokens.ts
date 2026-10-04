@@ -75,17 +75,20 @@ export const semantic = {
  * member's own Aura numeral, «✦ Un passo del percorso», the countdown seconds, the celebration
  * screens — never an action colour, a selected state or a glow, and nothing is green: `success`
  * below is a legacy alias. A screen not yet converted still shows the old uses (#921, open as
- * of 2026-10-03). No test holds the cyan and green clauses yet, and the glow clause only as the
- * pinned set of callers (`GLOW_SURFACES` in apps/native/src/lib/source-audit.test.ts).
+ * of 2026-10-04). apps/native/src/lib/source-audit.test.ts holds the cyan clause for the pill
+ * alone (its section 47: the `celebration` Button and the five screens it may stand on) and
+ * the glow clause only as a pinned set of callers (`GLOW_SURFACES`). No test holds the green
+ * clause yet.
  *
  * The ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts recomputes
  * them from these values, so a retune here fails there.
  *
- * It answers to every key `semantic` has. The screens are converted section by section (#921,
- * open as of 2026-10-03), and a screen that has not been converted still asks for the dark
+ * It began with every key `semantic` has. The screens are converted section by section (#921,
+ * open as of 2026-10-04), and a screen that has not been converted still asks for the dark
  * world's roles. The roles Galleria has no counterpart for are the LEGACY ALIASES at the end,
  * each marked `@deprecated` and holding an interim value that keeps a half-converted app
  * legible. They serve the screens not yet converted; each is deleted with its last call site.
+ * `onError` was the first to go, on 2026-10-04: its one reader was the filled danger button.
  * Nothing counts their reads: `@deprecated` is an editor hint, not a gate.
  */
 export const galleria = {
@@ -127,8 +130,6 @@ export const galleria = {
   auraSoft: 'rgba(43,208,210,0.10)',
   /** @deprecated Legacy alias, `semantic`'s value: the 1px cyan border of that surface. */
   auraLine: 'rgba(43,208,210,0.40)',
-  /** @deprecated Legacy alias, `semantic`'s value: ink on the filled danger button. */
-  onError: '#1A050D',
   /**
    * @deprecated Legacy alias, `semantic`'s value. Mobile has no green: a confirmation is a ✓
    * and words.

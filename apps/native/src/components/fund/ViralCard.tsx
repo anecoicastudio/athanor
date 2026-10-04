@@ -31,10 +31,8 @@ import { useReferralCode } from '@/hooks/use-referral-code';
  * that pair the selected/active surface of a control; this is a static card, and it keeps the
  * frame to read as promoted rather than as something that just happened.
  *
- * The CTA is `primary`, not `light` — DESIGN §9 reserves the cyan-fill button for moment
- * actions (accept a Momento, contribute; offering help is NOT one, ruled 2026-09-07), and
- * sharing is not one either. Rule #4 would permit a flat cyan CTA; §9 is the narrower of the
- * two, so it wins.
+ * The CTA is `primary`, the white pill every action takes (DESIGN §9). The cyan pill belongs
+ * to the five celebration screens, and sharing is not one of them.
  */
 export function ViralCard({ locale }: { locale: Locale }) {
   const shareEnabled = useFeatureFlags().fund_surfaces_enabled === true;

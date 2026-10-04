@@ -21,7 +21,7 @@ import { Screen } from '@/components/Screen';
  * GDPR right-to-erasure / store-mandated in-app account deletion (09 §3.5.2, 12 §3.3, Apple 5.1.1(v)).
  * Type-to-confirm «ELIMINA» → requestErasure (inserts a gdpr_erasure_requests row) → immediate
  * sign-out. The server cascade + legally-retained records are the service-role erasure-job — the app
- * only requests. Destructive `danger` CTA, no glow (rule #4).
+ * only requests. The CTA is the `destructive` pill: an outline in the error red (DESIGN §9).
  *
  * The copy is split in two on purpose (#515): `body` is what the job does at once and cannot
  * undo, `deferred` is what waits for the nightly job. Keep it that way — collapsing them back
@@ -154,7 +154,7 @@ export default function DeleteAccountScreen() {
 
           <View ref={reveal.submitRef()}>
             <Button
-              variant="danger"
+              variant="destructive"
               label={t('account.delete.cta', locale)}
               disabled={!matched || exportPending || erase.isPending || erase.isSuccess}
               onPress={() => erase.mutate()}

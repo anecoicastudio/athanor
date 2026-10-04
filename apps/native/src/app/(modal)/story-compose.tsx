@@ -242,7 +242,7 @@ export default function StoryComposeScreen() {
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={isUploading}
-            variant="light"
+            variant="primary"
           />
         </View>
       </Screen>

@@ -66,7 +66,7 @@ export function RsvpBar({
       ) : (
         <Button
           label={t('event.rsvp.going', locale)}
-          variant="light"
+          variant="primary"
           disabled={pending}
           onPress={onToggle}
         />

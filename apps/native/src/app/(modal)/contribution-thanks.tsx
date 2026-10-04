@@ -72,7 +72,7 @@ export default function ContributionThanksOverlay() {
         </Text>
 
         <View className="mt-8 w-full gap-3">
-          <Button variant="light" label={t('fund.thanks.cta', locale)} onPress={leave} />
+          <Button variant="celebration" label={t('fund.thanks.cta', locale)} onPress={leave} />
         </View>
       </Screen>
     </Animated.View>
