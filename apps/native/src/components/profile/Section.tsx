@@ -29,7 +29,9 @@ export function Section({
 }) {
   return (
     <Card>
-      <View className="flex-row items-center justify-between gap-3">
+      {/* Wraps: three 14px chips beside a long label («SEGNO ZODIACALE») are wider than the card
+          on an iPhone SE, where the last chip was cut at the card's edge (2026-10-04). */}
+      <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <SectionLabel>{label}</SectionLabel>
         {editing ? (
           <View

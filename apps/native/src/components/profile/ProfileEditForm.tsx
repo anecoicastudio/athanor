@@ -418,7 +418,7 @@ export function ProfileEditForm({
               policy coalesces the same way: a new member's row carries 'members' explicitly
               (#790), so an absent key only survives on an older map, which was public. A stray
               'private' value normalises to the members chip: anon-dark either way. */}
-          <View className="flex-row items-center justify-between gap-3">
+          <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <SectionLabel>{t('profile.visibility.label', locale)}</SectionLabel>
             <View
               className="flex-row gap-1.5"
