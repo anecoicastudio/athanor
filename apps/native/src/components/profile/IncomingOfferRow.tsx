@@ -19,8 +19,9 @@ import type { HelperIdentity } from '@/hooks/use-own-dream';
  * confirmHelpComplete only touches milestone_helps + dream_milestones.
  *
  * The identity line is one button to the helper's profile (#356). It holds the name, the kind
- * of help and the message, so its label says all three: a labelled button hides the text
- * inside it from a screen reader, and the message is the block's payload.
+ * of help and the message, so its label says all three: a labelled button is believed to hide
+ * the text inside it from a screen reader (unverified: no screen reader was run on this row),
+ * and the message is the block's payload.
  */
 export function IncomingOfferRow({
   help,
