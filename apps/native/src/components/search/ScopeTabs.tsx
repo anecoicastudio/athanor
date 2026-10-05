@@ -7,8 +7,8 @@ import { Pressable, Text, View } from '@/tw';
  *
  * DESIGN §9 Tabs: text pills, active = foreground text + 2px foreground
  * underline, inactive = foregroundMuted. Deliberately NO cyan (rule #4):
- * scope tabs are navigation controls, not aura/moment events. Same pattern
- * as feed CategoryTabs.
+ * scope tabs are navigation controls, not aura/moment events. The feed's
+ * `CategoryTabs` had this pattern until 2026-10-05; it is a row of chips now.
  *
  * i18n note: the marketplace scope key is `search.scope.market` (not `.marketplace`).
  */

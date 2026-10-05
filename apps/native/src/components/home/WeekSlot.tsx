@@ -96,7 +96,7 @@ export function WeekSlot({ locale }: { locale: Locale }) {
       <SectionLabel>{t('home.week.title', locale)}</SectionLabel>
       {state === 'loading' ? (
         // Two `ShimmerBar`s (`hair`, static, so reduced-motion safe). `feed/FeedSkeleton.tsx`
-        // is not reusable here: no props, three hardcoded cards, and it bakes a `px-5` that
+        // is not reusable here: no props, three hardcoded blocks, and it bakes a `px-5` that
         // would double inside Home's own `px-5` ScrollView.
         <View className="gap-2">
           <ShimmerBar />
