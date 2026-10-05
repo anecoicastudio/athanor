@@ -107,7 +107,7 @@ export default function CommunityScreen() {
     queryKey: storyKeys.rail(),
     queryFn: () => getStoryRail(supabase),
   });
-  // Persisted, shared with the viewer — a ring dims when a story FINISHES, not on tap (#298).
+  // Persisted, shared with the viewer — a disc loses its ring when a story FINISHES, not on tap (#298).
   const { seenIds } = useStorySeen();
 
   // Own live-segment presence drives the «Il tuo passo» ring (#298): with a live segment it

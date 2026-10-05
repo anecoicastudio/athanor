@@ -4,9 +4,9 @@ import { AURA_UNKNOWN } from './aura-display';
 /**
  * The app's star vocabulary: ✦ lit / ✧ unlit / — unknown (DESIGN §11, 2026-08-08 + 2026-08-09).
  *
- * SHAPE carries the state, not colour. A grey unlit star does not read clearly "off" beside a
- * lit one, and rule #3 doesn't want an assertive unlit star anyway — so the states must differ
- * by glyph, and every surface that shows a star must agree on which is which.
+ * SHAPE carries the state, not colour alone: rule #3 doesn't want an assertive unlit star, so
+ * the states must differ by glyph, and every surface that shows a star must agree on which is
+ * which.
  *
  * It lives in one place because it didn't, and it drifted: `FeedPost`'s card star kept a filled
  * ✦ through the change that introduced ✧, claiming "you lit this" on every post in the feed.

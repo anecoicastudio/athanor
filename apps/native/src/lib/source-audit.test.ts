@@ -2677,7 +2677,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
-    'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
+    'components/search/ScopeTabs.tsx:60': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
   };
 

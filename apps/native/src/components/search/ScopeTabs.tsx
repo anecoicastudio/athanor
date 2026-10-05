@@ -5,8 +5,9 @@ import { Pressable, Text, View } from '@/tw';
 /**
  * Wrapping scope-tab row for the search screen (M8 §3.3 / §4).
  *
- * DESIGN §9 Tabs: text pills, active = foreground text + 2px foreground
- * underline, inactive = foregroundMuted. Deliberately NO cyan (rule #4):
+ * Text pills, active = foreground text + 2px foreground underline, inactive =
+ * foregroundMuted: the tab recipe DESIGN §9 «Tabs (feed)» now keeps for the web, still drawn
+ * here until the search screen converts. Deliberately NO cyan (rule #4):
  * scope tabs are navigation controls, not aura/moment events. The feed's
  * `CategoryTabs` had this pattern until 2026-10-05; it is a row of chips now.
  *

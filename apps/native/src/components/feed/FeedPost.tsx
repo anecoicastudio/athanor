@@ -68,7 +68,8 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
         <View className={cn('flex-row items-center justify-between', stacked ? null : '-my-3')}>
           <Pressable
             className={cn(
-              // 15 left: the ✧ is about 14 wide in its 44pt box, so this puts it on the block's inset.
+              // 15 left puts the ✧ on the block's inset: on the moto g17 at a font scale of 1.0 its
+              // glyph starts at 91px where the body starts at 90 (`a.py ax`, 2026-10-05).
               '-ml-[15px] min-h-[44px] min-w-[44px] items-center justify-center',
               PRESS_DIM,
             )}

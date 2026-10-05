@@ -49,7 +49,7 @@ export function PostAuthorRow({ authorId, fill = false }: { authorId: string; fi
   return (
     <Pressable
       // `shrink` on the row and the name (#847): a name wider than what its parent leaves it
-      // wraps by word instead of overflowing the card; a lone word ellipsizes (DESIGN §10) and
+      // wraps by word instead of overflowing its block; a lone word ellipsizes (DESIGN §10) and
       // the full name stays on this row's label.
       className={cn('flex-row items-center gap-[10px]', fill ? 'flex-1' : 'shrink', PRESS_DIM)}
       accessibilityRole="button"

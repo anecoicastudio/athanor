@@ -30,8 +30,8 @@ import { useToast } from '@/components/ToastHost';
  * optional caption, optional «passo del percorso» flag. Upload order is row-first — see
  * `useStoryUpload`.
  *
- * Flat surfaces only (rule #4): composing a step is not itself a moment — the glow belongs to
- * the ring that appears afterwards.
+ * Flat surfaces only (rule #4): composing a step is not itself a moment. What it leaves behind
+ * is the foreground ring on your disc in the rail.
  */
 export default function StoryComposeScreen() {
   const { session } = useAuth();
@@ -89,8 +89,8 @@ export default function StoryComposeScreen() {
         });
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         // Outside the guard on purpose — the toast host is global, so it reaches the member
-        // even when the publish settled after they left. `'success'`, not `'moment'`: the ✦
-        // belongs to the ring this segment lights, not to the act of posting it (rule 4).
+        // even when the publish settled after they left. `'success'`, not `'moment'`:
+        // posting a segment is not a moment (rule 4).
         showToast(t('story.toast.published', locale), 'success');
         setPublished(true);
         if (mounted.current) leave();
