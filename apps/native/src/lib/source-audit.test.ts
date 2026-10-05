@@ -5442,17 +5442,15 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
     expect(src, 'one accessible button').toMatch(/accessibilityRole="button"/);
     expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
     expect(
-      src.match(/numberOfLines=\{[^}]*\}/g),
+      src.match(/numberOfLines=\{[^}]*\}/g)?.sort(),
       'a long title, value or second line wraps unless the call site asks for a clamp',
-    ).toEqual(['numberOfLines={titleLines}', 'numberOfLines={descriptionLines}']);
+    ).toEqual(['numberOfLines={descriptionLines}', 'numberOfLines={titleLines}']);
     expect(src, 'no cyan').not.toMatch(/aura/);
   });
 
   it('a row takes a leading element, 12 from its text, and draws it first', () => {
     const src = component('Row');
-    expect(src, 'the slot takes any element, as `trailing` does').toMatch(
-      /leading\?: ReactNode;/,
-    );
+    expect(src, 'the slot takes any element, as `trailing` does').toMatch(/leading\?: ReactNode;/);
     const shape = /const shape = '([^']*)'/.exec(src)?.[1] ?? '';
     expect(shape.split(' '), 'the row’s one gap is the prototype’s 12').toContain('gap-3');
     expect(
