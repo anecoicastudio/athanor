@@ -7,11 +7,13 @@ import { acceptMoment, getMomentiSuggestions, momentiKeys, passMoment } from '@a
 import type { MomentoDeckCard } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Screen } from '@/components/Screen';
+import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { SwipeDeck, type SwipeDeckHandle } from '@/components/momenti/SwipeDeck';
-import { SwipeActionButton } from '@/components/momenti/SwipeActionButton';
 import { SuggestionRow } from '@/components/momenti/SuggestionRow';
 import { useAnnounceOnMount } from '@/lib/a11y';
 import { momentiDeckView } from '@/lib/momenti-deck-state';
@@ -21,16 +23,22 @@ import { useLocale } from '@/hooks/use-locale';
 import { useMomentiAnswered } from '@/hooks/use-momenti-answered';
 import { useMomentiDeck } from '@/hooks/use-momenti-deck';
 
-/** The action row's `mt-5` (20pt) — the one gap under the well `deckWellHeight` must leave. */
-const ACTION_GAP = 20;
-/** `SwipeActionButton`'s `min-h-[56px]`: the action row's height until it has been measured. */
-const ACTION_ROW_FALLBACK = 56;
+/** The screen's block gap (`gap-[26px]`) — the one gap under the well `deckWellHeight` must leave. */
+const ACTION_GAP = 26;
+/** `Button`'s `min-h-[50px]`: the action row's height until it has been measured. */
+const ACTION_ROW_FALLBACK = 50;
 
 /**
  * The Momenti tab (frontend §1/§2): few, curated proposals on a swipe deck.
  * Accept on a one-sided like → «Momento inviato» toast; a mutual match fires the
- * match overlay ((modal)/match, built in the sibling slice task). No vanity counts;
- * the glow is reserved for a real match (#4). Aura is never written here (#1).
+ * match overlay ((modal)/match, built in the sibling slice task). No vanity counts.
+ * Aura is never written here (#1).
+ *
+ * Galleria since 2026-10-05 (#921; DESIGN §8.4): blocks 26 apart on a 20 gutter. The one
+ * bordered card is the staging Momento (`MomentoCard`); the one cyan is the 8px dot beside
+ * «Hai un Momento», the waiting-Momento mark (DESIGN §2.3). «Passa» is the outline pill and
+ * «Connetti ✦» the white one, in a `ButtonRow`, so at the largest text sizes they wrap one
+ * above the other instead of breaking a word. The suggestions are one group of rows.
  */
 export default function MomentiScreen() {
   const locale = useLocale();
@@ -150,12 +158,17 @@ export default function MomentiScreen() {
     everAnswered: answered.data,
   });
   const topHandle = cards[0]?.handle ?? '';
-  // The deck well is the one height in the app its own children cannot grow: `SwipeDeck`
-  // lays an `absolute inset-0` peek card under a `flex: 1` top card, and neither sizes the
-  // well to its content, so a hard
-  // `h-[438px]` clipped the card's dream quote at AX sizes with nothing to scroll (#639).
-  // The well scales with the member's text size instead, bounded by the same 2x the text
-  // cap uses — this screen is inside a ScrollView, so a taller well simply scrolls.
+  // The deck well has a height of its own because `SwipeDeck` lays an `absolute inset-0` peek
+  // card under the top card and the loading and empty arms have no size to give it. A hard
+  // `h-[438px]` clipped the card's dream quote at AX sizes with nothing to scroll (#639), so
+  // the well scales with the member's text size, bounded by the same 2x the text cap uses —
+  // this screen is inside a ScrollView, so a taller well simply scrolls.
+  //
+  // Since 2026-10-05 that height is a MINIMUM (Marco, #921): the top card is in flow and
+  // grows the well when its text needs more. Measured that day on the iPhone SE simulator at
+  // AX5, a card with three reasons and a three-line dream needed 826pt of a 760pt well once
+  // the reasons were body text, and its last line was cut; with the minimum it is whole and
+  // the pills stand 66pt lower. At the default size the same card needs 364 of 398.
   const { fontScale } = useWindowDimensions();
   // …and 438 is a MAXIMUM (#751): on an iPhone SE a 438pt well pushed Passa / Connetti under
   // the tab bar. The room is measured, not derived from insets — the ScrollView's own height
@@ -180,23 +193,32 @@ export default function MomentiScreen() {
           above). A key here would also reset the scroll and remount the whole deck. */}
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-5 pt-4 pb-12"
+        contentContainerClassName="gap-[26px] px-5 pb-12 pt-4"
         onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
       >
-        {hasMomento ? <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel> : null}
-        {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
-        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
-          {t('momenti.title', locale)}
-        </Text>
-        <Text className="mt-1 text-[14px] text-faint">{t('momenti.sub', locale)}</Text>
+        <View className="gap-1">
+          {/* The dot is the waiting-Momento mark, one of the five places cyan stands (DESIGN
+              §2.3). It is drawn only once the deck is known to hold a card: while the read is
+              out `hasMomento` is false and the line is absent, which claims nothing. */}
+          {hasMomento ? (
+            <View className="flex-row items-center gap-2">
+              <View className="h-2 w-2 rounded-full bg-aura" />
+              <SectionLabel>{t('momenti.eyebrow', locale)}</SectionLabel>
+            </View>
+          ) : null}
+          {/* h1 32/600 — the tab-root header recipe (DESIGN §6 → Screen headers). */}
+          <Text accessibilityRole="header" className="type-h1 text-foreground">
+            {t('momenti.title', locale)}
+          </Text>
+          <Text className="type-small text-muted-foreground">{t('momenti.sub', locale)}</Text>
+        </View>
 
         <View
-          className="mt-5"
-          style={{ height: wellHeight }}
+          style={{ minHeight: wellHeight }}
           onLayout={(e) => setWellTop(e.nativeEvent.layout.y)}
         >
           {deck.isLoading ? (
-            <View className="flex-1 rounded-card border border-hair bg-raise opacity-60" />
+            <View className="grow rounded-[28px] border border-hair bg-surface opacity-60" />
           ) : deck.isError ? (
             // `momenti.error`, not `momenti.empty.title` — the error branch used to borrow the
             // empty state's sentence, so a failed deck read said «Nessun Momento per ora» over a
@@ -206,10 +228,10 @@ export default function MomentiScreen() {
               locale={locale}
               errorLabel={t('momenti.error', locale)}
               onRetry={() => void deck.refetch()}
-              className="flex-1 justify-center px-5"
+              className="grow justify-center px-5"
             />
           ) : exhausted ? (
-            <View className="flex-1 items-center justify-center">
+            <View className="grow items-center justify-center">
               <EmptyState
                 body={
                   neverHadOne ? t('momenti.none.body', locale) : t('momenti.empty.body', locale)
@@ -231,22 +253,20 @@ export default function MomentiScreen() {
         </View>
 
         {hasMomento ? (
-          <View
-            className="mt-5 flex-row gap-4"
-            onLayout={(e) => setActionRow(e.nativeEvent.layout.height)}
-          >
-            <SwipeActionButton
-              variant="pass"
-              label={t('momenti.pass', locale)}
-              a11yLabel={t('momenti.a11y.pass', locale, { name: topHandle })}
-              onPress={() => deckRef.current?.swipe('left')}
-            />
-            <SwipeActionButton
-              variant="connect"
-              label={t('momenti.connect', locale)}
-              a11yLabel={t('momenti.a11y.accept', locale, { name: topHandle })}
-              onPress={() => deckRef.current?.swipe('right')}
-            />
+          <View onLayout={(e) => setActionRow(e.nativeEvent.layout.height)}>
+            <ButtonRow>
+              <Button
+                variant="outline"
+                label={t('momenti.pass', locale)}
+                accessibilityLabel={t('momenti.a11y.pass', locale, { name: topHandle })}
+                onPress={() => deckRef.current?.swipe('left')}
+              />
+              <Button
+                label={t('momenti.connect', locale)}
+                accessibilityLabel={t('momenti.a11y.accept', locale, { name: topHandle })}
+                onPress={() => deckRef.current?.swipe('right')}
+              />
+            </ButtonRow>
           </View>
         ) : null}
 
@@ -254,26 +274,26 @@ export default function MomentiScreen() {
             cheap-and-infinite; the database says one-sided send and a 90-day park
             (momento_proposals.passed_until) — until these two lines, that number
             existed only in SQL and the reciprocity model only in a 1.9s toast on
-            one of the two branches. Caption register, muted: information, not alarm. */}
+            one of the two branches. Small and grey: information, not alarm. The prototype
+            draws the first line only; the second is #633's and stays. */}
         {hasMomento ? (
-          <View className="mt-3 gap-0.5">
-            <Text className="text-center text-[12px] leading-4 text-faint">
+          <View className="gap-1">
+            <Text className="type-small text-muted-foreground">
               {t('momenti.hint.accept', locale, { name: topHandle })}
             </Text>
-            <Text className="text-center text-[12px] leading-4 text-faint">
+            <Text className="type-small text-muted-foreground">
               {t('momenti.hint.pass', locale)}
             </Text>
           </View>
         ) : null}
 
         {/* «una piccola lista curata, aggiornata ogni giorno» (PRD §4.7) — at most three, the
-            server's rank order kept as it arrived. No glow: a suggestion is not a moment (#4). */}
+            server's rank order kept as it arrived. One group of rows under its label, 8 apart
+            (the prototype's title group; `RowGroup`'s own `label` stands 12 away). */}
         {suggestions.data && suggestions.data.length > 0 ? (
-          <View className="mt-8">
-            {/* mb-3 + gap-3, matching DreamSection's IncomingOfferRow list — the app's only
-                other stack of Avatar + flex-1 + Tag rows, where label and rows share one rhythm. */}
-            <SectionLabel className="mb-3">{t('momenti.suggestionsTitle', locale)}</SectionLabel>
-            <View className="gap-3">
+          <View className="gap-2">
+            <SectionLabel>{t('momenti.suggestionsTitle', locale)}</SectionLabel>
+            <RowGroup>
               {suggestions.data.map((suggestion) => (
                 <SuggestionRow
                   key={suggestion.candidateId}
@@ -281,29 +301,32 @@ export default function MomentiScreen() {
                   locale={locale}
                 />
               ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* One-sided-accept toast: «Momento inviato ✦ …» — NOT the MomentFlash help string. */}
-        {deckToast !== null ? (
-          <View
-            pointerEvents="none"
-            className="absolute inset-x-5 bottom-6 items-center"
-            // Android reads this; iOS reads nothing from it — `accessibilityLiveRegion` is
-            // Android-only, and this pill bypasses ToastHost (which announces imperatively). The
-            // `useAnnounceOnMount` above is the iOS half (#635).
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-          >
-            <View className="rounded-full border border-hair bg-raise-2 px-5 py-2.5">
-              <Text className="text-center text-[14px] font-semibold text-foreground">
-                {deckToast}
-              </Text>
-            </View>
+            </RowGroup>
           </View>
         ) : null}
       </ScrollView>
+      {/* One-sided-accept toast: «Momento inviato ✦ …» — NOT the MomentFlash help string.
+          A sibling of the ScrollView since 2026-10-05, so it stands over the foot of the screen:
+          inside the scroll content `bottom-6` was the foot of the CONTENT, below the fold
+          whenever the suggestions made the screen scroll (seen that day on the iPhone SE
+          simulator: a pass showed no toast). */}
+      {deckToast !== null ? (
+        <View
+          pointerEvents="none"
+          className="absolute inset-x-5 bottom-6 items-center"
+          // Android reads this; iOS reads nothing from it — `accessibilityLiveRegion` is
+          // Android-only, and this pill bypasses ToastHost (which announces imperatively). The
+          // `useAnnounceOnMount` above is the iOS half (#635).
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {/* `Toast`'s shape (charcoal, hairline, 28), written here because this one stays
+              out of `ToastHost`. */}
+          <View className="rounded-[28px] border border-hair bg-surface px-5 py-3">
+            <Text className="text-center type-small text-foreground">{deckToast}</Text>
+          </View>
+        </View>
+      ) : null}
     </Screen>
   );
 }

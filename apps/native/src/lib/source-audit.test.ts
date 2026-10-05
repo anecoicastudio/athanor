@@ -4637,6 +4637,10 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
     'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
     'components/costellazioni/FavorRow.tsx': { decorative: true, why: 'row label' },
+    'components/costellazioni/ProjectCard.tsx': {
+      decorative: true,
+      why: 'row label, or the name Text',
+    },
     'components/profile/IncomingOfferRow.tsx': { decorative: true, why: 'row label' },
     'components/live/AttendeeStack.tsx': { decorative: true, why: 'row label' },
     'components/chat/Bubble.tsx': { decorative: true, why: 'the avatar button’s label' },
@@ -5965,7 +5969,7 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
 
   it('the one bordered card is the staging Momento', () => {
     expect(code(CARD), 'the prototype’s `.card`: hairline, charcoal, 28, 20 inside').toMatch(
-      /flex-1 gap-\[14px\] overflow-hidden rounded-\[28px\] border border-hair bg-surface p-5/,
+      /grow gap-\[14px\] overflow-hidden rounded-\[28px\] border border-hair bg-surface p-5/,
     );
     const bordered = TABS.filter((file) =>
       /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
@@ -6015,6 +6019,21 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
         .map(({ line }) => `${file}:${line}`),
     );
     expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the deck well is a minimum: the top card can grow it', () => {
+    // Measured 2026-10-05 on the iPhone SE simulator at AX5: three reasons in body text and a
+    // three-line dream need 826pt, the well gives 760. A fixed height cut the dream's last line.
+    expect(code(MOMENTI)).toMatch(/style=\{\{ minHeight: wellHeight \}\}/);
+    expect(code(MOMENTI), 'no arm of the well is `flex-1`').not.toMatch(
+      /className="flex-1 (?:rounded|justify-center|items-center)/,
+    );
+    const deck = code('components/momenti/SwipeDeck.tsx');
+    expect(deck).toMatch(/<View className="grow">/);
+    expect(deck).toMatch(/flexGrow: 1,/);
+    expect(deck, 'the peek card takes the top card’s box').toMatch(
+      /className="absolute inset-0 opacity-70"/,
+    );
   });
 
   it('both titles are h1', () => {
