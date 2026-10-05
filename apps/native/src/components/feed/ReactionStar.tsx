@@ -1,19 +1,20 @@
 import { useEffect } from 'react';
 import { Animated, Easing } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
-import { Pressable, Text } from '@/tw';
+import { Pressable, Text, cn } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { star } from '@/lib/star';
 
 /**
  * The single "light a star" (frontend §3.2). VIEWER-STATE-ONLY — never renders a
- * count to anyone (rule #3). lit = filled ✦ in `aura` + burst (scale 1→1.15→1, ~380ms);
- * unlit = outline ✧ in `faint`; pending dims; disabled = your own post.
+ * count to anyone (rule #3). lit = filled ✦ in the foreground + burst (scale 1→1.15→1,
+ * ~380ms); unlit = outline ✧ in the secondary grey; pending dims; disabled = your own post.
+ * Never `aura`: a lit star is not one of the five cyan marks (DESIGN §2.3, §9 «Reaction ✦»).
  *
- * SHAPE carries the state, not colour alone: since `faint` was retuned for AA it no longer
- * reads clearly "off" against `aura` at a glance, and an assertive unlit star is exactly what
- * rule #3 doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell).
+ * SHAPE carries the state, not colour alone: an assertive unlit star is exactly what rule #3
+ * doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell).
  * Reduced-motion → opacity cut, no transform (frontend §9; MomentFlash pattern).
  */
 export function ReactionStar({
@@ -58,7 +59,7 @@ export function ReactionStar({
       accessibilityRole="button"
       accessibilityState={{ selected: lit, disabled: disabled || pending }}
       accessibilityLabel={t(lit ? 'post.react.a11yLit' : 'post.react.a11y', locale)}
-      className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
+      className={cn('min-h-[44px] min-w-[44px] flex-row items-center justify-center', PRESS_DIM)}
     >
       <Animated.View
         style={{
@@ -66,7 +67,9 @@ export function ReactionStar({
           opacity: pending ? 0.5 : 1,
         }}
       >
-        <Text className={`text-[20px] ${lit ? 'text-aura' : 'text-faint'}`}>{star(lit)}</Text>
+        <Text className={cn('text-[20px]', lit ? 'text-foreground' : 'text-muted-foreground')}>
+          {star(lit)}
+        </Text>
       </Animated.View>
     </Pressable>
   );

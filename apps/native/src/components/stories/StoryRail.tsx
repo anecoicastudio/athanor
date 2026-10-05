@@ -4,11 +4,14 @@ import type { Locale } from '@athanor/schemas';
 import { StoryRing } from '@/components/stories/StoryRing';
 
 /**
- * The horizontal story rail (frontend §3.1). Your own ring first («Il tuo passo»), then the
- * people with a live story. `seenIds` is UI-only (a watched ring dims). Tapping a ring opens
- * the viewer at that person index. The own ring carries an always-visible + badge into the
- * story composer (#317); with no live story the ring tap goes there too — with one, the tap
- * opens the viewer and the badge is the only way in.
+ * The horizontal story rail (frontend §3.1). Your own disc first («Il tuo passo»), then the
+ * people with a live story. `seenIds` is UI-only (a watched disc loses its ring). Tapping a
+ * disc opens the viewer at that person index. With no live story of your own, your disc is the
+ * drawn `add` and its tap opens the story composer; with one, the tap opens the viewer and a
+ * small add badge on the disc is the only way into the composer (#317).
+ *
+ * Entries are 74 wide with no gap, and the row starts 11 in: a 56pt disc centred in its entry
+ * then stands on the 20pt gutter, 18 from the next disc, with room for a name under it.
  *
  * WHICH of those the own ring's tap does is the caller's call (`onOpenYours`), not this rail's:
  * it depends on a read that may not have answered yet, and only the caller can wait for it
@@ -28,6 +31,11 @@ export function StoryRail({
     handle: string | null;
     displayName: string | null;
     avatarPath: string | null;
+    /**
+     * Whether you have a live story now: the disc is your photo, and the add moves to a badge.
+     * `null` while that is not known yet: your photo, no add, no badge.
+     */
+    live: boolean | null;
     /** Watched state for the own ring (#298) — the caller derives it; no story reads as seen. */
     seen: boolean;
   };
@@ -43,13 +51,14 @@ export function StoryRail({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerClassName="gap-3 px-5"
+      contentContainerClassName="px-[11px]"
     >
       <StoryRing
         handle={you.handle}
         displayName={you.displayName}
         avatarPath={you.avatarPath}
         isYou
+        live={you.live}
         seen={you.seen}
         locale={locale}
         onPress={onOpenYours}

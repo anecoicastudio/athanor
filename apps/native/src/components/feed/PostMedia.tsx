@@ -7,12 +7,13 @@ import { getPostMedia, postMediaKeys } from '@athanor/api';
 import { galleria } from '@athanor/config';
 import type { Locale, MediaKind } from '@athanor/schemas';
 import { t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { PauseGlyph, PlayGlyph } from '@/components/glyphs';
 import { MediaFrame, type MediaFrameKind } from '@/components/media/MediaFrame';
 import { aspectRatio, formatDuration } from '@/lib/media/format';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
 
 /** `post_media.kind` (schema vocabulary) → the word the copy uses. `image` is a column, `photo`
@@ -35,7 +36,7 @@ const AUDIO_LOAD_GRACE_MS = 10_000;
 /**
  * Detail-only real video player — owns its own `useVideoPlayer` hook. Rendered through
  * `MediaFrame`'s render prop so a dead URL reports up (#278) instead of never playing; the
- * frame (radius, ratio, `bg-raise`) is the MediaFrame call site's.
+ * frame (radius, ratio, fill) is the MediaFrame call site's.
  */
 function DetailVideo({ url, onError }: { url: string; onError: () => void }) {
   const player = useVideoPlayer(url);
@@ -71,7 +72,7 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
         kind="audio"
         isLoading={false}
         locale={locale}
-        className="rounded-card bg-raise"
+        className="rounded-[14px] border border-hair bg-surface"
         style={{ aspectRatio: 4 / 1 }}
       />
     );
@@ -84,7 +85,10 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
   // pause. `min-h-[44px]` holds the floor the 18px text line used to give the pill.
   return (
     <Pressable
-      className="min-h-[44px] flex-row items-center gap-3 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
+      className={cn(
+        'min-h-[44px] flex-row items-center gap-3 self-start rounded-full border border-hair px-4 py-3',
+        PRESS_DIM,
+      )}
       accessibilityRole="button"
       accessibilityLabel={`${t(player.playing ? 'feed.audio.pauseLabel' : 'feed.audio.playLabel', locale)}, ${label}`}
       onPress={() => (player.playing ? player.pause() : player.play())}
@@ -94,7 +98,7 @@ function DetailAudio({ url, label, locale }: { url: string; label: string; local
       ) : (
         <PlayGlyph size={22} color={galleria.foreground} />
       )}
-      <Text className="text-[13px] text-foreground">{label}</Text>
+      <Text className="type-small text-foreground">{label}</Text>
     </Pressable>
   );
 }
@@ -141,7 +145,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
           kind={MEDIA_KIND[postType]}
           isLoading
           locale={locale}
-          className="rounded-card bg-raise"
+          className="rounded-[14px] border border-hair bg-surface"
           style={{ aspectRatio: 4 / 5 }}
         />
       </View>
@@ -164,7 +168,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               kind={MEDIA_KIND[row.kind]}
               isLoading={urlsLoading}
               locale={locale}
-              className="rounded-card bg-raise"
+              className="rounded-[14px] border border-hair bg-surface"
               style={{ aspectRatio: row.kind === 'audio' ? 4 / 1 : ratio }}
             />
           );
@@ -180,7 +184,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               url={url}
               isLoading={urlsLoading}
               locale={locale}
-              className="rounded-card bg-raise"
+              className="rounded-[14px] border border-hair bg-surface"
               style={{ aspectRatio: ratio }}
             />
           );
@@ -192,7 +196,10 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
             return (
               <Pressable
                 key={row.id}
-                className="items-center justify-center overflow-hidden rounded-card bg-raise"
+                className={cn(
+                  'items-center justify-center overflow-hidden rounded-[14px] border border-hair bg-surface',
+                  PRESS_DIM,
+                )}
                 style={{ aspectRatio: ratio }}
                 onPress={onPress}
                 accessibilityRole="button"
@@ -207,7 +214,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               >
                 {row.thumb_path === null ? (
                   // A video with no poster is a STATE, not a failure (#318, MomentTile's fourth
-                  // state): it plays fine in the detail, it just has no still. Faint ▶ so it
+                  // state): it plays fine in the detail, it just has no still. Grey ▶ so it
                   // reads as placeholder, not as the `foreground` ▶ over a real poster.
                   <View
                     className="absolute inset-0 items-center justify-center"
@@ -216,7 +223,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
                   >
-                    <PlayGlyph size={36} color={galleria.faint} />
+                    <PlayGlyph size={36} color={galleria.foregroundMuted} />
                   </View>
                 ) : (
                   <MediaFrame
@@ -235,7 +242,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                   />
                 )}
                 {dur ? (
-                  <View className="absolute bottom-2 right-2 rounded-ctl bg-surface-muted px-2 py-0.5">
+                  <View className="absolute bottom-2 right-2 rounded-full bg-background/70 px-2 py-0.5">
                     <Text className="text-[11px] text-foreground">{dur}</Text>
                   </View>
                 ) : null}
@@ -251,7 +258,7 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
               url={url}
               isLoading={urlsLoading}
               locale={locale}
-              className="rounded-card bg-raise"
+              className="rounded-[14px] border border-hair bg-surface"
               style={{ aspectRatio: ratio }}
             >
               {(uri, onFailure) => <DetailVideo url={uri} onError={onFailure} />}
@@ -266,13 +273,16 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
             // reader met an unnamed tap target and read the emoji's name aloud.
             <Pressable
               key={row.id}
-              className="min-h-[44px] flex-row items-center gap-2 self-start rounded-ctl border border-hair bg-raise px-4 py-3"
+              className={cn(
+                'min-h-[44px] flex-row items-center gap-2 self-start rounded-full border border-hair px-4 py-3',
+                PRESS_DIM,
+              )}
               onPress={onPress}
               accessibilityRole="button"
               accessibilityLabel={durLabel}
             >
               <PlayGlyph size={16} color={galleria.foreground} />
-              <Text className="text-[13px] text-foreground">{durLabel}</Text>
+              <Text className="type-small text-foreground">{durLabel}</Text>
             </Pressable>
           );
         }

@@ -2573,7 +2573,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * reaches exactly 44; it is CORRECT at that size and short only when the visual is smaller.
  * Deciding that statically means knowing what the child renders to, and a scan for «a small
  * `text-[Npx]` somewhere in the body» flags ~26 sites of which several are plainly fine
- * (`StoryRing`'s Pressable wraps a 60pt avatar, `DreamCard`'s add-milestone one a whole row) — a
+ * (`StoryRing`'s Pressable wraps a 56pt avatar, `DreamCard`'s add-milestone one a whole row) — a
  * guard whose allowlist would be longer than its findings is a pin on today's tree, not an
  * invariant. §28 makes the same call in as many words for the rest of #635.
  *
@@ -2677,12 +2677,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
-    'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
-    'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
+    'components/search/ScopeTabs.tsx:60': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
-    'components/stories/StoryRing.tsx:127':
-      'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
-      'to `ornament`',
   };
 
   const TW = `${SRC}tw/index.tsx`;
@@ -5371,22 +5367,13 @@ describe('surfaces and text primitives keep the Galleria look (#921)', () => {
     ).toEqual([]);
   });
 
-  it('the avatar has five sizes, and one named exception', () => {
+  it('the avatar has five sizes', () => {
     const src = component('Avatar');
     // `objectEntries` reads identifier keys; this table's keys are numbers.
     const table = src.match(/const INITIAL_SIZE = \{([^}]*)\}/)?.[1] ?? '';
     const sizes = [...table.matchAll(/(\d+)\s*:/g)].map((m) => Number(m[1]));
-    // 60 is not a Galleria size: it is the story ring's disc, whose badge is placed by a
-    // measurement (`components/stories/StoryRing.tsx`). It leaves with that ring.
-    expect(sizes, 'the avatar sizes of DESIGN §9, plus the story ring’s 60').toEqual([
-      30, 44, 56, 60, 72, 104,
-    ]);
-    const sixty = codeLines()
-      .filter(([, text]) => /\bsize=\{60\}|\bAVATAR\w* = 60\b/.test(text))
-      .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, ''));
-    expect(sixty, 'the 60pt disc is the story ring’s and nobody else’s').toEqual([
-      'components/stories/StoryRing.tsx',
-    ]);
+    // The story ring held a sixth, 60, until its screen converted (2026-10-05); its disc is 56.
+    expect(sizes, 'the avatar sizes of DESIGN §9').toEqual([30, 44, 56, 72, 104]);
   });
 });
 
@@ -5779,5 +5766,140 @@ describe('the Home tab keeps the Galleria look (#921)', () => {
   it('the stars and the invite are one group of rows', () => {
     const screen = code('app/(tabs)/index.tsx').replace(/\s+/g, ' ');
     expect(screen).toMatch(/<RowGroup> <StarsMiniRow\b[^]*?\/> <InviteCard\b[^]*?\/> <\/RowGroup>/);
+  });
+});
+
+/*
+ * The Community tab (#921, the third screen chunk). The prototype draws NO bordered card here:
+ * each post is a borderless `surface` block of its own (Marco, 2026-10-05). Cyan stands once,
+ * on «✦ Un passo del percorso» (DESIGN §2.3). The story ring and a lit star are foreground.
+ * `live/EventRow` under the «Eventi» filter and `media/MediaFrame` are not in this list: they
+ * convert with Athanor Live and with the feed modals.
+ */
+describe('the Community tab keeps the Galleria look (#921)', () => {
+  const FEED_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/feed/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const RING = 'components/stories/StoryRing.tsx';
+  const POST = 'components/feed/FeedPost.tsx';
+  const MEDIA = 'components/feed/PostMedia.tsx';
+  const SCREEN = 'app/(tabs)/community.tsx';
+  const COMMUNITY = [SCREEN, ...FEED_FOLDER, 'components/stories/StoryRail.tsx', RING];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the feed folder is the eight files this section was written against', () => {
+    expect(FEED_FOLDER).toEqual([
+      'components/feed/CategoryTabs.tsx',
+      'components/feed/Comment.tsx',
+      'components/feed/EventsFeedList.tsx',
+      'components/feed/FeedPost.tsx',
+      'components/feed/FeedSkeleton.tsx',
+      'components/feed/PostAuthorRow.tsx',
+      'components/feed/PostMedia.tsx',
+      'components/feed/ReactionStar.tsx',
+    ]);
+  });
+
+  it('the one cyan on Community is «✦ Un passo del percorso»', () => {
+    const hits = COMMUNITY.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); Community carries the third and no other',
+    ).toEqual([`${POST}  text-aura`]);
+    expect(code(POST), 'and it is on the step line').toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('feed\.flag\.step', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('Community has no bordered card', () => {
+    const carded = COMMUNITY.filter((file) => /<Card\b/.test(code(file)));
+    expect(carded, 'a post is a borderless block (DESIGN §8.3)').toEqual([]);
+    const bordered = COMMUNITY.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(
+      bordered,
+      'a hairline stands on a media tile and the audio pill, and on the story disc, its ring ' +
+        'and its badge; nowhere else',
+    ).toEqual([MEDIA, RING]);
+  });
+
+  it('a Community file sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const hits = COMMUNITY.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no Community file types a control: the add is the drawn icon', () => {
+    const typed = COMMUNITY.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'a typed `+`, `✕`, `×` or chevron as a control').toEqual([]);
+    for (const file of [SCREEN, RING]) {
+      expect(code(file), `${file} draws the add`).toMatch(/<AddIcon\b/);
+    }
+  });
+
+  it('every pressable on Community dims when pressed', () => {
+    const undimmed = COMMUNITY.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the title is h1 and the filters are chips', () => {
+    const screen = code(SCREEN);
+    expect(screen, 'tab roots are h1 (DESIGN §6 «Screen headers»)').toMatch(
+      /cn\('type-h1 text-foreground'/,
+    );
+    const tabs = code('components/feed/CategoryTabs.tsx');
+    expect(tabs, 'DESIGN §9 «Tabs (feed)»').toMatch(/<Chip\b/);
+    expect(tabs, 'no hand-rolled tab').not.toMatch(/<Pressable\b/);
+  });
+
+  it('a story to watch is a 2px foreground ring on a 56 disc', () => {
+    const ring = code(RING);
+    expect(ring).toMatch(/const DISC = 56;/);
+    expect(ring, 'the ring').toMatch(/absolute inset-0 rounded-full border-2 border-foreground/);
+    expect(ring, 'drawn only while unseen').toMatch(/\{seen \? null : \(/);
+  });
+
+  it('your own disc is the add only once it is known you have no live story', () => {
+    const ring = code(RING);
+    // `live` is `null` while the own-story read is out: the photo, neither add (Greptile, PR 936).
+    expect(ring).toMatch(/const adds = isYou && live === false;/);
+    expect(ring).toMatch(/\{isYou && live === true && onAddPress \? \(/);
+    expect(code(SCREEN)).toMatch(/live: myStoryQuery\.isLoading \? null : myHasLive,/);
+  });
+
+  it('a comment with no action draws no action row', () => {
+    expect(code('components/feed/Comment.tsx').replace(/\s+/g, ' ')).toMatch(
+      /\{onReply \|\| onDelete \? \( <View className=\{cn\('flex-row gap-4'/,
+    );
+  });
+
+  it('a lit star is foreground', () => {
+    expect(code('components/feed/ReactionStar.tsx')).toMatch(
+      /lit \? 'text-foreground' : 'text-muted-foreground'/,
+    );
   });
 });

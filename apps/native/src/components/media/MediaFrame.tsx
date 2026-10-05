@@ -116,7 +116,7 @@ export function MediaFrame({
   const readyUrl = state === 'ready' ? url : undefined;
 
   return (
-    // No `bg-raise` here: every call site's frame already carries it. (`raise` was translucent
+    // No fill here: every call site's frame already carries one. (`raise` was translucent
     // white when this was written, and a second layer lightened the placeholder; it is opaque now.)
     <View className={cn('overflow-hidden', className)} style={style}>
       {state === 'loading' ? (

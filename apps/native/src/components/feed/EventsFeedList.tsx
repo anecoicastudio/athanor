@@ -10,7 +10,7 @@ import { useEntitlement } from '@/hooks/use-entitlement';
 import { listState } from '@/lib/list-state';
 
 /**
- * The feed's «Eventi» tab (#153): real `events` rows as feed cards, tap → event detail.
+ * The feed's «Eventi» tab (#153): real `events` rows as `EventRow`s, tap → event detail.
  *
  * Reads the shared calendar query with no filters — the same cache entry Live's Calendario and
  * Mappa hold, so opening the tab warms Live rather than duplicating it. `starts_at` ascending,
@@ -31,7 +31,7 @@ export function EventsFeedList({
   onCreate,
 }: {
   locale: Locale;
-  /** The screen's own header (title, composer, tabs, Live card, rail) — shared with the posts list. */
+  /** The screen's own header (title, add control, filters, Live row, rail) — shared with the posts list. */
   header: ReactElement;
   onOpen: (id: string) => void;
   onCreate: () => void;
