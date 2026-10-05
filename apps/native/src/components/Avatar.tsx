@@ -9,17 +9,13 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
  * The avatar's sizes (DESIGN §9), each with the size of its initial as the prototype draws it.
- * `size` is typed from this table, so a call site cannot invent a sixth.
- *
- * 60 is not a Galleria size. It is the story ring's disc, whose add badge is placed by a
- * measurement against that ring (`components/stories/StoryRing.tsx`); it leaves when the ring
- * converts (#921, open as of 2026-10-04). `source-audit.test.ts` keeps it to that one file.
+ * `size` is typed from this table, so a call site cannot invent a sixth. Until 2026-10-05
+ * (#921) the story ring held one, 60; its disc is the 56 now.
  */
 const INITIAL_SIZE = {
   30: 12,
   44: 15,
   56: 15,
-  60: 15,
   72: 24,
   104: 34,
 } as const;
