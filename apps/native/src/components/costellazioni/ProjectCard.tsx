@@ -56,7 +56,7 @@ export function ProjectCard({ project, locale }: { project: Project; locale: Loc
           </Text>
         ) : null}
       </Pressable>
-      <PostAuthorRow authorId={project.author_id} size="sm" />
+      <PostAuthorRow authorId={project.author_id} />
     </View>
   );
 }

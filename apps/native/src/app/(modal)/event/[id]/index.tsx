@@ -259,7 +259,7 @@ export default function EventDetailScreen() {
 
             <View className="gap-1">
               <SectionLabel>{t('event.organizedBy', locale)}</SectionLabel>
-              <PostAuthorRow authorId={event.organizer_id} size="sm" />
+              <PostAuthorRow authorId={event.organizer_id} />
             </View>
 
             <View className="gap-3 rounded-card border border-hair bg-raise p-5">

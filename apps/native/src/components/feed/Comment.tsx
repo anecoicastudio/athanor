@@ -1,12 +1,18 @@
+import { useWindowDimensions } from 'react-native';
 import { type Locale, t } from '@athanor/i18n';
 import type { PostComment } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 
 /**
- * One comment (frontend §3.3 / §4): commenter row + body + «Rispondi». NO like count
- * (the prototype's ♡ is dropped, §1.0). `onReply` prefills the input with a mention.
- * `pending` dims an optimistic row until the write settles.
+ * One comment (frontend §3.3 / §4): commenter row + body + «Rispondi», a borderless `surface`
+ * block with a post's insets (`FeedPost`). NO like count (rule #3). `onReply` prefills the
+ * input with a mention. `pending` dims an optimistic row until the write settles.
+ *
+ * The prototype draws the replies as rows of ONE group; this is still a block per comment,
+ * because the group belongs to the screen that lists them (`(modal)/post/[id]`).
  */
 export function Comment({
   comment,
@@ -21,32 +27,34 @@ export function Comment({
   pending?: boolean;
   locale: Locale;
 }) {
+  const large = stacksTrailing(useWindowDimensions().fontScale);
   return (
     <View
-      className="gap-2 rounded-card border border-hair bg-raise p-4"
+      className="gap-[10px] rounded-[28px] bg-surface px-4 py-[14px]"
       style={{ opacity: pending ? 0.5 : 1 }}
     >
-      <PostAuthorRow authorId={comment.author_id} size="sm" />
-      <Text className="text-[14px] leading-6 text-foreground">{comment.body}</Text>
-      <View className="flex-row gap-4">
-        {/* Both were 12px labels with no padding — ~15pt targets (§10). «Rispondi» also
-        carried no accessibilityRole, so VoiceOver announced it as plain text. */}
+      <PostAuthorRow authorId={comment.author_id} />
+      <Text className="type-body text-foreground">{comment.body}</Text>
+      <View className={cn('flex-row gap-4', large ? null : '-my-3')}>
+        {/* Each is a 44pt target with a role (§10): they were 12px labels with no padding and
+            «Rispondi» had no role. `-my-3` on the row gives back what the targets add to a
+            21pt line; not at the accessibility sizes, where the line fills its target. */}
         {onReply ? (
           <Pressable
-            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
+            className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
             onPress={() => onReply(null)}
             accessibilityRole="button"
           >
-            <Text className="text-[12px] text-muted-foreground">{t('comment.reply', locale)}</Text>
+            <Text className="type-small text-muted-foreground">{t('comment.reply', locale)}</Text>
           </Pressable>
         ) : null}
         {onDelete ? (
           <Pressable
-            className="min-h-[44px] min-w-[44px] items-center justify-center self-start"
+            className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
             onPress={onDelete}
             accessibilityRole="button"
           >
-            <Text className="text-[12px] text-muted-foreground">{t('comment.delete', locale)}</Text>
+            <Text className="type-small text-muted-foreground">{t('comment.delete', locale)}</Text>
           </Pressable>
         ) : null}
       </View>
