@@ -2,22 +2,21 @@ import { useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import type { Locale, MomentoSuggestion } from '@athanor/schemas';
-import { Pressable, Text, View, cn } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { DreamQuote } from '@/components/DreamQuote';
+import { Row } from '@/components/Row';
 import { Tag } from '@/components/Tag';
 import { reasonChipLabel } from '@/lib/momenti-reason';
-import { PRESS_DIM } from '@/lib/press';
 import { stacksTrailing } from '@/lib/type-scale';
 
 /**
  * «Ti potrebbe interessare» curated-lite row (frontend §2) → read-only Person Detail.
  *
- * A row of the screen's `RowGroup` since 2026-10-05 (#921; DESIGN §6: a list is one `surface`
- * block), not a card of its own: at least 60 tall, 8 above and below, the name in 17/500. It is
- * built here because `Row` has no leading slot for the disc (`home/FavorNudgeCard` does the
- * same). At the accessibility text sizes (`stacksTrailing`) the tag goes under the text, as
- * `Row`'s trailing control does, and no longer needs its 40% cap there.
+ * A `Row` of the screen's `RowGroup` since 2026-10-05 (#921; DESIGN §6: a list is one `surface`
+ * block), not a card of its own: the disc in the row's `leading`, the name its title on one
+ * line, the dream its second line, the tag its `trailing`. At the accessibility text sizes
+ * (`stacksTrailing`) `Row` puts the tag under the text, where it no longer needs its 40% cap.
+ * The row is one button and says the name, the dream and the reason.
  *
  * The trailing marker is a quiet `Tag`, not a cyan pill. This is a DELIBERATE DEVIATION from
  * the ratified prototype (`chip live`, athanor-prototype.html:1391) and frontend spec
@@ -64,39 +63,32 @@ export function SuggestionRow({
   // server contract breaks — and «Sogno nuovo» is the right thing to say when we cannot say
   // why. It is never a silent blank chip.
   const reason = reasonChipLabel(suggestion.reasons[0] ?? 'newDream', locale);
+  const name = memberLabel(suggestion.displayName, suggestion.handle) ?? '—';
+  const dream = suggestion.dreamText;
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Row
+      leading={
+        <Avatar
+          decorative
+          handle={suggestion.handle}
+          displayName={suggestion.displayName}
+          avatarPath={suggestion.avatarPath}
+          size={44}
+        />
+      }
+      title={name}
+      // One line: handles run to 30 chars (handleSchema), and a long one would wrap beside
+      // the pill.
+      titleLines={1}
+      description={dream ? <DreamQuote compact numberOfLines={1} text={dream} /> : undefined}
+      // The row is one button: it says what its three parts show, the dream in its guillemets
+      // as `DreamQuote` draws it. Read on the moto g17 on 2026-10-05 (`uiautomator dump`): the
+      // node's description is the same text the unlabelled row had.
+      accessibilityLabel={[name, dream ? `«${dream}»` : null, reason].filter(Boolean).join(', ')}
       onPress={() => router.push(`/(modal)/user/${suggestion.candidateId}`)}
-      className={cn('min-h-15 flex-row items-center gap-3 py-2', PRESS_DIM)}
-    >
-      <Avatar
-        decorative
-        handle={suggestion.handle}
-        displayName={suggestion.displayName}
-        avatarPath={suggestion.avatarPath}
-        size={44}
-      />
-      {/* Plain `flex-1`: no floor. This column is basis-0 with grow 1, so it already takes every
-          pixel the pill does not need — a `min-w` on top of that pushes it past its flex result
-          and the deficit comes out of the pill instead, which then ellipsizes even a short
-          «Cerchi». The bound that matters is the pill's `max-w`, set by `Tag shrink`. */}
-      <View className={cn('flex-1 gap-0.5', stacked && 'items-start')}>
-        {/* numberOfLines: handles run to 30 chars (handleSchema) — without this a long one
-            wraps beside the pill. */}
-        <Text numberOfLines={1} className="type-body font-medium text-foreground">
-          {memberLabel(suggestion.displayName, suggestion.handle) ?? '—'}
-        </Text>
-        {suggestion.dreamText ? (
-          <DreamQuote compact numberOfLines={1} text={suggestion.dreamText} />
-        ) : null}
-        {stacked ? (
-          <View className="pt-2">
-            <Tag quiet label={reason} />
-          </View>
-        ) : null}
-      </View>
-      {stacked ? null : <Tag shrink quiet label={reason} />}
-    </Pressable>
+      showChevron={false}
+      // The 40% cap (`shrink`) holds only beside the text: under it the tag has the row.
+      trailing={<Tag shrink={!stacked} quiet label={reason} />}
+    />
   );
 }
