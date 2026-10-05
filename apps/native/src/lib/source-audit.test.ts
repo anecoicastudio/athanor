@@ -5529,6 +5529,19 @@ describe('icons, header controls and the tab bar keep the Galleria shape (#921)'
     expect(src, 'and on Android').toMatch(/importantForAccessibility="no-hide-descendants"/);
   });
 
+  it('the header band is the prototype’s `.top`: the title in `type-title`, 8 between its parts', () => {
+    const src = header();
+    expect(
+      /const titleClass = compact\s*\?\s*'[^']*'\s*:\s*'([^']*)'/.exec(src)?.[1],
+      'the title of a pushed screen or a sheet (DESIGN §6 «Screen headers»); the compact one is chat’s',
+    ).toBe('type-title text-foreground');
+    expect(src, 'a named size: 21px at the compiler’s rem of 14, not 24').not.toMatch(
+      /\btext-2xl\b/,
+    );
+    const band = /<View className="(flex-row items-center [^"]*px-gutter[^"]*)">/.exec(src)?.[1];
+    expect(band?.split(' '), 'the band’s gap is 8 (`.top { gap: 8px }`)').toContain('gap-2');
+  });
+
   it('no screen hand-rolls the back control', () => {
     const hits = codeLines()
       .filter(([where]) => !/\.test\.tsx?:/.test(where))

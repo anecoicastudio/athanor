@@ -7,7 +7,8 @@ import { PRESS_DIM } from '@/lib/press';
 import { wordLines } from '@/lib/word-lines';
 
 /**
- * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, h1 = 24/600.
+ * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, the title in `type-title`
+ * (24/600), 8 between the band's parts, as the prototype's `.top`.
  * One recipe for every pushed screen and sheet — don't hand-roll headers (chevron
  * size/color, title weight, paddings and hit-slops drifted across 7 clusters
  * before the recipe covered their cases — #162).
@@ -54,7 +55,7 @@ export function ModalHeader({
   identityHint,
   right,
 }: {
-  /** h1 24/600 — or compact 15/600 when `avatar` is present. */
+  /** `type-title` (24/600) — or compact 15/600 when `avatar` is present. */
   title?: string;
   /** Replaces the title text entirely (e.g. the search bar). */
   titleSlot?: ReactNode;
@@ -85,7 +86,7 @@ export function ModalHeader({
   const compact = avatar != null;
   const titleClass = compact
     ? 'text-[15px] font-semibold text-foreground'
-    : 'text-2xl font-semibold text-foreground';
+    : 'type-title text-foreground';
   const identity = (
     <>
       {avatar}
@@ -133,7 +134,7 @@ export function ModalHeader({
   return (
     // Top inset is the parent Screen's job (#161) — pt here is breathing room off the
     // sheet edge (or the inset), pb is the one header→content gap every screen shares.
-    <View className="flex-row items-center gap-3 px-gutter pb-4 pt-3">
+    <View className="flex-row items-center gap-2 px-gutter pb-4 pt-3">
       {showLeading ? (
         // `backLabel` is required on every `leading` but 'none' (the docblock above; §23 of
         // `source-audit.test.ts` holds it at the call sites), so the fallback never renders.
@@ -170,7 +171,7 @@ export function ModalHeader({
 /**
  * The box of a header control (DESIGN §10): 44pt each way by `min-h` / `min-w`, the drawing
  * centred in it. A real box, not a bare glyph + hitSlop: slop would reach into the identity
- * target 12pt to the right of the leading control. Literal `[44px]`, the one spelling of the
+ * target 8pt to the right of the leading control. Literal `[44px]`, the one spelling of the
  * floor (`source-audit.test.ts` section 29).
  */
 const ICON_BUTTON = 'min-h-[44px] min-w-[44px] items-center justify-center';
