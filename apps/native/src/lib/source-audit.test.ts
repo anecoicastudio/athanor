@@ -5903,3 +5903,186 @@ describe('the Community tab keeps the Galleria look (#921)', () => {
     );
   });
 });
+
+/*
+ * The Momenti and Costellazioni tabs (#921, the fifth screen chunk). Momenti's one bordered card
+ * is the staging Momento; Costellazioni has none: the favour band is a `Row` and each project a
+ * borderless `surface` block (Marco, 2026-10-05). Cyan stands once, on the dot beside «Hai un
+ * Momento» (DESIGN §2.3). The swipe stamps are foreground and grey: no green, and passing is
+ * not an error. `costellazioni/FavorRow` is not in this list: its one caller is the favour
+ * sheet, and it converts with it.
+ */
+describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () => {
+  const folder = (name: string) =>
+    FILES.filter((p) => !isTest(p) && p.includes(`/components/${name}/`))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+  const MOMENTI_FOLDER = folder('momenti');
+  const COSTELLAZIONI_FOLDER = folder('costellazioni');
+  const FAVOR = 'components/costellazioni/FavorRow.tsx';
+  const MOMENTI = 'app/(tabs)/momenti.tsx';
+  const COSTELLAZIONI = 'app/(tabs)/costellazioni.tsx';
+  const CARD = 'components/momenti/MomentoCard.tsx';
+  const STAMP = 'components/momenti/SwipeStamp.tsx';
+  const TABS = [
+    MOMENTI,
+    COSTELLAZIONI,
+    ...MOMENTI_FOLDER,
+    ...COSTELLAZIONI_FOLDER.filter((file) => file !== FAVOR),
+  ];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the two folders are the files this section was written against', () => {
+    expect(MOMENTI_FOLDER).toEqual([
+      'components/momenti/AffinityRow.tsx',
+      'components/momenti/MomentoCard.tsx',
+      'components/momenti/SuggestionRow.tsx',
+      'components/momenti/SwipeDeck.tsx',
+      'components/momenti/SwipeStamp.tsx',
+    ]);
+    expect(COSTELLAZIONI_FOLDER).toEqual([
+      FAVOR,
+      'components/costellazioni/ProjectCard.tsx',
+      'components/costellazioni/ProjectFilterTabs.tsx',
+    ]);
+  });
+
+  it('the one cyan on the two tabs is the dot of the waiting Momento', () => {
+    const hits = TABS.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); Momenti carries the first, Costellazioni none',
+    ).toEqual([`${MOMENTI}  bg-aura`]);
+    expect(code(MOMENTI).replace(/\s+/g, ' '), 'and it stands beside «Hai un Momento»').toMatch(
+      /\{hasMomento \? \( <View className="flex-row items-center gap-2"> <View className="h-2 w-2 rounded-full bg-aura" \/> <SectionLabel>\{t\('momenti\.eyebrow', locale\)\}<\/SectionLabel>/,
+    );
+  });
+
+  it('the one bordered card is the staging Momento', () => {
+    expect(code(CARD), 'the prototype’s `.card`: hairline, charcoal, 28, 20 inside').toMatch(
+      /flex-1 gap-\[14px\] overflow-hidden rounded-\[28px\] border border-hair bg-surface p-5/,
+    );
+    const bordered = TABS.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(
+      bordered,
+      'a hairline stands on the Momento card, on its loading stand-in and the deck’s toast in ' +
+        'the route, and on a swipe stamp; Costellazioni draws none (DESIGN §6, §8.9)',
+    ).toEqual([MOMENTI, CARD, STAMP]);
+    expect(
+      TABS.filter((file) => /<Card\b/.test(code(file))),
+      'the shared `Card` cannot fill the deck well; the Momento card writes its shape',
+    ).toEqual([]);
+  });
+
+  it('a file of the two tabs sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const hits = TABS.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of the two tabs types a control', () => {
+    const typed = TABS.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'the favour band’s chevron is `Row`’s; «+ Pubblica» is a catalog label').toEqual(
+      [],
+    );
+  });
+
+  it('every pressable on the two tabs dims when pressed', () => {
+    const undimmed = TABS.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('both titles are h1', () => {
+    for (const file of [MOMENTI, COSTELLAZIONI]) {
+      expect(code(file), `${file}: tab roots are h1 (DESIGN §6 «Screen headers»)`).toMatch(
+        /accessibilityRole="header" className="type-h1 text-foreground"/,
+      );
+    }
+  });
+
+  it('the deck keeps its two pills: a swipe is never the only way to answer', () => {
+    const screen = code(MOMENTI).replace(/\s+/g, ' ');
+    expect(screen, 'the pills line up and wrap through `ButtonRow`').toMatch(/<ButtonRow>/);
+    expect(screen, '«Passa» is the outline pill').toMatch(
+      /<Button variant="outline" label=\{t\('momenti\.pass', locale\)\}[^>]*onPress=\{\(\) => deckRef\.current\?\.swipe\('left'\)\}/,
+    );
+    expect(screen, '«Connetti ✦» is the white pill, not the cyan one').toMatch(
+      /<Button label=\{t\('momenti\.connect', locale\)\}[^>]*onPress=\{\(\) => deckRef\.current\?\.swipe\('right'\)\}/,
+    );
+    // The height the action row has until it is measured is the pill's own floor.
+    expect(screen).toMatch(/const ACTION_ROW_FALLBACK = 50;/);
+    expect(code('components/Button.tsx')).toMatch(/'min-h-\[50px\] rounded-full py-3'/);
+  });
+
+  it('a swipe stamp is foreground for yes and grey for no', () => {
+    const stamp = code(STAMP);
+    expect(stamp).toMatch(/isYes \? 'border-foreground' : 'border-muted-foreground'/);
+    expect(stamp).toMatch(/isYes \? 'text-foreground' : 'text-muted-foreground'/);
+    expect(stamp, 'passing is not an error').not.toMatch(/(?<![\w-])(?:text|border)-error\b/);
+  });
+
+  it('a reason’s tick is the reason’s own colour', () => {
+    expect(code('components/momenti/AffinityRow.tsx')).toMatch(
+      /<Text className="type-body text-foreground">✓ \{text\}<\/Text>/,
+    );
+  });
+
+  it('a suggestion is a row of a group, and its tag goes under the text at the largest sizes', () => {
+    const screen = code(MOMENTI).replace(/\s+/g, ' ');
+    expect(screen).toMatch(/<RowGroup> \{suggestions\.data\.map\(/);
+    const row = code('components/momenti/SuggestionRow.tsx');
+    expect(row).toMatch(/'min-h-15 flex-row items-center gap-3 py-2'/);
+    expect(row).toMatch(/const stacked = stacksTrailing\(useWindowDimensions\(\)\.fontScale\);/);
+  });
+
+  it('Costellazioni: the favour band is a row, the publish a small outline pill, the filters chips', () => {
+    const screen = code(COSTELLAZIONI).replace(/\s+/g, ' ');
+    expect(screen).toMatch(
+      /<RowGroup> <Row title=\{t\('costellazioni\.favor\.title', locale\)\} description=\{t\('costellazioni\.favor\.desc', locale\)\} onPress=\{\(\) => router\.push\(FAVOR_HREF\)\} \/> <\/RowGroup>/,
+    );
+    expect(screen).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('costellazioni\.publish', locale\)\}/,
+    );
+    const tabs = code('components/costellazioni/ProjectFilterTabs.tsx');
+    expect(tabs).toMatch(/<Chip\b/);
+    expect(tabs, 'no hand-rolled tab').not.toMatch(/<Pressable\b/);
+    expect(tabs, 'a selected chip that is off screen is brought back').toMatch(/scrollTo\(/);
+    expect(tabs, 'the chips’ `hitSlop` stays inside the row').toMatch(/px-5 py-1\.5/);
+  });
+
+  it('a project is a borderless block whose author line is small and grey', () => {
+    const card = code('components/costellazioni/ProjectCard.tsx').replace(/\s+/g, ' ');
+    expect(card, 'the prototype’s `.rows > .row.col`').toMatch(
+      /<RowGroup> <View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(card, 'pitch over person (DESIGN §8.9)').toMatch(
+      /className="shrink type-small text-muted-foreground"/,
+    );
+    expect(card, 'the shared author row is 17/500: not here').not.toMatch(/<PostAuthorRow\b/);
+  });
+});
