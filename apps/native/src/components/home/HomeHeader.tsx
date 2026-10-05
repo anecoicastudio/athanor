@@ -87,8 +87,9 @@ export function HomeHeader({
   ] as const;
 
   return (
-    // Stacked, the column runs in reverse: the controls stand above the greeting, and the
-    // greeting stays first for a screen reader.
+    // Stacked, the column runs in reverse: the controls stand above the greeting while the two
+    // children keep their order in the tree, so the same elements serve both layouts. Which of
+    // them a screen reader visits first when stacked was not checked.
     <View
       className={
         stacked

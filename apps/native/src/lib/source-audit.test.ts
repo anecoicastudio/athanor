@@ -5684,8 +5684,9 @@ describe('the Home tab keeps the Galleria look (#921)', () => {
   const HOME = ['app/(tabs)/index.tsx', 'components/aura/WeekCard.tsx', ...HOME_FOLDER];
   const MOMENTO = 'components/home/MomentiCard.tsx';
   const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
   const CYAN_OR_GREEN =
-    /(?<![\w-])(?:text|bg|border)-(?:aura|success)\b|\bgalleria\.(?:aura|success)\w*|\bauraGlow\b|<AuraValue\b/g;
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
 
   it('the home folder is the nine files this section was written against', () => {
     expect(HOME_FOLDER).toEqual([
@@ -5730,7 +5731,8 @@ describe('the Home tab keeps the Galleria look (#921)', () => {
     );
     expect(
       hits,
-      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits nothing',
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
     ).toEqual([]);
   });
 

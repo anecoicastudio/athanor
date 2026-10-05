@@ -12,7 +12,7 @@ import type { MomentoDeckCard } from '@athanor/schemas';
  * The order is the server's — `(proposed_on desc, daily_rank asc)` inside `get_momenti_deck()`
  * since #273, already capped at 3 and filtered to `pending` + dream-bearing + not-blocked. Home
  * does NOT re-rank: it reads the same cache entry the tab deals its swipe deck from
- * (`momentiKeys.deck()`), and any client sort here would make the card you tap on Home differ
+ * (`momentiKeys.deck()`), and any client sort here would make the card Home shows differ
  * from the card the tab hands you.
  *
  * `undefined` covers all three non-answers — loading, idle, and a cold error with no cached

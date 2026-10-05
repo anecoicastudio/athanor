@@ -67,9 +67,9 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
       className={cn('gap-2', PRESS_DIM)}
     >
       {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
-          Beside, the label takes the width that is left (`flex-1`): sized to its own text, the
-          moto g17 broke «Your week» over two lines in a box exactly as wide as the words
-          (Android 15, dev client, font scale 1.0, 2026-10-05). */}
+          Beside, the label takes the width that is left (`flex-1`), as in `aura/WeekCard`,
+          where a label sized to its own text broke over two lines on the moto g17
+          (2026-10-05; that comment has the measurement). */}
       <View className={stacked ? 'gap-1' : 'flex-row items-center justify-between gap-3'}>
         <SectionLabel className={stacked ? undefined : 'flex-1'}>
           {t('home.nudge.title', locale)}
