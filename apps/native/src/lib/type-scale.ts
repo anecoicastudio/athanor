@@ -89,7 +89,8 @@ export const DECK_WELL_MAX = 438;
 
 /**
  * The floor the room is never clamped under. At the default text size it rarely binds — the
- * iPhone SE simulator left 399 on 2026-10-05, under the Galleria header (421 the day before) —
+ * iPhone SE simulator left 399 on 2026-10-05, under the Galleria header (421 the day before;
+ * the element list, which rounds positions, read the well as 398) —
  * so it was chosen for the LARGEST text size, where the header and the action row grow and eat
  * the room while the card's text wraps faster than it scales (300 had clipped a quote, #751).
  * It stays under the SE's default-size room, so the fit #751 exists for is not traded away.

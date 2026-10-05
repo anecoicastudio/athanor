@@ -5995,7 +5995,7 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
     expect(
       hits,
       'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
-        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
     ).toEqual([]);
   });
 

@@ -315,7 +315,8 @@ export default function MomentiScreen() {
           pointerEvents="none"
           className="absolute inset-x-5 bottom-6 items-center"
           // Android reads this; iOS reads nothing from it — `accessibilityLiveRegion` is
-          // Android-only, and this pill bypasses ToastHost (which announces imperatively). The
+          // Android-only (#635's finding; believed, not re-read on 2026-10-05), and this pill
+          // bypasses ToastHost (which announces imperatively). The
           // `useAnnounceOnMount` above is the iOS half (#635).
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
