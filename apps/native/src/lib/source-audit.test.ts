@@ -4632,7 +4632,7 @@ describe('a tag label built from data goes through the shared fallback (#883)', 
 describe('an avatar in a row that names the member stays silent (#884)', () => {
   const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
     'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
-    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'row label' },
     'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
     'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
     'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
@@ -5441,8 +5441,57 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
     expect(src, 'a destructive title is the error red').toMatch(/text-error/);
     expect(src, 'one accessible button').toMatch(/accessibilityRole="button"/);
     expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
-    expect(src, 'a long title, value or second line wraps').not.toMatch(/numberOfLines/);
+    expect(
+      src.match(/numberOfLines=\{[^}]*\}/g)?.sort(),
+      'a long title, value or second line wraps unless the call site asks for a clamp',
+    ).toEqual(['numberOfLines={descriptionLines}', 'numberOfLines={titleLines}']);
     expect(src, 'no cyan').not.toMatch(/aura/);
+  });
+
+  it('a row takes a leading element, 12 from its text, and draws it first', () => {
+    const src = component('Row');
+    expect(src, 'the slot takes any element, as `trailing` does').toMatch(/leading\?: ReactNode;/);
+    const shape = /const shape = '([^']*)'/.exec(src)?.[1] ?? '';
+    expect(shape.split(' '), 'the row’s one gap is the prototype’s 12').toContain('gap-3');
+    expect(
+      src.replace(/\s+/g, ' '),
+      'the leading element is the first child of the row, at every text size',
+    ).toMatch(/const body = \( <> \{leading\} <View className=\{stacked \?/);
+    expect(src, 'the row does not know what it leads with').not.toMatch(/\bAvatar\b/);
+    expect(src, 'a second line may be an element with its own register').toMatch(
+      /description\?: ReactNode;/,
+    );
+  });
+
+  it('an avatar leading a row that acts is decorative: the row says the name', () => {
+    const led = appCode().flatMap(([at, src]) =>
+      jsxOpeningTags(src)
+        .filter((t) => t.base === 'Row' && /\bleading=\{/.test(t.raw))
+        .map((t) => ({ at: `${at}:${t.line}`, raw: t.raw })),
+    );
+    // A scanner that finds nothing passes the assertion below.
+    expect(led.length, 'no `<Row leading=` found at all').toBeGreaterThanOrEqual(2);
+    const spoken = led
+      .filter((t) => /\bonPress=\{/.test(t.raw) && /<Avatar\b/.test(t.raw))
+      .filter((t) => !/<Avatar\b[^>]*?\sdecorative(?=[\s/>])/.test(t.raw))
+      .map((t) => t.at);
+    expect(
+      spoken,
+      'a pressable `Row` is one button named by its label; a labelled `Avatar` in its ' +
+        '`leading` says the name a second time (#884). Pass `decorative`.',
+    ).toEqual([]);
+  });
+
+  it('no file builds the row by hand', () => {
+    const hits = appCode()
+      .filter(([at]) => !at.endsWith('components/Row.tsx'))
+      .filter(([, src]) => /(?<![\w-])min-h-15 flex-row items-center/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the row recipe written out in a second file: `Row` takes a `leading` element, a ' +
+        '`trailing` one and line clamps (DESIGN §9 «Grouped rows»)',
+    ).toEqual([]);
   });
 
   it('a group is one borderless surface block, radius 28, with hairlines between rows', () => {
@@ -6087,8 +6136,12 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
     const screen = code(MOMENTI).replace(/\s+/g, ' ');
     expect(screen).toMatch(/<RowGroup> \{suggestions\.data\.map\(/);
     const row = code('components/momenti/SuggestionRow.tsx');
-    expect(row).toMatch(/'min-h-15 flex-row items-center gap-3 py-2'/);
+    expect(row, 'the row is `Row`, the disc in its leading slot').toMatch(/<Row\s+leading=\{/);
+    expect(row, 'no row of its own').not.toMatch(/<Pressable\b|min-h-15/);
     expect(row).toMatch(/const stacked = stacksTrailing\(useWindowDimensions\(\)\.fontScale\);/);
+    expect(row, 'the tag’s 40% cap holds only beside the text').toMatch(
+      /trailing=\{<Tag shrink=\{!stacked\} quiet label=\{reason\} \/>\}/,
+    );
   });
 
   it('Costellazioni: the favour band is a row, the publish a small outline pill, the filters chips', () => {

@@ -5,6 +5,7 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Pressable, Text, View, cn } from '@/tw';
 import { Avatar } from '@/components/Avatar';
+import { Row } from '@/components/Row';
 import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useOpenNeeds } from '@/hooks/use-open-needs';
@@ -39,8 +40,8 @@ import { stacksTrailing } from '@/lib/type-scale';
  * The rows here are read-only; deciding happens in the sheet.
  *
  * A group of rows under its label, not a card (#921, 2026-10-05; DESIGN §6: a list is one
- * `surface` block). The rows are built here because `Row` has no leading slot for the disc:
- * `RowGroup` takes anything that brings its own vertical padding and none across. The way in,
+ * `surface` block). Each is a `Row` without an action, the disc in its `leading`, the name on
+ * one line and the need on two: the Pressable around the group is the one control. The way in,
  * «Vedi chi ha bisogno ›», stands at the right of the label as an underlined foreground
  * link; it was cyan text at the foot of the card.
  *
@@ -78,22 +79,21 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
       </View>
       <RowGroup>
         {needs.map((need) => (
-          <View key={need.need_milestone_id} className="min-h-15 flex-row items-center gap-3 py-2">
-            <Avatar
-              handle={need.target_handle}
-              displayName={need.target_display_name}
-              avatarPath={need.target_avatar_path}
-              size={44}
-            />
-            <View className="flex-1 gap-0.5">
-              <Text className="type-body font-medium text-foreground" numberOfLines={1}>
-                {memberLabel(need.target_display_name, need.target_handle) ?? '—'}
-              </Text>
-              <Text className="type-small text-muted-foreground" numberOfLines={2}>
-                {need.need}
-              </Text>
-            </View>
-          </View>
+          <Row
+            key={need.need_milestone_id}
+            leading={
+              <Avatar
+                handle={need.target_handle}
+                displayName={need.target_display_name}
+                avatarPath={need.target_avatar_path}
+                size={44}
+              />
+            }
+            title={memberLabel(need.target_display_name, need.target_handle) ?? '—'}
+            titleLines={1}
+            description={need.need}
+            descriptionLines={2}
+          />
         ))}
       </RowGroup>
     </Pressable>
