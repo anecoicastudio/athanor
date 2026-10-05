@@ -1,13 +1,23 @@
+import { useWindowDimensions } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { WeekRecap } from '@athanor/core';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
-import { Card } from '@/components/Card';
+import { Pressable, Text, View, cn } from '@/tw';
+import { SectionLabel } from '@/components/SectionLabel';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 
 /**
- * Compact week-recap card (M6 §3.4 Home block «La settimana»).
- * Shows spread header + 3 stats + 7-dot streak. Tapping → recap sheet.
+ * The week recap on Home (M6 §3.4 Home block «La settimana»), in its data state: the label
+ * and a hint, three figures, and the streak as a sentence. Tapping → recap sheet.
  * Read-only display — data derived from persisted ledger via summarizeWeek (rule #1).
+ *
+ * Bare on the stage, as the prototype draws it (#921, 2026-10-05): it was a card with a cyan
+ * title, a cyan «+N» and a row of seven dots. Home's one card is the waiting Momento. The
+ * week's «+N» is foreground: the cyan numeral is the member's Aura SCORE (DESIGN §2.3), and
+ * this is a week's gain. The dots are gone with the card; the sentence says the streak.
+ *
+ * `home/WeekSlot` is the only caller and owns the other three states.
  */
 export function WeekCard({
   recap,
@@ -18,84 +28,66 @@ export function WeekCard({
   locale: Locale;
   onPress: () => void;
 }) {
-  const dots = Array.from({ length: 7 }, (_, i) => i < recap.streakDays);
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
+  const stats = [
+    {
+      key: 'aura',
+      figure: `+${recap.auraWeek}`,
+      label: t('recap.metric.aura' as MessageKey, locale),
+    },
+    {
+      key: 'contributi',
+      figure: String(recap.contributi),
+      label: t('recap.card.contributi' as MessageKey, locale),
+    },
+    {
+      key: 'dreams',
+      figure: String(recap.sogniAiutati),
+      label: t('recap.card.dreams' as MessageKey, locale),
+    },
+  ];
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('recap.weekTitle' as MessageKey, locale)}
       onPress={onPress}
-      className="gap-3"
+      className={cn('gap-2', PRESS_DIM)}
     >
-      {/* Section label row. The ONLY eyebrow still inline: this one is `text-xs` (12px), not
-          SectionLabel's `text-[11px]`. Overriding a size through SectionLabel's className would
-          lean on react-native-css's same-specificity source-order resolution, which isn't
-          something to bet a type scale on. Either fold it to 11px or give SectionLabel a real
-          size prop — both are visual decisions, so neither belongs in a no-pixel-change sweep. */}
-      <View className="flex-row items-center justify-between">
-        <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-aura">
+      {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
+          Beside, the label takes the width that is left (`flex-1`): sized to its own text, the
+          moto g17 broke «Your week» over two lines in a box exactly as wide as the words
+          (Android 15, dev client, font scale 1.0, 2026-10-05). */}
+      <View className={stacked ? 'gap-1' : 'flex-row items-center justify-between gap-3'}>
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
           {t('recap.weekTitle' as MessageKey, locale)}
-        </Text>
-        <Text className="text-[12px] text-muted-foreground">
+        </SectionLabel>
+        <Text className="type-small text-muted-foreground">
           {t('recap.weekHint' as MessageKey, locale)}
         </Text>
       </View>
 
-      <Card>
-        {/* 3 stats row */}
-        <View className="flex-row justify-between">
-          {/* Aura week */}
-          <View className="items-center gap-1">
-            <Text
-              className="text-[22px] font-extrabold text-aura"
-              style={{ fontVariant: ['tabular-nums'] }}
-            >
-              +{recap.auraWeek}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">
-              {t('recap.metric.aura' as MessageKey, locale)}
-            </Text>
+      {/* Three figures, each over its word, left-aligned. At the accessibility text sizes
+          three columns do not fit one line, so the row wraps there and a column drops under
+          the others. */}
+      <View
+        className={
+          stacked
+            ? 'flex-row flex-wrap items-start gap-x-6 gap-y-2'
+            : 'flex-row items-start justify-between gap-3'
+        }
+      >
+        {stats.map(({ key, figure, label }) => (
+          <View key={key} className="gap-1">
+            <Text className="type-num-m text-foreground">{figure}</Text>
+            <Text className="type-small text-muted-foreground">{label}</Text>
           </View>
+        ))}
+      </View>
 
-          {/* Contributi */}
-          <View className="items-center gap-1">
-            <Text
-              className="text-[22px] font-extrabold text-foreground"
-              style={{ fontVariant: ['tabular-nums'] }}
-            >
-              {recap.contributi}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">
-              {t('recap.card.contributi' as MessageKey, locale)}
-            </Text>
-          </View>
-
-          {/* Sogni aiutati */}
-          <View className="items-center gap-1">
-            <Text
-              className="text-[22px] font-extrabold text-foreground"
-              style={{ fontVariant: ['tabular-nums'] }}
-            >
-              {recap.sogniAiutati}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">
-              {t('recap.card.dreams' as MessageKey, locale)}
-            </Text>
-          </View>
-        </View>
-
-        {/* 7-dot streak row */}
-        <View className="flex-row items-center gap-3">
-          <View className="flex-row gap-[5px]">
-            {dots.map((lit, i) => (
-              <View key={i} className={`h-2 w-2 rounded-full ${lit ? 'bg-aura' : 'bg-raise'}`} />
-            ))}
-          </View>
-          <Text className="text-[12px] text-muted-foreground">
-            {t('recap.streak' as MessageKey, locale, { n: recap.streakDays })}
-          </Text>
-        </View>
-      </Card>
+      <Text className="type-small text-muted-foreground">
+        {t('recap.streak' as MessageKey, locale, { n: recap.streakDays })}
+      </Text>
     </Pressable>
   );
 }

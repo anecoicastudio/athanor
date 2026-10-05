@@ -72,7 +72,9 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  *
  * - **Named** (this component) — absence is a claim about the person, so say which absence it
  *   is and offer a way out. A false «you have nothing» is the harm #111 exists for. Every
- *   list, every detail screen, anything reporting the member's own Aura.
+ *   list, every detail screen, anything reporting the member's own Aura. (`home/WeekSlot`
+ *   is Named too, by the same `listState` rule, but since 2026-10-05 it draws its three arms
+ *   itself: this component's empty state is a whole screen's, too tall for a Home slot.)
  * - **Collapse** — absence asserts nothing, so the slot vanishes and the destination screen
  *   owns the copy and the retry. That treatment is a bare `return null` at the caller, not a
  *   prop here, because what has to disappear is the whole section — its eyebrow and its link

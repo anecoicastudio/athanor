@@ -4652,8 +4652,9 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
     'components/profile/ProfileHero.tsx': { decorative: false, why: 'the profile’s own face' },
     'components/profile/ProfileEditForm.tsx': { decorative: false, why: 'whose photo this is' },
-    // The row label is generic («Hai un Momento»), so the disc is the only thing naming them.
-    'components/home/MomentiCard.tsx': { decorative: false, why: 'generic row label' },
+    'components/home/MomentiCard.tsx': { decorative: true, why: 'name Text beside it' },
+    // The row label is generic («Qualcuno ha bisogno di una mano»), so the disc is the only
+    // thing naming them.
     'components/home/FavorNudgeCard.tsx': { decorative: false, why: 'generic row label' },
   };
 
@@ -5664,5 +5665,106 @@ describe('the entry screens keep the Galleria look (#921)', () => {
       hits,
       'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits nothing',
     ).toEqual([]);
+  });
+});
+
+/*
+ * The Home tab (#921, the second screen chunk). The prototype draws ONE bordered card here, the
+ * waiting Momento, and everything else as bare blocks or grouped rows (Marco, 2026-10-05: the
+ * blocks it does not draw are borderless too). Cyan stands once on this screen: the 8px dot
+ * beside «Hai un Momento» (DESIGN §2.3). The fund block shows days, not seconds, so it carries
+ * none; the bell's unread dot is foreground; the member's Aura numeral is not on Home.
+ * `live/EventRow` under «In arrivo» is not in this list: it converts with Athanor Live.
+ */
+describe('the Home tab keeps the Galleria look (#921)', () => {
+  const HOME_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/home/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  /** `aura/WeekCard` has one caller, `home/WeekSlot`: it is Home's week block. */
+  const HOME = ['app/(tabs)/index.tsx', 'components/aura/WeekCard.tsx', ...HOME_FOLDER];
+  const MOMENTO = 'components/home/MomentiCard.tsx';
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the home folder is the nine files this section was written against', () => {
+    expect(HOME_FOLDER).toEqual([
+      'components/home/DreamHeroCard.tsx',
+      'components/home/FavorNudgeCard.tsx',
+      'components/home/HomeHeader.tsx',
+      'components/home/InviteCard.tsx',
+      'components/home/MomentiCard.tsx',
+      'components/home/PrimeStelleCard.tsx',
+      'components/home/StarsMiniRow.tsx',
+      'components/home/TodaySection.tsx',
+      'components/home/WeekSlot.tsx',
+    ]);
+  });
+
+  it('the one cyan on Home is the dot of the waiting Momento', () => {
+    const hits = HOME.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(hits, 'cyan is five marks (DESIGN §2.3); Home carries the first and no other').toEqual([
+      `${MOMENTO}  bg-aura`,
+    ]);
+  });
+
+  it('the one bordered card on Home is the waiting Momento', () => {
+    const carded = HOME.filter((file) => /<Card\b/.test(code(file)));
+    expect(carded, 'a screen has at most one bordered card (DESIGN §6)').toEqual([MOMENTO]);
+    const bordered = HOME.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(bordered, '`Card` brings the hairline; no Home file draws a border of its own').toEqual(
+      [],
+    );
+  });
+
+  it('a Home file sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm)\b|bg-raise(?:-2)?\b|text-faint\b)/;
+    const hits = HOME.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no Home file types a close, and the one typed chevron is the fund line’s', () => {
+    const typed = HOME.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'the close is the drawn `HeaderClose`; a row’s chevron is `Row`’s; the fund line ends on a ' +
+        '`›` that is part of its text, as the catalog’s «Scopri chi è ›» is',
+    ).toEqual(['components/home/DreamHeroCard.tsx  ›']);
+  });
+
+  it('every pressable on Home dims when pressed', () => {
+    const undimmed = HOME.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the three header controls are 44pt boxes, not a glyph with hitSlop', () => {
+    const header = code('components/home/HomeHeader.tsx');
+    expect(header).not.toMatch(/\bhitSlop\b/);
+    expect(header).toMatch(/min-h-\[44px\] min-w-\[44px\]/);
+  });
+
+  it('the stars and the invite are one group of rows', () => {
+    const screen = code('app/(tabs)/index.tsx').replace(/\s+/g, ' ');
+    expect(screen).toMatch(/<RowGroup> <StarsMiniRow\b[^]*?\/> <InviteCard\b[^]*?\/> <\/RowGroup>/);
   });
 });

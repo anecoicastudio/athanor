@@ -1,13 +1,16 @@
+import { useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { Avatar } from '@/components/Avatar';
-import { Card } from '@/components/Card';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useOpenNeeds } from '@/hooks/use-open-needs';
 import { topOpenNeeds } from '@/lib/favor-home';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 
 /**
  * Home block «Passa il favore» — people with an open need, and a way in (issue #99).
@@ -35,25 +38,22 @@ import { topOpenNeeds } from '@/lib/favor-home';
  * «Aiuta» chip calls `passFavor`, and a stray tap on a scrolling Home must not be able to write.
  * The rows here are read-only; deciding happens in the sheet.
  *
- * Flat `Card`, no glow — navigation into a sheet is not a moment (rule #4).
- * `(tabs)/costellazioni.tsx` carries the same note on the same destination (its favor entry), and
- * `favor.tsx`'s «The one glow» comment shows where the one glow
- * belongs: the completion overlay, after a favor is actually lit. The CTA is flat cyan text,
- * which rule #4 allows.
+ * A group of rows under its label, not a card (#921, 2026-10-05; DESIGN §6: a list is one
+ * `surface` block). The rows are built here because `Row` has no leading slot for the disc:
+ * `RowGroup` takes anything that brings its own vertical padding and none across. The way in,
+ * «Vedi chi ha bisogno ›», stands at the right of the label as an underlined foreground
+ * link; it was cyan text at the foot of the card.
  *
- * The label is the plain grey `SectionLabel`, as every label is outside a celebration screen
- * (#921, 2026-10-04). One cyan title is left on Home until that screen converts: `WeekCard`'s
- * inline `text-aura` one.
- *
- * One a11y label on the Pressable, like every Home sibling: VoiceOver reads one node. It costs
- * the handles, which is the same trade `MomentiCard`'s a11y note names — `target_handle` is
- * nullable, and a `{name}` label would read the «—» fallback aloud as "dash".
+ * One a11y label on the Pressable, like the fund and week blocks: VoiceOver reads one node.
+ * It costs the handles, a deliberate trade — `target_handle` is nullable, and a `{name}` label
+ * would read the «—» fallback aloud as "dash".
  *
  * Rule #1: this reads `favor_needs` and writes nothing. Aura stays the score-engine's business.
  */
 export function FavorNudgeCard({ locale }: { locale: Locale }) {
   const router = useRouter();
   const query = useOpenNeeds();
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   const needs = topOpenNeeds(query.data?.pages);
 
   // Nothing open, or nothing known yet — the slot collapses entirely (see docblock).
@@ -64,12 +64,21 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
       accessibilityRole="button"
       accessibilityLabel={t('home.nudge.a11y', locale)}
       onPress={() => router.push('/(modal)/favor')}
-      className="gap-3"
+      className={cn('gap-2', PRESS_DIM)}
     >
-      <SectionLabel>{t('home.nudge.title', locale)}</SectionLabel>
-      <Card>
+      {/* Beside each other, or stacked at the accessibility text sizes (`stacksTrailing`).
+          Beside, the label takes the width that is left (`flex-1`), as in `aura/WeekCard`,
+          where a label sized to its own text broke over two lines on the moto g17
+          (2026-10-05; that comment has the measurement). */}
+      <View className={stacked ? 'gap-1' : 'flex-row items-center justify-between gap-3'}>
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
+          {t('home.nudge.title', locale)}
+        </SectionLabel>
+        <Text className="type-small text-foreground underline">{t('home.nudge.cta', locale)}</Text>
+      </View>
+      <RowGroup>
         {needs.map((need) => (
-          <View key={need.need_milestone_id} className="flex-row items-center gap-3">
+          <View key={need.need_milestone_id} className="min-h-15 flex-row items-center gap-3 py-2">
             <Avatar
               handle={need.target_handle}
               displayName={need.target_display_name}
@@ -77,17 +86,16 @@ export function FavorNudgeCard({ locale }: { locale: Locale }) {
               size={44}
             />
             <View className="flex-1 gap-0.5">
-              <Text className="text-[14px] text-foreground" numberOfLines={1}>
+              <Text className="type-body font-medium text-foreground" numberOfLines={1}>
                 {memberLabel(need.target_display_name, need.target_handle) ?? '—'}
               </Text>
-              <Text className="text-[13px] text-faint" numberOfLines={2}>
+              <Text className="type-small text-muted-foreground" numberOfLines={2}>
                 {need.need}
               </Text>
             </View>
           </View>
         ))}
-        <Text className="text-[13px] text-aura">{t('home.nudge.cta', locale)}</Text>
-      </Card>
+      </RowGroup>
     </Pressable>
   );
 }
