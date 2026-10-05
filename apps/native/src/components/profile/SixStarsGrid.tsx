@@ -1,4 +1,4 @@
-import { Text } from '@/tw';
+import { Text, View } from '@/tw';
 import { Row } from '@/components/Row';
 import { RowGroup } from '@/components/RowGroup';
 import { t, type MessageKey } from '@athanor/i18n';
@@ -13,7 +13,7 @@ import { STAR, starCellState, starGlyph, starsBlockMode } from '@/lib/star';
  *
  * One row per state, and the state is in the glyph and in the word on the right (DESIGN §11,
  * 2026-08-08: state lives in the glyph, never in a dimmer colour):
- * - lit → «✦ name», «accesa». Not a control.
+ * - lit → «✦ name», «accesa». Not a control; one element labelled «name, accesa».
  * - own, unlit → «✧ name», «spenta ›», one button to the star's sheet, named «name, spenta».
  * - own, unknown → «— name», «non disponibile». NOT a control: the sheet behind it would show
  *   criteria and a progress bar for a star whose progress could not be read, the same false
@@ -63,14 +63,26 @@ export function SixStarsGrid({
           state === 'lit' ? 'star.lit' : state === 'unlit' ? 'star.unlit' : 'star.unknown',
           locale,
         );
+        const label = `${name}, ${stateWord}`;
+        const title = `${starGlyph(state)} ${name}`;
+        if (state === 'unlit' && onStarPress) {
+          return (
+            <Row
+              key={key}
+              title={title}
+              value={stateWord}
+              accessibilityLabel={label}
+              onPress={() => onStarPress(key)}
+            />
+          );
+        }
+        // A `Row` without `onPress` is a plain `View` and takes no label, so the inert rows
+        // (lit, unknown) are one labelled element here: «name, state», as the grid's cells
+        // were, instead of a bare ✦ or an em dash followed by a separate state word.
         return (
-          <Row
-            key={key}
-            title={`${starGlyph(state)} ${name}`}
-            value={stateWord}
-            accessibilityLabel={`${name}, ${stateWord}`}
-            onPress={state === 'unlit' && onStarPress ? () => onStarPress(key) : undefined}
-          />
+          <View key={key} accessible accessibilityLabel={label}>
+            <Row title={title} value={stateWord} />
+          </View>
         );
       })}
     </RowGroup>

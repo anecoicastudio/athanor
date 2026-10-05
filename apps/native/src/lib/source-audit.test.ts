@@ -6308,9 +6308,21 @@ describe('the Profilo tab keeps the Galleria look (#921)', () => {
     expect(stars).toMatch(/<RowGroup\b/);
     expect(stars).toMatch(/<Row\b/);
     expect(
+      stars.replace(/\s+/g, ' '),
+      'a `Row` without `onPress` takes no label: an inert star is one labelled element',
+    ).toMatch(/<View key=\{key\} accessible accessibilityLabel=\{label\}> <Row title=\{title\}/);
+    expect(
       FILES.filter((p) => /\bStarCell\b/.test(stripComments(read(p)))).map(rel),
       '`aura/StarCell` had one caller, the grid',
     ).toEqual([]);
+  });
+
+  it('the other member’s profile spaces the shared blocks as the tab does', () => {
+    // `ProfileHero` and `DreamCard` return their blocks side by side: the caller's gap is
+    // what stands between them, so both callers set the screen's 26.
+    for (const file of [TAB, 'app/(modal)/user/[id].tsx']) {
+      expect(code(file), file).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12/);
+    }
   });
 
   it('an incoming offer is a block of the «Aiuti in arrivo» group with two small pills', () => {
