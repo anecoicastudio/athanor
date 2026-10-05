@@ -98,7 +98,8 @@ describe('the nested-surface trap (regression)', () => {
   it('a quiet Tag has no fill: its grey reads on the stage and on a charcoal row', () => {
     // `components/Tag.tsx` draws a hairline and nothing behind the label (`source-audit` section
     // 50 holds that), so the pair is the grey on what the tag stands on: the stage under
-    // `BenefitRow`, a `bg-raise` row in `SuggestionRow` and `IncomingOfferRow`.
+    // `BenefitRow`, a `bg-raise` row in `IncomingOfferRow`, and since 2026-10-05 the `surface`
+    // block of a `RowGroup` under `SuggestionRow` (the same charcoal: `raise` is its alias).
     expect(ratio(galleria.foregroundMuted, CANVAS)).toBeCloseTo(5.8, 2);
     expect(ratio(galleria.foregroundMuted, RAISE)).toBeCloseTo(4.65, 2);
     expect(ratio(galleria.foregroundMuted, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
@@ -165,11 +166,13 @@ describe('the tone ladder', () => {
     expect(rung('foregroundMuted')).toBe(rung('faint'));
   });
 
-  it('INTERIM: SuggestionRow reads handle = dream > marker on bg-raise', () => {
-    const handle = ratio(galleria.foreground, RAISE); // 15.46
-    const dream = ratio(galleria.ink2, RAISE); // 15.46 — ink2 is foreground for now
+  it('SuggestionRow reads handle = dream > marker on its group’s surface', () => {
+    // No longer interim (2026-10-05): the row reads `foreground` for both lines and stands on
+    // a `RowGroup`'s `surface`, not on a `bg-raise` card.
+    const handle = ratio(galleria.foreground, SURFACE); // 15.46
+    const dream = ratio(galleria.foreground, SURFACE); // `DreamQuote`, the dream register
     // 4.65 — the quiet Tag has no fill since 2026-10-04, so its label is on the row itself.
-    const marker = ratio(galleria.foregroundMuted, RAISE);
+    const marker = ratio(galleria.foregroundMuted, SURFACE);
     expect(handle).toBe(dream);
     expect(dream).toBeGreaterThan(marker);
     for (const r of [handle, dream, marker]) expect(r).toBeGreaterThanOrEqual(AA_NORMAL);
@@ -310,8 +313,8 @@ describe('forbidden pairs — no call site may use these', () => {
   it('success clears AA where it marks a satisfied rule', () => {
     // `success` is a legacy alias: mobile has no green (ruled 2026-10-03), and the value stays
     // only while its sites are unconverted. The password checklists and the handle status
-    // left it with the entry screens (2026-10-04); the profile's «saved» line, the check-in
-    // frame and `SwipeStamp` still read it.
+    // left it with the entry screens (2026-10-04) and `SwipeStamp` with the Momenti tab
+    // (2026-10-05); the profile's «saved» line and the check-in frame still read it.
     expect(ratio(galleria.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
     expect(ratio(galleria.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });

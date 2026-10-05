@@ -179,7 +179,10 @@ export function SwipeDeck({
   });
 
   return (
-    <View className="flex-1">
+    // `grow`, not `flex-1`, here and on the top card: the well above gives a minimum height
+    // and a card whose text needs more makes it taller (2026-10-05, #921; the measurement is
+    // in `(tabs)/momenti.tsx`). The peek card is `absolute inset-0`: it takes the top card's box.
+    <View className="grow">
       {/*
         The peek card is HIDDEN from the accessibility tree, not merely untouchable (#635).
         `pointerEvents="none"` settles touch and says nothing about VoiceOver, so this fully
@@ -205,7 +208,7 @@ export function SwipeDeck({
       <Animated.View
         {...responder.panHandlers}
         style={{
-          flex: 1,
+          flexGrow: 1,
           transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }],
         }}
       >

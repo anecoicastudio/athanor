@@ -109,7 +109,7 @@ describe('reasonChipLabel', () => {
   });
 
   it('leaves the deck on the full form — the two surfaces are separate key sets', () => {
-    // AffinityRow (the swipe deck AND the home widget) keeps the sentence: there the prefix is
+    // AffinityRow (the swipe deck; Home's card writes the same sentence itself) keeps it: there the prefix is
     // a clause with tags spliced after a colon, and «Cerca ciò che offri: Investitore» would
     // assert what «Potrebbe cercare» deliberately hedges.
     expect(reasonPrefix('offering', 'it')).toBe('Potrebbe cercare ciò che offri');

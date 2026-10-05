@@ -71,11 +71,12 @@ describe('scaledWellHeight (#639)', () => {
 });
 
 describe('deckWellHeight (#751)', () => {
-  // An iPhone SE (375×667) Momenti tab, measured shapes: the ScrollView's viewport is the
-  // window minus the status bar (20) and the tab bar (49) — both outside it, so the helper
-  // never sees them. The well sits below pt-4 + eyebrow + h1 + sub + mt-5; the action row
-  // is a 56pt button behind its own mt-5.
-  const SE = { viewport: 598, wellTop: 112, actionGap: 20, actionRow: 56 };
+  // An iPhone SE (375×667) Momenti tab as the simulator laid it out on 2026-10-05 (Galleria,
+  // default text size): the ScrollView's viewport is the window minus the status bar (20) and
+  // the tab bar (48) — both outside it, so the helper never sees them. The well sits 124 down:
+  // pt-4, the eyebrow (17), the h1 (36) and the sub (21) 4 apart, then the 26 block gap. The
+  // action row is a 50pt pill behind the same 26.
+  const SE = { viewport: 599, wellTop: 124, actionGap: 26, actionRow: 50 };
 
   it('keeps 438 on a large window at the default text size', () => {
     // iPhone 17 Pro Max: nothing about a phone that already fit may change.
@@ -87,7 +88,7 @@ describe('deckWellHeight (#751)', () => {
     const well = deckWellHeight({ ...SE, fontScale: 1 });
     expect(well).toBeLessThan(DECK_WELL_MAX);
     expect(SE.wellTop + well + SE.actionGap + SE.actionRow).toBeLessThanOrEqual(SE.viewport);
-    expect(well).toBe(410);
+    expect(well).toBe(399);
   });
 
   it('never goes below the minimum, however little room there is', () => {
@@ -96,7 +97,7 @@ describe('deckWellHeight (#751)', () => {
   });
 
   it('applies fontScale after the clamp, so #639’s large-text growth holds', () => {
-    expect(deckWellHeight({ ...SE, fontScale: 1.5 })).toBe(615);
+    expect(deckWellHeight({ ...SE, fontScale: 1.5 })).toBe(599);
     expect(deckWellHeight({ ...SE, viewport: 800, fontScale: 1.5 })).toBe(657);
     expect(deckWellHeight({ ...SE, viewport: 0, fontScale: 2 })).toBe(
       DECK_WELL_MIN * FONT_SCALE_CAP.text,
@@ -110,7 +111,7 @@ describe('deckWellHeight (#751)', () => {
 
   it('never exceeds 438 at the default text size, and a smaller text size does not shrink it', () => {
     expect(deckWellHeight({ ...SE, viewport: 5000, fontScale: 1 })).toBe(DECK_WELL_MAX);
-    expect(deckWellHeight({ ...SE, fontScale: 0.82 })).toBe(410);
+    expect(deckWellHeight({ ...SE, fontScale: 0.82 })).toBe(399);
   });
 
   it('rounds to a whole point', () => {

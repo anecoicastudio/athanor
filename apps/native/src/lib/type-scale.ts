@@ -61,9 +61,10 @@ export function stacksTrailing(fontScale: number): boolean {
 }
 
 /**
- * Height for a well whose children are absolutely positioned, so their own text can never
- * grow it (the Momenti swipe deck: `SwipeDeck` stacks `absolute inset-0` cards, so the
- * parent's fixed height is the only height there is).
+ * Height for a well that must have a size before its children do (the Momenti swipe deck:
+ * `SwipeDeck` lays an `absolute inset-0` peek card under the top one, and the loading and
+ * empty arms bring no height). Since 2026-10-05 the screen applies it as a MINIMUM: the top
+ * card is in flow and makes the well taller when its text needs more (#921).
  *
  * Scales the base with the member's `fontScale` and bounds it by the same 2× the text cap
  * uses, so the well and the text inside it stop growing together. Below 1 it returns the
@@ -87,13 +88,19 @@ export function scaledWellHeight(
 export const DECK_WELL_MAX = 438;
 
 /**
- * The floor the well never shrinks under. At the default text size it rarely binds — an
- * iPhone SE leaves ~421 — so it is chosen for the LARGEST text size, where the header and the
- * action row grow and eat the room while the card's text wraps faster than it scales. Measured
- * on an iPhone SE at AX5 (fontScale capped at 2×) on 2026-10-04, at the 4px spacing step: a card
- * with three reasons and a three-line dream needs ~693pt, i.e. a base of ~347 (300 had clipped a
- * quote, #751). 380 → 760 at 2× leaves ~67pt, about one more line of AX quote. It stays under
- * the SE's default-size room, so the fit #751 exists for is not traded away.
+ * The floor the room is never clamped under. At the default text size it rarely binds — the
+ * iPhone SE simulator left 399 on 2026-10-05, under the Galleria header (421 the day before;
+ * the element list, which rounds positions, read the well as 398) —
+ * so it was chosen for the LARGEST text size, where the header and the action row grow and eat
+ * the room while the card's text wraps faster than it scales (300 had clipped a quote, #751).
+ * It stays under the SE's default-size room, so the fit #751 exists for is not traded away.
+ *
+ * It no longer has to hold the whole card at AX5, and does not: measured on the iPhone SE
+ * simulator at AX5 (fontScale capped at 2×) on 2026-10-05, a card with three reasons in body
+ * text and a three-line dream needs 826pt and 380 → 760 gives 66 less (on 2026-10-04, with
+ * 14px reasons, it needed ~693 and 760 left ~67). The screen applies the well's height as a
+ * minimum since that day, so the card grows it; holding 826 here would take a floor of 414,
+ * above the SE's room.
  */
 export const DECK_WELL_MIN = 380;
 
