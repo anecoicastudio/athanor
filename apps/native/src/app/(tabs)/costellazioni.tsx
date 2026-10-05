@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { RefreshControl } from 'react-native';
+import { RefreshControl, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProjectsPage, type ProjectCursor, projectKeys } from '@athanor/api';
 import { galleria } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
+import { Button } from '@/components/Button';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { Screen } from '@/components/Screen';
 import { ProjectCard } from '@/components/costellazioni/ProjectCard';
 import {
@@ -17,12 +20,22 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { supabase } from '@/lib/supabase';
+import { stacksTrailing } from '@/lib/type-scale';
 
 const COMPOSE_HREF = '/(modal)/project-compose' as const;
 const FAVOR_HREF = '/(modal)/favor' as const;
 
+/**
+ * The Costellazioni tab: the project board, with the way into Passa il Favore above it.
+ *
+ * Galleria since 2026-10-05 (#921; DESIGN §8.9): blocks 26 apart on a 20 gutter and NO bordered
+ * card (Marco, that day). The favour band is one `Row` in a `RowGroup`; «+ Pubblica» is a small
+ * outline pill beside the board's label; each project is a borderless block of its own
+ * (`ProjectCard`). No cyan on this screen.
+ */
 export default function CostellazioniScreen() {
   const router = useRouter();
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   const [filter, setFilter] = useState<ProjectFilter>('all');
   const locale = useLocale();
 
@@ -64,66 +77,66 @@ export default function CostellazioniScreen() {
         data={projects}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
-          <View className="gap-4 py-4">
+          <View className="gap-[26px] pb-[26px] pt-4">
             <View className="gap-1 px-5">
-              {/* h1 24/600 — the one in-content tab header recipe (DESIGN §6 → Screen headers). */}
-              <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">
+              {/* h1 32/600 — the tab-root header recipe (DESIGN §6 → Screen headers). */}
+              <Text accessibilityRole="header" className="type-h1 text-foreground">
                 {t('costellazioni.title', locale)}
               </Text>
-              <Text className="text-[14px] text-faint">{t('costellazioni.sub', locale)}</Text>
+              <Text className="type-small text-muted-foreground">
+                {t('costellazioni.sub', locale)}
+              </Text>
             </View>
-            <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
+            {/* The chip row pads itself 6 above and below for its chips' `hitSlop`; the
+                margin gives that back so the blocks stay 26 apart. */}
+            <View className="-my-1.5">
+              <ProjectFilterTabs active={filter} onChange={setFilter} locale={locale} />
+            </View>
             {/* Passa il Favore — was the ListFooter of an INFINITE list (#640): every fetched
-                page pushed it further away, on a darker-than-page surface. A header row is
-                always reachable; flat card chrome, no glow (rule #4: navigation, not a moment). */}
+                page pushed it further away. A header row is always reachable. One row of a
+                group, with `Row`'s chevron: navigation, not a moment. */}
             <View className="px-5">
-              <Pressable
-                onPress={() => router.push(FAVOR_HREF)}
-                accessibilityRole="button"
-                accessibilityLabel={t('costellazioni.favor.title', locale)}
-                className="gap-1 rounded-card border border-hair bg-raise px-5 py-4"
-              >
-                <Text className="text-[15px] text-foreground">
-                  {t('costellazioni.favor.title', locale)}
-                </Text>
-                <Text className="text-[13px] text-faint">
-                  {t('costellazioni.favor.desc', locale)}
-                </Text>
-              </Pressable>
+              <RowGroup>
+                <Row
+                  title={t('costellazioni.favor.title', locale)}
+                  description={t('costellazioni.favor.desc', locale)}
+                  onPress={() => router.push(FAVOR_HREF)}
+                />
+              </RowGroup>
             </View>
-            <View className="flex-row items-center justify-between gap-3 px-5">
-              {/* Ellipsizes beside «+ Pubblica» at AX sizes; the label keeps it whole (#754). */}
-              <SectionLabel
-                numberOfLines={1}
-                accessibilityLabel={t('costellazioni.board.label', locale)}
-                className="shrink"
-              >
+            {/* Label left, pill right; the label takes the width that is left (`flex-1`), not
+                the width of its words, and at the accessibility text sizes (`stacksTrailing`)
+                the pill goes under it. Until 2026-10-05 the label ellipsized beside the
+                control at those sizes (#754). */}
+            <View
+              className={
+                stacked
+                  ? 'items-start gap-2 px-5'
+                  : 'flex-row items-center justify-between gap-3 px-5'
+              }
+            >
+              <SectionLabel className={stacked ? undefined : 'flex-1'}>
                 {t('costellazioni.board.label', locale)}
               </SectionLabel>
-              <Pressable
+              <Button
+                variant="outline"
+                size="sm"
+                label={t('costellazioni.publish', locale)}
                 onPress={() => router.push(COMPOSE_HREF)}
-                accessibilityRole="button"
-                // 13px label + HIT_SLOP reached ~38pt — HIT_SLOP is sized for a 22pt icon,
-                // not for bare small text. Same shape as `home/TodaySection.tsx`.
-                className="min-h-[44px] shrink-0 justify-center"
-              >
-                <Text className="text-[13px] text-aura">{t('costellazioni.publish', locale)}</Text>
-              </Pressable>
+              />
             </View>
           </View>
         }
         renderItem={({ item }) => (
-          <View className="px-5 pb-4">
+          <View className="px-5 pb-[26px]">
             <ProjectCard project={item} locale={locale} />
           </View>
         )}
         ListEmptyComponent={
           query.isLoading ? null : (
-            <View className="items-center px-5 pt-16">
-              {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced put the
-                  loudest surface on the screen on an empty feed (#119). Not a rule #4 breach:
-                  with no shadow that pair is not a glow (§2.3, ruled 2026-09-07). It was a
-                  weight problem. */}
+            <View className="items-center px-5 pt-10">
+              {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced until #119 put
+                  the loudest surface on the screen on an empty board. */}
               <EmptyState
                 action={{
                   label: t('feed.empty.cat.cta', locale),
