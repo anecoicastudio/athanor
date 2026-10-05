@@ -2,17 +2,16 @@ import type { ComponentProps, ReactNode } from 'react';
 import { pickNextStar } from '@athanor/core';
 import { t, tn } from '@athanor/i18n';
 import type { Locale, Star, StarKey } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { Text } from '@/tw';
 import { MomentiGallery } from '@/components/media/MomentiGallery';
 import { ProfileHero } from '@/components/profile/ProfileHero';
-import { SectionLabel } from '@/components/SectionLabel';
 import { SixStarsGrid } from '@/components/profile/SixStarsGrid';
 import { StarProgress } from '@/components/aura/StarProgress';
 import { starsBlockMode } from '@/lib/star';
 
 /**
- * Shared Profilo VIEW stack — hero → IL SOGNO → stat dot-line → Sei Stelle → Momenti
- * gallery — used by both the own tab ((tabs)/profile) and the third-person modal
+ * Shared Profilo VIEW stack — hero (face, bio, Aura) → IL SOGNO → stat dot-line → Sei Stelle
+ * → Momenti gallery — used by both the own tab ((tabs)/profile) and the third-person modal
  * ((modal)/user/[id]), which frontend `02` §3.5 mandates mirror each other. Divergent
  * blocks (completeness hint, Connessioni row, reviews, action bar) are injected via
  * slots/children so the layout has one source.
@@ -38,7 +37,8 @@ export function ProfileBody({
   children,
 }: {
   locale: Locale;
-  hero: ComponentProps<typeof ProfileHero>;
+  /** `own` is not the caller's to say twice: it is `viewerIsOwner`. */
+  hero: Omit<ComponentProps<typeof ProfileHero>, 'own'>;
   statCounts?: { collabsCount: number; eventsCount: number };
   /** Slot between hero and the dream (own view: completeness hint). */
   afterHero?: ReactNode;
@@ -55,14 +55,15 @@ export function ProfileBody({
 }) {
   return (
     <>
-      <ProfileHero {...hero} />
+      <ProfileHero {...hero} own={viewerIsOwner} />
       {afterHero}
       {dream}
 
       {/* Stat dot-line (#640): the spec's compact caption, not a display-size slab —
-          «3 collaborazioni · 12 eventi · 0 recensioni». tn: «1 eventi» is a grammar
-          bug — each label declares a `.one` sibling (#634). */}
-      <Text className="text-center text-[13px] text-faint">
+          «3 collaborazioni · 12 eventi · 0 recensioni», grey and on the gutter like every other
+          secondary line. tn: «1 eventi» is a grammar bug — each label declares a `.one`
+          sibling (#634). */}
+      <Text className="type-small text-muted-foreground">
         {[
           `${statCounts?.collabsCount ?? 0} ${tn('profile.stat.collabs', statCounts?.collabsCount ?? 0, locale)}`,
           `${statCounts?.eventsCount ?? 0} ${tn('profile.stat.events', statCounts?.eventsCount ?? 0, locale)}`,
@@ -71,33 +72,30 @@ export function ProfileBody({
       </Text>
       {afterStats}
 
-      {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress row is owner-only.
-          Another member with no star lit gets no block at all, label included (#754). */}
+      {/* Le Sei Stelle — earned-only for others via RLS (rule #3); progress is owner-only.
+          Another member with no star lit gets no block at all, label included (#754).
+          `SixStarsGrid` draws the label with its group. */}
       {starsBlockMode(stars, viewerIsOwner) === 'hidden' ? null : (
-        <View className="gap-3">
-          <SectionLabel>{t('profile.stars.title', locale)}</SectionLabel>
-          <SixStarsGrid
-            stars={stars}
-            viewerIsOwner={viewerIsOwner}
-            locale={locale}
-            onStarPress={onStarPress}
-          />
-          {/* Progress needs the rows to compute a ratio; with none read there is nothing truthful
-            to say, so the strip hides rather than showing 0 / N. The owner gets a sentence in
-            its place — six em dashes and a block that silently shrinks is honest but mute, and
-            unlike the third-person case there is no «—» hero beside it co-signalling why
-            (issue #16). */}
-          {viewerIsOwner ? (
-            stars != null ? (
-              <StarProgress next={pickNextStar(stars)} locale={locale} />
-            ) : (
-              <Text className="text-[12px] text-faint">
-                {t('profile.stars.yourUnavailable', locale)}
-              </Text>
-            )
-          ) : null}
-        </View>
+        <SixStarsGrid
+          stars={stars}
+          viewerIsOwner={viewerIsOwner}
+          locale={locale}
+          onStarPress={onStarPress}
+        />
       )}
+      {/* Progress needs the rows to compute a ratio; with none read there is nothing truthful
+          to say, so the block hides rather than showing 0 / N. The owner gets a sentence in its
+          place — six em dashes and a block that silently shrinks is honest but mute, and unlike
+          the third-person case there is no «—» numeral beside it co-signalling why (issue #16). */}
+      {viewerIsOwner ? (
+        stars != null ? (
+          <StarProgress next={pickNextStar(stars)} locale={locale} />
+        ) : (
+          <Text className="type-small text-muted-foreground">
+            {t('profile.stars.yourUnavailable', locale)}
+          </Text>
+        )
+      ) : null}
 
       {/* Momenti gallery — own view passes onAdd; third-person passes label/emptyLabel overrides */}
       <MomentiGallery {...gallery} />
