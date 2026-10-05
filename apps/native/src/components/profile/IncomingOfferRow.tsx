@@ -2,19 +2,26 @@ import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Help, Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { ButtonRow } from '@/components/ButtonRow';
-import { Tag } from '@/components/Tag';
+import { PRESS_DIM } from '@/lib/press';
 import type { HelperIdentity } from '@/hooks/use-own-dream';
 
 /**
- * One «Aiuti in arrivo» row on the owner's Profilo (frontend `02` §3.4D): who offered
- * help on a tappa + the accept/decline (status='offered') or confirm-done (status='accepted')
- * affordance. Owner-confirm lives here on the accepted offer (simpler than threading it into
- * the tappa row). Confirm-done is the +40/+10 domain event — but this row writes NO Aura
- * (rule #1); the caller's confirmHelpComplete only touches milestone_helps + dream_milestones.
+ * One «Aiuti in arrivo» block on the owner's Profilo (frontend `02` §3.4D), a child of that
+ * `RowGroup` (the prototype's `.rows > .row.col`: 14 above and below, 10 between its lines).
+ * Who offered help on a tappa, what kind and their words, then accept / decline
+ * (status='offered') as two small pills, or confirm-done (status='accepted'). Owner-confirm
+ * lives here on the accepted offer (simpler than threading it into the tappa row). Confirm-done
+ * is the +40/+10 domain event — but this row writes NO Aura (rule #1); the caller's
+ * confirmHelpComplete only touches milestone_helps + dream_milestones.
+ *
+ * The identity line is one button to the helper's profile (#356). It holds the name, the kind
+ * of help and the message, so its label says all three: a labelled button is believed to hide
+ * the text inside it from a screen reader (unverified: no screen reader was run on this row),
+ * and the message is the block's payload.
  */
 export function IncomingOfferRow({
   help,
@@ -36,67 +43,70 @@ export function IncomingOfferRow({
 }) {
   const router = useRouter();
   const helperName = memberLabel(helper?.displayName, helper?.handle) ?? '—';
+  const kind = t(`help.type.${help.type}`, locale);
   return (
-    <View
-      className={`gap-3 rounded-card border border-hair bg-raise p-4 ${mutating ? 'opacity-50' : ''}`}
-    >
-      {/* who + offer type — the identity block taps through to the helper's profile (#356) */}
-      <View className="flex-row items-center gap-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('connection.a11y.open', locale, { name: helperName })}
-          className="flex-1 flex-row items-center gap-3"
-          // 36pt avatar + 4pt each side = the 44pt target, without growing the row.
-          hitSlop={{ top: 4, bottom: 4 }}
-          onPress={() => router.push(`/(modal)/user/${help.helper_id}`)}
-        >
-          <Avatar
-            decorative
-            handle={helper?.handle ?? null}
-            displayName={helper?.displayName ?? null}
-            avatarPath={helper?.avatarPath ?? null}
-            size={44}
-          />
-          <Text className="flex-1 text-[15px] font-semibold text-foreground" numberOfLines={1}>
+    <View className={cn('gap-[10px] py-[14px]', mutating && 'opacity-50')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={[
+          t('connection.a11y.open', locale, { name: helperName }),
+          kind,
+          help.message,
+        ]
+          .filter(Boolean)
+          .join(', ')}
+        className={cn('flex-row items-center gap-3', PRESS_DIM)}
+        onPress={() => router.push(`/(modal)/user/${help.helper_id}`)}
+      >
+        <Avatar
+          decorative
+          handle={helper?.handle ?? null}
+          displayName={helper?.displayName ?? null}
+          avatarPath={helper?.avatarPath ?? null}
+          size={44}
+        />
+        <View className="flex-1 gap-0.5">
+          <Text className="type-body font-medium text-foreground" numberOfLines={1}>
             {helperName}
           </Text>
-        </Pressable>
-        <Tag quiet label={t(`help.type.${help.type}`, locale)} />
-      </View>
-
-      {/* The helper's two lines, if any — `ink-2` (body copy), not `faint`. This is the row's
-          payload and has to outrank the help-type Tag beside the name, whose `quiet` tone is
-          `muted-foreground` and therefore sits ABOVE `faint`. Ladder: name > message > type. */}
-      {help.message ? (
-        <Text className="text-[14px] leading-relaxed text-ink-2">{help.message}</Text>
-      ) : null}
+          {/* The kind of help, then the helper's own words: one grey line, never clamped. */}
+          <Text className="type-small text-muted-foreground">
+            {[kind, help.message].filter(Boolean).join(' · ')}
+          </Text>
+        </View>
+      </Pressable>
 
       {/* actions by status */}
       {help.status === 'offered' ? (
         <ButtonRow>
           <Button
+            size="sm"
             label={t('help.owner.accept', locale)}
-            variant="primary"
             disabled={mutating}
             onPress={onAccept}
           />
           <Button
+            variant="outline"
+            size="sm"
             label={t('help.owner.decline', locale)}
-            variant="ghost"
             disabled={mutating}
             onPress={onDecline}
           />
         </ButtonRow>
       ) : help.status === 'accepted' ? (
-        <View className="gap-3">
-          <Text className="text-[12px] text-faint">{t('help.state.accepted', locale)}</Text>
-          <Button
-            label={t('help.owner.confirm', locale)}
-            variant="primary"
-            disabled={mutating}
-            onPress={onConfirm}
-          />
-        </View>
+        <>
+          <Text className="type-small text-muted-foreground">
+            {t('help.state.accepted', locale)}
+          </Text>
+          <ButtonRow>
+            <Button
+              size="sm"
+              label={t('help.owner.confirm', locale)}
+              disabled={mutating}
+              onPress={onConfirm}
+            />
+          </ButtonRow>
+        </>
       ) : null}
     </View>
   );

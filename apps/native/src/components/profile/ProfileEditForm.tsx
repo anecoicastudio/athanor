@@ -13,7 +13,7 @@ import {
 } from '@athanor/core';
 import { t, tagLabel, type MessageKey } from '@athanor/i18n';
 import type { Locale, Profile } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { ButtonRow } from '@/components/ButtonRow';
@@ -31,6 +31,7 @@ import { useToast } from '@/components/ToastHost';
 import { useDiscardConfirm } from '@/hooks/use-dirty-guard';
 import { useHandleLookup } from '@/hooks/use-handle-lookup';
 import { isDraftDirty } from '@/lib/dirty-guard';
+import { PRESS_DIM } from '@/lib/press';
 import {
   handleBlocksSave,
   handleRefusalMessage,
@@ -251,8 +252,8 @@ export function ProfileEditForm({
 
           The tab's three props came across verbatim rather than being re-chosen — `className`,
           `contentContainerClassName` and `keyboardShouldPersistTaps`; `stickyHeaderIndices` is the
-          only one that is new here. What is inside them carries the weight: `gap-8` is the only
-          thing spacing the eleven sections, `pb-12` is #163's one shared trailing value, `px-5` is
+          only one that is new here. What is inside them carries the weight: `gap-[26px]` (the
+          screen's block gap, `gap-8` until 2026-10-05) is the only thing spacing the sections, `pb-12` is #163's one shared trailing value, `px-5` is
           DESIGN §6's 20pt gutter, `pt-4` is the breathing room above the row at rest, `flex-1` is
           what bounds the scroll, and `keyboardShouldPersistTaps="handled"` is what lets a tap on
           the pinned «Annulla» reach it while the keyboard is up instead of only dismissing the
@@ -276,14 +277,14 @@ export function ProfileEditForm({
           `source-audit.test.ts` §39 pins both halves. */}
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+        contentContainerClassName="gap-[26px] px-5 pb-12 pt-4"
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={[0]}
       >
         {/* The way out, at the top (#659).
 
             The parent unmounts its own share/settings/edit row while editing
-            (`(tabs)/profile.tsx`), so before this the only exit was the ghost «Annulla» at the
+            (`(tabs)/profile.tsx`), so before this the only exit was the second pill, «Annulla», at the
             foot of ELEVEN sections — photo, name, bio, mission, identity, seeking, profession,
             skills, city, dream, language. An accidental tap on «Modifica» cost a full scroll
             each way, which is the whole of #659.
@@ -296,9 +297,10 @@ export function ProfileEditForm({
 
             A real box rather than `HIT_SLOP`, and the literal `[44px]` (#638): a spacing step was
             3.5px on device until 2026-10-04 (#921), so `h-11` measured 38.5pt and passed on web.
-            Text «Annulla» rather than a back: DESIGN §6 reserves the chevron for pushed screens
+            Text «Annulla» rather than a back: DESIGN §6 reserves the back for pushed screens
             and sheets via `ModalHeader`, and a tab root has nothing to pop — this leaves a mode,
-            not a screen.
+            not a screen. It is an underlined link on the right since 2026-10-05, where the
+            view mode's «Modifica» stood (the prototype's `.lk`).
 
             The row wrapper is load-bearing, not decoration, and since #720 it also carries the
             pin. These are the direct children of THIS component's `ScrollView` content — no
@@ -314,14 +316,14 @@ export function ProfileEditForm({
             class resolves inside `useCssElement`, below the point the wrapper reads. So the fill
             stays on the row on both. The container's `px-5` is what makes it span the full content
             width, with no gutter left over for anything to show through beside it. */}
-        <View className="flex-row items-center bg-background">
+        <View className="flex-row items-center justify-end bg-background">
           <Pressable
             accessibilityRole="button"
             disabled={saving}
             onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
-            className="min-h-[44px] min-w-[44px] justify-center"
+            className={cn('min-h-[44px] min-w-[44px] justify-center', PRESS_DIM)}
           >
-            <Text className="text-base font-semibold text-faint">
+            <Text className="type-small text-foreground underline">
               {t('profile.cancel', locale)}
             </Text>
           </Pressable>
@@ -332,8 +334,11 @@ export function ProfileEditForm({
             eye. 'public' keeps the /@handle link resolving for anyone; 'members' — where a new
             member starts since #790 — means no public page at all. 'private' is deliberately not offered:
             members always see name and photo (the facet gates anon only, profile.ts docblock),
-            so a «Solo io» chip here would promise a setting that does not exist. */}
-        <View className="gap-3">
+            so a «Solo io» chip here would promise a setting that does not exist.
+
+            Four blocks of the form, 26 apart like the sections below them: the photo, the name,
+            the handle, who can see them. 6 from a label to its field, 8 inside a group. */}
+        <View className="gap-2">
           <SectionLabel>{t('profile.photo.label', locale)}</SectionLabel>
           <View className="flex-row items-center gap-4">
             <Avatar
@@ -343,15 +348,15 @@ export function ProfileEditForm({
               previewUri={pendingAvatar}
               size={72}
             />
-            <View className="flex-1 gap-1.5">
+            <View className="flex-1 items-start">
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('profile.photo.a11y', locale)}
                 disabled={avatar.status === 'uploading'}
                 onPress={() => setSheetOpen(true)}
-                className="min-h-[44px] justify-center"
+                className={cn('min-h-[44px] justify-center', PRESS_DIM)}
               >
-                <Text className="text-[14px] font-semibold text-aura">
+                <Text className="type-small text-foreground underline">
                   {avatarPath || pendingAvatar
                     ? t('profile.photo.change', locale)
                     : t('profile.photo.add', locale)}
@@ -364,24 +369,26 @@ export function ProfileEditForm({
                     setPendingAvatar(null);
                     setAvatarPath(null);
                   }}
-                  className="min-h-[44px] justify-center"
+                  className={cn('min-h-[44px] justify-center', PRESS_DIM)}
                 >
-                  <Text className="text-[13px] text-muted-foreground">
+                  <Text className="type-small text-muted-foreground underline">
                     {t('profile.photo.remove', locale)}
                   </Text>
                 </Pressable>
               ) : null}
               {avatar.status === 'uploading' ? (
-                <Text className="text-[13px] text-faint">
+                <Text className="type-small text-muted-foreground">
                   {t('profile.photo.uploading', locale)}
                 </Text>
               ) : null}
               {avatar.status === 'error' ? (
-                <Text className="text-[13px] text-error">{t('profile.photo.error', locale)}</Text>
+                <Text className="text-[14px] text-error">{t('profile.photo.error', locale)}</Text>
               ) : null}
             </View>
           </View>
+        </View>
 
+        <View className="gap-1.5">
           <SectionLabel>{t('profile.name.label', locale)}</SectionLabel>
           <Field
             maxLength={60}
@@ -389,10 +396,10 @@ export function ProfileEditForm({
             value={displayName}
             onChangeText={setDisplayName}
           />
-          <Text className="text-[13px] text-muted-foreground">
-            {t('profile.name.hint', locale)}
-          </Text>
+          <Text className="type-small text-muted-foreground">{t('profile.name.hint', locale)}</Text>
+        </View>
 
+        <View className="gap-1.5">
           <SectionLabel>{t('handle.label', locale)}</SectionLabel>
           <HandleField
             value={handle}
@@ -408,12 +415,14 @@ export function ProfileEditForm({
             }
           />
           {renameOpen ? (
-            <Text className="text-[13px] leading-snug text-muted-foreground">
+            <Text className="type-small text-muted-foreground">
               {t('handle.renameHint', locale, { days: HANDLE_RENAME_COOLDOWN_DAYS })}
             </Text>
           ) : null}
+        </View>
 
-          {/* The identity facet (#251): one control for the whole block, same visual grammar as
+        <View className="gap-2">
+          {/* The identity facet (#251): one control for the three blocks above, same visual grammar as
               Section's chip row. An absent key reads as public, never 'members', because the row
               policy coalesces the same way: a new member's row carries 'members' explicitly
               (#790), so an absent key only survives on an older map, which was public. A stray
@@ -438,7 +447,7 @@ export function ProfileEditForm({
               ))}
             </View>
           </View>
-          <Text className="text-[13px] leading-snug text-muted-foreground">
+          <Text className="type-small text-muted-foreground">
             {t('profile.shell.hint', locale)}
           </Text>
         </View>
@@ -456,7 +465,7 @@ export function ProfileEditForm({
             setVis={setVis}
             locale={locale}
           >
-            <Text className="text-[15px] text-ink-2">
+            <Text className="type-body text-foreground">
               {t(`zodiac.${profile.zodiac_sign}` as MessageKey, locale)}
             </Text>
           </Section>
@@ -507,7 +516,7 @@ export function ProfileEditForm({
           setVis={setVis}
           locale={locale}
         >
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {IDENTITY_TAGS.map((tag) => (
               <Chip
                 key={tag}
@@ -528,7 +537,7 @@ export function ProfileEditForm({
           setVis={setVis}
           locale={locale}
         >
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {SEEKING_TAGS.map((tag) => (
               <Chip
                 key={tag}
@@ -560,7 +569,7 @@ export function ProfileEditForm({
               longer exists. */}
           {(visibility.identity_tags ?? 'members') === 'private' &&
           (visibility.seeking ?? 'members') === 'private' ? (
-            <Text className="text-[13px] leading-snug text-muted-foreground">
+            <Text className="type-small text-muted-foreground">
               {t('profile.visibility.tagsPrivateHint', locale, {
                 identity: t('profile.identity.label', locale),
                 seeking: t('profile.seeking.label', locale),
@@ -579,7 +588,7 @@ export function ProfileEditForm({
           setVis={setVis}
           locale={locale}
         >
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {PROFESSIONS.map((key) => (
               <Chip
                 key={key}
@@ -600,7 +609,7 @@ export function ProfileEditForm({
           setVis={setVis}
           locale={locale}
         >
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {SKILLS.map((key) => (
               <Chip
                 key={key}
@@ -610,7 +619,7 @@ export function ProfileEditForm({
               />
             ))}
           </View>
-          <Text className="text-[13px] text-muted-foreground">
+          <Text className="type-small text-muted-foreground">
             {t('profile.skills.hint', locale)}
           </Text>
         </Section>
@@ -654,29 +663,27 @@ export function ProfileEditForm({
               member as a candidate, so they stop being proposed to anyone. Shown
               only on that choice — a standing line would be noise on the others. */}
           {(visibility.dream ?? 'members') === 'private' ? (
-            <Text className="text-[13px] leading-snug text-muted-foreground">
+            <Text className="type-small text-muted-foreground">
               {t('dream.visibility.privateHint', locale)}
             </Text>
           ) : null}
         </Section>
 
-        {/* Lingua + actions */}
-        <View className="gap-3">
+        {/* Lingua */}
+        <View className="gap-2">
           <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
           <LocaleChips value={locale} onChange={setLocale} />
+        </View>
 
-          {error ? <Text className="text-sm text-error">{error}</Text> : null}
+        {/* The refusal, if any, then the two actions: the white pill and the outline one. */}
+        <View className="gap-3">
+          {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
 
           <ButtonRow>
+            <Button label={t('profile.save', locale)} disabled={saving} onPress={save} />
             <Button
-              label={t('profile.save', locale)}
-              variant="primary"
-              disabled={saving}
-              onPress={save}
-            />
-            <Button
+              variant="outline"
               label={t('profile.cancel', locale)}
-              variant="ghost"
               disabled={saving}
               onPress={() => confirmDiscard({ dirty, saving }, onCancel)}
             />

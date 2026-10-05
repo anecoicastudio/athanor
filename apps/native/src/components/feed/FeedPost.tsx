@@ -79,7 +79,7 @@ export function FeedPost({ post, locale }: { post: Post; locale: Locale }) {
           >
             {/* ✧, not ✦: this block never receives the viewer's lit state, so it renders one
                 glyph for every post. Under the ✦-lit/✧-unlit vocabulary (ReactionStar,
-                StarCell) a filled star here would claim "you lit this" on the whole feed. */}
+                the six stars' rows) a filled star here would claim "you lit this" on the whole feed. */}
             <Text className="type-small text-muted-foreground">{STAR.unlit}</Text>
           </Pressable>
           <Pressable

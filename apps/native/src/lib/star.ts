@@ -89,13 +89,14 @@ export function starCellState(stars: StarRow[] | null, key: StarKey): StarCellSt
  * lived only in `SixStarsGrid.tsx`, which this app's `environment: 'node'` vitest harness cannot
  * reach (`*.test.ts` glob; the 176 `.tsx` files are structurally uncollectable).
  *
- * - `'grid'` — six cells, each resolved by `starCellState`. Always for the owner; for anyone
+ * - `'grid'` — six rows (cells of a grid until 2026-10-05; the mode keeps its name), each
+ *   resolved by `starCellState`. Always for the owner; for anyone
  *   else it shows only their earned stars, since rule #3 hides what a member is missing.
  * - `'hidden'` — nothing at all, label included, for ANOTHER member with no star lit (#754). Their
- *   grid would draw no cells, leaving «LE SEI STELLE» over an empty block. Never the owner, who
+ *   group would draw no rows, leaving «LE SEI STELLE» over an empty block. Never the owner, who
  *   sees six unlit stars and the progress row, and never a failed read, which is `'unavailable'`.
  * - `'unavailable'` — a single placeholder, and ONLY for a failed read of someone else. Six
- *   unknown cells there would render more cells than a real profile with two lit stars, turning
+ *   unknown rows there would be more rows than a real profile with two lit stars, turning
  *   the viewer's own network failure into a visible shape difference — a claim about a person
  *   made out of the reader's connection. One line states the viewer's failure and asserts
  *   nothing about the member, and stays distinguishable from a genuinely starless member, whose

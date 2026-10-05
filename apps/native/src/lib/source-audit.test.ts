@@ -2592,7 +2592,7 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
    * which is the one nobody looked at. The line moving is the point — it forces a re-read.
    */
   const BARE_PRESSABLE_OK: Record<string, string> = {
-    'components/profile/DreamCard.tsx:72':
+    'components/profile/DreamCard.tsx:88':
       'wraps <DreamQuote>, a multi-line quote block that is far taller than the floor',
   };
 
@@ -4482,7 +4482,8 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
    *
    * Since Galleria (rule 4, mobile half, 2026-10-03) nothing on mobile glows, so the list only
    * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop,
-   * `components/Mandorla.tsx` the same day with its `glowLevel`, and each of the rest leaves
+   * `components/Mandorla.tsx` the same day with its `glowLevel`,
+   * `components/profile/MomentFlash.tsx` on 2026-10-05 with the Profilo tab, and each of the rest leaves
    * when its own screens are converted (#921, open as of 2026-10-04).
    */
   const GLOW_SURFACES = [
@@ -4490,7 +4491,6 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
     'components/circle/SubscriptionStatusCard.tsx',
     'components/fund/CandidateCard.tsx',
     'components/fund/FundTicker.tsx',
-    'components/profile/MomentFlash.tsx',
   ];
 
   it('is called from exactly these files, and no countdown file is among them', () => {
@@ -6168,5 +6168,199 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
       /className="shrink type-small text-muted-foreground"/,
     );
     expect(card, 'the shared author row is 17/500: not here').not.toMatch(/<PostAuthorRow\b/);
+  });
+});
+
+/**
+ * The Profilo tab (#921, C13): the route, `components/profile/`, and the three components only
+ * the profile renders (`aura/StarProgress`, `media/MomentiGallery`, and `ProfileBody` through
+ * which the other member's profile draws the same hero, Aura block, dream and stars).
+ */
+describe('the Profilo tab keeps the Galleria look (#921)', () => {
+  const PROFILE_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/profile/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const TAB = 'app/(tabs)/profile.tsx';
+  const HERO = 'components/profile/ProfileHero.tsx';
+  const AURA = 'components/profile/AuraBlock.tsx';
+  const DREAM = 'components/profile/DreamCard.tsx';
+  const TAPPA = 'components/profile/MilestoneRow.tsx';
+  const OFFER = 'components/profile/IncomingOfferRow.tsx';
+  const FLASH = 'components/profile/MomentFlash.tsx';
+  const STARS = 'components/profile/SixStarsGrid.tsx';
+  const EDITOR = 'components/profile/ProfileEditForm.tsx';
+  const SECTION = 'components/profile/Section.tsx';
+  const NEXT_STAR = 'components/aura/StarProgress.tsx';
+  const GALLERY = 'components/media/MomentiGallery.tsx';
+  const PROFILE = [TAB, ...PROFILE_FOLDER, NEXT_STAR, GALLERY];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the folder is the files this section was written against', () => {
+    expect(PROFILE_FOLDER).toEqual([
+      AURA,
+      'components/profile/CityPicker.tsx',
+      DREAM,
+      'components/profile/DreamSection.tsx',
+      'components/profile/FoundingBadge.tsx',
+      'components/profile/HandleField.tsx',
+      OFFER,
+      TAPPA,
+      FLASH,
+      'components/profile/ProfileBody.tsx',
+      EDITOR,
+      HERO,
+      'components/profile/ProfileView.tsx',
+      SECTION,
+      STARS,
+      'components/profile/ZodiacMark.tsx',
+    ]);
+  });
+
+  it('the one cyan on the profile is the member’s own Aura numeral', () => {
+    const hits = PROFILE.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); the profile carries the second, and no green, no glow',
+    ).toEqual([`${AURA}  text-aura`]);
+    expect(code(AURA), 'cyan on the own profile, foreground on another member’s').toMatch(
+      /own \? 'text-aura' : 'text-foreground'/,
+    );
+  });
+
+  it('nothing on the profile stands for the Aura tier', () => {
+    // Ruling 5 (Marco, 2026-10-03): no mandorla frame, no glow.
+    expect(code(HERO)).not.toMatch(/Mandorla/);
+    expect(code(FLASH)).not.toMatch(/glow/i);
+  });
+
+  it('the one bordered card is the dream, and it holds the label and the quote', () => {
+    expect(
+      PROFILE.filter((file) => /<Card\b/.test(code(file))),
+      'tappe, offers, stars and the editor’s sections are groups or bare blocks (DESIGN §6)',
+    ).toEqual([DREAM]);
+    expect(
+      PROFILE.filter((file) => /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file))),
+      'a hairline is typed on the «Aiuta» pill shape and on the flash; the card’s is `Card`’s',
+    ).toEqual([TAPPA, FLASH]);
+    const card = flat(DREAM);
+    expect(card, 'the tappe stand outside the card, in a group').toMatch(
+      /<\/Card> \{showTappe \? \( <RowGroup label=\{t\('milestone\.sectionLabel', locale\)\}>/,
+    );
+  });
+
+  it('a file of the profile sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      PROFILE.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of the profile types a control', () => {
+    const typed = PROFILE.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'share, add and more are drawings; a chevron is `Row`’s').toEqual([]);
+  });
+
+  it('every pressable on the profile dims when pressed', () => {
+    const undimmed = PROFILE.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the header is two drawn icons and a small outline pill, and «saved» is the shared toast', () => {
+    const tab = flat(TAB);
+    expect(tab, 'share is the drawn icon, not a cyan ✦').toMatch(/<ShareIcon\b/);
+    expect(tab).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('profile\.edit', locale\)\}/,
+    );
+    expect(tab, 'no green line under the profile (ruling 7)').not.toMatch(/\bsetSaved\b/);
+    expect(tab).toMatch(/showToast\(t\('profile\.saved', locale\)/);
+  });
+
+  it('the hero is a row that stacks at the largest sizes, in screen order', () => {
+    const hero = flat(HERO);
+    expect(hero).toMatch(/const stacked = stacksTrailing\(useWindowDimensions\(\)\.fontScale\);/);
+    expect(hero).toMatch(/stacked \? 'gap-4' : 'flex-row items-center gap-4'/);
+    expect(hero, 'no reversed order in either layout').not.toMatch(/-reverse\b/);
+    expect(hero, 'the name is the pushed-header size').toMatch(/shrink type-title text-foreground/);
+  });
+
+  it('the six stars are rows of one group, and no grid cell is left', () => {
+    const stars = code(STARS);
+    expect(stars).toMatch(/<RowGroup\b/);
+    expect(stars).toMatch(/<Row\b/);
+    expect(
+      stars.replace(/\s+/g, ' '),
+      'a `Row` without `onPress` takes no label: an inert star is one labelled element',
+    ).toMatch(/<View key=\{key\} accessible accessibilityLabel=\{label\}> <Row title=\{title\}/);
+    expect(
+      FILES.filter((p) => /\bStarCell\b/.test(stripComments(read(p)))).map(rel),
+      '`aura/StarCell` had one caller, the grid',
+    ).toEqual([]);
+  });
+
+  it('the other member’s profile spaces the shared blocks as the tab does', () => {
+    // `ProfileHero` and `DreamCard` return their blocks side by side: the caller's gap is
+    // what stands between them, so both callers set the screen's 26.
+    for (const file of [TAB, 'app/(modal)/user/[id].tsx']) {
+      expect(code(file), file).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12/);
+    }
+  });
+
+  it('an incoming offer is a block of the «Aiuti in arrivo» group with two small pills', () => {
+    expect(flat('components/profile/DreamSection.tsx')).toMatch(
+      /<RowGroup label=\{t\('help\.owner\.sectionLabel', locale\)\}>/,
+    );
+    const offer = flat(OFFER);
+    expect(offer, 'the prototype’s `.rows > .row.col`').toMatch(/gap-\[10px\] py-\[14px\]/);
+    expect(offer).toMatch(
+      /<ButtonRow> <Button size="sm" label=\{t\('help\.owner\.accept', locale\)\}[^>]*\/> <Button variant="outline" size="sm" label=\{t\('help\.owner\.decline', locale\)\}/,
+    );
+  });
+
+  it('a tappa keeps its own row: the whole row offers help, the pill is a shape', () => {
+    const row = code(TAPPA);
+    expect(row, 'row geometry inside the group').toMatch(/min-h-15 flex-row gap-3 py-2/);
+    expect(row, 'a done tappa’s tick is foreground').not.toMatch(/line-through/);
+    expect(row, 'the kebab is the drawn icon').toMatch(/<MoreIcon\b/);
+  });
+
+  it('the editor’s sections stand on the stage, and its second action is the outline pill', () => {
+    expect(code(SECTION), 'no card: a field in a card would need the black well').not.toMatch(
+      /\bCard\b/,
+    );
+    expect(flat(EDITOR)).toMatch(
+      /<Button variant="outline" label=\{t\('profile\.cancel', locale\)\}/,
+    );
+    expect(
+      code('components/profile/CityPicker.tsx'),
+      'the list answers typing, not the stored city: nothing is looked up until the field changes',
+    ).toMatch(/if \(!edited\.current\) return;/);
+  });
+
+  it('the gallery’s «see all» is a 44pt underlined link beside its label', () => {
+    const gallery = flat(GALLERY);
+    expect(gallery).toMatch(
+      /stacked \? 'items-start gap-2' : 'flex-row items-center justify-between gap-3'/,
+    );
+    expect(gallery).toMatch(/type-small text-foreground underline/);
   });
 });

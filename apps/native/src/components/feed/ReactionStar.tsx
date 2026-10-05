@@ -14,7 +14,7 @@ import { star } from '@/lib/star';
  * Never `aura`: a lit star is not one of the five cyan marks (DESIGN §2.3, §9 «Reaction ✦»).
  *
  * SHAPE carries the state, not colour alone: an assertive unlit star is exactly what rule #3
- * doesn't want. ✦/✧ is the app's existing unlit vocabulary (StarCell).
+ * doesn't want. ✦/✧ is the app's existing unlit vocabulary (the six stars' rows, `SixStarsGrid`).
  * Reduced-motion → opacity cut, no transform (frontend §9; MomentFlash pattern).
  */
 export function ReactionStar({

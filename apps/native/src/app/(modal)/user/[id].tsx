@@ -361,7 +361,7 @@ export default function PersonDetailScreen() {
       />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-8 px-5 pb-12"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         {/* Shared Profilo stack in third person: hero → stat line → stelle → momenti (02 §3.5) */}

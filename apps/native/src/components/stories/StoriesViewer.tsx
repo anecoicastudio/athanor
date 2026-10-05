@@ -393,7 +393,7 @@ export function StoriesViewer({
                   onPress={() => onReact(current)}
                   className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
                 >
-                  {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and StarCell —
+                  {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and the six stars' rows —
                       `faint` alone stopped reading "off" once it was retuned for AA. */}
                   <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
                     {star(viewerReacted)}

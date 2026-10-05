@@ -6,11 +6,12 @@ import { t } from '@athanor/i18n';
 import type { Profile } from '@athanor/schemas';
 import { Share } from 'react-native';
 import { galleria } from '@athanor/config';
-import { Pressable, ScrollView, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
+import { Button } from '@/components/Button';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
-import { SettingsIcon } from '@/components/glyphs';
+import { SettingsIcon, ShareIcon } from '@/components/glyphs';
 import { useToast } from '@/components/ToastHost';
 import { DreamSection } from '@/components/profile/DreamSection';
 import { MomentFlash } from '@/components/profile/MomentFlash';
@@ -25,7 +26,7 @@ import { useStarCelebration } from '@/hooks/use-star-celebration';
 /**
  * Profilo Evolutivo — own authenticated view (PRD §4.2, M1): view + inline edit
  * of bio / identity / seeking / locale + per-field visibility, dream read-only
- * (editor is M2) with its own visibility control, Six Stars grid seeded from
+ * (editor is M2) with its own visibility control, the six stars' rows seeded from
  * Aura snapshot (score engine M6).
  * Per-field visibility is enforced in the DB (M10, migration 20260807170813):
  * hidden fields never leave Postgres.
@@ -39,7 +40,7 @@ export default function ProfileScreen() {
     return (
       <Screen className="items-center justify-center">
         <Text
-          className="text-2xl text-muted-foreground"
+          className="type-title text-muted-foreground"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
@@ -64,7 +65,6 @@ function ProfileEditor({
   refreshProfile: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
   const { showToast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -100,7 +100,7 @@ function ProfileEditor({
   );
 
   // Native share sheet, via the one builder both profile surfaces use (issue #110). Built at
-  // render so the ✦ can be withheld when there is nothing to share: handle is nullable and
+  // render so the control can be withheld when there is nothing to share: handle is nullable and
   // the signup trigger does not set it, so a session can reach this screen without one.
   // Tracked-referral attribution is a later milestone.
   // The /@handle link only when the page exists (#790): an absent identity key reads as public,
@@ -123,10 +123,11 @@ function ProfileEditor({
     }
   };
 
+  // «Profilo aggiornato.» is the shared toast (Marco, 2026-10-05): it was a green line at the
+  // foot of the scroll until then, below the fold on a long profile, and mobile has no green.
   const onSaved = () => {
     setEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    showToast(t('profile.saved', locale), 'success');
   };
 
   /**
@@ -136,14 +137,12 @@ function ProfileEditor({
    * form scrolls in, which the tab cannot own from out here — so the tail travels as a slot
    * instead of being duplicated into `ProfileEditForm`.
    *
-   * All three, not just the flashes: `saved` is only ever true with `editing` false today
-   * (`onSaved` clears the mode and sets the flag together), so dropping it from the edit branch
-   * would be invisible almost always — and wrong in the one window where it is not, a member
-   * tapping «Modifica» again inside the 2.5s. A slot that carries the whole tail cannot drift
-   * from the branch it mirrors.
+   * Both flashes travel, in either branch: a member can tap «Modifica» while one is still
+   * playing, and a slot that carries the whole tail cannot drift from the branch it mirrors.
+   * (Until 2026-10-05 a third child rode here, the «saved» line; it is the shared toast now.)
    *
-   * A fragment, so the three stay direct flex children of whichever content container receives
-   * them and keep the `gap-8` rhythm. It is one child for `stickyHeaderIndices` accounting
+   * A fragment, so the two stay direct flex children of whichever content container receives
+   * them. It is one child for `stickyHeaderIndices` accounting
    * (`React.Children.toArray` does not descend into fragments), which is why it may only ever
    * be appended LAST — see `ProfileEditForm`.
    *
@@ -159,13 +158,11 @@ function ProfileEditor({
    */
   const tail = (
     <>
-      {saved ? <Text className="text-sm text-success">{t('profile.saved', locale)}</Text> : null}
-
-      {/* The one glow moment (rule #4): a help became real. Reduced-motion safe (§9). */}
+      {/* A help became real. Reduced-motion safe (DESIGN §10). */}
       <MomentFlash flash={dream.flashMilestoneId} locale={locale} />
 
-      {/* Star-earned flash (rule #4): a new star was lit — uses MomentFlash.
-      The matching toast fires through the global host (#117). */}
+      {/* A new star was lit: the same flash. The matching toast fires through the global
+      host (#117). */}
       <MomentFlash flash={starFlash} locale={locale} />
     </>
   );
@@ -184,41 +181,37 @@ function ProfileEditor({
         {!editing ? (
           <ScrollView
             className="flex-1"
-            contentContainerClassName="gap-8 px-5 pb-12 pt-4"
+            contentContainerClassName="gap-[26px] px-5 pb-12 pt-4"
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header row: share + edit toggle — sized to the 24px icon scale
-            (tab glyphs / modal chevrons), HIT_SLOP as HomeHeader had until 2026-10-05. gap-6 (24px)
-            keeps adjacent hit rects clear of each other: HIT_SLOP adds 11px per
-            side, so anything under 22px overlaps and taps cross-fire. */}
-            <View className="flex-row items-center justify-end gap-6">
+            {/* Header row: share, settings, «Modifica». Two drawn icons at 22 in 44pt boxes and
+            the small outline pill, 4 apart (the prototype's `.ib` and `pill o sm`). Boxes, not
+            `hitSlop`: adjacent slop rects overlapped under 22px of gap and taps cross-fired. */}
+            <View className="min-h-[44px] flex-row items-center justify-end gap-1">
               {shareMessage != null && (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.share.label', locale)}
-                  hitSlop={HIT_SLOP}
+                  className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
                   onPress={() => void shareProfile()}
                 >
-                  <Text className="text-2xl text-aura">✦</Text>
+                  <ShareIcon color={galleria.foreground} />
                 </Pressable>
               )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('settings.title', locale)}
-                hitSlop={HIT_SLOP}
+                className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
                 onPress={() => router.push('/(modal)/settings')}
               >
-                <SettingsIcon size={24} color={galleria.faint} />
+                <SettingsIcon size={22} color={galleria.foreground} />
               </Pressable>
-              <Pressable
+              <Button
+                variant="outline"
+                size="sm"
+                label={t('profile.edit', locale)}
                 onPress={() => setEditing(true)}
-                accessibilityRole="button"
-                hitSlop={HIT_SLOP}
-              >
-                <Text className="text-base font-semibold text-faint">
-                  {t('profile.edit', locale)}
-                </Text>
-              </Pressable>
+              />
             </View>
 
             <ProfileView
