@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 
 /**
  * A member's stars. Earned-only through RLS on someone else's profile (rule #3), so the same
- * query serves the own Six Stars grid, the star detail sheet, the weekly recap and Person Detail.
+ * query serves the own six stars' rows, the star detail sheet, the weekly recap and Person Detail.
  *
  * Deliberately NOT merged with `useAuraScore` even though every screen reads both: they must be
  * able to fail apart. One combined query let a live score render beside six stars claiming

@@ -16,7 +16,7 @@ import { wordLines } from '@/lib/word-lines';
  * No fill, and that is what makes `quiet` readable. Until 2026-10-04 the pill filled with
  * `raise-2`, on which the secondary grey is 3.85:1. With nothing behind the label, the grey
  * reads on whatever the tag stands on: the stage (5.80:1, `BenefitRow`) or a charcoal row
- * (4.65:1, `SuggestionRow` and `IncomingOfferRow`), both above the 4.5 floor.
+ * (4.65:1, `SuggestionRow`), both above the 4.5 floor.
  * `lib/contrast.test.ts` pins the pair and `source-audit.test.ts` section 50 keeps a fill from
  * coming back. No quiet tag stands on an `aura-soft` surface inside a card, where the same
  * grey is 3.85 again.

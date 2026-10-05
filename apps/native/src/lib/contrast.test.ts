@@ -98,8 +98,8 @@ describe('the nested-surface trap (regression)', () => {
   it('a quiet Tag has no fill: its grey reads on the stage and on a charcoal row', () => {
     // `components/Tag.tsx` draws a hairline and nothing behind the label (`source-audit` section
     // 50 holds that), so the pair is the grey on what the tag stands on: the stage under
-    // `BenefitRow`, a `bg-raise` row in `IncomingOfferRow`, and since 2026-10-05 the `surface`
-    // block of a `RowGroup` under `SuggestionRow` (the same charcoal: `raise` is its alias).
+    // `BenefitRow`, and since 2026-10-05 the `surface` block of a `RowGroup` under
+    // `SuggestionRow` (the same charcoal as the legacy `raise`, which is its alias).
     expect(ratio(galleria.foregroundMuted, CANVAS)).toBeCloseTo(5.8, 2);
     expect(ratio(galleria.foregroundMuted, RAISE)).toBeCloseTo(4.65, 2);
     expect(ratio(galleria.foregroundMuted, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
@@ -179,7 +179,8 @@ describe('the tone ladder', () => {
   });
 
   it('INTERIM: a quiet Tag ties a faint payload and never outranks an ink2 one', () => {
-    // Why IncomingOfferRow's message had to move faint → ink2, and why BenefitRow's locked
+    // Why IncomingOfferRow's message had to move faint → ink2 (it carries no Tag since
+    // 2026-10-05: the kind of help is part of its one grey line), and why BenefitRow's locked
     // title (faint by STATE, not rank) is deliberately left inverted. With one secondary grey
     // the annotation can no longer be brighter than a faint payload — only level with it.
     expect(luminance(galleria.foregroundMuted)).toBe(luminance(galleria.faint));
@@ -214,7 +215,8 @@ describe('the rejected inert value #615A7E', () => {
  * SURFACES. They were then re-labelled as shipping failures, which was true, and finally fixed:
  *
  *   - MilestoneRow's kebab menu went `bg-raise-2` → opaque `bg-surface`, so it no longer sat on
- *     a chip inside DreamCard's `bg-raise`.
+ *     a chip inside DreamCard's `bg-raise`. (Since 2026-10-05 it is a `bg-background` well in
+ *     the tappe group, opaque still.)
  *   - SubscriptionStatusCard's past-due warning moved OUT of the aura-soft glow card onto the
  *     modal canvas.
  *   - `onError` went `#F0EDF7` → `#1A050D`. The filled danger button it inked became an
@@ -232,7 +234,7 @@ describe('forbidden pairs — no call site may use these', () => {
   it('error clears on the canvas and on a card — the surfaces it IS used on', () => {
     expect(ratio(galleria.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 5.80 — modal bodies, Circle past-due
     expect(ratio(galleria.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — `raise`, the legacy alias of the same charcoal
-    expect(ratio(galleria.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — a destructive Row, MilestoneRow menu
+    expect(ratio(galleria.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — a destructive Row
   });
 
   it('error on a chip stays unusable (was MilestoneRow, now bg-surface)', () => {
@@ -313,8 +315,8 @@ describe('forbidden pairs — no call site may use these', () => {
   it('success clears AA where it marks a satisfied rule', () => {
     // `success` is a legacy alias: mobile has no green (ruled 2026-10-03), and the value stays
     // only while its sites are unconverted. The password checklists and the handle status
-    // left it with the entry screens (2026-10-04) and `SwipeStamp` with the Momenti tab
-    // (2026-10-05); the profile's «saved» line and the check-in frame still read it.
+    // left it with the entry screens (2026-10-04), `SwipeStamp` with the Momenti tab and the
+    // profile's «saved» line with the Profilo tab (2026-10-05); the check-in frame still reads it.
     expect(ratio(galleria.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
     expect(ratio(galleria.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });

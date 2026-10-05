@@ -26,7 +26,7 @@ import { useStarCelebration } from '@/hooks/use-star-celebration';
 /**
  * Profilo Evolutivo — own authenticated view (PRD §4.2, M1): view + inline edit
  * of bio / identity / seeking / locale + per-field visibility, dream read-only
- * (editor is M2) with its own visibility control, Six Stars grid seeded from
+ * (editor is M2) with its own visibility control, the six stars' rows seeded from
  * Aura snapshot (score engine M6).
  * Per-field visibility is enforced in the DB (M10, migration 20260807170813):
  * hidden fields never leave Postgres.

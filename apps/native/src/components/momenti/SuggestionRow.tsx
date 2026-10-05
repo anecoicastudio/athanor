@@ -27,7 +27,7 @@ import { stacksTrailing } from '@/lib/type-scale';
  * The reason is affordance: every other cyan aura-soft pill in this app was interactive or
  * stateful (Chip selected, filter tabs, the retry pressable on this same screen), so a static
  * cyan pill inside a Pressable row read as a control it wasn't. `Tag` is the app's static
- * equivalent — IncomingOfferRow uses the same Avatar + flex-1 + Tag composition.
+ * equivalent.
  * Don't "restore" the cyan without resolving that.
  *
  * The Tag is `quiet` and the dream is foreground, in the dream register: the marker ANNOTATES
