@@ -31,8 +31,11 @@ export function StoryRail({
     handle: string | null;
     displayName: string | null;
     avatarPath: string | null;
-    /** Whether you have a live story now: the disc is your photo, and the add moves to a badge. */
-    live: boolean;
+    /**
+     * Whether you have a live story now: the disc is your photo, and the add moves to a badge.
+     * `null` while that is not known yet: your photo, no add, no badge.
+     */
+    live: boolean | null;
     /** Watched state for the own ring (#298) — the caller derives it; no story reads as seen. */
     seen: boolean;
   };

@@ -22,7 +22,8 @@ const BADGE = 20;
  * it. A watched story, or no story, leaves the avatar's hairline alone. The name is one grey
  * 11px line pair in every state: the ring carries the state, not the text.
  *
- * Your own entry (`isYou`, «Il tuo passo») has two shapes:
+ * Your own entry (`isYou`, «Il tuo passo») has two shapes, and until the caller knows which
+ * (`live` is `null` while its read is out) it is your photo with neither add:
  *
  * - no live story (`live` false): the disc holds the drawn `add` and no photo, and its tap is
  *   the caller's `onPress`, which opens the composer. No badge: the disc is the add.
@@ -50,7 +51,7 @@ export function StoryRing({
   label,
   seen = false,
   isYou = false,
-  live = false,
+  live = null,
   locale,
   onPress,
   onAddPress,
@@ -63,8 +64,8 @@ export function StoryRing({
   label?: string;
   seen?: boolean;
   isYou?: boolean;
-  /** Own entry only: you have a live story now (see the docblock). */
-  live?: boolean;
+  /** Own entry only: you have a live story now (see the docblock); `null` = not known yet. */
+  live?: boolean | null;
   locale: Locale;
   onPress: () => void;
   /** Own entry only: the add badge's target (the story composer). Drawn while `live`. */
@@ -73,7 +74,7 @@ export function StoryRing({
   const name = isYou
     ? t('story.rail.you', locale)
     : (label ?? memberLabel(displayName, handle) ?? '—');
-  const adds = isYou && !live;
+  const adds = isYou && live === false;
   return (
     <View className="w-[74px] items-center">
       <Pressable
@@ -122,7 +123,7 @@ export function StoryRing({
           ))}
         </View>
       </Pressable>
-      {isYou && live && onAddPress ? (
+      {isYou && live === true && onAddPress ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('story.add.title', locale)}

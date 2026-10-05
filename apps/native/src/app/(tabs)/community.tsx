@@ -227,7 +227,10 @@ export default function CommunityScreen() {
               handle: profile?.handle ?? null,
               displayName: profile?.display_name ?? null,
               avatarPath: profile?.avatar_path ?? null,
-              live: myHasLive,
+              // `null` while the own-story read is out (#749's window): the disc shows the photo
+              // and neither the add nor the badge, so it never promises the composer over a live
+              // story.
+              live: myStoryQuery.isLoading ? null : myHasLive,
               seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
             }}
             people={railQuery.data ?? []}

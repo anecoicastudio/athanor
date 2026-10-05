@@ -5883,6 +5883,20 @@ describe('the Community tab keeps the Galleria look (#921)', () => {
     expect(ring, 'drawn only while unseen').toMatch(/\{seen \? null : \(/);
   });
 
+  it('your own disc is the add only once it is known you have no live story', () => {
+    const ring = code(RING);
+    // `live` is `null` while the own-story read is out: the photo, neither add (Greptile, PR 936).
+    expect(ring).toMatch(/const adds = isYou && live === false;/);
+    expect(ring).toMatch(/\{isYou && live === true && onAddPress \? \(/);
+    expect(code(SCREEN)).toMatch(/live: myStoryQuery\.isLoading \? null : myHasLive,/);
+  });
+
+  it('a comment with no action draws no action row', () => {
+    expect(code('components/feed/Comment.tsx').replace(/\s+/g, ' ')).toMatch(
+      /\{onReply \|\| onDelete \? \( <View className=\{cn\('flex-row gap-4'/,
+    );
+  });
+
   it('a lit star is foreground', () => {
     expect(code('components/feed/ReactionStar.tsx')).toMatch(
       /lit \? 'text-foreground' : 'text-muted-foreground'/,

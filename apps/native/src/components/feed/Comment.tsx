@@ -35,29 +35,35 @@ export function Comment({
     >
       <PostAuthorRow authorId={comment.author_id} />
       <Text className="type-body text-foreground">{comment.body}</Text>
-      <View className={cn('flex-row gap-4', large ? null : '-my-3')}>
-        {/* Each is a 44pt target with a role (§10): they were 12px labels with no padding and
-            «Rispondi» had no role. `-my-3` on the row gives back what the targets add to a
-            21pt line; not at the accessibility sizes, where the line fills its target. */}
-        {onReply ? (
-          <Pressable
-            className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
-            onPress={() => onReply(null)}
-            accessibilityRole="button"
-          >
-            <Text className="type-small text-muted-foreground">{t('comment.reply', locale)}</Text>
-          </Pressable>
-        ) : null}
-        {onDelete ? (
-          <Pressable
-            className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
-            onPress={onDelete}
-            accessibilityRole="button"
-          >
-            <Text className="type-small text-muted-foreground">{t('comment.delete', locale)}</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      {/* No row when the screen gives this comment no action: an empty row would still take
+          the negative margin and pull the block's foot in. */}
+      {onReply || onDelete ? (
+        <View className={cn('flex-row gap-4', large ? null : '-my-3')}>
+          {/* Each is a 44pt target with a role (§10): they were 12px labels with no padding and
+              «Rispondi» had no role. `-my-3` on the row gives back what the targets add to a
+              21pt line; not at the accessibility sizes, where the line fills its target. */}
+          {onReply ? (
+            <Pressable
+              className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
+              onPress={() => onReply(null)}
+              accessibilityRole="button"
+            >
+              <Text className="type-small text-muted-foreground">{t('comment.reply', locale)}</Text>
+            </Pressable>
+          ) : null}
+          {onDelete ? (
+            <Pressable
+              className={cn('min-h-[44px] min-w-[44px] justify-center self-start', PRESS_DIM)}
+              onPress={onDelete}
+              accessibilityRole="button"
+            >
+              <Text className="type-small text-muted-foreground">
+                {t('comment.delete', locale)}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }

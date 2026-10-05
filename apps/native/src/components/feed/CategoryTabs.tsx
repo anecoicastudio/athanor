@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ScrollView as RNScrollView } from 'react-native';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import { ScrollView, View } from '@/tw';
@@ -19,9 +19,10 @@ export type { FeedFilter, FeedTab };
  * chip's `hitSlop` reaches for its 44pt target; the screen takes those 6 off the gap around
  * the row.
  *
- * The selected chip is brought into view when it is laid out. The screen draws this row inside
- * two different lists (posts, events), so choosing «Eventi», the sixth chip, mounts a new row
- * at offset 0 with the selected chip off the right edge of an iPhone SE (seen on the
+ * The selected chip is brought into view: when it is laid out, and when the selection changes
+ * on a row that stays mounted (a chip tapped while half off the edge). The screen draws this
+ * row inside two different lists (posts, events), so choosing «Eventi», the sixth chip, mounts
+ * a new row at offset 0 with the selected chip off the right edge of an iPhone SE (seen on the
  * simulator, 2026-10-05).
  *
  * Six tabs since #153: the sixth, «Eventi», is a window into Athanor Live rather than a post
@@ -38,6 +39,13 @@ export function CategoryTabs({
   locale: Locale;
 }) {
   const scroller = useRef<RNScrollView>(null);
+  /** Where each chip starts in the row, as laid out. */
+  const starts = useRef<Partial<Record<FeedTab, number>>>({});
+  const reveal = (x: number) => scroller.current?.scrollTo({ x: x - 20, animated: false });
+  useEffect(() => {
+    const x = starts.current[active];
+    if (x !== undefined) reveal(x);
+  }, [active]);
   return (
     <ScrollView
       ref={scroller}
@@ -48,12 +56,10 @@ export function CategoryTabs({
       {FEED_TABS.map((f) => (
         <View
           key={f}
-          onLayout={
-            f === active
-              ? (e) =>
-                  scroller.current?.scrollTo({ x: e.nativeEvent.layout.x - 20, animated: false })
-              : undefined
-          }
+          onLayout={(e) => {
+            starts.current[f] = e.nativeEvent.layout.x;
+            if (f === active) reveal(e.nativeEvent.layout.x);
+          }}
         >
           <Chip
             label={t(`feed.filter.${f}` as MessageKey, locale)}
