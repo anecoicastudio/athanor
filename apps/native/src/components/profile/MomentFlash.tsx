@@ -3,14 +3,15 @@ import { Animated, Easing } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
-import { auraGlow } from '@/lib/glow';
 import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
- * Moment flash (frontend `02` §9): the one glow moment (rule #4) — a help became real.
- * A centered cyan ✦ pulse + the «Hai avvicinato un sogno ✦» toast for ~700ms.
+ * Moment flash (frontend `02` §9): a help became real, or a star was lit.
+ * A centred foreground ✦ on a charcoal disc + the «Hai avvicinato un sogno ✦» pill for ~700ms.
+ * No light around it and no cyan since 2026-10-05: nothing on mobile glows, and this is not
+ * one of the five celebration screens (DESIGN §2.3).
  *
  * `flash` is the episode's id — a milestone id, a star id — and `null` for nothing to say. An
  * id rather than a boolean because the flash outlives nothing: it shows once per id and stops,
@@ -83,16 +84,12 @@ export function MomentFlash({ flash, locale }: { flash: string | null; locale: L
     >
       <Animated.View style={{ opacity, alignItems: 'center' }}>
         <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-          <View
-            style={auraGlow(1)}
-            className="h-20 w-20 items-center justify-center rounded-full border border-aura-line bg-raise"
-          >
-            {/* `ornament` (#639): the moment mark, hidden from assistive tech, inside a
-                hard 80pt disc that a scale animation drives. It does not clip at 2x today —
-                ~63pt in 80 — but it is the last box of the shape §10 names, and leaving one
-                uncapped is how the rule turns back into a suggestion. */}
+          <View className="h-20 w-20 items-center justify-center rounded-full border border-hair bg-surface">
+            {/* `ornament` (#639): the moment mark, hidden from assistive tech, inside a hard
+                80pt disc that a scale animation drives. The cap is 1, so the 32pt mark is the
+                same size at every text setting and cannot outgrow the disc (§10). */}
             <Text
-              className="text-3xl text-aura"
+              className="type-h1 text-foreground"
               maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
@@ -101,7 +98,7 @@ export function MomentFlash({ flash, locale }: { flash: string | null; locale: L
             </Text>
           </View>
         </Animated.View>
-        <View className="mt-4 rounded-full border border-hair bg-raise-2 px-5 py-2">
+        <View className="mt-4 rounded-full border border-hair bg-surface px-5 py-2">
           <Text className="text-[14px] font-semibold text-foreground">
             {t('help.toast.completed', locale)}
           </Text>

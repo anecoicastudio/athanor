@@ -2,7 +2,10 @@ import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import type { ListState as State } from '@/lib/list-state';
-import { Pressable, Text, View } from '@/tw';
+import { useWindowDimensions } from 'react-native';
+import { Pressable, Text, View, cn } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
@@ -13,6 +16,10 @@ import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
  * trailing add tile. Media renders from signed URLs (`urls`, path→url); each tile picks its own
  * path out of the map (a video's poster, a photo's own bytes) and shows the quiet placeholder
  * while there is no URL yet. Empty for a brand-new user.
+ *
+ * The head is «label left, link right»: the label takes the width that is left and the link is
+ * a 44pt underlined one; at the accessibility sizes the link goes under the label. Tiles are
+ * three to a row, 6 apart (3 of padding on each, taken back at the grid's edges).
  */
 export function MomentiGallery({
   moments,
@@ -51,23 +58,28 @@ export function MomentiGallery({
   /** `query.refetch()` for that query. */
   onRetry: () => void;
 }) {
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
   return (
-    <View className="gap-3">
-      <View className="flex-row items-center justify-between">
-        <SectionLabel>{label ?? t('profile.moments.title', locale)}</SectionLabel>
+    <View className="gap-2">
+      <View
+        className={stacked ? 'items-start gap-2' : 'flex-row items-center justify-between gap-3'}
+      >
+        <SectionLabel className={stacked ? undefined : 'flex-1'}>
+          {label ?? t('profile.moments.title', locale)}
+        </SectionLabel>
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={t('common.seeAll', locale)}
-          hitSlop={8}
+          className={cn('min-h-[44px] justify-center', PRESS_DIM)}
           onPress={onSeeAll}
         >
-          <Text className="text-[13px] text-aura">{t('common.seeAll', locale)}</Text>
+          <Text className="type-small text-foreground underline">{t('common.seeAll', locale)}</Text>
         </Pressable>
       </View>
 
-      <View className="flex-row flex-wrap">
+      <View className="-m-[3px] flex-row flex-wrap">
         {moments.map((m, i) => (
-          <View key={m.id} className="w-1/3 p-0.5">
+          <View key={m.id} className="w-1/3 p-[3px]">
             <MomentTile
               moment={m}
               variant="gallery"
@@ -79,7 +91,7 @@ export function MomentiGallery({
           </View>
         ))}
         {onAdd ? (
-          <View className="w-1/3 p-0.5">
+          <View className="w-1/3 p-[3px]">
             <MomentAddTile variant="gallery" label={t('moment.add', locale)} onPress={onAdd} />
           </View>
         ) : null}
