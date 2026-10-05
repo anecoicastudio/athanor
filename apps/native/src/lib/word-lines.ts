@@ -5,7 +5,8 @@
  * mid-word — «Notifi / che» beside a header's actions at AX5, «@marco_acc / ardi» on Home.
  * A second line is only worth giving a label that has a second word to put on it; a lone
  * word takes one line and a tail ellipsis instead, with the full text on the element's
- * `accessibilityLabel`. No font cap and no `adjustsFontSizeToFit` — DESIGN §10.
+ * `accessibilityLabel`. No font cap and no `adjustsFontSizeToFit` — DESIGN §10, which names one
+ * exception since 2026-10-05: the one-word h1 of a tab root (`(tabs)/costellazioni.tsx`).
  *
  * Whitespace here is every `\s` EXCEPT the no-break space: that is how a catalog string
  * glues a mark to its word («Connetti ✦»), so it must count as part of the word.

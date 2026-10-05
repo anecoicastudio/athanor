@@ -86,7 +86,8 @@ export default function CostellazioniScreen() {
                   h1 that line is wider than an iPhone SE at AX5: on the simulator it broke as
                   «Costellazio / ni» unclamped (2026-10-05) and would end in an ellipsis
                   clamped. `adjustsFontSizeToFit` shrinks it only as far as the width asks,
-                  so the screen's name stays whole. */}
+                  so the screen's name stays whole: the one exception DESIGN §10 names to
+                  its «no `adjustsFontSizeToFit`» (Marco, 2026-10-05). */}
               <Text
                 accessibilityRole="header"
                 className="type-h1 text-foreground"

@@ -6036,6 +6036,17 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
     );
   });
 
+  it('only the Costellazioni title may shrink to fit', () => {
+    // DESIGN §10 forbids `adjustsFontSizeToFit` and names this one exception (Marco, 2026-10-05).
+    const users = FILES.filter(
+      (p) => !isTest(p) && /\badjustsFontSizeToFit\b/.test(stripComments(read(p))),
+    ).map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(users).toEqual([COSTELLAZIONI]);
+    expect(code(COSTELLAZIONI).replace(/\s+/g, ' ')).toMatch(
+      /className="type-h1 text-foreground" numberOfLines=\{wordLines\(title\)\} adjustsFontSizeToFit/,
+    );
+  });
+
   it('both titles are h1', () => {
     for (const file of [MOMENTI, COSTELLAZIONI]) {
       expect(

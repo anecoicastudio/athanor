@@ -761,7 +761,7 @@ Rules:
 What ships on mobile on the tab (Galleria, 2026-10-05, #921) — the listing and the favour sheet convert with their own screens:
 
 - **No bordered card, no cyan.** Blocks 26 apart on the 20 gutter.
-- **Header.** «Costellazioni» in h1 and one `small` grey line, 4 apart. The title is one word: it stays on one line and shrinks to fit only where the width asks (an iPhone SE at AX5).
+- **Header.** «Costellazioni» in h1 and one `small` grey line, 4 apart. The title is one word: it stays on one line and shrinks to fit only where the width asks (an iPhone SE at AX5), the one exception §10 names to its «no `adjustsFontSizeToFit`».
 - **Filters** are chips, 8 apart, scrolling sideways; the selected one is brought into view.
 - **Passa il Favore is one row of a group** (§9 «Grouped rows») with its second line and the chevron, above the board, not a card and not a footer.
 - **«La bacheca dei progetti»** as a grey label with «+ Pubblica» as a small outline pill at its right; at the accessibility sizes the pill stands under the label.
@@ -937,7 +937,10 @@ Rules:
   actions — takes one line with a tail ellipsis, and its `accessibilityLabel` carries the full
   text. A person's name in a narrow cell (the stories row) is two stacked one-line texts — first
   word, then the rest — so every cell keeps the same two-line box. No font cap and no
-  `adjustsFontSizeToFit`: the text still scales, the box still grows. A mark that belongs to its
+  `adjustsFontSizeToFit`: the text still scales, the box still grows. One exception (Marco,
+  2026-10-05, #921): a tab root's one-word h1. «Costellazioni» at 32 is wider than an iPhone SE
+  at AX5, and an ellipsis would cut the screen's own name, so that title stays on one line and
+  shrinks only as far as the width asks (§8.9). A mark that belongs to its
   word («Connetti ✦») is glued with a no-break space in the catalog.
 - **A button label never wraps — the row does** (2026-09-23, #833). Side-by-side pills go in
   `ButtonRow`: each sizes to its one-line label and a pill that does not fit drops to the next
