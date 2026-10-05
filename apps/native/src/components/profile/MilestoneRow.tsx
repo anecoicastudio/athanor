@@ -100,9 +100,11 @@ export function MilestoneRow({
       {name}
     </Text>
   );
-  const trailing = (
+  const stateText = <Text className="type-small text-muted-foreground">{stateLabel}</Text>;
+  // «Aiuta», or what became of the viewer's offer. The pill is the small outline pill as a
+  // shape (see the docblock): the row is the button.
+  const helpCell = (
     <>
-      <Text className="type-small text-muted-foreground">{stateLabel}</Text>
       {offerable ? (
         <View className="min-h-[44px] justify-center rounded-full border border-muted-foreground px-4">
           <Text className="text-[14px] font-semibold text-foreground">{t('help.cta', locale)}</Text>
@@ -137,15 +139,34 @@ export function MilestoneRow({
       >
         {done ? '✓' : '○'}
       </Text>
+      {/* Three layouts, one order: name, state, then «Aiuta» or the offer's state.
+          - at the accessibility sizes everything goes under the name (#847: beside both, the
+            name was left narrower than one long word and broke it mid-word);
+          - with «Aiuta» in the row the state is the name's second line, as a `Row`'s is: beside
+            a state word AND the pill the name had 129 of 303pt on an iPhone SE and took three
+            lines (simulator, 2026-10-05);
+          - otherwise the state stands on the right. */}
       {stacked ? (
         <View className="flex-1 gap-2">
           {nameText}
-          <View className="flex-row flex-wrap items-center gap-3">{trailing}</View>
+          <View className="flex-row flex-wrap items-center gap-3">
+            {stateText}
+            {helpCell}
+          </View>
         </View>
+      ) : offerable ? (
+        <>
+          <View className="flex-1 gap-0.5">
+            <Text className="type-body font-medium text-foreground">{name}</Text>
+            {stateText}
+          </View>
+          {helpCell}
+        </>
       ) : (
         <>
           {nameText}
-          {trailing}
+          {stateText}
+          {helpCell}
         </>
       )}
     </>

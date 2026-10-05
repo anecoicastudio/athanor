@@ -82,7 +82,13 @@ export function AuraBlock({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={how}
-          className={cn('min-h-[44px] justify-center self-start', PRESS_DIM)}
+          // A 44pt box around a 21pt line: beside the numeral its slack comes back, so the
+          // line sits 8 under the label and on the numeral's foot, as on the own profile.
+          className={cn(
+            'min-h-[44px] justify-center self-start',
+            !stacked && '-mb-3 -mt-1',
+            PRESS_DIM,
+          )}
           onPress={() => router.push('/aura')}
         >
           <Text className="type-small text-foreground underline">{how}</Text>
