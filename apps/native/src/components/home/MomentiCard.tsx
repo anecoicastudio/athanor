@@ -61,7 +61,7 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * left the catalog with it.
  *
  * ONE reason, as a grey line led by a ✓, written here and not through `momenti/AffinityRow`:
- * that row is the Momenti tab's and still draws its ✓ in cyan until its own conversion.
+ * that row is the Momenti tab's, a body line in foreground (its ✓ was cyan until 2026-10-05).
  *
  * The cyan here is the 8px dot beside the label, and nothing else: the waiting Momento's mark
  * (DESIGN §2.3). The label is plain grey since 2026-10-04.

@@ -6038,9 +6038,10 @@ describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () 
 
   it('both titles are h1', () => {
     for (const file of [MOMENTI, COSTELLAZIONI]) {
-      expect(code(file), `${file}: tab roots are h1 (DESIGN §6 «Screen headers»)`).toMatch(
-        /accessibilityRole="header" className="type-h1 text-foreground"/,
-      );
+      expect(
+        code(file).replace(/\s+/g, ' '),
+        `${file}: tab roots are h1 (DESIGN §6 «Screen headers»)`,
+      ).toMatch(/accessibilityRole="header" className="type-h1 text-foreground"/);
     }
   });
 

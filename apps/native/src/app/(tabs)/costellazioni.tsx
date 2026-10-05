@@ -21,6 +21,7 @@ import { ListState } from '@/components/ListState';
 import { SectionLabel } from '@/components/SectionLabel';
 import { supabase } from '@/lib/supabase';
 import { stacksTrailing } from '@/lib/type-scale';
+import { wordLines } from '@/lib/word-lines';
 
 const COMPOSE_HREF = '/(modal)/project-compose' as const;
 const FAVOR_HREF = '/(modal)/favor' as const;
@@ -38,6 +39,7 @@ export default function CostellazioniScreen() {
   const stacked = stacksTrailing(useWindowDimensions().fontScale);
   const [filter, setFilter] = useState<ProjectFilter>('all');
   const locale = useLocale();
+  const title = t('costellazioni.title', locale);
 
   const query = useInfiniteQuery({
     queryKey: projectKeys.list(filter),
@@ -79,9 +81,19 @@ export default function CostellazioniScreen() {
         ListHeaderComponent={
           <View className="gap-[26px] pb-[26px] pt-4">
             <View className="gap-1 px-5">
-              {/* h1 32/600 — the tab-root header recipe (DESIGN §6 → Screen headers). */}
-              <Text accessibilityRole="header" className="type-h1 text-foreground">
-                {t('costellazioni.title', locale)}
+              {/* h1 32/600 — the tab-root header recipe (DESIGN §6 → Screen headers). The
+                  title is one long word, so `wordLines` holds it to one line (#754), and at
+                  h1 that line is wider than an iPhone SE at AX5: on the simulator it broke as
+                  «Costellazio / ni» unclamped (2026-10-05) and would end in an ellipsis
+                  clamped. `adjustsFontSizeToFit` shrinks it only as far as the width asks,
+                  so the screen's name stays whole. */}
+              <Text
+                accessibilityRole="header"
+                className="type-h1 text-foreground"
+                numberOfLines={wordLines(title)}
+                adjustsFontSizeToFit
+              >
+                {title}
               </Text>
               <Text className="type-small text-muted-foreground">
                 {t('costellazioni.sub', locale)}
