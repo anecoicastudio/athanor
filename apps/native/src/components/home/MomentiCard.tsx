@@ -55,8 +55,10 @@ import { useMomentiDeck } from '@/hooks/use-momenti-deck';
  * The pill is the one control (#921, 2026-10-05): the card itself is a plain view, where
  * before the whole card was one `Pressable` named «Hai un Momento in attesa». A pressable
  * card cannot hold a pill (no nested pressables, `source-audit` §21), and the prototype draws
- * the pill. So the name, the reason and the quote are read as text now, and the pill carries
- * the sentence the card carried (`home.momenti.a11y`): its visible label ends on a `›`.
+ * the pill. So the label, the name, the reason and the quote are read as text now, and the
+ * pill is named by its own visible words, «Scopri chi è ›»: a control whose spoken name is not
+ * its label cannot be asked for by that label. The card's old sentence, `home.momenti.a11y`,
+ * left the catalog with it.
  *
  * ONE reason, as a grey line led by a ✓, written here and not through `momenti/AffinityRow`:
  * that row is the Momenti tab's and still draws its ✓ in cyan until its own conversion.
@@ -110,11 +112,7 @@ export function MomentiCard({ locale }: { locale: Locale }) {
         </View>
       </View>
       {top.dreamText ? <DreamQuote compact numberOfLines={2} text={top.dreamText} /> : null}
-      <Button
-        label={t('home.momenti.cta', locale)}
-        accessibilityLabel={t('home.momenti.a11y', locale)}
-        onPress={() => router.push('/momenti')}
-      />
+      <Button label={t('home.momenti.cta', locale)} onPress={() => router.push('/momenti')} />
     </Card>
   );
 }

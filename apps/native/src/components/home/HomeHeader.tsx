@@ -22,7 +22,7 @@ import { BellIcon, MessageIcon, SearchIcon } from '@/components/glyphs';
  *
  * Bell carries a presence dot (8px, foreground) when unread notifications exist. It is not
  * cyan: the cyan dot is the waiting Momento's, and this one lights for any unread notification
- * (Marco, 2026-10-05).
+ * (Marco, 2026-10-05). A 2px ring in the stage colour keeps it apart from the bell's line.
  * No numeric badge — ever (Foundation §8 / rule #3). The dot is live-updated via
  * `subscribeNotifications` realtime subscription; cleaned up on unmount.
  *
@@ -86,63 +86,71 @@ export function HomeHeader({
     },
   ] as const;
 
-  return (
-    // Stacked, the column runs in reverse: the controls stand above the greeting while the two
-    // children keep their order in the tree, so the same elements serve both layouts. Which of
-    // them a screen reader visits first when stacked was not checked.
-    <View
-      className={
-        stacked
-          ? 'flex-col-reverse gap-2'
-          : 'min-h-[44px] flex-row items-center justify-between gap-2'
-      }
-    >
-      {/* flex-1 + numberOfLines: handles run to 30 chars, and Yoga's default
-        flexShrink of 0 would push the icon cluster off-screen instead of
-        truncating.
-        The greeting takes two lines (#639): it is prose, and flex-1 is what protects the
-        icon cluster. The HANDLE takes one (#754): it is a single word, so a second line
-        could only split it — «@marco_acc / ardi» at AX5. It ellipsizes instead, and the
-        label keeps the whole handle; no font cap (DESIGN §10). */}
-      <View className={stacked ? 'gap-0.5' : 'flex-1 gap-0.5'}>
-        <Text className="type-title text-foreground" numberOfLines={2}>
-          {greeting}
+  // flex-1 + numberOfLines: handles run to 30 chars, and Yoga's default flexShrink of 0 would
+  // push the icon cluster off-screen instead of truncating.
+  // The greeting takes two lines (#639): it is prose, and flex-1 is what protects the icon
+  // cluster. The HANDLE takes one (#754): it is a single word, so a second line could only
+  // split it — «@marco_acc / ardi» at AX5. It ellipsizes instead, and the label keeps the whole
+  // handle; no font cap (DESIGN §10).
+  const title = (
+    <View className={stacked ? 'gap-0.5' : 'flex-1 gap-0.5'}>
+      <Text className="type-title text-foreground" numberOfLines={2}>
+        {greeting}
+      </Text>
+      {handle ? (
+        <Text
+          className="type-small text-muted-foreground"
+          accessibilityLabel={`@${handle}`}
+          numberOfLines={1}
+        >
+          @{handle}
         </Text>
-        {handle ? (
-          <Text
-            className="type-small text-muted-foreground"
-            accessibilityLabel={`@${handle}`}
-            numberOfLines={1}
+      ) : null}
+    </View>
+  );
+  // The boxes touch, and the last one is pulled 11 into the gutter so its drawing stands on
+  // the 20pt edge (44 box, 22 drawing).
+  const controls = (
+    <View className={cn('-mr-[11px] shrink-0 flex-row items-center', stacked && 'self-end')}>
+      {actions.map(({ key, label, Icon, dot }) => (
+        <Pressable
+          key={key}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={() => onAction(key)}
+          className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
+        >
+          {/* Presence dot sits top-right of the icon; never a number (rule #3) */}
+          <View
+            className="relative"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
           >
-            @{handle}
-          </Text>
-        ) : null}
-      </View>
-      {/* The boxes touch, and the last one is pulled 11 into the gutter so its drawing
-        stands on the 20pt edge (44 box, 22 drawing). */}
-      <View className={cn('-mr-[11px] shrink-0 flex-row items-center', stacked && 'self-end')}>
-        {actions.map(({ key, label, Icon, dot }) => (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            accessibilityLabel={label}
-            onPress={() => onAction(key)}
-            className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
-          >
-            {/* Presence dot sits top-right of the icon; never a number (rule #3) */}
-            <View
-              className="relative"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Icon color={galleria.foreground} />
-              {dot ? (
-                <View className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-foreground" />
-              ) : null}
-            </View>
-          </Pressable>
-        ))}
-      </View>
+            <Icon color={galleria.foreground} />
+            {dot ? (
+              // A 2px ring in the stage colour holds the dot apart from the bell's own
+              // line: both are foreground.
+              <View className="absolute -right-1 -top-1 rounded-full bg-background p-0.5">
+                <View className="h-2 w-2 rounded-full bg-foreground" />
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  // At the accessibility text sizes the controls stand above the greeting, and they come first
+  // in the tree too: the order of the elements is the order on screen in both layouts.
+  return stacked ? (
+    <View className="gap-2">
+      {controls}
+      {title}
+    </View>
+  ) : (
+    <View className="min-h-[44px] flex-row items-center justify-between gap-2">
+      {title}
+      {controls}
     </View>
   );
 }
