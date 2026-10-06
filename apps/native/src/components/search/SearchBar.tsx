@@ -23,8 +23,8 @@ import { PRESS_DIM } from '@/lib/press';
  * keystrokes. On the iPhone SE simulator (iOS 26.3, Expo Go, 2026-10-06), «cera» typed by
  * `idb ui text` into a freshly opened screen arrived as «c» twice, «cra» twice and whole four
  * times in eight tries; kept mounted, whole in five of five, as the bar before that day was
- * in four of four. Why a sibling's mount drops a character was not established, and a
- * finger is slower than `idb`. It also keeps the field one width, so the text does not move
+ * in four of four. Why a sibling's mount drops a character was not established.
+ * It also keeps the field one width, so the text does not move
  * when the control shows.
  *
  * The prototype's search field has no leading glyph and neither has this one since that day:

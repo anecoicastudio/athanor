@@ -171,7 +171,7 @@ export default function SearchScreen() {
         }
       />
 
-      {/* ── Scope tabs ── */}
+      {/* ── Scope chips ── */}
       <ScopeTabs scope={scope} onChange={setScope} locale={locale} />
 
       {/* ── CircleGate: advanced-filter pill, and the filters in force ──

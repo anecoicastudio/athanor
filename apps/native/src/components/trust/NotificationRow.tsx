@@ -16,7 +16,8 @@ import { NOTIF_GLYPH, NOTIF_LEAD, NOTIF_LEAD_BY_TEMPLATE } from './notifTypes';
  *    the five marks (DESIGN §2.3). Read, it takes the ✦ disc like any other row.
  *  - title: the lead (`notif.type.*`, or a per-template override)
  *  - second line, grey: the tail (interpolated `notif.tpl.*` template) · relative time
- *  - «Apri Momento» on a Momento's row: a `Tag`, because the row is the control
+ *  - «Apri Momento» on every Momento's row, read or not: a `Tag`, because the row is the
+ *    control
  *  - no chevron, and no unread dot: the group a row stands in says whether it was read, and
  *    never a number (rule #3)
  *

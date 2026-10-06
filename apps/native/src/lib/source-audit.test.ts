@@ -2680,7 +2680,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
     'components/search/ResultRow.tsx:73':
       'the 44pt disc of a project or an event result; its glyph is capped to `ornament`',
-    'components/trust/NotificationRow.tsx:50':
+    'components/trust/NotificationRow.tsx:51':
       'the 30pt disc that leads a notification; its glyph is capped to `ornament`',
   };
 
