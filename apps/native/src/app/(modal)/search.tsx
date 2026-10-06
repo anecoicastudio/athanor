@@ -6,12 +6,15 @@ import { searchAll, searchKeys, type SearchCursor } from '@athanor/api';
 import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { SearchResult, SearchScope } from '@athanor/schemas';
-import { FlatList, Pressable, ScrollView, Text, View } from '@/tw';
+import { FlatList, View } from '@/tw';
+import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SearchBar } from '@/components/search/SearchBar';
 import { ScopeTabs } from '@/components/search/ScopeTabs';
 import { ResultRow } from '@/components/search/ResultRow';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
+import { Tag } from '@/components/Tag';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { CircleGate } from '@/components/circle/CircleGate';
@@ -25,22 +28,20 @@ import { Screen } from '@/components/Screen';
  * Search modal screen (M8 §3.3 v-search).
  *
  * Layout top→bottom:
- *   1. Header row: back chevron + SearchBar (controlled, screen owns debounce)
- *   2. ScopeTabs (all/people/projects/events/marketplace)
- *   3. CircleGate pill: non-member → quiet locked pill; member → «Filtri avanzati» opener
- *   4. Results area: idle prompt | ListState (loading / error+retry / no-results) | sections
+ *   1. Header row: the drawn back + SearchBar (controlled, screen owns debounce)
+ *   2. ScopeTabs: a row of chips (all/people/projects/events/marketplace)
+ *   3. CircleGate: non-member → quiet locked pill; member → «Filtri avanzati», a small
+ *      outline pill, and under it the filters in force as quiet tags
+ *   4. Results area: idle prompt | ListState (loading / error+retry / no-results) | one
+ *      `RowGroup` per kind under its grey label, 26 apart
  *
  * Filters are round-tripped through route params (contract with Task 9 search-filters sheet).
  * The sheet navigates back to /search with updated auraMin/city/star params → this screen
  * re-derives `filters` from useLocalSearchParams and re-runs the query automatically.
  *
- * Rule #4: NO glow on this screen — nothing here is a moment. Cyan is flat wherever it appears:
- * the matched spans in `ResultRow`, the dot on the filters pill once a filter is set, and the
- * loading `ActivityIndicator`. (Not the SearchBar's focus ring — that is `foreground` per §9's
- * Input row, which this docblock claimed wrongly for as long as it has existed.) The framed
- * `auraSoft`/`auraLine` pair would be allowed too, since without a shadow it is only the active
- * surface (§2.3, ruled 2026-09-07); it goes unused because a results list has no selected state
- * to draw.
+ * Galleria (2026-10-06, #921): no bordered card and no cyan on this screen. The matched words
+ * are foreground in a result's grey line (`ResultRow`), and the filters in force are named by
+ * their tags: the cyan dot the opener carried until that day is gone.
  */
 
 type GroupSection = {
@@ -142,7 +143,6 @@ export default function SearchScreen() {
   });
 
   // ── Applied filter chips (summary row when filters are set) ──────────────────
-  const hasFilters = filtersFromParams !== undefined;
   const filterChips: string[] = [];
   if (filtersFromParams?.auraMin)
     filterChips.push(t('search.filter.summary.aura', locale, { min: filtersFromParams.auraMin }));
@@ -171,50 +171,40 @@ export default function SearchScreen() {
         }
       />
 
-      {/* ── Scope tabs ── */}
+      {/* ── Scope chips ── */}
       <ScopeTabs scope={scope} onChange={setScope} locale={locale} />
 
-      {/* ── CircleGate: advanced-filter pill ── */}
-      <View className="px-5 pb-3 pt-1">
+      {/* ── CircleGate: advanced-filter pill, and the filters in force ──
+          20 above: the chip row keeps 6 of its own under the chips, and blocks are 26 apart. */}
+      <View className="gap-3 px-5 pb-[26px] pt-5">
         <CircleGate feature="advancedFilters" variant="pill" locale={locale}>
           {/* Member affordance: opens the filter sheet (Task 9 route) */}
-          <Pressable
-            className="flex-row items-center gap-2 self-start rounded-full border border-hair bg-raise px-4 py-2.5"
-            style={{ minHeight: 44 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('search.filters.open', locale)}
-            onPress={() => {
-              router.push({ pathname: '/search-filters', params: filterSheetParams });
-            }}
-          >
-            <Text className="text-[14px] text-foreground">{t('search.filters.open', locale)}</Text>
-            {hasFilters ? <View className="h-2 w-2 rounded-full bg-aura" /> : null}
-          </Pressable>
+          <View className="self-start">
+            <Button
+              variant="outline"
+              size="sm"
+              label={t('search.filters.open', locale)}
+              onPress={() => {
+                router.push({ pathname: '/search-filters', params: filterSheetParams });
+              }}
+            />
+          </View>
         </CircleGate>
+        {filterChips.length > 0 ? (
+          <View className="flex-row flex-wrap gap-2">
+            {filterChips.map((chip) => (
+              <Tag key={chip} quiet label={chip} />
+            ))}
+          </View>
+        ) : null}
       </View>
-
-      {/* ── Applied filter chips (summary row) ── */}
-      {filterChips.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerClassName="flex-row gap-2 px-5 pb-3"
-        >
-          {filterChips.map((chip) => (
-            <View key={chip} className="rounded-full border border-hair bg-raise-2 px-3 py-1">
-              <Text className="text-[12px] text-muted-foreground">{chip}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
 
       {/* ── Results area ── */}
       {isIdle ? (
         <View className="flex-1 items-center px-8 pt-20">
-          <EmptyState>{t('search.empty.title', locale)}</EmptyState>
-          <Text className="mt-1 text-center text-[13px] text-faint">
-            {t('search.empty.sub', locale)}
-          </Text>
+          <EmptyState body={t('search.empty.sub', locale)}>
+            {t('search.empty.title', locale)}
+          </EmptyState>
         </View>
       ) : resultsState !== 'ready' ? (
         <ListState
@@ -235,22 +225,25 @@ export default function SearchScreen() {
         <FlatList
           data={sections}
           keyExtractor={(section) => section.key}
-          contentContainerClassName="pb-10"
+          contentContainerClassName="gap-[26px] px-5 pb-12"
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item: section }) => (
-            <View className="mb-4">
-              <View className="px-5 pb-2 pt-3">
-                <SectionLabel heading>{t(section.labelKey, locale)}</SectionLabel>
-              </View>
-              {section.rows.map((result) => (
-                <ResultRow
-                  key={result.id}
-                  result={result}
-                  query={q}
-                  onPress={(r) => {
-                    router.push(deriveRoute(r) as Parameters<typeof router.push>[0]);
-                  }}
-                />
-              ))}
+            // `RowGroup`'s own label is not a heading; this one is (DESIGN §10), so the
+            // label stands here, 12 above the block as `RowGroup` sets its own.
+            <View className="gap-3">
+              <SectionLabel heading>{t(section.labelKey, locale)}</SectionLabel>
+              <RowGroup>
+                {section.rows.map((result) => (
+                  <ResultRow
+                    key={result.id}
+                    result={result}
+                    query={q}
+                    onPress={(r) => {
+                      router.push(deriveRoute(r) as Parameters<typeof router.push>[0]);
+                    }}
+                  />
+                ))}
+              </RowGroup>
             </View>
           )}
           onEndReachedThreshold={0.5}

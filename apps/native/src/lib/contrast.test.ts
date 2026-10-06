@@ -105,11 +105,11 @@ describe('the nested-surface trap (regression)', () => {
     expect(ratio(galleria.foregroundMuted, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('INTERIM: the secondary grey is under AA on a chip — search, EventRow', () => {
-    // Two sites set readable copy in `muted-foreground` on `bg-raise-2`:
-    // `app/(modal)/search.tsx` and `components/live/EventRow.tsx`. Each stops when its screens
-    // are converted (#921, open as of 2026-10-04); `Tag` (`quiet`) was the third until that
-    // day. Charcoal would clear (4.65) but hides the unbordered blocks inside cards, so that
+  it('INTERIM: the secondary grey is under AA on a chip — EventRow', () => {
+    // One site sets readable copy in `muted-foreground` on `bg-raise-2`:
+    // `components/live/EventRow.tsx`. It stops when Athanor Live converts (#921, open as of
+    // 2026-10-06); `Tag` (`quiet`) left on 2026-10-04 and `app/(modal)/search.tsx` on
+    // 2026-10-06. Charcoal would clear (4.65) but hides the unbordered blocks inside cards, so that
     // fill is a step lighter and this is the cost. A mark in the same grey on the same fill is
     // above the 3:1 non-text floor.
     expect(ratio(galleria.foregroundMuted, RAISE2)).toBeCloseTo(3.85, 2);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, RefreshControl } from 'react-native';
+import { ActivityIndicator, RefreshControl, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { galleria } from '@athanor/config';
@@ -13,31 +13,45 @@ import {
 } from '@athanor/api';
 import type { NotifCursor } from '@athanor/api';
 import type { Notification } from '@athanor/schemas';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View, cn } from '@/tw';
 import { SettingsIcon } from '@/components/glyphs';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import NotificationRow from '@/components/trust/NotificationRow';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
-import { HIT_SLOP } from '@/lib/a11y';
 import { devWarn } from '@/lib/log';
 import { routeForNotification } from '@/lib/notification-route';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
+import { stacksTrailing } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 
 /**
- * In-app notification center (M9 §3.6). Grouped into Nuove (unread) + Prima (read).
+ * In-app notification center (M9 §3.6). Two groups, Nuove (unread) and Prima (read), each a
+ * grey label over one `RowGroup` (Galleria, 2026-10-06, #921): no card, 26 between the groups.
  * Realtime: subscribe on mount → invalidate on change. «Segna lette» marks all read.
- * Tap → markRead (optimistic) + route to entity target. Presence dot, never a count (rule #3).
- * Neutral chrome; moment accent only on NotificationRow ndot (rule #4).
- * Zero hardcoded strings (rule #5). No glow on any surface here (rule #4).
+ * Tap → markRead (optimistic) + route to entity target. Never a count (rule #3): the group a
+ * row stands in says whether it was read.
+ * The one cyan is the dot on a waiting Momento's row (`NotificationRow`); nothing glows.
+ * Zero hardcoded strings (rule #5).
+ *
+ * Header: «Segna lette» is an underlined foreground link in a 44pt box and the gear a drawn
+ * icon in a 44pt box, 8 apart as `ModalHeader` sets its band. At the accessibility sizes
+ * (`stacksTrailing`) the link stands under the header, at the left: beside the title it would
+ * leave «Notifiche» no room (#754).
+ *
+ * A group renders all of its loaded rows as one list item: the block's round corners and its
+ * hairlines belong to `RowGroup`, which a row-per-item list cannot draw. Pages still load on
+ * `onEndReached`.
  */
 export default function NotificationsScreen() {
   const router = useRouter();
   const locale = useLocale();
   const qc = useQueryClient();
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   // ── Notification list (keyset, created_at desc) ───────────────────────────
   const query = useInfiniteQuery({
@@ -76,17 +90,27 @@ export default function NotificationsScreen() {
     [qc, router],
   );
 
-  // ── Build flat section list ────────────────────────────────────────────────
-  type Section = { kind: 'header'; label: string } | { kind: 'row'; item: Notification };
+  // ── The two groups ─────────────────────────────────────────────────────────
+  type Section = { key: 'new' | 'earlier'; label: string; items: Notification[] };
   const sections: Section[] = [];
   if (unreadItems.length > 0) {
-    sections.push({ kind: 'header', label: t('notif.group.new', locale) });
-    unreadItems.forEach((item) => sections.push({ kind: 'row', item }));
+    sections.push({ key: 'new', label: t('notif.group.new', locale), items: unreadItems });
   }
   if (earlierItems.length > 0) {
-    sections.push({ kind: 'header', label: t('notif.group.earlier', locale) });
-    earlierItems.forEach((item) => sections.push({ kind: 'row', item }));
+    sections.push({ key: 'earlier', label: t('notif.group.earlier', locale), items: earlierItems });
   }
+
+  const markAllLink =
+    unreadItems.length > 0 ? (
+      <Pressable
+        onPress={() => markAll.mutate()}
+        disabled={markAll.isPending}
+        accessibilityRole="button"
+        className={cn('min-h-[44px] justify-center', PRESS_DIM)}
+      >
+        <Text className="type-small text-foreground underline">{t('notif.markAll', locale)}</Text>
+      </Pressable>
+    ) : null;
 
   return (
     <Screen>
@@ -95,40 +119,33 @@ export default function NotificationsScreen() {
         title={t('notif.title', locale)}
         backLabel={t('common.back', locale)}
         right={
-          // gap-6 (24pt), not gap-4: the gear's HIT_SLOP (11) plus «Segna lette»'s
-          // slop (8) is 19, and gap-4's 16 lets the two hit rects overlap.
-          <View className="flex-row items-center gap-6">
-            {unreadItems.length > 0 ? (
-              <Pressable
-                onPress={() => markAll.mutate()}
-                disabled={markAll.isPending}
-                accessibilityRole="button"
-                hitSlop={8}
-              >
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('notif.markAll', locale)}
-                </Text>
-              </Pressable>
-            ) : null}
+          <View className="flex-row items-center gap-2">
+            {stacked ? null : markAllLink}
             {/* Overflow → preferences. The sun-wheel is the app's gear (#753: a U+2699 text
-                character here fell back to the emoji font); 22pt + HIT_SLOP = 44, the pairing
-                HIT_SLOP is sized for. */}
+                character here fell back to the emoji font). A 44pt box, pulled 12 into the
+                gutter like `HeaderClose`. */}
             <Pressable
               onPress={() => router.push('/(modal)/notif-prefs')}
               accessibilityRole="button"
               accessibilityLabel={t('notif.prefs.title', locale)}
-              hitSlop={HIT_SLOP}
+              className={cn(
+                '-mr-3 min-h-[44px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+              )}
             >
-              <SettingsIcon size={22} color={galleria.foregroundMuted} />
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <SettingsIcon size={22} color={galleria.foreground} />
+              </View>
             </Pressable>
           </View>
         }
       />
+      {stacked && markAllLink ? <View className="items-start px-5 pb-4">{markAllLink}</View> : null}
 
       <FlatList
         data={sections}
-        keyExtractor={(section, idx) => (section.kind === 'header' ? `h-${idx}` : section.item.id)}
-        contentContainerClassName="pb-10"
+        keyExtractor={(section) => section.key}
+        contentContainerClassName="grow gap-[26px] px-5 pb-12"
         refreshControl={
           <RefreshControl
             refreshing={query.isRefetching}
@@ -136,16 +153,18 @@ export default function NotificationsScreen() {
             tintColor={galleria.foregroundMuted}
           />
         }
-        renderItem={({ item: section }) => {
-          if (section.kind === 'header') {
-            return (
-              <View className="px-5 pb-1 pt-4">
-                <SectionLabel heading>{section.label}</SectionLabel>
-              </View>
-            );
-          }
-          return <NotificationRow item={section.item} locale={locale} onPress={onRow} />;
-        }}
+        renderItem={({ item: section }) => (
+          // `RowGroup`'s own label is not a heading; this one is (DESIGN §10), so the label
+          // stands here, 12 above the block as `RowGroup` sets its own.
+          <View className="gap-3">
+            <SectionLabel heading>{section.label}</SectionLabel>
+            <RowGroup>
+              {section.items.map((item) => (
+                <NotificationRow key={item.id} item={item} locale={locale} onPress={onRow} />
+              ))}
+            </RowGroup>
+          </View>
+        )}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
