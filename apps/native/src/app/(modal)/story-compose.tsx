@@ -4,10 +4,10 @@ import * as Haptics from 'expo-haptics';
 import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
-import { PlayGlyph } from '@/components/glyphs';
+import { CloseIcon, PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Row } from '@/components/Row';
@@ -17,10 +17,10 @@ import { useLocale } from '@/hooks/use-locale';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
 import { useGuardedBack } from '@/lib/modal-exit';
+import { PRESS_DIM } from '@/lib/press';
 import { type PickedMedia } from '@/lib/media/pick';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useStoryUpload } from '@/lib/media/use-story-upload';
-import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -113,84 +113,89 @@ export default function StoryComposeScreen() {
             keyboard (#748). */}
         <ScrollView
           className="flex-1"
-          contentContainerClassName="gap-5 px-5 pb-8"
+          contentContainerClassName="gap-[26px] px-5 pb-8"
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-[14px] text-faint">{t('story.add.desc', locale)}</Text>
+          <Text className="type-small text-muted-foreground">{t('story.add.desc', locale)}</Text>
 
-          {/* Attach affordance — flat, no glow (rule #4). One segment per publish: a re-pick replaces. */}
-          <Pressable
-            className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
+          {/* Attach: an outline pill (the prototype's `pill o`). One segment per publish: a
+              re-pick replaces. */}
+          <Button
+            variant="outline"
+            label={t('story.add.attach', locale)}
             onPress={() => setSheetOpen(true)}
             disabled={isUploading}
-            accessibilityRole="button"
-          >
-            <Text className="text-[14px] text-foreground">{t('story.add.attach', locale)}</Text>
-          </Pressable>
+          />
 
           {media ? (
             <View className="relative h-40 w-40">
               {media.kind === 'video' ? (
                 // An <Image> handed a video file URI draws nothing (#318, swept here by #460) —
                 // this tile was a blank box with a 12px ▶ pinned to its corner. Same no-poster
-                // state post-compose and the feed card fall back to: dark fill, centred faint ▶
-                // (MomentTile pairing — wrapper announces, glyph is decorative).
+                // state post-compose and the feed card fall back to: the tile's fill, a centred
+                // grey ▶ (MomentTile pairing — wrapper announces, glyph is decorative).
                 <View
-                  className="h-40 w-40 items-center justify-center rounded-[8px] bg-raise-2"
+                  className="h-40 w-40 items-center justify-center rounded-[14px] border border-hair bg-surface"
                   accessible
                   accessibilityLabel={t('media.noPoster.video', locale)}
                 >
                   <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                    <PlayGlyph size={36} color={galleria.faint} />
+                    <PlayGlyph size={36} color={galleria.foregroundMuted} />
                   </View>
                 </View>
               ) : (
                 <Image
                   source={{ uri: media.uri }}
-                  style={{ width: 160, height: 160, borderRadius: 8 }}
+                  // The tile's hairline, as on the placeholders beside it (Greptile, PR 942).
+                  style={{
+                    width: 160,
+                    height: 160,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: galleria.hair,
+                  }}
                   resizeMode="cover"
                 />
               )}
               {isUploading ? (
-                <View
-                  className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
-                  style={{ opacity: 0.6 }}
-                />
+                <View className="absolute inset-0 rounded-[14px] bg-background/60" />
               ) : (
                 <Pressable
-                  className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
+                  className={cn(
+                    'absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-surface',
+                    PRESS_DIM,
+                  )}
                   onPress={() => setMedia(null)}
                   accessibilityRole="button"
+                  accessibilityLabel={t('media.a11y.remove', locale)}
                   hitSlop={12}
                 >
-                  {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
-                        sits on, so the ✕ cannot grow without leaving it. The control is named by
-                        its own accessibilityLabel, so the glyph carries nothing. */}
-                  <Text
-                    className="text-[11px] text-faint"
-                    maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-                  >
-                    ✕
-                  </Text>
+                  {/* The drawn close, as on post-compose's tiles: a drawing cannot leave the
+                      MEASURED 20pt box (#639), and the label names the control. */}
+                  <CloseIcon size={12} color={galleria.foreground} />
                 </Pressable>
               )}
             </View>
           ) : null}
 
           {isUploading ? (
-            <Text className="text-[13px] text-faint">
+            <Text className="type-small text-muted-foreground">
               {t('media.uploadingIndeterminate', locale)}
             </Text>
           ) : null}
 
-          <Field
-            multiline
-            maxLength={280}
-            placeholder={t('story.add.captionPlaceholder', locale)}
-            value={caption}
-            onChangeText={setCaption}
-          />
-          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
+          {/* The reason stands 6 under the caption; the wrapper is unconditional so it never
+              remounts the field. */}
+          <View className="gap-1.5">
+            <Field
+              multiline
+              maxLength={280}
+              placeholder={t('story.add.captionPlaceholder', locale)}
+              value={caption}
+              onChangeText={setCaption}
+            />
+            {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
+          </View>
 
           {/* The same toggle as `post-compose.tsx`, and it had the same defect — role, state and
               name all missing (#635); the bare ✦/○ glyph that drew its state rendered as a tiny

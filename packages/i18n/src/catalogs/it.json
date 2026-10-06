@@ -708,6 +708,7 @@
   "media.unavailable.audio": "Questo audio non si carica.",
   "media.noPoster.video": "Video senza anteprima.",
   "media.noPoster.audio": "Audio, nessuna anteprima.",
+  "media.a11y.remove": "Togli l'allegato",
   "permission.blocked.camera": "La fotocamera è spenta",
   "permission.blocked.microphone": "Il microfono è spento",
   "permission.blocked.body": "L'hai disattivato nelle impostazioni. Riattivalo quando vuoi.",

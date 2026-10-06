@@ -14,9 +14,9 @@ import { AURA_UNKNOWN } from './aura-display';
  * change to the app's unknown mark must move the star vocabulary with it rather than silently
  * splitting the two apart.
  *
- * NOT for the other pairs that happen to share ✦ — ✦/○ (post-compose step flag), ✦/◇ (trust,
- * verify), ✦/◓ (VideoUploadTile). Those are different vocabularies; folding them in here would
- * invent a meaning they don't have.
+ * NOT for the other pairs that happen to share ✦ — ✦/◇ (trust, verify), ✦/◓ (VideoUploadTile);
+ * the composers' step flag was a ✦/○ pair too, until #748 gave it the Switch. Those are
+ * different vocabularies; folding them in here would invent a meaning they don't have.
  */
 export const STAR = { lit: '✦', unlit: '✧', unknown: AURA_UNKNOWN } as const;
 

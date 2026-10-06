@@ -8,11 +8,11 @@ import { galleria } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
-import { PlayGlyph } from '@/components/glyphs';
+import { CloseIcon, PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Row } from '@/components/Row';
@@ -36,8 +36,8 @@ import {
   uploadLocalFile,
 } from '@/lib/media/upload';
 import { useGuardedBack } from '@/lib/modal-exit';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
-import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -283,33 +283,32 @@ export default function PostComposeScreen() {
             keyboard (#748, story-compose's twin). */}
         <ScrollView
           className="flex-1"
-          contentContainerClassName="gap-5 px-5 pb-8"
+          contentContainerClassName="gap-[26px] px-5 pb-8"
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
+          {/* The prototype's `.fld`: the sentence is the field's label, 6 above it; the reason
+              stands 6 under it. The wrapper is unconditional, so a reason that comes and goes
+              never remounts the field. Not `Field`'s own `error`: that lights the field's
+              border, and this line also carries what the media sheet reports. */}
+          <View className="gap-1.5">
+            <SectionLabel>{t('create.post.desc', locale)}</SectionLabel>
+            <Field
+              size="lg"
+              multiline
+              placeholder={t('post.compose.placeholder', locale)}
+              value={body}
+              onChangeText={setBody}
+            />
+            {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
+          </View>
 
-          <Field
-            size="lg"
-            multiline
-            placeholder={t('post.compose.placeholder', locale)}
-            value={body}
-            onChangeText={setBody}
-          />
-          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
-
-          {/* Attach affordance — flat, no glow (rule #4) */}
-          <Pressable
-            className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
+          {/* Attach: an outline pill, the second action of the screen (the prototype's `pill o`). */}
+          <Button
+            variant="outline"
+            label={t('post.compose.attach', locale)}
             onPress={() => setSheetOpen(true)}
             disabled={mutation.isPending || items.length >= MEDIA_LIMITS.MAX_POST_MEDIA}
-            accessibilityRole="button"
-          >
-            <Text
-              className={`text-[14px] ${items.length >= MEDIA_LIMITS.MAX_POST_MEDIA ? 'text-faint' : 'text-foreground'}`}
-            >
-              {t('post.compose.attach', locale)}
-            </Text>
-          </Pressable>
+          />
 
           {/* Preview tiles */}
           {items.length > 0 ? (
@@ -323,7 +322,7 @@ export default function PostComposeScreen() {
                     // gets one and needs its own surface. The duration is the only thing there
                     // is to show, so it is what the tile shows.
                     <View
-                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      className="h-20 w-20 items-center justify-center rounded-[14px] border border-hair bg-surface"
                       accessible
                       accessibilityLabel={t('media.noPoster.audio', locale)}
                     >
@@ -336,10 +335,10 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={galleria.faint} />
+                        <PlayGlyph size={24} color={galleria.foregroundMuted} />
                       </View>
                       <Text
-                        className="mt-0.5 text-[11px] text-faint"
+                        className="mt-0.5 text-[11px] text-muted-foreground"
                         style={{ fontVariant: ['tabular-nums'] }}
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
@@ -350,10 +349,10 @@ export default function PostComposeScreen() {
                   ) : item.kind === 'video' ? (
                     // An <Image> handed a video file URI draws nothing (#318) — this tile was a
                     // blank box with a ▶ badge. Same no-poster state the feed card falls back to:
-                    // dark fill, centred faint ▶ (MomentTile pairing — wrapper announces, glyph
-                    // is decorative).
+                    // the tile's fill, a centred grey ▶ (MomentTile pairing — wrapper announces,
+                    // glyph is decorative).
                     <View
-                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      className="h-20 w-20 items-center justify-center rounded-[14px] border border-hair bg-surface"
                       accessible
                       accessibilityLabel={t('media.noPoster.video', locale)}
                     >
@@ -362,40 +361,45 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={galleria.faint} />
+                        <PlayGlyph size={24} color={galleria.foregroundMuted} />
                       </View>
                     </View>
                   ) : (
                     <Image
                       source={{ uri: item.uri }}
-                      style={{ width: 80, height: 80, borderRadius: 8 }}
+                      // The tile's hairline, as on the placeholders beside it (Greptile, PR 942).
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: galleria.hair,
+                      }}
                       resizeMode="cover"
                     />
                   )}
                   {/* Uploading dim overlay */}
                   {mutation.isPending ? (
-                    <View
-                      className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
-                      style={{ opacity: 0.6 }}
-                    />
+                    <View className="absolute inset-0 rounded-[14px] bg-background/60" />
                   ) : null}
                   {/* Remove button — hidden while uploading */}
                   {!mutation.isPending ? (
                     <Pressable
-                      className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
+                      className={cn(
+                        'absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-surface',
+                        PRESS_DIM,
+                      )}
                       onPress={() => removeItem(index)}
                       accessibilityRole="button"
+                      accessibilityLabel={t('media.a11y.remove', locale)}
                       hitSlop={12}
                     >
-                      {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
-                        sits on, so the ✕ cannot grow without leaving it. The control is named by
-                        its own accessibilityLabel, so the glyph carries nothing. */}
-                      <Text
-                        className="text-[11px] text-faint"
-                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-                      >
-                        ✕
-                      </Text>
+                      {/* The drawn close (DESIGN §6 «Interface icons»), a ✕ character until
+                          2026-10-06. This badge's 20pt box is MEASURED against the thumbnail it
+                          sits on (#639); a drawing does not grow with the text, so it cannot
+                          leave the box. The control is named by its label: until that day it
+                          had none, and its whole name was the character. */}
+                      <CloseIcon size={12} color={galleria.foreground} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -405,7 +409,7 @@ export default function PostComposeScreen() {
 
           {/* Uploading indicator */}
           {mutation.isPending && items.length > 0 ? (
-            <Text className="text-[13px] text-faint">
+            <Text className="type-small text-muted-foreground">
               {t('media.uploadingIndeterminate', locale)}
             </Text>
           ) : null}

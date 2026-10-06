@@ -424,7 +424,7 @@ export default function ChatScreen() {
         {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
           but the glow is reserved for moment-grade events; a routine send is not one). */}
         <View className="border-t border-hair bg-background">
-          {/* staged image (#155) — post-compose's tile idiom: dim while sending, ✕ otherwise. */}
+          {/* staged image (#155) — as post-compose's tiles were: dim while sending, ✕ otherwise. */}
           {attachment ? (
             <View className="flex-row items-center gap-3 px-4 pt-3">
               <View className="relative">

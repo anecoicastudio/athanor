@@ -33,7 +33,7 @@ export const FONT_SCALE_CAP = {
    */
   display: 1.35,
   /**
-   * A glyph that is decoration: an avatar's initial, a ✕ on a measured 20pt badge. Its
+   * A glyph that is decoration: an avatar's initial, chat's ✕ on a measured 20pt badge. Its
    * meaning is on the parent's `accessibilityLabel`, so a screen reader loses nothing and
    * scaling it would only push it out of a disc whose size is a layout constant.
    * Never valid on text a member has to read.
