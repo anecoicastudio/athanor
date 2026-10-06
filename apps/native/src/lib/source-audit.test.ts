@@ -5508,7 +5508,9 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
     const OWNERS = ['components/Switch.tsx', 'components/Row.tsx'];
     const hits = appCode()
       .filter(([at]) => !OWNERS.some((o) => at.endsWith(o)))
-      .filter(([, src]) => /accessibilityRole="switch"/.test(src))
+      // The literal and the expression forms: `Row` itself spells it `{isSwitch ? 'switch' : …}`
+      // (Greptile, PR 941).
+      .filter(([, src]) => /accessibilityRole=(?:"switch"|\{[^}]*['"`]switch['"`])/.test(src))
       .map(([at]) => at);
     expect(
       hits,
