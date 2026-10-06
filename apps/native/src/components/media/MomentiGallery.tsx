@@ -82,7 +82,6 @@ export function MomentiGallery({
           <View key={m.id} className="w-1/3 p-[3px]">
             <MomentTile
               moment={m}
-              variant="gallery"
               locale={locale}
               urls={urls}
               isLoading={urlsLoading}
@@ -92,7 +91,7 @@ export function MomentiGallery({
         ))}
         {onAdd ? (
           <View className="w-1/3 p-[3px]">
-            <MomentAddTile variant="gallery" label={t('moment.add', locale)} onPress={onAdd} />
+            <MomentAddTile label={t('moment.add', locale)} onPress={onAdd} />
           </View>
         ) : null}
       </View>

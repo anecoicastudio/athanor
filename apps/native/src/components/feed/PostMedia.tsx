@@ -242,7 +242,10 @@ export function PostMedia({ postId, postType, variant, locale, onPress }: Props)
                   />
                 )}
                 {dur ? (
-                  <View className="absolute bottom-2 right-2 rounded-full bg-background/70 px-2 py-0.5">
+                  <View className="absolute bottom-2 right-2 overflow-hidden rounded-full px-2 py-0.5">
+                    {/* The chip's fill is a layer: an alpha on the colour class draws nothing on
+                        device (`media/MomentTile`'s play disc has the same layer). */}
+                    <View className="absolute inset-0 bg-background opacity-70" />
                     <Text className="text-[11px] text-foreground">{dur}</Text>
                   </View>
                 ) : null}

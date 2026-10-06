@@ -24,6 +24,7 @@ import { useLocale } from '@/hooks/use-locale';
 import { useStorySeen } from '@/hooks/use-story-seen';
 import { supabase } from '@/lib/supabase';
 import { Text } from '@/tw';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 import { usePersonStory } from '@/hooks/use-person-story';
@@ -38,7 +39,7 @@ export default function StoriesScreen() {
   const targetId = authorId === 'me' ? (myId ?? '') : authorId;
   const { seenIds, markSeen } = useStorySeen();
   const { showToast } = useToast();
-  /** Every way out of the viewer (#578) — the last-person end, the ✕, the two back-then-push
+  /** Every way out of the viewer (#578) — the last-person end, the close, the two back-then-push
    * exits and the post-delete pop. `back()` alone strands a viewer opened as a stack root. */
   const leave = useGuardedBack();
   // The viewer's composer and dream CTA float OVER the story, so they cannot be a `Screen
@@ -144,23 +145,14 @@ export default function StoriesScreen() {
   // No author yet (an unresolved `'me'`, an undelivered param) is loading, not "expired" —
   // the query is disabled rather than pending, so `isLoading` alone would say false.
   if (!currentAuthorId || personQuery.isLoading) {
-    return (
-      <Screen className="items-center justify-center">
-        {/* Decorative loading glyph — hidden, like `(tabs)/profile.tsx`'s loading ✦ (#635). */}
-        <Text
-          className="text-2xl text-faint"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          ✦
-        </Text>
-      </Screen>
-    );
+    return <LoadingScreen />;
   }
   if (segments.length === 0 || !first) {
     return (
       <Screen className="items-center justify-center pl-6 pr-6">
-        <Text className="text-center text-[15px] text-faint">{t('story.expired', locale)}</Text>
+        <Text className="type-small text-center text-muted-foreground">
+          {t('story.expired', locale)}
+        </Text>
       </Screen>
     );
   }

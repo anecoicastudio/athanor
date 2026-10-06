@@ -117,7 +117,7 @@ export const galleria = {
   raise2: '#2C2C2E',
   /**
    * @deprecated Legacy alias — `surface`. It fills the Avatar fallback disc, the tab bar and
-   * the scrim of the hand-rolled sheets; black would lose the disc on the stage.
+   * the scrim of chat's hand-rolled message sheet; black would lose the disc on the stage.
    */
   surfaceMuted: '#1D1D1F',
   /** @deprecated Legacy alias — body copy is `foreground`. */

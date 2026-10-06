@@ -85,7 +85,7 @@ export function PhotoViewer({
             leading="close"
             backLabel={t('common.close', locale)}
             onBack={onClose}
-            titleSlot={<Text className="text-sm text-faint">{label}</Text>}
+            titleSlot={<Text className="type-small text-muted-foreground">{label}</Text>}
           />
 
           {/* The stage stays a plain View: a Pressable here would be an accessibility element,
@@ -104,7 +104,9 @@ export function PhotoViewer({
           </View>
 
           {caption ? (
-            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">{caption}</Text>
+            <Text className="type-small px-gutter pb-10 pt-3 text-center text-foreground">
+              {caption}
+            </Text>
           ) : (
             <View className="pb-10" />
           )}

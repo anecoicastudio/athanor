@@ -380,7 +380,7 @@ export default function PostComposeScreen() {
                   )}
                   {/* Uploading dim overlay */}
                   {mutation.isPending ? (
-                    <View className="absolute inset-0 rounded-[14px] bg-background/60" />
+                    <View className="absolute inset-0 rounded-[14px] bg-background opacity-60" />
                   ) : null}
                   {/* Remove button — hidden while uploading */}
                   {!mutation.isPending ? (
