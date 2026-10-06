@@ -843,7 +843,7 @@ Rules:
 
 Rules:
 
-- **A disabled control is never the loudest thing on screen.** Composer CTAs («Pubblica», send ✦) render `opacity-40` until valid — app-wide rule, this screen was the third violation. The brightest fill on a screen must always be tappable.
+- **A disabled control is never the loudest thing on screen.** Composer CTAs («Pubblica», the send disc) render `opacity-40` until valid — app-wide rule, this screen was the third violation. The brightest fill on a screen must always be tappable.
 - **The author's zero is a sentence, not a digit.** At n=0 the author-only reaction line renders voice («Ancora nessuna stella su questo passo») or collapses; the count appears from n≥1. Public visitors still see no count ever (§2.6).
 - **Comments are «Risposte» and behave like it**: oldest-first so an answer follows its question. One reply level maximum; threading beyond that is out of scope for Fase 1 (ruling row, §11).
 - Timestamps on the post and every comment (`· 2h` from §8.3 carries into the detail).

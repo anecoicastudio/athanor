@@ -7,9 +7,11 @@ import { stacksTrailing } from '@/lib/type-scale';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 
 /**
- * One comment (frontend §3.3 / §4): commenter row + body + «Rispondi», on `surface` with a
- * post's insets (`FeedPost`). NO like count (rule #3). `onReply` prefills the input with a
- * mention. `pending` dims an optimistic row until the write settles.
+ * One comment (frontend §3.3 / §4): commenter row + body, on `surface` with a post's insets
+ * (`FeedPost`), and under them the actions its screen passes. NO like count (rule #3).
+ * `onReply` draws «Rispondi» and `onDelete` «Elimina», both optional: `(modal)/post/[id]`
+ * passes `onDelete` on your own replies and no `onReply`, so no «Rispondi» is drawn today.
+ * `pending` dims an optimistic row until the write settles.
  *
  * The prototype draws the replies as rows of ONE group (`RowGroup`'s shape: radius 28, 16
  * inside, a hairline between rows that stops 16 short of each edge). The screen that lists
