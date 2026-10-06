@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Animated, Keyboard, PanResponder, StyleSheet } from 'react-native';
+import { Animated, Keyboard, PanResponder, StyleSheet, useWindowDimensions } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { galleria } from '@athanor/config';
 import { t, tn } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
-import { Pressable, SafeAreaView, Text, View, cn } from '@/tw';
+import { Pressable, SafeAreaView, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { ButtonRow } from '@/components/ButtonRow';
 import { CloseIcon, SendIcon } from '@/components/glyphs';
@@ -127,6 +127,7 @@ export function StoriesViewer({
   // cannot take the `KeyboardAvoiding` wrapper. It reads the same hook rather than holding a
   // second copy of the measurement, which is what left it broken by every earlier fix.
   const keyboardInset = useKeyboardInset();
+  const { height: windowHeight } = useWindowDimensions();
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const { showToast } = useToast();
@@ -328,8 +329,13 @@ export function StoriesViewer({
           <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
           {current.caption || current.is_step ? (
             <View className="gap-2">
+              {/* A caption can be long. It scrolls inside a third of the window, so the controls
+                  below stay on the screen: at AX5 on the iPhone SE simulator (Expo Go, 2026-10-06)
+                  a 768pt caption stood in 222pt and the last pill ended at 655 of 667. */}
               {current.caption ? (
-                <Text className="type-body text-foreground">{current.caption}</Text>
+                <ScrollView style={{ maxHeight: windowHeight / 3 }} alwaysBounceVertical={false}>
+                  <Text className="type-body text-foreground">{current.caption}</Text>
+                </ScrollView>
               ) : null}
               {/* The one cyan of the viewer: a step of the journey is one of the five marks. */}
               {current.is_step ? (
