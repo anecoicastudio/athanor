@@ -158,7 +158,7 @@ export default function StoryComposeScreen() {
                 />
               )}
               {isUploading ? (
-                <View className="absolute inset-0 rounded-[14px] bg-background/60" />
+                <View className="absolute inset-0 rounded-[14px] bg-background opacity-60" />
               ) : (
                 <Pressable
                   className={cn(

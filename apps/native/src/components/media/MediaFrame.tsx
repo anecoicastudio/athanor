@@ -68,8 +68,8 @@ type Props = {
  * saying anything.
  *
  * Owns the frame's *fill*, not the frame: each call site keeps its own box, because the aspect
- * ratios differ (9/16 story, 4/5 lightbox, 1/1 tile, per-row in the feed) and a tile's caption
- * has to stay legible across all three states.
+ * ratios differ (9/16 story, 4/5 lightbox, 1/1 tile, per-row in the feed) and a tile draws its
+ * hairline over all three states.
  *
  * Photos render through `expo-image` for one reason above the fade: it has a real `onError`, so
  * a URL that signs fine and then 404s — a deleted object, a TTL that lapsed mid-view — becomes
@@ -81,10 +81,9 @@ type Props = {
  * `kind` picks the copy and nothing else, because the two can disagree: a video Momento's tile
  * draws a *thumbnail*, so what renders is an image while what the member is missing is a video.
  *
- * No glow and no cyan anywhere here. What rule #4 reserves for moments is the GLOW — `auraGlow()`
- * laid over an `auraSoft`/`auraLine` surface (§2.3, ruled 2026-09-07); the framed pair on its own
- * only marks something active, and a frame standing in for media that failed to load is neither
- * active nor a moment. It stays the quietest thing on the screen.
+ * No cyan here (DESIGN §2.3, #921): a frame standing in for media that is signing or failed to
+ * load is none of the five marks. The loading fill is `surface` and the compact mark is the
+ * secondary grey: it stays the quietest thing on the screen.
  */
 export function MediaFrame({
   url,
@@ -116,12 +115,11 @@ export function MediaFrame({
   const readyUrl = state === 'ready' ? url : undefined;
 
   return (
-    // No fill here: every call site's frame already carries one. (`raise` was translucent
-    // white when this was written, and a second layer lightened the placeholder; it is opaque now.)
+    // No fill here: every call site's frame already carries one.
     <View className={cn('overflow-hidden', className)} style={style}>
       {state === 'loading' ? (
         <View
-          className="absolute inset-0 bg-raise-2"
+          className="absolute inset-0 bg-surface"
           accessible
           accessibilityLabel={t('media.loading', locale)}
         />
@@ -148,11 +146,11 @@ export function MediaFrame({
         <View className="absolute inset-0 items-center justify-center px-4">
           {compact ? (
             // A gallery tile is about a third of the screen wide — EmptyState's body line would
-            // clip, so the ✦ carries it visually (same glyph and `faint` weight as EmptyState)
+            // clip, so a grey ✦ carries it visually
             // and the label carries the sentence for a screen reader.
             <View accessible accessibilityLabel={t(UNAVAILABLE[kind], locale)}>
               <Text
-                className="text-2xl text-faint"
+                className="text-[24px] text-muted-foreground"
                 // Decorative: the wrapper above already announces the sentence, and without this
                 // the glyph is read as a second element (same pairing as EmptyState).
                 accessibilityElementsHidden

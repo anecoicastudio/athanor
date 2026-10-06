@@ -16,9 +16,10 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * it without reaching the system request. So the tap on a feature now fires the OS prompt
  * directly, and nothing of ours stands before it. `source-audit.test.ts` pins that.
  *
- * Bottom-anchored transparent Modal (no Sheet primitive in the app — mirrors Lightbox). Fade-only
- * animation → reduced-motion safe (no transform). The CTA is the `primary` pill: opening
- * Settings is an ordinary action.
+ * Bottom-anchored transparent Modal (no Sheet primitive in the app). Fade-only animation →
+ * reduced-motion safe (no transform). The same sheet as `MediaSheet` (#921, Marco 2026-10-06): a
+ * charcoal `surface` panel with a 28 top radius on a 70% black scrim, no grab handle. The CTA is
+ * the `primary` pill, since opening Settings is an ordinary action, and «Chiudi» is the text link.
  */
 export function PermissionBlockedSheet({
   kind,
@@ -53,7 +54,7 @@ export function PermissionBlockedSheet({
       {...(onDismissed ? { onDismiss: onDismissed } : {})}
     >
       {/*
-       * scrim — tap outside to dismiss (surface-muted is the token's documented scrim).
+       * scrim — tap outside to dismiss (`background` at 70%, DESIGN §6's scrim).
        *
        * `accessible={false}` on both this and the sheet below (#518 follow-up). `Pressable`
        * defaults `accessible={true}`, and on iOS an accessible view is ATOMIC: VoiceOver
@@ -65,26 +66,23 @@ export function PermissionBlockedSheet({
        * The scrim is decoration carrying a gesture and the sheet is a container. Neither is a
        * control, so neither should be focusable — and while either was, nothing under it was.
        */}
-      <Pressable
-        accessible={false}
-        className="flex-1 justify-end bg-surface-muted"
-        onPress={onDismiss}
-      >
+      <Pressable accessible={false} className="flex-1 justify-end" onPress={onDismiss}>
+        {/* The dim: a layer of its own, because an opacity on the scrim would dim the panel
+            too, and `bg-background/70` draws nothing here (iPhone SE simulator, Expo Go,
+            2026-10-06: the screen behind kept its pixels). */}
+        <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
         {/* sheet — stop propagation so taps inside don't dismiss */}
         <Pressable
           {...MODAL_A11Y}
           accessible={false}
-          className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-8"
+          className="rounded-t-[28px] bg-surface px-5 pb-12 pt-7"
           onPress={() => {}}
         >
           <View className="items-center">
-            <Text
-              accessibilityRole="header"
-              className="text-center text-xl font-semibold text-foreground"
-            >
+            <Text accessibilityRole="header" className="type-h2 text-center text-foreground">
               {t(titleKey, locale)}
             </Text>
-            <Text className="mt-2 text-center text-[15px] leading-5 text-faint">
+            <Text className="type-small mt-2 text-center text-muted-foreground">
               {t('permission.blocked.body', locale)}
             </Text>
           </View>
@@ -97,13 +95,7 @@ export function PermissionBlockedSheet({
                 void Linking.openSettings();
               }}
             />
-            <Pressable
-              className="min-h-[52px] items-center justify-center py-3"
-              accessibilityRole="button"
-              onPress={onDismiss}
-            >
-              <Text className="tracking-widest text-faint">{t('common.close', locale)}</Text>
-            </Pressable>
+            <Button variant="ghost" label={t('common.close', locale)} onPress={onDismiss} />
           </View>
         </Pressable>
       </Pressable>

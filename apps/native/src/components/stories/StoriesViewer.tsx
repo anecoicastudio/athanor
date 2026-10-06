@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Keyboard, PanResponder, StyleSheet } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { galleria } from '@athanor/config';
 import { t, tn } from '@athanor/i18n';
 import type { Locale, StorySegment } from '@athanor/schemas';
-import { Pressable, SafeAreaView, Text, View } from '@/tw';
+import { Pressable, SafeAreaView, Text, View, cn } from '@/tw';
+import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
+import { CloseIcon, SendIcon } from '@/components/glyphs';
 import { Input } from '@/components/Input';
 import { MediaFrame } from '@/components/media/MediaFrame';
 import { useToast } from '@/components/ToastHost';
@@ -11,8 +15,8 @@ import { keyboardCoversBottomInset, useKeyboardInset } from '@/hooks/use-keyboar
 import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useVideoFailure } from '@/lib/media/use-video-failure';
+import { PRESS_DIM } from '@/lib/press';
 import { star } from '@/lib/star';
-import { FONT_SCALE_CAP } from '@/lib/type-scale';
 
 const PHOTO_MS = 5000;
 const DEFAULT_VIDEO_MS = 15000;
@@ -35,9 +39,13 @@ function segmentMs(seg: StorySegment): number {
  * end to open on when the segments identity changes ('last' when arriving backwards).
  *
  * Layout (#297): the media fills the screen (`absolute inset-0`, cover) and all chrome floats
- * above it in two `bg-background/70` scrim bands — DESIGN.md §6 "Full-bleed media + overlay
+ * above it in two scrim bands (`background` at 70%) — DESIGN.md §6 "Full-bleed media + overlay
  * chrome". Each band owns its safe-area edge via the per-view `SafeAreaView` (#161: the
  * `useSafeAreaInsets` hook is per-window and over-insets inside the iOS `(modal)` sheet).
+ * The prototype stacks header, photo and caption on black instead; the full-bleed layout stays
+ * (Marco, 2026-10-06) and takes the prototype's chrome (#921): 3px foreground steps on hairline,
+ * the name in body medium, the drawn close, the shared pills. One cyan: «✦ Un passo del
+ * percorso» (DESIGN §2.3).
  *
  * The reply composer is real (#297): sending goes through `onSendReply` in the background — the
  * viewer is never left. Focus pauses the segment, blur resumes it.
@@ -239,10 +247,16 @@ export function StoriesViewer({
       )}
 
       <View style={[styles.chrome, { paddingBottom: keyboardInset }]}>
-        <SafeAreaView edges={['top']} className="bg-background/70">
-          <View className="flex-row gap-1 px-3 pt-3">
+        <SafeAreaView edges={['top']}>
+          {/* The band's scrim, a layer of its own: `bg-background/70` on the band drew nothing
+              (iPhone SE simulator, Expo Go, 2026-10-06: the photo kept its pixels under the
+              name), and an opacity on the band would dim its controls too. */}
+          <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
+          {/* One 3px step per segment, 6 apart, foreground on hairline (the prototype's
+              `.steps`). */}
+          <View className="flex-row gap-1.5 px-5 pt-3">
             {segments.map((seg, i) => (
-              <View key={seg.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-hair">
+              <View key={seg.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-hair">
                 <Animated.View
                   style={{
                     height: '100%',
@@ -257,13 +271,13 @@ export function StoriesViewer({
                           : '0%',
                   }}
                 >
-                  <View className="h-full bg-aura" />
+                  <View className="h-full bg-foreground" />
                 </Animated.View>
               </View>
             ))}
           </View>
 
-          <View className="flex-row items-center justify-between px-5 py-3">
+          <View className="flex-row items-center justify-between gap-3 px-5 py-2">
             {/* The name is the exit to the author's profile (#356). Press vs pan never fight:
                 the PanResponder is attached to the sibling swipe-zone View below, not here. */}
             {onAuthorPress ? (
@@ -272,20 +286,26 @@ export function StoriesViewer({
                 accessibilityLabel={t('connection.a11y.open', locale, { name })}
                 hitSlop={{ left: 8, right: 8 }}
                 onPress={onAuthorPress}
-                className="min-h-[44px] justify-center"
+                className={cn('min-h-[44px] shrink justify-center', PRESS_DIM)}
               >
-                <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
+                <Text className="type-body font-medium text-foreground">{name}</Text>
               </Pressable>
             ) : (
-              <Text className="text-[14px] font-semibold text-foreground">{name}</Text>
+              <Text className="type-body shrink font-medium text-foreground">{name}</Text>
             )}
+            {/* The drawn close in a 44pt box, 12 past the gutter like `HeaderClose`. */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t('common.back', locale)}
-              hitSlop={8}
+              accessibilityLabel={t('common.close', locale)}
               onPress={onClose}
+              className={cn(
+                '-mr-3 min-h-[44px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+              )}
             >
-              <Text className="text-2xl text-foreground">✕</Text>
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <CloseIcon size={22} color={galleria.foreground} />
+              </View>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -302,55 +322,54 @@ export function StoriesViewer({
             already spans the home indicator (#765, `keyboardCoversBottomInset`). */}
         <SafeAreaView
           edges={keyboardInset > 0 && keyboardCoversBottomInset ? [] : ['bottom']}
-          className="gap-3 bg-background/70 pb-3 pl-5 pr-5 pt-3"
+          className="gap-3 pb-3 pl-5 pr-5 pt-3"
           onLayout={(e) => onChromeHeight?.(e.nativeEvent.layout.height)}
         >
-          {current.caption ? (
-            <Text className="text-[14px] text-foreground">{current.caption}</Text>
-          ) : null}
-          {current.is_step ? (
-            <Text className="text-[12px] text-aura">✦ {t('story.stepBadge', locale)}</Text>
+          <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
+          {current.caption || current.is_step ? (
+            <View className="gap-2">
+              {current.caption ? (
+                <Text className="type-body text-foreground">{current.caption}</Text>
+              ) : null}
+              {/* The one cyan of the viewer: a step of the journey is one of the five marks. */}
+              {current.is_step ? (
+                <Text className="type-label text-aura">✦ {t('story.stepBadge', locale)}</Text>
+              ) : null}
+            </View>
           ) : null}
 
           {isOwn ? (
             <View className="gap-3">
-              <Text className="text-[13px] text-faint">{tn('story.own.stat', count, locale)}</Text>
-              {/* Primary on its own row, secondaries wrapping below it (#748): three buttons in
+              <Text className="type-small text-muted-foreground">
+                {tn('story.own.stat', count, locale)}
+              </Text>
+              {/* The add on its own row, the two others wrapping below it (#748): three buttons in
                   one non-wrapping row pushed «Elimina» off the right edge in Italian. */}
-              <Pressable
-                accessibilityRole="button"
-                onPress={onAddMoment}
-                className="min-h-[44px] items-center justify-center rounded-ctl border border-aura-line bg-aura-soft py-3"
-              >
-                <Text className="text-[14px] text-aura">{t('story.own.add', locale)}</Text>
-              </Pressable>
-              <View className="flex-row flex-wrap gap-3">
+              <Button variant="outline" label={t('story.own.add', locale)} onPress={onAddMoment} />
+              <ButtonRow>
                 {current.is_step && !current.pinned ? (
-                  <Pressable
-                    accessibilityRole="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    label={t('story.own.pin', locale)}
                     onPress={() => onPin(current)}
-                    className="min-h-[44px] items-center justify-center rounded-ctl border border-hair px-4"
-                  >
-                    <Text className="text-[14px] text-foreground">
-                      {t('story.own.pin', locale)}
-                    </Text>
-                  </Pressable>
+                  />
                 ) : null}
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  label={t('story.own.delete', locale)}
                   onPress={() => onDelete(current)}
-                  className="min-h-[44px] items-center justify-center rounded-ctl border border-hair px-4"
-                >
-                  <Text className="text-[14px] text-muted-foreground">
-                    {t('story.own.delete', locale)}
-                  </Text>
-                </Pressable>
-              </View>
+                />
+              </ButtonRow>
             </View>
           ) : (
             <View className="gap-3">
-              {/* Real composer (#297): send stays in the viewer. Send is a FLAT cyan surface —
-                  same rule #4 reading as the chat send button; a routine send is not a glow. */}
+              {/* Real composer (#297): send stays in the viewer. The bar is the post's (Marco,
+                  2026-10-06): the small field and a white 44pt disc with the drawn send, dimmed
+                  and disabled while there is nothing to send, never unmounted (a control that
+                  mounts beside a field on the first character lost keystrokes:
+                  `search/SearchBar`'s docblock has the counts). */}
               <View className="flex-row items-center gap-2">
                 <Input
                   className="flex-1"
@@ -367,22 +386,19 @@ export function StoriesViewer({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('story.reply.send.a11y', locale, { name })}
+                  accessibilityState={{ disabled: !canSend }}
                   disabled={!canSend}
                   onPress={sendReply}
-                  className={`h-[44px] w-[44px] items-center justify-center rounded-full bg-aura ${
-                    canSend ? '' : 'opacity-40'
-                  }`}
+                  className={cn(
+                    'h-[44px] w-[44px] items-center justify-center rounded-full bg-foreground',
+                    PRESS_DIM,
+                    canSend ? null : 'opacity-40',
+                  )}
                 >
-                  {/* Same disc-stays-a-disc reason as chat's send (#639). */}
-                  <Text
-                    className="text-[20px] text-on-aura"
-                    maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-                  >
-                    ›
-                  </Text>
+                  <SendIcon size={22} color={galleria.background} />
                 </Pressable>
               </View>
-              <View className="flex-row items-center gap-4">
+              <View className="flex-row flex-wrap items-center justify-between gap-3">
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected: viewerReacted }}
@@ -391,21 +407,28 @@ export function StoriesViewer({
                     locale,
                   )}
                   onPress={() => onReact(current)}
-                  className="min-h-[44px] min-w-[44px] flex-row items-center justify-center"
+                  className={cn(
+                    'min-h-[44px] min-w-[44px] flex-row items-center justify-center',
+                    PRESS_DIM,
+                  )}
                 >
-                  {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and the six stars' rows —
-                      `faint` alone stopped reading "off" once it was retuned for AA. */}
-                  <Text className={`text-[22px] ${viewerReacted ? 'text-aura' : 'text-faint'}`}>
+                  {/* Shape carries the state (✦ lit / ✧ unlit), as on ReactionStar and the six
+                      stars' rows; a lit star is foreground, never cyan (DESIGN §2.3). */}
+                  <Text
+                    className={cn(
+                      'text-[22px]',
+                      viewerReacted ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
                     {star(viewerReacted)}
                   </Text>
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  label={t('story.makeDream', locale)}
                   onPress={onMakeDream}
-                  className="flex-1 items-center rounded-ctl border border-aura-line bg-aura-soft py-3"
-                >
-                  <Text className="text-[14px] text-aura">{t('story.makeDream', locale)}</Text>
-                </Pressable>
+                />
               </View>
             </View>
           )}

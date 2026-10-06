@@ -2682,7 +2682,12 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
-    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
+    'components/stories/StoriesViewer.tsx:259': 'a 3px progress step — no text inside',
+    'components/stories/StoriesViewer.tsx:393':
+      'the 44pt send disc of the reply bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
+    'components/media/MomentTile.tsx:98':
+      'the 52pt disc under a video tile’s play: a drawn glyph inside, no prose',
     'components/search/ResultRow.tsx:73':
       'the 44pt disc of a project or an event result; its glyph is capped to `ornament`',
     'components/trust/NotificationRow.tsx:51':
@@ -4804,7 +4809,8 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
 
   it('a MediaSheet row asks the OS before it shows anything of its own', () => {
     const src = stripComments(read(`${SRC}components/media/MediaSheet.tsx`));
-    const rows = jsxOpeningTags(src).filter((t) => t.base === 'Row' && !t.raw.includes('onClose'));
+    // The sources are `SourceRow`s; the shared `Row` in this file is the way out.
+    const rows = jsxOpeningTags(src).filter((t) => t.base === 'SourceRow');
     expect(
       rows.length,
       'MediaSheet renders no source row — the walk found nothing',
@@ -5869,8 +5875,8 @@ describe('the Home tab keeps the Galleria look (#921)', () => {
  * The Community tab (#921, the third screen chunk). The prototype draws NO bordered card here:
  * each post is a borderless `surface` block of its own (Marco, 2026-10-05). Cyan stands once,
  * on «✦ Un passo del percorso» (DESIGN §2.3). The story ring and a lit star are foreground.
- * `live/EventRow` under the «Eventi» filter and `media/MediaFrame` are not in this list: they
- * convert with Athanor Live and with the feed modals.
+ * `live/EventRow` under the «Eventi» filter and `media/MediaFrame` are not in this list:
+ * `EventRow` converts with Athanor Live, and the media section below holds `MediaFrame` (C14c).
  */
 describe('the Community tab keeps the Galleria look (#921)', () => {
   const FEED_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/feed/'))
@@ -6540,8 +6546,8 @@ describe('search and notifications keep the Galleria look (#921)', () => {
  * on any of the three. Cyan stands once: «✦ Un passo del percorso» on the post (DESIGN §2.3);
  * the comment bar's send is a white disc. The replies look like one group of rows and stay a
  * virtualized list: `feed/Comment` draws its own segment (Marco, 2026-10-06).
- * `media/MediaSheet` and `media/MediaFrame` are not in this list: they convert with the media
- * screens.
+ * `media/MediaSheet` and `media/MediaFrame` are not in this list: the media section below holds
+ * them (C14c).
  */
 describe('the post and the two composers keep the Galleria look (#921)', () => {
   const POST = 'app/(modal)/post/[id].tsx';
@@ -6691,6 +6697,239 @@ describe('the post and the two composers keep the Galleria look (#921)', () => {
   it('a field’s label stands 6 above it', () => {
     expect(flat(POST_COMPOSE)).toMatch(
       /<View className="gap-1\.5"> <SectionLabel>\{t\('create\.post\.desc', locale\)\}<\/SectionLabel> <Field/,
+    );
+  });
+});
+
+/*
+ * Stories, the grid and the media components (#921, C14c, 2026-10-06). The prototype draws two
+ * of these (`stories`, `grid`) and no bordered card on either; the lightbox, the photo viewer
+ * and the three sheets take their look from `base.css`. Cyan stands once: «✦ Un passo del
+ * percorso» in the story viewer (DESIGN §2.3). Ruled by Marco that day: the viewer stays
+ * full-bleed under its two scrim bands, its reply bar is the post's (44 + 44, white), the three
+ * sheets are a charcoal panel with no grab handle, and the grid's add is the header's alone.
+ */
+describe('stories, the grid and the media components keep the Galleria look (#921)', () => {
+  const GRID = 'app/(modal)/grid.tsx';
+  const STORIES = 'app/(modal)/stories.tsx';
+  const VIEWER = 'components/stories/StoriesViewer.tsx';
+  const FRAME = 'components/media/MediaFrame.tsx';
+  const TILE = 'components/media/MomentTile.tsx';
+  const LIGHTBOX = 'components/media/Lightbox.tsx';
+  const PHOTO = 'components/media/PhotoViewer.tsx';
+  const SHEET = 'components/media/MediaSheet.tsx';
+  const RECORDER = 'components/media/AudioRecorderSheet.tsx';
+  const BLOCKED = 'components/media/PermissionBlockedSheet.tsx';
+  const SHEETS = [SHEET, RECORDER, BLOCKED];
+  const ALL = [GRID, STORIES, VIEWER, FRAME, TILE, LIGHTBOX, PHOTO, ...SHEETS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  /** The 70% dim, as a layer: an alpha on the colour class draws nothing on device. */
+  const SCRIM_LAYER =
+    /<View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" \/>/g;
+
+  it('a scrim is a layer, never an alpha on a colour class', () => {
+    // `bg-background/70` compiled and drew nothing: on the iPhone SE simulator (Expo Go,
+    // 2026-10-06) the story's name stood on the bare photo and a sheet's parent kept its pixels.
+    const alpha = ALL.flatMap((file) =>
+      (code(file).match(/(?<![\w-])(?:bg|text|border)-[a-z][\w-]*\/\d+/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    );
+    expect(alpha, 'draw the dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('the media folder is the eight files this section and the Profilo one name', () => {
+    const folder = FILES.map(rel)
+      .map((p) => p.replace(/^apps\/native\/src\//, ''))
+      .filter((p) => p.startsWith('components/media/') && !/\.test\.tsx?$/.test(p))
+      .sort();
+    expect(
+      folder,
+      'a new file in `components/media/` joins this section’s list (or the Profilo one’s)',
+    ).toEqual(
+      [
+        FRAME,
+        SHEET,
+        TILE,
+        'components/media/MomentiGallery.tsx',
+        LIGHTBOX,
+        PHOTO,
+        RECORDER,
+        BLOCKED,
+      ].sort(),
+    );
+  });
+
+  it('the one cyan is «✦ Un passo del percorso» in the story viewer', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a progress step, a send control, a lit star, a page ' +
+        'dot and a recording timer are foreground',
+    ).toEqual([`${VIEWER}  text-aura`]);
+    expect(flat(VIEWER)).toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('story\.stepBadge', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): these screens draw none',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close, add and send are drawn icons (DESIGN §6 «Interface icons»)').toEqual([]);
+    expect(
+      ALL.filter((file) => />\s*\+\s*<\/Text>/.test(code(file))),
+      'a typed plus as a control: draw `AddIcon`',
+    ).toEqual([]);
+  });
+
+  it('every control dims when pressed; a scrim, a panel and the lightbox stage do not', () => {
+    // Not controls: a sheet's scrim and its panel are silenced frames (`accessible={false}`,
+    // §21), and the lightbox stage is the photo itself, which would flicker at every step.
+    const frame = (raw: string) =>
+      /accessible=\{false\}/.test(raw) ||
+      /className="flex-1 items-center justify-center px-5"/.test(raw);
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(
+          ({ base, raw }) => base === 'Pressable' && !frame(raw) && !/\bPRESS_DIM\b/.test(raw),
+        )
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      SHEETS.map(
+        (file) =>
+          (flat(file).match(/<Pressable accessible=\{false\}/g) ?? []).length +
+          (flat(file).match(/<Pressable \{\.\.\.MODAL_A11Y\} accessible=\{false\}/g) ?? []).length,
+      ),
+      'each sheet has exactly a scrim and a panel as its silenced frames',
+    ).toEqual([2, 2, 2]);
+  });
+
+  it('a Momento tile is a radius-14 hairline tile, with no caption and no typed mark', () => {
+    const tile = flat(TILE);
+    expect(tile, 'the tile').toMatch(
+      /aspect-square w-full overflow-hidden rounded-\[14px\] bg-surface/,
+    );
+    // The hairline is a view drawn OVER the media, so a photo that fills the tile cannot cover it.
+    expect(tile, 'the hairline stands over the photo').toMatch(
+      /<View pointerEvents="none" className="absolute inset-0 rounded-\[14px\] border border-hair" \/>/,
+    );
+    expect(tile, 'a video is marked by the drawn play in a 52 disc').toMatch(
+      /h-\[52px\] w-\[52px\] items-center justify-center overflow-hidden rounded-full/,
+    );
+    expect(tile).toMatch(/<View className="absolute inset-0 bg-background opacity-55" \/>/);
+    expect(tile, 'the caption is the lightbox’s, not the tile’s').not.toMatch(
+      /moment\.caption \? \(/,
+    );
+    expect(tile, 'the add tile holds the drawn add').toMatch(
+      /<AddIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(tile, 'one tile shape: no variant').not.toMatch(/\bvariant\b/);
+  });
+
+  it('the grid adds from its header alone, and its tiles stand 6 apart', () => {
+    const grid = flat(GRID);
+    expect(grid, 'the header’s drawn add').toMatch(
+      /<AddIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(grid, 'no add tile on the grid').not.toMatch(/MomentAddTile/);
+    expect(grid).toMatch(/<View className="-m-\[3px\] flex-row flex-wrap">/);
+    expect(grid).toMatch(/<View key=\{m\.id\} className="w-1\/3 p-\[3px\]">/);
+    expect(grid, 'blocks 26 apart').toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-11"/);
+  });
+
+  it('the lightbox marks its place in foreground on hairline', () => {
+    expect(flat(LIGHTBOX)).toMatch(/i === index \? 'bg-foreground' : 'bg-hair'/);
+  });
+
+  it('the viewer’s chrome: white steps, a drawn close, the post’s reply bar', () => {
+    const viewer = flat(VIEWER);
+    expect(viewer, 'steps 3px on hairline, 6 apart').toMatch(/<View className="flex-row gap-1\.5 /);
+    expect(viewer).toMatch(/className="h-\[3px\] flex-1 overflow-hidden rounded-full bg-hair"/);
+    expect(viewer).toMatch(/<View className="h-full bg-foreground" \/>/);
+    expect(viewer, 'the drawn close').toMatch(
+      /<CloseIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(
+      viewer.match(SCRIM_LAYER)?.length,
+      'still full-bleed under two scrim bands (DESIGN §6)',
+    ).toBe(2);
+    expect(viewer, 'the compose-bar field').toMatch(/<Input className="flex-1" size="sm"/);
+    expect(viewer, 'a white disc with the drawn send').toMatch(
+      /'h-\[44px\] w-\[44px\] items-center justify-center rounded-full bg-foreground'/,
+    );
+    expect(viewer).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+    expect(viewer, 'disabled is 40%, never unmounted').toMatch(/canSend \? null : 'opacity-40'/);
+    expect(viewer, 'a lit star is foreground').toMatch(
+      /viewerReacted \? 'text-foreground' : 'text-muted-foreground'/,
+    );
+  });
+
+  it('the viewer’s actions are the shared pills', () => {
+    const viewer = flat(VIEWER);
+    expect(viewer).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('story\.makeDream', locale\)\}/,
+    );
+    expect(viewer).toMatch(/<Button variant="outline" label=\{t\('story\.own\.add', locale\)\}/);
+    expect(viewer).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('story\.own\.pin', locale\)\}/,
+    );
+    expect(viewer).toMatch(
+      /<Button variant="destructive" size="sm" label=\{t\('story\.own\.delete', locale\)\}/,
+    );
+  });
+
+  it('a sheet is a charcoal panel on the 70% scrim, with no grab handle', () => {
+    for (const file of SHEETS) {
+      const src = flat(file);
+      expect(src.match(SCRIM_LAYER)?.length, `${file}: the scrim`).toBe(1);
+      expect(src, `${file}: the panel`).toMatch(
+        /className="(?:max-h-\[88%\] )?rounded-t-\[28px\] bg-surface /,
+      );
+      expect(src, `${file}: its title`).toMatch(/accessibilityRole="header" className="type-h2 /);
+    }
+    const sheet = flat(SHEET);
+    expect(sheet, 'the sources are rows of one group').toMatch(/<RowGroup>/);
+    // With five rows at the largest text size the panel is taller than an iPhone SE.
+    expect(sheet, 'the panel scrolls when it is taller than the screen').toMatch(
+      /className="max-h-\[88%\] rounded-t-\[28px\][^"]*" onPress=\{\(\) => \{\}\} > \{ \} <ScrollView\b/,
+    );
+    expect(sheet, 'the way out is a row that is never disabled').toMatch(
+      /<Row title=\{t\('common\.cancel', locale\)\} showChevron=\{false\} onPress=\{onClose\} \/>/,
+    );
+    expect(flat(RECORDER), 'the timer is a foreground numeral').toMatch(
+      /className="type-num text-foreground"/,
     );
   });
 });

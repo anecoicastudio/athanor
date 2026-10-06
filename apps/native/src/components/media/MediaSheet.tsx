@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Platform } from 'react-native';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { AudioRecorderSheet } from '@/components/media/AudioRecorderSheet';
 import { PermissionBlockedSheet } from '@/components/media/PermissionBlockedSheet';
 import {
@@ -77,7 +79,10 @@ type GatedSource = Exclude<Source, 'library'>;
  * (the OS dialog is not a Modal of ours), so only a DISMISSED blocked sheet and the recorder go
  * through the gate now.
  *
- * No glow anywhere (rule #4): attaching media isn't itself a moment.
+ * The look (#921, Marco 2026-10-06): a charcoal `surface` panel with a 28 top radius on a 70%
+ * black scrim, the sources and «Annulla» as rows of one group. No grab handle: the prototype
+ * draws one on its sheets, and nothing here can be dragged yet. No cyan: attaching media is
+ * none of the five marks (DESIGN §2.3).
  */
 export function MediaSheet({
   visible,
@@ -326,82 +331,85 @@ export function MediaSheet({
        * The flag stops a view being an accessibility ELEMENT and leaves touch handling alone,
        * so tap-outside-to-close and the stop-propagation no-op are unchanged.
        */}
-      <Pressable
-        accessible={false}
-        className="flex-1 justify-end bg-surface-muted"
-        onPress={onClose}
-      >
+      <Pressable accessible={false} className="flex-1 justify-end" onPress={onClose}>
+        {/* The dim: a layer of its own, because an opacity on the scrim would dim the panel
+            too, and `bg-background/70` draws nothing here (iPhone SE simulator, Expo Go,
+            2026-10-06: the screen behind kept its pixels). */}
+        <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
         <Pressable
           {...MODAL_A11Y}
           accessible={false}
-          className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-7"
+          className="max-h-[88%] rounded-t-[28px] bg-surface px-1 pb-12 pt-7"
           onPress={() => {}}
         >
-          <Text
-            accessibilityRole="header"
-            className="text-center text-lg font-semibold text-foreground"
-          >
-            {/* The title names what the rows below actually offer: a stills-only sheet
+          {/* The panel scrolls when it is taller than the screen: with five rows at the largest
+              text size its title stood 43pt above the top of an iPhone SE (simulator, Expo Go,
+              2026-10-06). */}
+          <ScrollView alwaysBounceVertical={false}>
+            <Text accessibilityRole="header" className="type-h2 px-4 text-center text-foreground">
+              {/* The title names what the rows below actually offer: a stills-only sheet
               (avatars, chat) promised «foto o video» while rendering no video row (#155).
               Derived from allowVideo FIRST so an audio-without-video sheet — no caller today,
               and no catalog key — degrades to the photo title rather than promising a video
               row line 280 will not render. Its first real caller owes it copy of its own. */}
-            {t(
-              allowVideo
-                ? allowAudio
-                  ? 'media.sheet.titleAudio'
-                  : 'media.sheet.title'
-                : 'media.sheet.titlePhoto',
-              locale,
-            )}
-          </Text>
-          {/* Gated with the title (#155): «aggiungili al tuo percorso» sells moments — wrong
+              {t(
+                allowVideo
+                  ? allowAudio
+                    ? 'media.sheet.titleAudio'
+                    : 'media.sheet.title'
+                  : 'media.sheet.titlePhoto',
+                locale,
+              )}
+            </Text>
+            {/* Gated with the title (#155): «aggiungili al tuo percorso» sells moments — wrong
             promise over a chat attach or an avatar. The stills sub just names the two rows. */}
-          <Text className="mt-1 text-center text-[14px] leading-5 text-faint">
-            {t(allowVideo ? 'media.sheet.sub' : 'media.sheet.subPhoto', locale)}
-          </Text>
+            <Text className="type-small mt-2 px-4 text-center text-muted-foreground">
+              {t(allowVideo ? 'media.sheet.sub' : 'media.sheet.subPhoto', locale)}
+            </Text>
 
-          <View className="mt-6 gap-2">
-            <Row
-              label={t('media.sheet.photo', locale)}
-              disabled={busy}
-              onPress={() => void onRow('photo')}
-            />
-            {allowVideo ? (
-              <Row
-                label={t('media.sheet.video', locale)}
-                disabled={busy}
-                onPress={() => void onRow('video')}
-              />
-            ) : null}
-            {allowAudio ? (
-              <Row
-                label={t('media.sheet.audio', locale)}
-                disabled={busy}
-                onPress={() => void onRow('audio')}
-              />
-            ) : null}
-            <Row
-              label={t('media.sheet.library', locale)}
-              disabled={busy}
-              onPress={() => void onRow('library')}
-            />
-            {/*
-             * The exit (#518 follow-up). Once the scrim above stops being an accessibility
-             * element, tapping outside is no longer reachable by a screen reader — and this
-             * sheet had no other close control, so without this row a VoiceOver user could
-             * reach the three options and nothing that leaves. `onAccessibilityEscape` cannot
-             * stand in for it: RN fires the escape gesture only "when accessible is true"
-             * (RN's ViewAccessibility.d.ts), which is precisely what is turned off above.
-             *
-             * NOT `disabled={busy}`, unlike the three options: cancelling has to stay reachable
-             * *especially* while something is in flight, or the dead end returns for exactly as
-             * long as the sheet is busy.
-             */}
-            <View className="mt-1 border-t border-hair pt-1">
-              <Row label={t('common.cancel', locale)} disabled={false} onPress={onClose} />
+            {/* The group's own 16 and the panel's 4 put the rows on the 20 gutter. */}
+            <View className="mt-4">
+              <RowGroup>
+                <SourceRow
+                  label={t('media.sheet.photo', locale)}
+                  disabled={busy}
+                  onPress={() => void onRow('photo')}
+                />
+                {allowVideo ? (
+                  <SourceRow
+                    label={t('media.sheet.video', locale)}
+                    disabled={busy}
+                    onPress={() => void onRow('video')}
+                  />
+                ) : null}
+                {allowAudio ? (
+                  <SourceRow
+                    label={t('media.sheet.audio', locale)}
+                    disabled={busy}
+                    onPress={() => void onRow('audio')}
+                  />
+                ) : null}
+                <SourceRow
+                  label={t('media.sheet.library', locale)}
+                  disabled={busy}
+                  onPress={() => void onRow('library')}
+                />
+                {/*
+                 * The exit (#518 follow-up). Once the scrim above stops being an accessibility
+                 * element, tapping outside is no longer reachable by a screen reader — and this
+                 * sheet had no other close control, so without this row a VoiceOver user could
+                 * reach the three options and nothing that leaves. `onAccessibilityEscape` cannot
+                 * stand in for it: RN fires the escape gesture only "when accessible is true"
+                 * (RN's ViewAccessibility.d.ts), which is precisely what is turned off above.
+                 *
+                 * NOT dimmed while `busy`, unlike the source rows: cancelling has to stay reachable
+                 * *especially* while something is in flight, or the dead end returns for exactly as
+                 * long as the sheet is busy.
+                 */}
+                <Row title={t('common.cancel', locale)} showChevron={false} onPress={onClose} />
+              </RowGroup>
             </View>
-          </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
 
@@ -429,8 +437,12 @@ export function MediaSheet({
   );
 }
 
-/** A single source row in the sheet. */
-function Row({
+/**
+ * A source row of the sheet: the shared `Row`, with no chevron (it launches, it does not
+ * navigate). `Row` has no disabled form, so while the sheet is busy the wrapper dims the row and
+ * takes its touches; `onRow` refuses a press on its own while busy, whoever fires it.
+ */
+function SourceRow({
   label,
   disabled,
   onPress,
@@ -440,14 +452,12 @@ function Row({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      className={`min-h-[52px] flex-row items-center rounded-ctl px-4 py-3 ${disabled ? 'opacity-40' : ''}`}
-      disabled={disabled}
-      accessibilityRole="button"
-      onPress={onPress}
+    <View
+      pointerEvents={disabled ? 'none' : 'auto'}
+      className={disabled ? 'opacity-40' : undefined}
     >
-      <Text className="text-[16px] text-foreground">{label}</Text>
-    </Pressable>
+      <Row title={label} showChevron={false} onPress={onPress} />
+    </View>
   );
 }
 

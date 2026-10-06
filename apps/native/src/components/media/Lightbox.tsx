@@ -14,6 +14,11 @@ import { useVideoFailure } from '@/lib/media/use-video-failure';
  * Fullscreen Momento viewer (frontend `01` §3.6). Opened from the Profilo
  * gallery or the full grid. Renders the live media for the current item from
  * signed URLs (`urls`, path→url): a cover photo or a real `expo-video` player.
+ *
+ * The prototype draws no lightbox, so its look is `base.css`'s (#921): the media stands in a
+ * radius-14 `surface` frame with a hairline drawn over it, the caption under it in small text,
+ * and the place in the set is a foreground dot among hairline ones. No cyan: a page dot is not
+ * one of the five marks (DESIGN §2.3).
  */
 export function Lightbox({
   moments,
@@ -53,12 +58,17 @@ export function Lightbox({
             leading="close"
             backLabel={t('common.back', locale)}
             onBack={onClose}
-            titleSlot={<Text className="text-sm text-faint">{t('lightbox.label', locale)}</Text>}
+            titleSlot={
+              <Text className="type-small text-muted-foreground">
+                {t('lightbox.label', locale)}
+              </Text>
+            }
           />
 
-          {/* lb-stage — tap → next */}
+          {/* lb-stage — tap → next. No press dim: the stage is the photo, and it would flicker
+              at every step. */}
           <Pressable className="flex-1 items-center justify-center px-5" onPress={step}>
-            <View className="aspect-[4/5] w-full justify-end overflow-hidden rounded-card bg-raise">
+            <View className="aspect-[4/5] w-full overflow-hidden rounded-[14px] bg-surface">
               {current?.kind === 'video' ? (
                 <MediaFrame
                   kind="video"
@@ -80,12 +90,18 @@ export function Lightbox({
                   className="absolute inset-0"
                 />
               )}
+              <View
+                pointerEvents="none"
+                className="absolute inset-0 rounded-[14px] border border-hair"
+              />
             </View>
           </Pressable>
 
           {/* lb-cap */}
           {current?.caption ? (
-            <Text className="px-5 pb-3 text-center text-foreground">{current.caption}</Text>
+            <Text className="type-small px-5 pb-3 text-center text-foreground">
+              {current.caption}
+            </Text>
           ) : null}
 
           {/* lb-nav dots */}
@@ -94,7 +110,7 @@ export function Lightbox({
               {moments.map((m, i) => (
                 <View
                   key={m.id}
-                  className={`h-1.5 w-1.5 rounded-full ${i === index ? 'bg-aura' : 'bg-faint'}`}
+                  className={`h-1.5 w-1.5 rounded-full ${i === index ? 'bg-foreground' : 'bg-hair'}`}
                 />
               ))}
             </View>
