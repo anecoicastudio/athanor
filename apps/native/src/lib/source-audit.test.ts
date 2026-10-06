@@ -2677,8 +2677,11 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
-    'components/search/ScopeTabs.tsx:60': 'a 2px selected-tab underline — no text inside',
     'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
+    'components/search/ResultRow.tsx:73':
+      'the 44pt disc of a project or an event result; its glyph is capped to `ornament`',
+    'components/trust/NotificationRow.tsx:50':
+      'the 30pt disc that leads a notification; its glyph is capped to `ornament`',
   };
 
   const TW = `${SRC}tw/index.tsx`;
@@ -6362,5 +6365,132 @@ describe('the Profilo tab keeps the Galleria look (#921)', () => {
       /stacked \? 'items-start gap-2' : 'flex-row items-center justify-between gap-3'/,
     );
     expect(gallery).toMatch(/type-small text-foreground underline/);
+  });
+});
+
+describe('search and notifications keep the Galleria look (#921)', () => {
+  const SEARCH_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/search/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const SEARCH = 'app/(modal)/search.tsx';
+  const FILTERS = 'app/(modal)/search-filters.tsx';
+  const NOTIFS = 'app/(modal)/notifications.tsx';
+  const BAR = 'components/search/SearchBar.tsx';
+  const SCOPES = 'components/search/ScopeTabs.tsx';
+  const RESULT = 'components/search/ResultRow.tsx';
+  const NOTIF_ROW = 'components/trust/NotificationRow.tsx';
+  const NOTIF_TYPES = 'components/trust/notifTypes.ts';
+  const ALL = [SEARCH, FILTERS, NOTIFS, ...SEARCH_FOLDER, NOTIF_ROW, NOTIF_TYPES];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the folder is the files this section was written against', () => {
+    expect(SEARCH_FOLDER).toEqual([RESULT, SCOPES, BAR]);
+  });
+
+  it('the one cyan is the dot on a waiting Momento’s row', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a matched word, a filter set, a chip and an unread ' +
+        'row are foreground or grey',
+    ).toEqual([`${NOTIF_ROW}  bg-aura`]);
+    expect(flat(NOTIF_ROW), 'unread and a Momento: read, it takes the disc like any row').toMatch(
+      /const waiting = item\.type === 'moment' && item\.read_at == null;/,
+    );
+  });
+
+  it('none of the three screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file))),
+      'a border is typed on the search field (focus) and on the two leading discs',
+    ).toEqual([RESULT, BAR, NOTIF_ROW]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close and clear are the drawn icon; a chevron is `Row`’s').toEqual([]);
+  });
+
+  it('every pressable on these screens dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the scopes are chips, and the filters opener is the small outline pill', () => {
+    expect(code(SCOPES), 'the last underlined tab row').toMatch(/<Chip\b/);
+    expect(code(SCOPES)).not.toMatch(/<Pressable\b/);
+    expect(flat(SEARCH)).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('search\.filters\.open', locale\)\}/,
+    );
+  });
+
+  it('the search field keeps its clear control mounted', () => {
+    // Mounted on the first character it lost typed characters (iPhone SE simulator,
+    // 2026-10-06; `SearchBar`'s docblock has the counts).
+    const bar = flat(BAR);
+    expect(bar).toMatch(/disabled=\{!hasClearButton\}/);
+    expect(bar, 'hidden, not unmounted').not.toMatch(/hasClearButton \? \(/);
+    expect(bar, 'a `TextInput` takes physical padding (section 40)').toMatch(
+      /className="flex-1 pb-3 pr-4 pt-3 text-\[17px\] text-foreground"/,
+    );
+  });
+
+  it('a result is a row of its section’s group, and only its grey line marks the match', () => {
+    const row = flat(RESULT);
+    expect(row).toMatch(/<Row leading=\{/);
+    expect(row, 'the row says what `searchRowLabel` says').toMatch(
+      /accessibilityLabel=\{searchRowLabel\(result\)\}/,
+    );
+    expect(row, 'the title is the row’s own: all foreground').toMatch(/title=\{result\.title\}/);
+    expect(row, 'a matched span of the second line is foreground on grey').toMatch(
+      /span\.match \? 'text-foreground' : undefined/,
+    );
+    expect(flat(SEARCH)).toMatch(/<SectionLabel heading>.*?<\/SectionLabel> <RowGroup>/);
+  });
+
+  it('the filters close on the drawn icon and reset on an outline pill', () => {
+    const filters = flat(FILTERS);
+    expect(filters).toMatch(/<HeaderClose\b/);
+    expect(filters).toMatch(/<Button label=\{t\('common\.reset', locale\)\} variant="outline"/);
+    expect(filters, 'blocks 26 apart').toMatch(/contentContainerClassName="[^"]*gap-\[26px\]/);
+  });
+
+  it('a notification is a row of «Nuove» or «Prima», with no chevron and no unread dot', () => {
+    const row = flat(NOTIF_ROW);
+    expect(row).toMatch(/<Row leading=\{/);
+    expect(row, 'the prototype draws no chevron on a notification').toMatch(
+      /showChevron=\{false\}/,
+    );
+    expect(row, 'the action is a tag: the row is the control').toMatch(/trailing=\{/);
+    expect(row).toMatch(/<Tag label=\{t\('notif\.action\.openMoment', locale\)\}/);
+    expect(flat(NOTIFS)).toMatch(/<SectionLabel heading>.*?<\/SectionLabel> <RowGroup>/);
+    expect(code(NOTIF_TYPES), 'a type has a glyph and nothing else to draw').not.toMatch(
+      /accentClass|celebratory/,
+    );
   });
 });

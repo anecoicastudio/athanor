@@ -2,18 +2,16 @@ import type { MessageKey } from '@athanor/i18n';
 import type { Notification } from '@athanor/schemas';
 
 /**
- * Per-type visual config for notification rows (M9 §3.6).
+ * The glyph of each notification type (M9 §3.6): a Unicode character from the esoteric set,
+ * drawn in the 30pt disc that leads the row. No dedicated Glyph component exists yet
+ * (Foundation debt), so it is a `<Text>`.
  *
- * `glyph`: a Unicode text character from the esoteric set used across the app.
- * No dedicated Glyph component exists yet (Foundation debt) — rendered as a <Text>
- * inside the accent circle.
- *
- * `accentClass`: NativeWind token class for the ndot circle background.
- * `moment` is the only celebratory (cyan `aura-soft`) accent at TYPE level. Not a rule #4
- * question — with no shadow the fill is not a glow and claims no moment (§2.3, ruled
- * 2026-09-07) — but a list where every row is accented has no accent, so exactly one type
- * earns it. All other types use the neutral `raise-2` fill. One TEMPLATE overrides its
- * type's neutral accent (`notif.tpl.helpConfirmed`); see NOTIF_VISUAL_BY_TEMPLATE for why.
+ * A glyph is all a type draws since 2026-10-06 (#921). Before Galleria each type also chose
+ * the disc's fill, and exactly one type (`moment`) and one template (`notif.tpl.helpConfirmed`,
+ * #637) took the cyan `aura-soft` one. On mobile cyan is five marks (DESIGN §2.3): the row of
+ * a waiting Momento leads with the 8px dot instead of a disc (`NotificationRow`), and every
+ * other row, the confirmed help and the fund's broadcasts (#127) included, is the same grey
+ * disc. `helpConfirmed` keeps its own LEAD below; its glyph was its type's already.
  *
  * Glyph substitutions (plan used non-existent named glyphs; Unicode equivalents used):
  *  sun      → ✦  (the spark — the project's signature mark)
@@ -25,36 +23,20 @@ import type { Notification } from '@athanor/schemas';
  *  triangle → △  (outline triangle — moderation warn, #313)
  *  triangle2→ ▽  (down triangle — your data coming to you, #129)
  *  azoth    → ◐  (half-filled circle — the vessel filling: the fund, #127)
- *  eye      → ◎  (circle within circle — the iris: the watcher, #602)
+ *  eye      → ◎  (circle within circle — the iris: the watcher, #602; `eye` from the
+ *                 20-glyph set, DESIGN.md §6)
  */
-type Visual = { glyph: string; accentClass: string; celebratory: boolean };
-
-export const NOTIF_VISUAL: Record<Notification['type'], Visual> = {
-  moment: { glyph: '✦', accentClass: 'bg-aura-soft', celebratory: true },
-  dreamMilestone: { glyph: '◉', accentClass: 'bg-raise-2', celebratory: false },
-  review: { glyph: '◇', accentClass: 'bg-raise-2', celebratory: false },
-  eventReminder: { glyph: '◷', accentClass: 'bg-raise-2', celebratory: false },
-  // #127 the fund's broadcasts (a milestone crossing, a countdown slot). NEUTRAL, deliberately,
-  // and this is the interesting call on the row: `moment` is the only celebratory accent, and
-  // DESIGN.md's 2026-08-14 ruling made the fund's own hero card quiet for the same reason —
-  // «rule #4's glow means something happened». A milestone IS something happening, so the
-  // tempting read is to light it. What settles it is the audience: this is the one notification
-  // type that reaches EVERY member at once, so a glowing one would make glow the most common
-  // thing in the notification centre rather than the rarest. Rule 3 points the same way — a
-  // «we hit 50 %» row is the closest this app comes to a vanity metric, and amplifying it is
-  // exactly what the glow discipline exists to prevent. The fund ticker keeps its glow; the
-  // notification about it does not.
-  fundMilestone: { glyph: '◐', accentClass: 'bg-raise-2', celebratory: false },
-  projectResponse: { glyph: '◈', accentClass: 'bg-raise-2', celebratory: false },
-  connection: { glyph: '◌', accentClass: 'bg-raise-2', celebratory: false },
-  // #313 warn verdicts — neutral fill like every non-moment type; a sanction is not a moment.
-  moderation: { glyph: '△', accentClass: 'bg-raise-2', celebratory: false },
-  // #129 export ready — neutral: a delivery notice is service, not a moment (rule #4).
-  gdprExport: { glyph: '▽', accentClass: 'bg-raise-2', celebratory: false },
-  // #602 the moderation queue alert. `eye` from the 20-glyph set (DESIGN.md §6) — this is
-  // the one notification that exists because someone is watching. Neutral, emphatically: a
-  // queue filling up is the least moment-like thing the app can tell anyone (rule #4).
-  reportQueue: { glyph: '◎', accentClass: 'bg-raise-2', celebratory: false },
+export const NOTIF_GLYPH: Record<Notification['type'], string> = {
+  moment: '✦',
+  dreamMilestone: '◉',
+  review: '◇',
+  eventReminder: '◷',
+  fundMilestone: '◐',
+  projectResponse: '◈',
+  connection: '◌',
+  moderation: '△',
+  gdprExport: '▽',
+  reportQueue: '◎',
 };
 
 /** Maps each type to the i18n lead key (bold prefix on the row). Typed MessageKey so a lead
@@ -70,25 +52,6 @@ export const NOTIF_LEAD: Record<Notification['type'], MessageKey> = {
   moderation: 'notif.type.moderation',
   gdprExport: 'notif.type.gdprExport',
   reportQueue: 'notif.type.reportQueue',
-};
-
-/**
- * Per-template VISUAL overrides, checked before NOTIF_VISUAL. Same reason the lead map below
- * exists: several templates ride one type and do not all mean the same thing.
- *
- * `notif.tpl.helpConfirmed` is the dream owner confirming that a helper's help actually happened —
- * «{name} ha confermato il tuo aiuto. La tua Aura cresce ✦». Rule #4 names "dream helped" in its
- * short list of moment-grade events, and the RECEIVER of that help already gets a MomentFlash on
- * their own profile. The giver — the person whose Aura just moved, the one the rule is about —
- * was reading a grey row whose own copy claimed a moment. That is the mismatch #637 flags.
- *
- * Deliberately only the confirmation. `helpAccepted` stays neutral: being taken up on an offer is
- * the START of helping, not the moment help became real, and a glow on both would spend the
- * distinction rule #4 exists to keep. The glyph is unchanged too — ◉ is the dream's mark and this
- * is still a dream row; what lights is the accent, exactly as `moment`'s does.
- */
-export const NOTIF_VISUAL_BY_TEMPLATE: Partial<Record<Notification['template_key'], Visual>> = {
-  'notif.tpl.helpConfirmed': { glyph: '◉', accentClass: 'bg-aura-soft', celebratory: true },
 };
 
 /** Per-template lead overrides, checked before NOTIF_LEAD. The help* templates reuse type

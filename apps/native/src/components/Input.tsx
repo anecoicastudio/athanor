@@ -139,9 +139,9 @@ export function Input({
   // fresh one: the keyboard drops mid-sentence, and worse, `Input` keeps its own
   // position, so `focused` stays true on a field that will never fire `onBlur` and the
   // focus border stays lit on nothing. It is safe only because `trailing` is a static per-call-
-  // site decision. Nothing in the type system says that, so this does — and the wrong
-  // shape to copy is already in the tree at `SearchBar`, whose clear-✕ is conditional
-  // on the value being non-empty.
+  // site decision. Nothing in the type system says that, so this does. `SearchBar`, whose
+  // clear control follows the value, keeps that control mounted and hides it instead
+  // (since 2026-10-06; until then it mounted it on the first character).
   // In an effect, not during render: a ref written while rendering is also written by a
   // render React then discards, which would burn the flag and swallow the next real one.
   const hasTrailing = trailing != null;
