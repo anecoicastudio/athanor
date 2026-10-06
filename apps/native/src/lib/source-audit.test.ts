@@ -2669,9 +2669,9 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:382':
+    'app/(modal)/post-compose.tsx:389':
       'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
-    'app/(modal)/story-compose.tsx:158':
+    'app/(modal)/story-compose.tsx:165':
       'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
     'app/(modal)/post/[id].tsx:394':
       'the 44pt send disc of the comment bar: `rounded-full` on a box that grew in one axis is ' +
@@ -6675,6 +6675,10 @@ describe('the post and the two composers keep the Galleria look (#921)', () => {
     for (const file of COMPOSERS) {
       const src = flat(file);
       expect(src, `${file}: the tile`).toMatch(/rounded-\[14px\] border border-hair bg-surface/);
+      // A picked photo is an RN `Image`, which takes no class here: its hairline is in `style`.
+      expect(src, `${file}: a photo tile has the hairline too`).toMatch(
+        /borderRadius: 14, borderWidth: 1, borderColor: galleria\.hair/,
+      );
       expect(src, `${file}: the control says what it does`).toMatch(
         /accessibilityLabel=\{t\('media\.a11y\.remove', locale\)\}/,
       );

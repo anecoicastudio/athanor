@@ -146,7 +146,14 @@ export default function StoryComposeScreen() {
               ) : (
                 <Image
                   source={{ uri: media.uri }}
-                  style={{ width: 160, height: 160, borderRadius: 14 }}
+                  // The tile's hairline, as on the placeholders beside it (Greptile, PR 942).
+                  style={{
+                    width: 160,
+                    height: 160,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: galleria.hair,
+                  }}
                   resizeMode="cover"
                 />
               )}

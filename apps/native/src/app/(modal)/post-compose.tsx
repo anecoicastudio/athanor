@@ -367,7 +367,14 @@ export default function PostComposeScreen() {
                   ) : (
                     <Image
                       source={{ uri: item.uri }}
-                      style={{ width: 80, height: 80, borderRadius: 14 }}
+                      // The tile's hairline, as on the placeholders beside it (Greptile, PR 942).
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: galleria.hair,
+                      }}
                       resizeMode="cover"
                     />
                   )}
