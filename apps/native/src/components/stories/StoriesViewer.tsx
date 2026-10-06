@@ -333,7 +333,16 @@ export function StoriesViewer({
                   below stay on the screen: at AX5 on the iPhone SE simulator (Expo Go, 2026-10-06)
                   a 768pt caption stood in 222pt and the last pill ended at 655 of 667. */}
               {current.caption ? (
-                <ScrollView style={{ maxHeight: windowHeight / 3 }} alwaysBounceVertical={false}>
+                <ScrollView
+                  style={{ maxHeight: windowHeight / 3 }}
+                  alwaysBounceVertical={false}
+                  // A finger on the caption holds the segment, as a hold on the photo does:
+                  // reading or scrolling a long caption must not run out the clock under it
+                  // (iPhone SE simulator, Expo Go, 2026-10-06: a 9s hold kept a 5s photo).
+                  onTouchStart={() => setPaused(true)}
+                  onTouchEnd={() => setPaused(false)}
+                  onTouchCancel={() => setPaused(false)}
+                >
                   <Text className="type-body text-foreground">{current.caption}</Text>
                 </ScrollView>
               ) : null}

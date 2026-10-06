@@ -2683,7 +2683,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/stories/StoriesViewer.tsx:260': 'a 3px progress step — no text inside',
-    'components/stories/StoriesViewer.tsx:399':
+    'components/stories/StoriesViewer.tsx:408':
       'the 44pt send disc of the reply bar: `rounded-full` on a box that grew in one axis is ' +
       'an ellipse; a drawn arrow inside, no prose',
     'components/media/MomentTile.tsx:98':
@@ -6889,6 +6889,9 @@ describe('stories, the grid and the media components keep the Galleria look (#92
     ).toBe(2);
     expect(viewer, 'a long caption scrolls, so it cannot push the controls off the screen').toMatch(
       /<ScrollView style=\{\{ maxHeight: windowHeight \/ 3 \}\}/,
+    );
+    expect(viewer, 'a finger on the caption holds the segment').toMatch(
+      /onTouchStart=\{\(\) => setPaused\(true\)\} onTouchEnd=\{\(\) => setPaused\(false\)\} onTouchCancel=\{\(\) => setPaused\(false\)\}/,
     );
     expect(viewer, 'the compose-bar field').toMatch(/<Input className="flex-1" size="sm"/);
     expect(viewer, 'a white disc with the drawn send').toMatch(
