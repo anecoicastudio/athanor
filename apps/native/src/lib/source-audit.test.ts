@@ -2669,8 +2669,13 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:385': 'same measured 20pt remove-badge as chat.tsx:469',
-    'app/(modal)/story-compose.tsx:161': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/post-compose.tsx:382':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/story-compose.tsx:158':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/post/[id].tsx:394':
+      'the 44pt send disc of the comment bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:462':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
@@ -6526,6 +6531,162 @@ describe('search and notifications keep the Galleria look (#921)', () => {
     expect(flat(NOTIFS)).toMatch(/<SectionLabel heading>.*?<\/SectionLabel> <RowGroup>/);
     expect(code(NOTIF_TYPES), 'a type has a glyph and nothing else to draw').not.toMatch(
       /accentClass|celebratory/,
+    );
+  });
+});
+
+/*
+ * The post and the two composers (#921, C14b, 2026-10-06). The prototype draws no bordered card
+ * on any of the three. Cyan stands once: «✦ Un passo del percorso» on the post (DESIGN §2.3);
+ * the comment bar's send is a white disc. The replies look like one group of rows and stay a
+ * virtualized list: `feed/Comment` draws its own segment (Marco, 2026-10-06).
+ * `media/MediaSheet` and `media/MediaFrame` are not in this list: they convert with the media
+ * screens.
+ */
+describe('the post and the two composers keep the Galleria look (#921)', () => {
+  const POST = 'app/(modal)/post/[id].tsx';
+  const POST_COMPOSE = 'app/(modal)/post-compose.tsx';
+  const STORY_COMPOSE = 'app/(modal)/story-compose.tsx';
+  const COMMENT = 'components/feed/Comment.tsx';
+  const STAR = 'components/feed/ReactionStar.tsx';
+  const MEDIA = 'components/feed/PostMedia.tsx';
+  const COMPOSERS = [POST_COMPOSE, STORY_COMPOSE];
+  const ALL = [POST, ...COMPOSERS, COMMENT, STAR, MEDIA];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the one cyan is «✦ Un passo del percorso» on the post', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a send control, a selected chip, a switch and a lit ' +
+        'star are foreground',
+    ).toEqual([`${POST}  text-aura`]);
+    expect(flat(POST)).toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('feed\.flag\.step', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('none of the three screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): these screens draw none',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'remove and send are drawn icons (DESIGN §6 «Interface icons»)').toEqual([]);
+  });
+
+  it('every pressable on these screens dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the blocks of each screen stand 26 apart', () => {
+    expect(flat(POST), 'the post, above its replies').toMatch(
+      /<View className="gap-\[26px\] pb-2">/,
+    );
+    for (const file of COMPOSERS) {
+      expect(flat(file), file).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-8"/);
+    }
+  });
+
+  it('the header’s link is an underlined 44pt link, red when it deletes', () => {
+    const post = flat(POST);
+    expect(post).toMatch(/className=\{cn\('min-h-\[44px\] justify-center', PRESS_DIM\)\}/);
+    expect(post).toMatch(/'type-small underline', isAuthor \? 'text-error' : 'text-foreground'/);
+  });
+
+  it('the replies are segments of one group, and the list still virtualizes them', () => {
+    const comment = flat(COMMENT);
+    expect(comment, 'the group’s ends').toMatch(
+      /first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null/,
+    );
+    expect(comment, 'a hairline above every reply but the first').toMatch(
+      /\{first \? null : <View className="h-px bg-hair" \/>\}/,
+    );
+    const post = flat(POST);
+    expect(post, 'still a list item per reply').toMatch(/<FlatList\b/);
+    expect(post).toMatch(/first=\{index === 0\} last=\{index === comments\.length - 1\}/);
+    expect(post, 'the group’s label is a heading, 8 above its first row').toMatch(
+      /<SectionLabel heading>\{t\('comment\.sectionLabel', locale\)\}<\/SectionLabel>/,
+    );
+  });
+
+  it('the comment bar is the small field and a white 44pt send that stays mounted', () => {
+    const post = flat(POST);
+    expect(post, 'the compose-bar field, multi-line').toMatch(
+      /<Input className="flex-1" size="sm"/,
+    );
+    expect(post).toMatch(/\bmultiline\b/);
+    expect(post, 'a white disc with the drawn send').toMatch(
+      /'h-\[44px\] w-\[44px\] items-center justify-center rounded-full bg-foreground'/,
+    );
+    expect(post).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+    // A control that mounts beside a `TextInput` on the first character lost typed characters
+    // (`search/SearchBar`'s docblock has the counts): disabled and dimmed, never unmounted.
+    expect(post, 'disabled is 40%, never unmounted (DESIGN §8.11)').toMatch(
+      /cannotSend \? 'opacity-40' : null/,
+    );
+    expect(post).not.toMatch(/\{draft\.trim\(\)\.length > 0 \? \(/);
+  });
+
+  it('a composer attaches through an outline pill and switches its step on a row', () => {
+    expect(flat(POST_COMPOSE)).toMatch(
+      /<Button variant="outline" label=\{t\('post\.compose\.attach', locale\)\}/,
+    );
+    expect(flat(STORY_COMPOSE)).toMatch(
+      /<Button variant="outline" label=\{t\('story\.add\.attach', locale\)\}/,
+    );
+    for (const file of COMPOSERS) {
+      expect(flat(file), file).toMatch(/<RowGroup> <Row title=[^>]*? checked=\{isStep\}/);
+    }
+  });
+
+  it('a staged tile is a radius-14 hairline tile, and its remove control is drawn and named', () => {
+    for (const file of COMPOSERS) {
+      const src = flat(file);
+      expect(src, `${file}: the tile`).toMatch(/rounded-\[14px\] border border-hair bg-surface/);
+      expect(src, `${file}: the control says what it does`).toMatch(
+        /accessibilityLabel=\{t\('media\.a11y\.remove', locale\)\}/,
+      );
+      expect(src, `${file}: the drawn close`).toMatch(
+        /<CloseIcon size=\{12\} color=\{galleria\.foreground\} \/>/,
+      );
+    }
+  });
+
+  it('a field’s label stands 6 above it', () => {
+    expect(flat(POST_COMPOSE)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('create\.post\.desc', locale\)\}<\/SectionLabel> <Field/,
     );
   });
 });

@@ -708,6 +708,7 @@
   "media.unavailable.audio": "This audio won't load.",
   "media.noPoster.video": "Video with no preview.",
   "media.noPoster.audio": "Audio, no preview.",
+  "media.a11y.remove": "Remove the attachment",
   "permission.blocked.camera": "The camera is off",
   "permission.blocked.microphone": "The microphone is off",
   "permission.blocked.body": "You turned this off in settings. Turn it back on whenever you like.",
