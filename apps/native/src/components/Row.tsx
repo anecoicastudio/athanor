@@ -3,6 +3,7 @@ import { useWindowDimensions } from 'react-native';
 import { Pressable, Text, View, cn } from '@/tw';
 import { PRESS_DIM } from '@/lib/press';
 import { stacksTrailing } from '@/lib/type-scale';
+import { Switch } from '@/components/Switch';
 
 /**
  * A list row (DESIGN §9 «Grouped rows», §8.13; #921): a 17/500 title and an optional second
@@ -23,6 +24,14 @@ import { stacksTrailing } from '@/lib/type-scale';
  * Without `onPress` the row is a plain view: a row that does nothing is not announced as a
  * button, and the control it holds in `trailing` names itself.
  *
+ * `checked` (2026-10-06) makes the row itself the toggle, for a row whose whole sentence is the
+ * thing switched (the composers' «Un passo del percorso», #635, #748): the row takes the
+ * `switch` role and the checked state, a string second line becomes its hint, and the app's
+ * `Switch` is drawn at the right, hidden from assistive tech and touch-inert, so one tap
+ * anywhere flips it once. No chevron. It takes the place of `trailing`, and like it moves
+ * under the text at the accessibility sizes. A toggle beside text that is not its whole
+ * subject stays a `Switch` in `trailing` on a row without `onPress`.
+ *
  * Nothing here is clipped unless the call site asks: `min-h`, and the value cell shrinks and
  * wraps. `titleLines` and `descriptionLines` are the two clamps, for a row whose text is a
  * member's own (a name, a need): a settings row passes neither. `description` may be an
@@ -36,6 +45,22 @@ import { stacksTrailing } from '@/lib/type-scale';
  * Measured that day at the default size: a title-only row is 60 on both devices; with a second
  * line it is 63 (simulator) and 63.2 (phone), which is why the height is a floor.
  */
+type RowProps = {
+  title: string;
+  description?: ReactNode;
+  value?: string;
+  destructive?: boolean;
+  showChevron?: boolean;
+  accessibilityLabel?: string;
+  leading?: ReactNode;
+  titleLines?: number;
+  descriptionLines?: number;
+} & (
+  | { checked?: undefined; onPress?: () => void; trailing?: ReactNode }
+  // The row that is the toggle: it must act, and the switch it draws is its trailing control.
+  | { checked: boolean; onPress: () => void; trailing?: never }
+);
+
 export function Row({
   title,
   description,
@@ -44,27 +69,28 @@ export function Row({
   destructive = false,
   showChevron = true,
   accessibilityLabel,
-  trailing,
+  trailing: trailingProp,
   leading,
   titleLines,
   descriptionLines,
-}: {
-  title: string;
-  description?: ReactNode;
-  value?: string;
-  onPress?: () => void;
-  destructive?: boolean;
-  showChevron?: boolean;
-  accessibilityLabel?: string;
-  trailing?: ReactNode;
-  leading?: ReactNode;
-  titleLines?: number;
-  descriptionLines?: number;
-}) {
+  checked,
+}: RowProps) {
   // At the accessibility sizes everything but the chevron stacks in one full-width column.
   const stacked = stacksTrailing(useWindowDimensions().fontScale);
+  const isSwitch = checked != null;
+  const trailing = isSwitch ? (
+    <View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Switch accessibilityLabel={accessibilityLabel ?? title} value={checked} />
+    </View>
+  ) : (
+    trailingProp
+  );
   const chevron =
-    showChevron && onPress != null ? (
+    showChevron && onPress != null && !isSwitch ? (
       <Text className="type-small text-muted-foreground">›</Text>
     ) : null;
   const valueText = (align: string) =>
@@ -111,8 +137,10 @@ export function Row({
     <Pressable
       className={cn(shape, PRESS_DIM)}
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole={isSwitch ? 'switch' : 'button'}
+      accessibilityState={isSwitch ? { checked } : undefined}
       accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityHint={isSwitch && typeof description === 'string' ? description : undefined}
     >
       {body}
     </Pressable>
