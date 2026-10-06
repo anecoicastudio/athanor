@@ -351,7 +351,7 @@ export function MediaSheet({
               (avatars, chat) promised «foto o video» while rendering no video row (#155).
               Derived from allowVideo FIRST so an audio-without-video sheet — no caller today,
               and no catalog key — degrades to the photo title rather than promising a video
-              row line 280 will not render. Its first real caller owes it copy of its own. */}
+              row the `allowVideo` arm below will not render. Its first real caller owes it copy of its own. */}
               {t(
                 allowVideo
                   ? allowAudio

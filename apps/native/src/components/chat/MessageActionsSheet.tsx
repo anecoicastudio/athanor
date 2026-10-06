@@ -82,7 +82,8 @@ export function MessageActionsSheet({
   );
 }
 
-/** One row in the sheet — same measurements as `MediaSheet`'s, so the two read as one idiom. */
+/** One row in the sheet. It keeps the row shape `MediaSheet` had until 2026-10-06 (#921); this
+ * sheet converts with chat. */
 function Row({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable

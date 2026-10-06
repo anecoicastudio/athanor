@@ -6736,9 +6736,11 @@ describe('stories, the grid and the media components keep the Galleria look (#92
     // `bg-background/70` compiled and drew nothing: on the iPhone SE simulator (Expo Go,
     // 2026-10-06) the story's name stood on the bare photo and a sheet's parent kept its pixels.
     const alpha = ALL.flatMap((file) =>
-      (code(file).match(/(?<![\w-])(?:bg|text|border)-[a-z][\w-]*\/\d+/g) ?? []).map(
-        (hit) => `${file}  ${hit}`,
-      ),
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
     );
     expect(alpha, 'draw the dim as an `opacity-*` layer of its own').toEqual([]);
   });
