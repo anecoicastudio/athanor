@@ -10,7 +10,8 @@ import { Field } from '@/components/Field';
 import { PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
-import { Switch } from '@/components/Switch';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { isDraftDirty } from '@/lib/dirty-guard';
@@ -192,33 +193,17 @@ export default function StoryComposeScreen() {
           {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
           {/* The same toggle as `post-compose.tsx`, and it had the same defect — role, state and
-              name all missing (#635). Fixed here too so the two composers cannot drift. */}
-          <Pressable
-            className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-5"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isStep }}
-            accessibilityLabel={t('story.add.stepTitle', locale)}
-            accessibilityHint={t('story.add.stepDesc', locale)}
-            onPress={() => setIsStep((v) => !v)}
-          >
-            <View className="flex-1 pr-4">
-              <Text className="text-[15px] text-foreground">
-                {t('story.add.stepTitle', locale)}
-              </Text>
-              <Text className="text-[13px] text-faint">{t('story.add.stepDesc', locale)}</Text>
-            </View>
-            {/* The app's Switch, which DESIGN.md §8.13 names for toggles (#748) — the bare ✦/○ glyph
-                rendered as a tiny unsized ○ on Android. The ROW is the control: it carries the
-                role, state and name, so the Switch is hidden from assistive tech and ignores
-                touches, and one tap anywhere flips it once. */}
-            <View
-              pointerEvents="none"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Switch accessibilityLabel={t('story.add.stepTitle', locale)} value={isStep} />
-            </View>
-          </Pressable>
+              name all missing (#635); the bare ✦/○ glyph that drew its state rendered as a tiny
+              unsized ○ on Android (#748). Both are one `Row checked` now, so the two composers
+              cannot drift: the ROW is the control and one tap anywhere flips it once. */}
+          <RowGroup>
+            <Row
+              title={t('story.add.stepTitle', locale)}
+              description={t('story.add.stepDesc', locale)}
+              checked={isStep}
+              onPress={() => setIsStep((v) => !v)}
+            />
+          </RowGroup>
 
           <MediaSheet
             visible={sheetOpen}

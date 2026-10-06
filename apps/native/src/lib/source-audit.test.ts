@@ -2428,14 +2428,14 @@ const openingTags = (src: string, tag: string): { line: number; attrs: string }[
  * removes; this section only checks that nothing announces around it.
  */
 describe('a11y: toggles name themselves and ornaments stay silent (#635)', () => {
-  // The two composers' «passo del percorso» Switches (#748) are row-owned: the Pressable row is
-  // the control and the Switch is hidden and touch-inert inside it. They still carry the label,
-  // so the rule below holds without an exception and a later un-hiding cannot ship unnamed.
+  // A row that IS the toggle (#748: the two composers' «passo del percorso») is `Row checked`
+  // since 2026-10-06: the row is the control and `Row.tsx` draws the Switch hidden and
+  // touch-inert inside it. That Switch still carries the label, so the rule below holds without
+  // an exception and a later un-hiding cannot ship unnamed.
   const SWITCH_FILES = [
     'app/(modal)/trust.tsx',
     'app/(modal)/notif-prefs.tsx',
-    'app/(modal)/post-compose.tsx',
-    'app/(modal)/story-compose.tsx',
+    'components/Row.tsx',
   ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
 
@@ -2669,8 +2669,8 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'app/(modal)/chat.tsx:524':
       'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
       'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:384': 'same measured 20pt remove-badge as chat.tsx:469',
-    'app/(modal)/story-compose.tsx:160': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/post-compose.tsx:385': 'same measured 20pt remove-badge as chat.tsx:469',
+    'app/(modal)/story-compose.tsx:161': 'same measured 20pt remove-badge as chat.tsx:469',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:462':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
@@ -5442,7 +5442,9 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
     expect(src, 'the title').toMatch(/type-body font-medium/);
     expect(src, 'the second line and the value').toMatch(/type-small text-muted-foreground/);
     expect(src, 'a destructive title is the error red').toMatch(/text-error/);
-    expect(src, 'one accessible button').toMatch(/accessibilityRole="button"/);
+    expect(src, 'one accessible control: a button, or a switch when it is `checked`').toMatch(
+      /accessibilityRole=\{isSwitch \? 'switch' : 'button'\}/,
+    );
     expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
     expect(
       src.match(/numberOfLines=\{[^}]*\}/g)?.sort(),
@@ -5482,6 +5484,37 @@ describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
       spoken,
       'a pressable `Row` is one button named by its label; a labelled `Avatar` in its ' +
         '`leading` says the name a second time (#884). Pass `decorative`.',
+    ).toEqual([]);
+  });
+
+  it('a row that is the toggle carries the role and the state, and draws the switch inert', () => {
+    const src = component('Row').replace(/\s+/g, ' ');
+    expect(src, 'the form is asked for by `checked`').toMatch(/checked: boolean;/);
+    expect(src, 'the state is the row’s').toMatch(
+      /accessibilityState=\{isSwitch \? \{ checked \} : undefined\}/,
+    );
+    expect(src, 'a string second line is the hint (#635: the «why» under the «what»)').toMatch(
+      /accessibilityHint=\{isSwitch && typeof description === 'string' \? description : undefined\}/,
+    );
+    // One tap anywhere flips it once (#748): the drawn switch takes no touch and is not a second
+    // element for a screen reader, and it has no `onValueChange` of its own.
+    expect(src, 'the switch is hidden, touch-inert and only draws the state').toMatch(
+      /<View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" > <Switch accessibilityLabel=\{accessibilityLabel \?\? title\} value=\{checked\} \/> <\/View>/,
+    );
+    expect(src, 'a toggle has no chevron').toMatch(/showChevron && onPress != null && !isSwitch/);
+  });
+
+  it('no file builds a row that is a switch by hand', () => {
+    const OWNERS = ['components/Switch.tsx', 'components/Row.tsx'];
+    const hits = appCode()
+      .filter(([at]) => !OWNERS.some((o) => at.endsWith(o)))
+      .filter(([, src]) => /accessibilityRole="switch"/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the switch role typed in a screen: a toggle beside its text is `Switch` in a row’s ' +
+        '`trailing`, and a row that is the toggle is `<Row checked={…} onPress={…} />` ' +
+        '(DESIGN §9 «Grouped rows»)',
     ).toEqual([]);
   });
 

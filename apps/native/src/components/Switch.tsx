@@ -16,8 +16,8 @@ const SWITCH_SLOP = { top: 8, bottom: 8 } as const;
  * same key the visible label renders, so the two cannot drift.
  *
  * It is 28pt tall and its TARGET is 44 (DESIGN §10): `hitSlop` makes up the difference, as on
- * `Chip`. Where the row is the control (the two composers), the switch sits inside a hidden,
- * touch-inert wrapper and only draws the state; it takes no `onValueChange` there.
+ * `Chip`. Where the row is the control (`Row checked`: the two composers), `Row` draws it in
+ * a hidden, touch-inert wrapper and it only shows the state; it takes no `onValueChange` there.
  *
  * Measured on 2026-10-04, both at the default text size and at the largest (AX5 on the
  * simulator, a font scale of 2.0 on the phone): the track is 46×28 on the iPhone SE simulator
