@@ -17,7 +17,7 @@ import { Screen } from '@/components/Screen';
  * Level-up overlay — fired when the score-engine broadcasts a `tier_up` celebration.
  * Route param `tier` is a tier id (e.g. 'bagliore', 'luce', 'faro', 'costellazione').
  *
- * Mirrors the match.tsx overlay pattern exactly: centered Animated.View fade + scale
+ * The overlay pattern match.tsx had until 2026-10-07: centered Animated.View fade + scale
  * entrance, the ✦ inside a hairline <Mandorla> (rule 4 — a moment happened: tier crossed),
  * reduced-motion safe (opacity-in only, no transform, hold ~600ms entrance).
  *

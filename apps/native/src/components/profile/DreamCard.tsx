@@ -3,7 +3,6 @@ import { galleria } from '@athanor/config';
 import { Pressable, Text } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Milestone } from '@athanor/schemas';
-import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
@@ -33,8 +32,9 @@ import { MilestoneRow } from './MilestoneRow';
  *   is read-only (no editor), each tappa shows the «Aiuta» affordance via `helpStateById`/
  *   `onHelpMilestone`, and the add-tappa row is hidden. The empty state shows no owner CTA.
  *
- * Both variants render the «Fai accadere questo sogno» rally CTA (the `primary` pill, inside
- * the card) when a dream is present and `onMakeHappen` is wired. Never writes Aura.
+ * «Fai accadere questo sogno» is not here: the card is the label and the quote, and the rally
+ * pill stands in the other member's pinned footer (`(modal)/user/[id]`; it was also drawn
+ * inside this card until 2026-10-07). Never writes Aura.
  */
 export function DreamCard({
   dream,
@@ -49,7 +49,6 @@ export function DreamCard({
   helpStateById,
   onHelpMilestone,
   incomingSlot,
-  onMakeHappen,
 }: {
   dream: string | null;
   locale: Locale;
@@ -63,7 +62,6 @@ export function DreamCard({
   helpStateById?: Record<string, HelpState>;
   onHelpMilestone?: (milestoneId: string) => void;
   incomingSlot?: ReactNode;
-  onMakeHappen?: () => void;
 }) {
   const isRead = variant === 'read';
   const showTappe = milestones !== undefined && dream != null;
@@ -111,14 +109,6 @@ export function DreamCard({
             {t('dream.empty.title', locale)}
           </EmptyState>
         )}
-
-        {dream && onMakeHappen ? (
-          <Button
-            label={t('dream.makeHappenCta', locale)}
-            variant="primary"
-            onPress={onMakeHappen}
-          />
-        ) : null}
       </Card>
 
       {showTappe ? (

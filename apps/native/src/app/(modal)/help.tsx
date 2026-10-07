@@ -41,7 +41,7 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  * Two entry points, one sheet:
  *
  * - `milestoneId` (+ `need`): the per-tappa «Aiuta» — straight into type / message / submit.
- * - `userId`: «Fai accadere questo sogno» from the person's dream card or their story
+ * - `userId`: «Fai accadere questo sogno» from the profile's pinned footer or their story
  *   (PRD §132). The sheet first asks WHICH tappa, then continues into the same steps.
  *   Nothing to pick (no dream, or every open tappa already offered on) is an honest empty
  *   state with no CTA — never a toast claiming a write that did not happen (issue #108).
