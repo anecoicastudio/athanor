@@ -7080,6 +7080,13 @@ describe('the favour sheet and the week recap keep the Galleria look (#921)', ()
       /contentContainerClassName="grow px-5 pb-12"/,
     );
     expect(sheet).toMatch(/first=\{index === 0\} last=\{index === needs\.length - 1\}/);
+    // Rows in hand hide `ListEmptyComponent`, so a failed later page says so under them.
+    expect(sheet, 'a failed read with rows on screen keeps a reason and a retry').toMatch(
+      /ListFooterComponent=\{ query\.isError && needs\.length > 0 \? \(/,
+    );
+    expect(sheet).toMatch(
+      /query\.isFetchNextPageError \? query\.fetchNextPage\(\) : query\.refetch\(\)/,
+    );
   });
 
   it('favour done is the one quiet composition of a celebration, and nothing glows', () => {

@@ -203,6 +203,24 @@ export default function FavorScreen() {
             className="pt-12"
           />
         }
+        // A failed read with rows on screen (a later page, or a refetch): the rows stay, and the
+        // reason and its retry stand under them. `ListEmptyComponent` never renders then.
+        ListFooterComponent={
+          query.isError && needs.length > 0 ? (
+            <View className="items-center gap-2 pt-4">
+              <Text className="text-center type-small text-muted-foreground">
+                {t('favor.error', locale)}
+              </Text>
+              <Button
+                label={t('common.retry', locale)}
+                variant="ghost"
+                onPress={() =>
+                  void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())
+                }
+              />
+            </View>
+          ) : null
+        }
         contentContainerClassName="grow px-5 pb-12"
         onEndReachedThreshold={0.5}
         onEndReached={() => {
