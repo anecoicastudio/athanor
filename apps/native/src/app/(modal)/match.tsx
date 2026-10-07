@@ -22,7 +22,7 @@ import { Screen } from '@/components/Screen';
  * grey sentence and «✦ Aura» under it in the same grey, the cyan pill, then the outline pill.
  * No card, no glow, and no Aura number (rule 1). It scrolls because nothing here is capped.
  *
- * The screen fades in and the mark flashes once, 0.9 → 1.15 → 1 (DESIGN §10's one effect).
+ * The screen fades in and the mark flashes once (DESIGN §10's one effect).
  * Reduced-motion safe: under Reduce Motion the screen fades opacity only (no
  * scale/transform), following the MomentFlash/AccessibilityInfo pattern.
  *
