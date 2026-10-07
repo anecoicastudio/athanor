@@ -19,7 +19,7 @@ import { Pressable, Text, View, cn } from '@/tw';
  * label; the comparison lives here.
  *
  * Active segment uses foreground-fill chip (not cyan — rule #4; a pricing toggle is not a
- * moment-grade event). Mirrors SegmentedToggle.tsx shape with typed plan values.
+ * moment-grade event). The plan values are typed.
  *
  * Roles: the container is a `radiogroup` and each segment a `radio` — two exclusive options,
  * which VoiceOver then announces as «1 di 2» with `checked` (the pairing `Chip.tsx` documents,
