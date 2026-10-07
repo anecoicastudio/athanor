@@ -4,10 +4,11 @@ import { pickNextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
-import { AuraSourceRow } from '@/components/aura/AuraSourceRow';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { useAuth } from '@/lib/auth-context';
@@ -73,15 +74,14 @@ export default function RecapScreen() {
         right={<HeaderClose label={t('common.back' as MessageKey, locale)} onPress={leave} />}
       />
 
-      {/* Sub */}
-      <Text className="px-5 pb-4 text-[13px] text-muted-foreground">
-        {t('recap.sub' as MessageKey, locale)}
-      </Text>
+      {/* Blocks 26 apart on the 20 gutter (DESIGN §6); the grey line sits under the header. */}
+      <ScrollView contentContainerClassName="gap-[26px] px-5 pb-12">
+        <Text className="type-small text-muted-foreground">
+          {t('recap.sub' as MessageKey, locale)}
+        </Text>
 
-      <ScrollView contentContainerClassName="px-5 pb-12">
-        {/* Error state */}
         {isError ? (
-          <View className="items-center gap-4 py-8">
+          <View className="items-center gap-4">
             <EmptyState>{t('aura.error' as MessageKey, locale)}</EmptyState>
             <Button
               label={t('common.retry' as MessageKey, locale)}
@@ -89,68 +89,79 @@ export default function RecapScreen() {
               onPress={() => void recapQuery.refetch()}
             />
           </View>
-        ) : null}
-
-        {/* Metric rows */}
-        {!isError ? (
-          <View className="gap-1">
-            {isLoading ? (
-              <View className="gap-3 py-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <ShimmerBar key={i} />
-                ))}
-              </View>
-            ) : isEmptyWeek ? (
-              <View className="mt-4">
-                <EmptyState>{t('recap.emptyWeek' as MessageKey, locale)}</EmptyState>
-              </View>
-            ) : (
-              <View className="gap-1 py-2">
-                <AuraSourceRow
-                  label={t('recap.metric.aura' as MessageKey, locale)}
-                  value={recap?.auraWeek ?? 0}
-                  width={0}
-                  showBar={false}
-                />
-                <AuraSourceRow
-                  label={t('recap.metric.contributi' as MessageKey, locale)}
-                  value={recap?.contributi ?? 0}
-                  width={0}
-                  showBar={false}
-                />
-                <AuraSourceRow
-                  label={t('recap.metric.dreams' as MessageKey, locale)}
-                  value={recap?.sogniAiutati ?? 0}
-                  width={0}
-                  showBar={false}
-                />
-              </View>
-            )}
+        ) : isLoading ? (
+          <View className="gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <ShimmerBar key={i} />
+            ))}
           </View>
-        ) : null}
+        ) : isEmptyWeek ? (
+          <EmptyState>{t('recap.emptyWeek' as MessageKey, locale)}</EmptyState>
+        ) : (
+          // The week's three figures, one group of rows (DESIGN §8.12). Foreground: a week's
+          // gain is not the member's Aura numeral, so nothing here is cyan (Marco, 2026-10-07).
+          <RowGroup>
+            <Figure
+              label={t('recap.metric.aura' as MessageKey, locale)}
+              value={recap?.auraWeek ?? 0}
+              signed
+            />
+            <Figure
+              label={t('recap.metric.contributi' as MessageKey, locale)}
+              value={recap?.contributi ?? 0}
+            />
+            <Figure
+              label={t('recap.metric.dreams' as MessageKey, locale)}
+              value={recap?.sogniAiutati ?? 0}
+            />
+          </RowGroup>
+        )}
 
-        {/* «Prossima stella» feature block — hide when nextStar is null */}
+        {/* «Prossima stella», the screen's one bordered card — hidden when nextStar is null */}
         {!isLoading && !isError && nextStar != null ? (
-          <View className="mt-6">
-            <Card>
-              <SectionLabel>{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
-              {/* Borderline under §10 and decided here: at 15px this is small for a display
-                  title, but «{star} — {gap}» IS the block's title and «Prossima stella» is the
-                  generic label over it, so the title takes the header. The screen's own h1 sits
-                  on ModalHeader — a Card is a different block, so this is not two for one. */}
-              <Text
-                accessibilityRole="header"
-                className="text-[15px] font-semibold text-foreground"
-              >
-                {t('recap.next.title' as MessageKey, locale, { star: starName, gap: gapStr })}
-              </Text>
-              <Text className="text-[13px] text-muted-foreground">
-                {t('recap.next.body' as MessageKey, locale)}
-              </Text>
-            </Card>
-          </View>
+          <Card>
+            <SectionLabel>{t('recap.next.label' as MessageKey, locale)}</SectionLabel>
+            {/* «{star} — {gap}» IS the block's title and «Prossima stella» is the generic label
+                over it, so the title takes the header. The screen's own h1 sits on ModalHeader —
+                a Card is a different block, so this is not two for one. */}
+            <Text accessibilityRole="header" className="type-h2 text-foreground">
+              {t('recap.next.title' as MessageKey, locale, { star: starName, gap: gapStr })}
+            </Text>
+            <Text className="type-small text-muted-foreground">
+              {t('recap.next.body' as MessageKey, locale)}
+            </Text>
+          </Card>
         ) : null}
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * One figure of the week: its name at the left, the number at the right in the middle numeral
+ * style, and one spoken line for both (an inert `Row` is not announced as one thing by itself).
+ * Only the Aura figure is `signed`: it is a gain, the other two are counts.
+ */
+function Figure({
+  label,
+  value,
+  signed = false,
+}: {
+  label: string;
+  value: number;
+  signed?: boolean;
+}) {
+  const shown = `${signed && value > 0 ? '+' : ''}${value}`;
+  return (
+    <View accessible accessibilityLabel={`${label}, ${shown}`}>
+      <Row
+        title={label}
+        trailing={
+          <Text className="type-num-m text-foreground" style={{ fontVariant: ['tabular-nums'] }}>
+            {shown}
+          </Text>
+        }
+      />
+    </View>
   );
 }
