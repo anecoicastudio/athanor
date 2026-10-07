@@ -6,11 +6,10 @@ import { favorKeys, getOrCreateConversation, passFavor } from '@athanor/api';
 import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { FavorNeed } from '@athanor/schemas';
-import { FlatList, Pressable, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
+import { FlatList, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
-import { EmptyState } from '@/components/EmptyState';
+import { CelebrationMark } from '@/components/CelebrationMark';
 import { ListState } from '@/components/ListState';
 import { FavorRow } from '@/components/costellazioni/FavorRow';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -18,7 +17,7 @@ import { useLocale } from '@/hooks/use-locale';
 import { useOpenNeeds } from '@/hooks/use-open-needs';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { auraGlow } from '@/lib/glow';
+import { listState } from '@/lib/list-state';
 import { MODAL_A11Y } from '@/lib/a11y';
 import { useGuardedBack } from '@/lib/modal-exit';
 // A unique violation here means you already passed this favor — treat it as "done".
@@ -26,11 +25,14 @@ import { isUniqueViolation } from '@/lib/pg-error';
 import { Screen } from '@/components/Screen';
 
 /**
- * Passa il Favore sheet (M3, frontend `03` §3.6.1). A directed pay-it-forward surface:
- * people with an open need are listed; you help one, asking nothing back. Writes only
- * favor_offers via the api — never Aura (rule #1): the completion overlay shows NO Aura
- * number; +points / the Collaboratore star are the M6 engine's job. Full-screen modal
- * (the (modal)/* convention; the Foundation Sheet host lands later).
+ * Passa il Favore sheet (M3, frontend `03` §3.6.1; DESIGN §8.9). A directed pay-it-forward
+ * surface: people with an open need are listed as one group of rows; you help one, asking
+ * nothing back. Writes only favor_offers via the api — never Aura (rule #1): the done screen
+ * shows NO Aura number; +points / the Collaboratore star are the M6 engine's job. Full-screen
+ * modal (the (modal)/* convention), closed from its header.
+ *
+ * Once a favour is offered the screen becomes the favour-done celebration (DESIGN §2.3,
+ * §8.12): one of the five places cyan stands on mobile, and nothing on it glows (#921).
  */
 export default function FavorScreen() {
   const router = useRouter();
@@ -107,102 +109,101 @@ export default function FavorScreen() {
   if (done) {
     const name = done.target_handle ?? '—';
     return (
-      <Screen {...MODAL_A11Y} className="items-center justify-center gap-6 pl-8 pr-8">
-        {/* The one glow (rule #4): a favor was lit — a moment. Shows NO Aura number (rule #1). */}
-        <View
-          className="w-full items-center gap-3 rounded-card border border-aura-line bg-aura-soft px-6 py-10"
-          style={auraGlow(1)}
-        >
-          <SectionLabel tone="celebration">{t('favor.done.eyebrow', locale)}</SectionLabel>
-          <Text accessibilityRole="header" className="text-center text-2xl text-foreground">
-            {t('favor.done.title', locale, { name })}
-          </Text>
-          <Text className="text-center text-[14px] text-faint">{t('favor.done.sub', locale)}</Text>
-        </View>
-        {writeError ? (
-          <Text className="text-[13px] text-error">{t('chat.openFailed', locale)}</Text>
-        ) : null}
-        <View className="w-full gap-3">
-          <Button
-            label={t('favor.done.write', locale, { name })}
-            variant="celebration"
-            disabled={writing}
-            onPress={() => void write(done)}
-          />
-          <Pressable onPress={leave} hitSlop={HIT_SLOP} className="items-center py-2">
-            <Text className="text-[14px] text-faint">{t('favor.done.dismiss', locale)}</Text>
-          </Pressable>
-        </View>
-      </Screen>
-    );
-  }
-
-  if (query.isError) {
-    return (
       <Screen {...MODAL_A11Y}>
-        <ListState
-          state="error"
-          locale={locale}
-          errorLabel={t('favor.error', locale)}
-          onRetry={() => void query.refetch()}
-          className="flex-1 justify-center px-8"
-        />
+        {/* A celebration (DESIGN §2.3, §8.12): the mark, one cyan line, the h1, one grey line,
+            the cyan pill. No card and no glow, and NO Aura number (rule 1). It scrolls because
+            nothing here is capped: at the largest text size the block is taller than a small
+            phone. */}
+        <ScrollView contentContainerClassName="grow items-center justify-center gap-[26px] px-5 py-12">
+          <CelebrationMark />
+          <View className="items-center gap-2">
+            <SectionLabel tone="celebration">{t('favor.done.eyebrow', locale)}</SectionLabel>
+            <Text accessibilityRole="header" className="text-center type-h1 text-foreground">
+              {t('favor.done.title', locale, { name })}
+            </Text>
+            <Text className="text-center type-small text-muted-foreground">
+              {t('favor.done.sub', locale)}
+            </Text>
+          </View>
+          <View className="gap-2 self-stretch">
+            {writeError ? (
+              <Text className="text-center text-[14px] text-error">
+                {t('chat.openFailed', locale)}
+              </Text>
+            ) : null}
+            <Button
+              label={t('favor.done.write', locale, { name })}
+              variant="celebration"
+              disabled={writing}
+              onPress={() => void write(done)}
+            />
+            <Button label={t('favor.done.dismiss', locale)} variant="ghost" onPress={leave} />
+          </View>
+        </ScrollView>
       </Screen>
     );
   }
 
   return (
     <Screen {...MODAL_A11Y}>
+      <ModalHeader
+        leading="none"
+        title={t('favor.sheet.title', locale)}
+        right={<HeaderClose label={t('common.back', locale)} onPress={leave} />}
+      />
       <FlatList
         data={needs}
         keyExtractor={(item) => item.need_milestone_id}
         ListHeaderComponent={
           <View>
-            <ModalHeader
-              leading="none"
-              title={t('favor.sheet.title', locale)}
-              right={<HeaderClose label={t('common.back', locale)} onPress={leave} />}
-            />
             {/* #633: this sentence — the ONLY place the favor's terms are stated — used to
                 ride ModalHeader's subtitle, whose one-line contract truncated it mid-word
                 («…Nessun…») on every device: 61% of the disclosure was unreachable at any
                 scroll position. A header is the one place a disclosure can never live.
                 Body paragraph instead, wrapping freely, above the first row. */}
-            <Text className="px-5 pb-3 text-[13px] leading-5 text-muted-foreground">
+            <Text className="pb-4 type-small text-muted-foreground">
               {t('favor.sheet.sub', locale)}
             </Text>
             {helpError ? (
-              <Text className="px-5 pb-2 text-[13px] text-error">
-                {t('favor.help.error', locale)}
-              </Text>
+              <Text className="pb-4 text-[14px] text-error">{t('favor.help.error', locale)}</Text>
             ) : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <View className="px-5 pb-3">
-            <FavorRow
-              need={item}
-              locale={locale}
-              onHelp={() => confirmHelp(item)}
-              busy={helpingId === item.need_milestone_id}
-            />
-          </View>
+        // One group of rows (DESIGN §6): each row draws its own segment, so the list has no gap
+        // between items and stays paged.
+        renderItem={({ item, index }) => (
+          <FavorRow
+            need={item}
+            locale={locale}
+            onHelp={() => confirmHelp(item)}
+            busy={helpingId === item.need_milestone_id}
+            first={index === 0}
+            last={index === needs.length - 1}
+          />
         )}
         ListEmptyComponent={
-          query.isLoading ? (
-            <View className="items-center justify-center py-24">
-              <ActivityIndicator color={galleria.foreground} />
-            </View>
-          ) : (
-            <View className="items-center justify-center gap-2 px-8 py-24">
-              <EmptyState>{t('favor.empty.title', locale)}</EmptyState>
-              <Text className="text-center text-[13px] text-faint">
-                {t('favor.empty.sub', locale)}
-              </Text>
-            </View>
-          )
+          <ListState
+            // `staleWins`: a list. A failed refetch leaves the needs already on screen.
+            state={listState({
+              status: query.status,
+              fetchStatus: query.fetchStatus,
+              isEmpty: needs.length === 0,
+              staleWins: true,
+            })}
+            locale={locale}
+            errorLabel={t('favor.error', locale)}
+            emptyLabel={t('favor.empty.title', locale)}
+            emptyBody={t('favor.empty.sub', locale)}
+            onRetry={() => void query.refetch()}
+            loading={
+              <View className="items-center pt-24">
+                <ActivityIndicator color={galleria.foregroundMuted} />
+              </View>
+            }
+            className="pt-12"
+          />
         }
-        contentContainerClassName="grow pb-12"
+        contentContainerClassName="grow px-5 pb-12"
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();

@@ -4496,11 +4496,11 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
    * Since Galleria (rule 4, mobile half, 2026-10-03) nothing on mobile glows, so the list only
    * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop,
    * `components/Mandorla.tsx` the same day with its `glowLevel`,
-   * `components/profile/MomentFlash.tsx` on 2026-10-05 with the Profilo tab, and each of the rest leaves
-   * when its own screens are converted (#921, open as of 2026-10-04).
+   * `components/profile/MomentFlash.tsx` on 2026-10-05 with the Profilo tab,
+   * `app/(modal)/favor.tsx` on 2026-10-07 with the favour sheet, and each of the rest leaves
+   * when its own screens are converted (#921, open as of 2026-10-07).
    */
   const GLOW_SURFACES = [
-    'app/(modal)/favor.tsx',
     'components/circle/SubscriptionStatusCard.tsx',
     'components/fund/CandidateCard.tsx',
     'components/fund/FundTicker.tsx',
@@ -4649,7 +4649,10 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
     'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
     'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
-    'components/costellazioni/FavorRow.tsx': { decorative: true, why: 'row label' },
+    'components/costellazioni/FavorRow.tsx': {
+      decorative: true,
+      why: 'the avatar button’s label',
+    },
     'components/costellazioni/ProjectCard.tsx': {
       decorative: true,
       why: 'row label, or the name Text',
@@ -6012,7 +6015,7 @@ describe('the Community tab keeps the Galleria look (#921)', () => {
  * borderless `surface` block (Marco, 2026-10-05). Cyan stands once, on the dot beside «Hai un
  * Momento» (DESIGN §2.3). The swipe stamps are foreground and grey: no green, and passing is
  * not an error. `costellazioni/FavorRow` is not in this list: its one caller is the favour
- * sheet, and it converts with it.
+ * sheet, and it converted with it on 2026-10-07 (the last section of this file holds it).
  */
 describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () => {
   const folder = (name: string) =>
@@ -6938,6 +6941,180 @@ describe('stories, the grid and the media components keep the Galleria look (#92
     );
     expect(flat(RECORDER), 'the timer is a foreground numeral').toMatch(
       /className="type-num text-foreground"/,
+    );
+  });
+});
+
+/*
+ * The favour sheet and the week recap (#921, C14d, 2026-10-07). The prototype draws three
+ * screens: the favour list (one group of rows, «Aiuta» a small outline pill), the favour done
+ * screen (a celebration: DESIGN §2.3, §8.12) and the recap (one group of three figures over the
+ * one bordered card). Ruled by Marco that day: a favour row is an inert `Row` whose disc is the
+ * way to the profile; the cyan ✦ of a celebration lives in `CelebrationMark`; the recap's three
+ * figures are foreground; «Prossima stella» stays inert.
+ */
+describe('the favour sheet and the week recap keep the Galleria look (#921)', () => {
+  const FAVOR_SHEET = 'app/(modal)/favor.tsx';
+  const RECAP = 'app/(modal)/recap.tsx';
+  const FAVOR_ROW = 'components/costellazioni/FavorRow.tsx';
+  const MARK = 'components/CelebrationMark.tsx';
+  const ALL = [FAVOR_SHEET, RECAP, FAVOR_ROW, MARK];
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b/gi;
+
+  it('the one cyan class is the ✦ of the celebration mark', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): «Aiuta» is an outline pill and a week’s figure is ' +
+        'foreground. The label and the pill of the done screen are cyan by `tone` and `variant`',
+    ).toEqual([`${MARK}  text-aura`]);
+    expect(flat(MARK)).toMatch(
+      /<MandorlaMark \/>.*?<Text className="absolute text-\[22px\] text-aura"/,
+    );
+  });
+
+  it('the mark stands on the celebration screens and nowhere else', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => /<CelebrationMark\b/.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(users, 'no file renders the mark — the walk is broken').not.toEqual([]);
+    expect(
+      users.filter((file) => !CELEBRATION_SCREENS.includes(file)),
+      'an empty, error or loading state draws `MandorlaMark`, with nothing at its centre (§5)',
+    ).toEqual([]);
+    expect(users).toContain(FAVOR_SHEET);
+  });
+
+  it('the recap has the one bordered card; the favour sheet has none', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([RECAP]);
+    expect((code(RECAP).match(/<Card\b/g) ?? []).length).toBe(1);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): only `Card` draws it here',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close is the drawn `HeaderClose` (DESIGN §6 «Interface icons»)').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('a favour row is an inert Row: the disc opens the profile, «Aiuta» is the small outline pill', () => {
+    const row = flat(FAVOR_ROW);
+    expect(row, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(
+      row.match(/\bonPress=/g)?.length,
+      'two controls, the disc and the pill: the row itself is not a button',
+    ).toBe(2);
+    expect(row, 'the disc is a 44pt button named for the profile it opens').toMatch(
+      /<Pressable accessibilityRole="button" accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} className=\{PRESS_DIM\}/,
+    );
+    expect(row).toMatch(/size=\{44\}/);
+    expect(row, 'a name on one line, a need on two (Marco, 2026-10-05)').toMatch(
+      /titleLines=\{1\} description=\{need\.need\} descriptionLines=\{2\}/,
+    );
+    expect(row, '«Aiuta» is named by its visible label').toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('favor\.help', locale\)\} loading=\{busy\} onPress=\{onHelp\} \/>/,
+    );
+    // The list is paged, so each row draws its own segment of the group (`feed/Comment`'s recipe).
+    expect(row).toMatch(/'bg-surface px-4'/);
+    expect(row).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+    expect(row).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+  });
+
+  it('the favour sheet states its terms in a paragraph and closes from the header', () => {
+    const sheet = flat(FAVOR_SHEET);
+    expect(sheet).toMatch(/<HeaderClose\b/);
+    expect(sheet, 'never a header subtitle (#633, DESIGN §8.9)').toMatch(
+      /<Text className="pb-4 type-small text-muted-foreground"> \{t\('favor\.sheet\.sub', locale\)\} <\/Text>/,
+    );
+    expect(sheet, 'one group: no gap between its segments').toMatch(
+      /contentContainerClassName="grow px-5 pb-12"/,
+    );
+    expect(sheet).toMatch(/first=\{index === 0\} last=\{index === needs\.length - 1\}/);
+  });
+
+  it('favour done is the one quiet composition of a celebration, and nothing glows', () => {
+    const sheet = flat(FAVOR_SHEET);
+    expect(sheet).toMatch(/<CelebrationMark \/>/);
+    expect(sheet).toMatch(
+      /<SectionLabel tone="celebration">\{t\('favor\.done\.eyebrow', locale\)\}<\/SectionLabel>/,
+    );
+    expect(sheet).toMatch(
+      /accessibilityRole="header" className="text-center type-h1 text-foreground"/,
+    );
+    expect(sheet).toMatch(
+      /<Button label=\{t\('favor\.done\.write', locale, \{ name \}\)\} variant="celebration"/,
+    );
+    expect(sheet, 'the way out is the text link').toMatch(
+      /<Button label=\{t\('favor\.done\.dismiss', locale\)\} variant="ghost" onPress=\{leave\} \/>/,
+    );
+    expect(sheet, 'no card around the celebration').not.toMatch(/rounded-\[28px\]/);
+    expect(code(FAVOR_SHEET)).not.toMatch(/glow/i);
+  });
+
+  it('the recap is one group of three foreground figures', () => {
+    const recap = flat(RECAP);
+    expect(recap).toMatch(/<RowGroup>/);
+    expect(recap.match(/<Figure\b/g)?.length, 'Aura, contributions, dreams').toBe(3);
+    expect(recap, 'the figure, digits only (a type-num line is as tall as its size)').toMatch(
+      /<Text className="type-num-m text-foreground" style=\{\{ fontVariant: \['tabular-nums'\] \}\}>/,
+    );
+    expect(recap, 'one spoken line per figure').toMatch(
+      /<View accessible accessibilityLabel=\{`\$\{label\}, \$\{shown\}`\}>/,
+    );
+    expect(recap, 'the source row is the Aura screen’s').not.toMatch(/AuraSourceRow/);
+    expect(recap, 'blocks 26 apart').toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/);
+    expect(recap, 'the card’s title').toMatch(
+      /accessibilityRole="header" className="type-h2 text-foreground"/,
     );
   });
 });
