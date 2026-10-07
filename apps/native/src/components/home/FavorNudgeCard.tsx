@@ -32,11 +32,11 @@ import { stacksTrailing } from '@/lib/type-scale';
  * #111 is about a false claim — «you have nothing» asserted on the strength of a network error.
  * An absent block asserts nothing. The week slot beside this one gets the opposite treatment
  * (`WeekSlot.tsx`) because it reports the member's OWN Aura, where silence and a wrong number are
- * both claims about their worth; the `query.isError` arm of `(modal)/favor.tsx` owns the error copy
- * and the retry.
+ * both claims about their worth; the error arm of the list in `(modal)/favor.tsx` owns the error
+ * copy and the retry.
  *
  * ROUTE-ONLY, per `MomentiCard`'s «ROUTE-ONLY» note. `FavorRow` is deliberately NOT reused: its
- * «Aiuta» chip calls `passFavor`, and a stray tap on a scrolling Home must not be able to write.
+ * «Aiuta» pill calls `passFavor`, and a stray tap on a scrolling Home must not be able to write.
  * The rows here are read-only; deciding happens in the sheet.
  *
  * A group of rows under its label, not a card (#921, 2026-10-05; DESIGN §6: a list is one
