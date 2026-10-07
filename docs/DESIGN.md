@@ -795,7 +795,7 @@ What ships on mobile on the favour sheet (Galleria, 2026-10-07, #921):
 - **The list.** The title with the drawn close at its right, the disclosure as a `small` grey paragraph, then one group of rows (§6) on the 20 gutter. No bordered card and no cyan.
 - **A row holds two controls and is not one itself.** The member's 44 disc opens their profile and is named for it; the name on one line and the need in `small` grey on at most two are plain text; «Aiuta» is the small outline pill, named by its visible label. At the accessibility sizes the pill stands under the text and the disc stays at the left.
 - **The list is paged, so each row draws its own segment of the group**: the first rounds the top, the last the foot, a hairline above all but the first, no gap between rows.
-- **Loading, empty and error** stand under the disclosure, with the header and its close still on screen. A failed refetch leaves the rows already shown.
+- **Loading, empty and error** stand under the disclosure, with the header and its close still on screen. A failed read with rows on screen (a later page, a refetch) leaves them shown, with the reason and a retry under them.
 - **Favour done** is the celebration composition of §8.12, centred, blocks 26 apart: the mark with its ✦, the cyan label, the h1 and one `small` grey line 8 apart, then the cyan pill «Scrivi a {name}» and the text link «Fatto» 8 apart. No card, no glow, no Aura number. It scrolls when the text size makes it taller than the screen.
 
 ### 8.10 Athanor Live — the tab surfaces _(added 2026-09-02, #641 — §8.7 covered only detail + ticket)_
