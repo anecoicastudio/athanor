@@ -4,7 +4,8 @@ import { ProgressBar } from '@/components/ProgressBar';
 /**
  * One scored-bucket row in the Aura breakdown (spec §3.1).
  * label (ink-2) + optional progress bar + signed "+{value}" (tabular-nums, aura).
- * showBar defaults to true; pass showBar={false} for recap metric rows.
+ * showBar defaults to true. The week recap passed `showBar={false}` until 2026-10-07, when it
+ * took grouped rows of its own (#921); the Aura screen is the one caller.
  */
 export function AuraSourceRow({
   label,
