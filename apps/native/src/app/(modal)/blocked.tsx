@@ -4,6 +4,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { blockKeys, listBlocked, unblockUser } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { FlatList } from '@/tw';
+import { ListPageError } from '@/components/ListPageError';
 import { ListState } from '@/components/ListState';
 import { BlockedRow } from '@/components/trust/BlockedRow';
 import { ModalHeader } from '@/components/ModalHeader';
@@ -15,9 +16,10 @@ import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
 /**
- * Blocked-profiles list screen (M9 §3.1). Keyset pagination (rule #9); neutral
- * palette — no cyan/glow (rule #4). Unblock requires a destructive Alert confirm
- * before firing the mutation; the touched row dims while in flight.
+ * Blocked-profiles list screen (M9 §3.1; DESIGN §8.13, #921). Keyset pagination (rule #9).
+ * One group of rows on the stage, no bordered card, no cyan. The list is paged, so a row draws
+ * its own segment of the group and the list has no gap. Unblock requires a destructive Alert
+ * confirm before firing the mutation; the touched row dims while in flight.
  *
  * The empty branch goes through `listState` rather than `!isLoading` (#111). This is the
  * screen where that mattered most: «Non hai bloccato nessuno» rendered on a failed read is
@@ -79,13 +81,15 @@ export default function BlockedScreen() {
       <FlatList
         data={rows}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 pb-10"
-        renderItem={({ item }) => (
+        contentContainerClassName="grow px-5 pb-12"
+        renderItem={({ item, index }) => (
           <BlockedRow
             item={item}
             unblockLabel={t('block.unblock', locale)}
             removedLabel={t('profile.removed.name', locale)}
             mutating={mutatingId === item.peerId}
+            first={index === 0}
+            last={index === rows.length - 1}
             onUnblock={() =>
               confirmUnblock(
                 item.peerId,
@@ -111,6 +115,16 @@ export default function BlockedScreen() {
             errorLabel={t('block.list.error', locale)}
             emptyLabel={t('block.list.empty', locale)}
             onRetry={() => void query.refetch()}
+          />
+        }
+        // Rows in hand keep `ListEmptyComponent` from rendering: a failed later page, or a failed
+        // refetch, says so under them. Here most of all a silent failure reads as «that is all».
+        ListFooterComponent={
+          <ListPageError
+            query={query}
+            hasRows={rows.length > 0}
+            label={t('block.list.error', locale)}
+            retryLabel={t('common.retry', locale)}
           />
         }
       />

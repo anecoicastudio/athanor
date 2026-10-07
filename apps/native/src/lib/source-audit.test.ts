@@ -4646,7 +4646,10 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
   const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
     'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
     'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'row label' },
-    'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
+    'components/connections/ConnectionRequestRow.tsx': {
+      decorative: true,
+      why: 'the avatar button’s label',
+    },
     'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
     'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
     'components/costellazioni/FavorRow.tsx': {
@@ -4662,7 +4665,7 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     'components/chat/Bubble.tsx': { decorative: true, why: 'the avatar button’s label' },
     'components/stories/StoryRing.tsx': { decorative: true, why: 'row label' },
     'components/search/ResultRow.tsx': { decorative: true, why: 'searchRowLabel says the name' },
-    'components/trust/BlockedRow.tsx': { decorative: true, why: 'name Text beside it' },
+    'components/trust/BlockedRow.tsx': { decorative: true, why: 'the row’s title beside it' },
     'app/(modal)/settings.tsx': { decorative: true, why: 'name Text beside it' },
     'components/momenti/MomentoCard.tsx': { decorative: true, why: 'name Text beside it' },
     'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
@@ -7123,5 +7126,251 @@ describe('the favour sheet and the week recap keep the Galleria look (#921)', ()
     expect(recap, 'the card’s title').toMatch(
       /accessibilityRole="header" className="type-h2 text-foreground"/,
     );
+  });
+});
+
+/**
+ * C15a: the connections hub, the blocked list and the report sheet (DESIGN §8.13, §9 «Grouped
+ * rows»; #921). `connections/ConnectButton` is not in this list: its one caller is the member's
+ * profile, which converts with `match` in the chunk after this one.
+ */
+describe('connections, the blocked list and the report sheet keep the Galleria look (#921)', () => {
+  const HUB = 'app/(modal)/connections.tsx';
+  const BLOCKED = 'app/(modal)/blocked.tsx';
+  const REPORT = 'app/(modal)/report.tsx';
+  const TOGGLE = 'components/connections/SegmentedToggle.tsx';
+  const CONNECTION_ROW = 'components/connections/ConnectionRow.tsx';
+  const REQUEST_ROW = 'components/connections/ConnectionRequestRow.tsx';
+  const BLOCKED_ROW = 'components/trust/BlockedRow.tsx';
+  const PAGE_ERROR = 'components/ListPageError.tsx';
+  const ROWS = [CONNECTION_ROW, REQUEST_ROW, BLOCKED_ROW];
+  const ALL = [HUB, BLOCKED, REPORT, TOGGLE, ...ROWS, PAGE_ERROR];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('the connections folder is the four files', () => {
+    const folder = FILES.map((p) => rel(p).replace('apps/native/src/', ''))
+      .filter((p) => p.startsWith('components/connections/') && !/\.test\./.test(p))
+      .sort();
+    expect(folder).toEqual([
+      'components/connections/ConnectButton.tsx',
+      REQUEST_ROW,
+      CONNECTION_ROW,
+      TOGGLE,
+    ]);
+  });
+
+  it('nothing here is cyan: a connection is routine and a report is not a celebration', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): «Accetta» is the white small pill, the selected ' +
+        'segment a foreground chip, the sent ✓ foreground',
+    ).toEqual([]);
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device and `leading-*` emits nothing (measured ' +
+        'on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close is the drawn `HeaderClose` (DESIGN §6 «Interface icons»)').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed, and no opacity rides a style object', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bopacity\s*:/.test(code(file))),
+      'a row in flight dims by class, the literal and the `style` spelling alike',
+    ).toEqual([]);
+  });
+
+  it('the segments are two chips', () => {
+    const toggle = flat(TOGGLE);
+    expect(toggle).toMatch(/<View className="flex-row flex-wrap gap-2">/);
+    expect(toggle).toMatch(
+      /<Chip key=\{segment\} label=\{labels\[segment\]\} selected=\{value === segment\} onPress=\{\(\) => onChange\(segment\)\} \/>/,
+    );
+    expect(toggle, 'the chip is the control: no second pressable').not.toMatch(/<Pressable\b/);
+  });
+
+  it('each row draws its own segment of the group, because every list here is paged', () => {
+    for (const file of ROWS) {
+      const row = flat(file);
+      expect(row, file).toMatch(/'bg-surface px-4'/);
+      expect(row, file).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+      expect(row, file).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+      expect(row, file).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+      expect(row, `${file}: the 44 disc is decorative, the name beside it is text`).toMatch(
+        /<Avatar decorative [^>]*size=\{44\} \/>/,
+      );
+    }
+    for (const [file, rows] of [
+      [HUB, 'requests'],
+      [HUB, 'connections'],
+      [BLOCKED, 'rows'],
+    ] as const) {
+      expect(flat(file), `${file} ${rows}`).toContain(
+        `first={index === 0} last={index === ${rows}.length - 1}`,
+      );
+    }
+    expect(flat('app/(modal)/new-message.tsx'), 'the row’s other caller pages too').toContain(
+      'first={index === 0} last={index === connections.length - 1}',
+    );
+  });
+
+  it('a connection row is one button; a request row is inert, its two small pills under the name', () => {
+    const connection = flat(CONNECTION_ROW);
+    expect(connection.match(/\bonPress=/g)?.length, 'the whole row opens the profile').toBe(1);
+    expect(connection).toMatch(
+      /accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} onPress=\{onPress\}/,
+    );
+    expect(connection, 'a lone-word handle keeps one line (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/,
+    );
+
+    const request = flat(REQUEST_ROW);
+    expect(request, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(
+      request.match(/\bonPress=/g)?.length,
+      'three controls — the disc and two pills: the row itself is not a button (Marco, 2026-10-07)',
+    ).toBe(3);
+    expect(request, 'the disc is a button named for the profile it opens (#356)').toMatch(
+      /<Pressable accessibilityRole="button" accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} className=\{PRESS_DIM\}/,
+    );
+    expect(request, 'named by its verb, spoken with the name').toMatch(
+      /<Button size="sm" label=\{t\('connection\.accept', locale\)\} accessibilityLabel=\{t\('connection\.a11y\.accept', locale, \{ name \}\)\} disabled=\{pending\} onPress=\{onAccept\} \/> <Button variant="outline" size="sm" label=\{t\('connection\.decline', locale\)\} accessibilityLabel=\{t\('connection\.a11y\.decline', locale, \{ name \}\)\} disabled=\{pending\} onPress=\{onDecline\} \/>/,
+    );
+    expect(
+      request,
+      'the pills are the row’s second line, never beside the name (Marco, 2026-10-07): a name ' +
+        'beside them broke inside a word on an iPhone SE',
+    ).toMatch(
+      /description=\{ <View className=\{stacked \? 'items-start gap-2 pt-2' : 'flex-row items-center gap-3 pt-2'\}> \{pills\} <\/View> \}/,
+    );
+    expect(request).not.toMatch(/\btrailing=/);
+    expect(request).toMatch(/titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/);
+    expect(request).not.toMatch(/<ButtonRow\b/);
+  });
+
+  it('a blocked row is inert and «Sblocca» is an underlined link at its right', () => {
+    const row = flat(BLOCKED_ROW);
+    expect(row.match(/\bonPress=/g)?.length, 'one control: nothing opens a blocked profile').toBe(
+      1,
+    );
+    expect(row, 'a 44pt link, not a pill (Marco, 2026-10-07)').toMatch(
+      /className=\{cn\('min-h-\[44px\] justify-center', PRESS_DIM\)\}/,
+    );
+    expect(row).toMatch(
+      /<Text className="type-small text-foreground underline">\{unblockLabel\}<\/Text>/,
+    );
+    expect(row, 'in flight the row dims and the link is inert').toMatch(
+      /className=\{mutating \? 'opacity-50' : undefined\}/,
+    );
+    expect(row).not.toMatch(/<Button\b/);
+  });
+
+  it('a paged list is one group with no gap, and a failed later page says so under the rows', () => {
+    for (const file of [HUB, BLOCKED]) {
+      const screen = flat(file);
+      const lists = screen.match(/<FlatList\b/g)?.length ?? 0;
+      expect(lists, file).toBe(file === HUB ? 2 : 1);
+      expect(
+        screen.match(/contentContainerClassName="grow px-5 pb-12"/g)?.length,
+        `${file}: the group’s segments touch`,
+      ).toBe(lists);
+      expect(
+        screen.match(/ListFooterComponent=\{ <ListPageError\b/g)?.length,
+        `${file}: rows in hand hide ListEmptyComponent, so the footer carries the reason`,
+      ).toBe(lists);
+      expect(screen.match(/\bstaleWins: true\b/g)?.length, file).toBe(lists);
+    }
+    const footer = flat(PAGE_ERROR);
+    expect(footer, 'only with rows on screen: the empty arm is ListState’s').toMatch(
+      /if \(!query\.isError \|\| !hasRows\) return null;/,
+    );
+    expect(footer).toMatch(
+      /query\.isFetchNextPageError \? query\.fetchNextPage\(\) : query\.refetch\(\)/,
+    );
+    expect(footer).toMatch(/<Text className="text-center type-small text-muted-foreground">/);
+    expect(footer).toMatch(/<Button label=\{retryLabel\} variant="ghost"/);
+  });
+
+  it('the hub stands its chips and its search field 26 from what follows', () => {
+    const hub = flat(HUB);
+    expect(hub).toMatch(/<View className="px-5 pb-\[26px\]"> <SegmentedToggle/);
+    expect(hub).toMatch(/<View className="px-5 pb-\[26px\]"> <Input/);
+  });
+
+  it('the report sheet is body text, chips, a field and the white pill, 26 apart', () => {
+    const report = flat(REPORT);
+    expect(report).toMatch(/<HeaderClose\b/);
+    expect(report).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/);
+    expect(report).toMatch(
+      /<Text className="type-body text-foreground">\{t\('report\.sub', locale\)\}<\/Text>/,
+    );
+    expect(report, 'reasons are chips, 8 apart, one chosen').toMatch(
+      /<View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup"/,
+    );
+    expect(report).toMatch(/<Chip key=\{option\} role="radio"/);
+    expect(report, 'the failure line stands in the field’s group, always mounted').toMatch(
+      /<View className="gap-1\.5"> <Field\b/,
+    );
+    expect(report).toMatch(/<Text className="type-small text-error">/);
+    expect(report).toMatch(/variant="primary"/);
+  });
+
+  it('a sent report is a foreground ✓, one sentence and the red link: no celebration', () => {
+    const report = flat(REPORT);
+    expect(report).toMatch(
+      /contentContainerClassName="grow items-center justify-center gap-\[26px\] px-5 py-12"/,
+    );
+    expect(report).toMatch(/className="type-num text-foreground"/);
+    expect(report).toMatch(
+      /<Text className="text-center type-body text-foreground"> ?\{t\('report\.confirm', locale\)\} ?<\/Text>/,
+    );
+    expect(report, '«Blocca anche questa persona»: a 44pt link in the error red').toMatch(
+      /<Text className="text-center type-small text-error underline"> ?\{t\('report\.alsoBlock', locale\)\} ?<\/Text>/,
+    );
+    expect(report).not.toMatch(/<SectionLabel\b|<MandorlaMark\b/);
   });
 });

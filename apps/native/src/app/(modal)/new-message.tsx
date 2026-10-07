@@ -76,8 +76,15 @@ export default function NewMessageScreen() {
         keyExtractor={(item) => item.id}
         contentContainerClassName="px-5 pb-10"
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => (
-          <ConnectionRow item={item} locale={locale} onPress={() => void pick(item.peerId)} />
+        renderItem={({ item, index }) => (
+          <ConnectionRow
+            item={item}
+            locale={locale}
+            onPress={() => void pick(item.peerId)}
+            // The row draws its own segment of one group (#921): tell it where it stands.
+            first={index === 0}
+            last={index === connections.length - 1}
+          />
         )}
         ListEmptyComponent={
           <ListState

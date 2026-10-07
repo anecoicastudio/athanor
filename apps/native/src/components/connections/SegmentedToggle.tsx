@@ -1,14 +1,17 @@
-import { Pressable, Text, View } from '@/tw';
+import { View } from '@/tw';
+import { Chip } from '@/components/Chip';
 
 type Segment = 'requests' | 'connections';
 
+const SEGMENTS: Segment[] = ['requests', 'connections'];
+
 /**
- * Two-segment toggle for the Connessioni hub (Richieste | Connessioni). The active
- * segment uses a flat cyan accent chip (rule #4 — fill is fine, no glow); inactive
- * reads as faint text on a hairline pill.
+ * The two segments of the Connessioni hub (Richieste | Connessioni), as two chips 8 apart
+ * (DESIGN §8.13, §9 «Chip»; #921): the selected one is the foreground chip, the other a
+ * hairline one. No cyan: choosing a list is not one of the five marks.
  *
- * Each label is one word in half a pill, so at AX sizes «Connessioni» broke mid-word (#847).
- * It takes one line with a tail ellipsis (DESIGN §10) and the segment carries the full label.
+ * A chip is as wide as its word and the row wraps, so no label is ever cut. The half-pill
+ * segments this replaced gave each label half the width and one line with an ellipsis (#847).
  */
 export function SegmentedToggle({
   value,
@@ -19,29 +22,16 @@ export function SegmentedToggle({
   onChange: (value: Segment) => void;
   labels: { requests: string; connections: string };
 }) {
-  const segments: Segment[] = ['requests', 'connections'];
   return (
-    <View className="flex-row gap-2 rounded-full border border-hair bg-raise p-1">
-      {segments.map((segment) => {
-        const active = value === segment;
-        return (
-          <Pressable
-            key={segment}
-            accessibilityRole="button"
-            accessibilityLabel={labels[segment]}
-            accessibilityState={{ selected: active }}
-            className={`flex-1 items-center justify-center rounded-full px-4 py-2 min-h-[44px] ${active ? 'bg-aura' : ''}`}
-            onPress={() => onChange(segment)}
-          >
-            <Text
-              className={`text-[14px] font-semibold ${active ? 'text-on-aura' : 'text-faint'}`}
-              numberOfLines={1}
-            >
-              {labels[segment]}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View className="flex-row flex-wrap gap-2">
+      {SEGMENTS.map((segment) => (
+        <Chip
+          key={segment}
+          label={labels[segment]}
+          selected={value === segment}
+          onPress={() => onChange(segment)}
+        />
+      ))}
     </View>
   );
 }
