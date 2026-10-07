@@ -778,7 +778,7 @@ Rules:
 - **Every card and detail carries a date and a status.** `aperta` / `chiusa` chips; the board query filters `status = 'open'` by default. A board with no lifecycle can only accumulate — the owner gets «Chiudi la ricerca» + «Modifica» where the visitor gets «Rispondi».
 - **Hierarchy: pitch over person.** The description renders `body` foreground; the author row stays `small`, grey. On a collaboration board the pitch is the payload.
 - **One name per language.** IT: «ricerca» everywhere (board label, compose, detail, toasts). EN: "search". «Costellazione» names the tab and the pillar, never a single listing. Route slug `/listing/` is code-internal and exempt.
-- **Passa il Favore is a band, not a footer.** Its disclosure (nothing is asked in return; irreversibility) renders in the row or a confirm step — **never in a `ModalHeader` subtitle**, which is one-line by contract and truncates. The favour done-card is a celebration screen (§2.3): the outline mandorla with its `aura` ✦ and the cyan pill, no glow — helping IS the thing celebrated.
+- **Passa il Favore is a band, not a footer.** Its disclosure (nothing is asked in return; irreversibility) renders in the row or a confirm step — **never in a `ModalHeader` subtitle**, which is one-line by contract and truncates. Favour done is a celebration screen (§2.3): the outline mandorla with its `aura` ✦ and the cyan pill, no glow — helping IS the thing celebrated.
 
 What ships on mobile on the tab (Galleria, 2026-10-05, #921) — the listing converts with its own screen, and the favour sheet has its block below:
 
