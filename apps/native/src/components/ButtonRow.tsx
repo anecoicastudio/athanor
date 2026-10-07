@@ -20,7 +20,7 @@ import { View, cn } from '@/tw';
  * `null` / `false` children are skipped, so a conditional pill leaves no empty cell and no gap.
  *
  * `items-baseline`: the cells of a row are not one height. A pill is 50pt and a `ghost` link
- * 44pt, and a cell may stack two controls (`ConnectButton` while a request is pending). So the
+ * 44pt, and a cell may stack two lines (`ConnectButton` while a request is pending). So the
  * row lines up TEXT: every first-line label sits on one baseline, whatever its cell holds.
  * `Button` keeps its label in the layout while it is busy for the same reason: the baseline is
  * the label's. `source-audit.test.ts` section 43 holds both, and says what the two other

@@ -4568,7 +4568,7 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
 
   /**
    * The cells of a row are not the same height: a pill is 50pt, a `ghost` link 44pt, and a cell
-   * may stack two controls (`ConnectButton` while a request is pending). Measured on an iPhone
+   * may stack two lines (`ConnectButton` while a request is pending). Measured on an iPhone
    * SE simulator on 2026-10-04: aligned by their tops, a pill's label and a link's sit 3pt
    * apart; centred, a link beside a stacked cell lands 12.5pt below the stack's first control.
    * On the text baseline every first-line label shares one line, whatever its cell holds.
@@ -7372,5 +7372,205 @@ describe('connections, the blocked list and the report sheet keep the Galleria l
       /<Text className="text-center type-small text-error underline"> ?\{t\('report\.alsoBlock', locale\)\} ?<\/Text>/,
     );
     expect(report).not.toMatch(/<SectionLabel\b|<MandorlaMark\b/);
+  });
+});
+
+/**
+ * C15b: another member's profile, the match screen and the profile's connect control (DESIGN
+ * §8.5, §8.12, §2.3; #921). Ruled by Marco on 2026-10-07: match copies favour done, keeps its
+ * fade and the ✦'s flash (§10) and its «✦ Aura» line as a second grey line; «Continua a
+ * esplorare» and «Scrivi» are outline pills; «Fai accadere questo sogno» stands in the footer
+ * and not in the dream card; the reviews are a label and one grey line; another member's city
+ * shows beside the handle (`get_person_profile` masks it when its owner hid it).
+ */
+describe('the member’s profile, the match screen and the connect control keep the Galleria look (#921)', () => {
+  const PROFILE = 'app/(modal)/user/[id].tsx';
+  const MATCH = 'app/(modal)/match.tsx';
+  const CONNECT = 'components/connections/ConnectButton.tsx';
+  const ALL = [PROFILE, MATCH, CONNECT];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('the only cyan is the match screen’s: its mark, its label and its pill', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3). A match is a celebration; a profile is not: its share ' +
+        'is the drawn icon in foreground, another member’s Aura numeral is foreground, and a ' +
+        'connection is routine',
+    ).toEqual([
+      `${MATCH}  <CelebrationMark`,
+      `${MATCH}  tone="celebration"`,
+      `${MATCH}  variant="celebration"`,
+    ]);
+  });
+
+  it('none of the three writes a card: the profile’s one card is the dream’s own', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+    expect(flat(PROFILE), 'the shared dream card, read-only').toMatch(/<DreamCard variant="read"/);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device and `leading-*` emits nothing (measured ' +
+        'on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or a mark, or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯✦✧'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'close, share and options are drawings (DESIGN §6 «Interface icons»); the ✦ of a ' +
+        'celebration is `CelebrationMark`’s, and a ✦ in a sentence is the catalog’s',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bhitSlop\b/.test(code(file))),
+      'a header control is a 44pt box, not a glyph with slop',
+    ).toEqual([]);
+  });
+
+  it('match is the celebration composition: mark, cyan label, h1, two grey lines, two pills', () => {
+    const match = flat(MATCH);
+    expect(match, 'the drawn close, on the gutter').toMatch(
+      /<View className="flex-row justify-end px-5"> <HeaderClose label=\{t\('common\.close', locale\)\} onPress=\{dismiss\} \/> <\/View>/,
+    );
+    expect(match, 'it scrolls: nothing here is capped').toMatch(
+      /<ScrollView contentContainerClassName="grow items-center justify-center gap-\[26px\] px-5 py-12">/,
+    );
+    expect(match, 'the mark flashes; under Reduce Motion it does not move (DESIGN §10)').toMatch(
+      /<Animated\.View style=\{reduceMotion \? undefined : \{ transform: \[\{ scale \}\] \}\}> <CelebrationMark \/> <\/Animated\.View>/,
+    );
+    expect(match).not.toMatch(/<Mandorla\b/);
+    expect(match).toMatch(
+      /<View className="items-center gap-2"> <SectionLabel tone="celebration">/,
+    );
+    expect(match, 'the title is the heading, not the label (DESIGN §10)').toMatch(
+      /<Text accessibilityRole="header" className="text-center type-h1 text-foreground">/,
+    );
+    expect(
+      match.match(/<Text className="text-center type-small text-muted-foreground">/g)?.length,
+      'the sentence and «✦ Aura», both grey (Marco, 2026-10-07)',
+    ).toBe(2);
+    expect(match).toMatch(/\{t\('momenti\.aura\.chip', locale\)\}/);
+    expect(match).toMatch(/<View className="gap-2 self-stretch"> <Button variant="celebration"/);
+    expect(match, '«Continua a esplorare» / «Più tardi»: the outline pill').toMatch(
+      /<Button variant="outline" label=\{accepted \? t\('match\.accepted\.keepCta', locale\) : t\('match\.laterCta', locale\)\} onPress=\{dismiss\} \/>/,
+    );
+    expect(match).not.toMatch(/variant="ghost"/);
+    expect(match, 'the gutter is the scroll’s 20, not the screen’s').not.toMatch(/\bp[lr]-8\b/);
+  });
+
+  it('the profile’s header holds the drawn share and the drawn options, each a 44pt button', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(/<View className="flex-row items-center gap-1">/);
+    expect(profile).toMatch(
+      /accessibilityLabel=\{t\('profile\.share\.label', locale\)\} className=\{cn\('min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM\)\} onPress=\{\(\) => void shareProfile\(\)\} > <ShareIcon color=\{galleria\.foreground\} \/>/,
+    );
+    expect(
+      profile,
+      'named for what it opens: block, unblock and report sit behind it. 12 into the gutter, ' +
+        'like the header’s close',
+    ).toMatch(
+      /accessibilityLabel=\{t\('profile\.a11y\.options', locale\)\} className=\{cn\('-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM\)\} onPress=\{openMenu\} > <MoreIcon color=\{galleria\.foreground\} \/>/,
+    );
+    expect(profile, 'the options control is not named for one of its entries').not.toMatch(
+      /accessibilityLabel=\{t\('block\.cta', locale\)\}/,
+    );
+  });
+
+  it('every arm of the profile spaces its blocks 26 apart', () => {
+    const profile = flat(PROFILE);
+    expect(
+      profile.match(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/g)?.length,
+      'the loaded profile, «non disponibile» and the removed account',
+    ).toBe(3);
+    expect(profile).not.toMatch(/\bgap-8\b/);
+    expect(profile, 'a `Modal` in the scroll’s content would take a gap of its own').toMatch(
+      /<\/ScrollView> (?:\{ ?\} )?<Lightbox\b/,
+    );
+  });
+
+  it('the footer is a row of pills: «Scrivi» outline beside the one primary', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(
+      /<ButtonRow className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('profile\.write\.cta', locale\)\} variant="outline"/,
+    );
+    expect(profile).not.toMatch(/variant="ghost"/);
+    expect(
+      profile.match(/t\('dream\.makeHappenCta', locale\)/g)?.length,
+      '«Fai accadere questo sogno» stands in the footer alone (Marco, 2026-10-07)',
+    ).toBe(1);
+    expect(profile, 'the dream card is the label and the quote (DESIGN §8.5)').not.toMatch(
+      /\bonMakeHappen\b/,
+    );
+    expect(profile).toMatch(/<ConnectButton peerId=\{id\} locale=\{locale\} \/>/);
+  });
+
+  it('the hero shows the city its owner left visible, and the reviews are one grey line', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(/\bcity: person\.city \?\? null,/);
+    expect(profile).toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('profile\.reviews\.label', locale\)\}<\/SectionLabel> <Text className="type-small text-muted-foreground"> ?\{t\('profile\.reviews\.empty', locale\)\} ?<\/Text> <\/View>/,
+    );
+    expect(
+      profile.match(/<EmptyState\b/g)?.length,
+      'the mandorla is for «non disponibile» and the removed account, not for a block',
+    ).toBe(2);
+  });
+
+  it('a connection’s status is grey text, never a link that cannot be followed', () => {
+    const connect = flat(CONNECT);
+    expect(
+      connect.match(/<Text className="text-center type-small text-muted-foreground">/g)?.length,
+      '«Richiesta inviata» and «Connessi ✦»',
+    ).toBe(2);
+    expect(connect, 'no control exists to do nothing').not.toMatch(/onPress=\{\(\) => \{\}\}/);
+    expect(connect, 'and none is disabled for good').not.toMatch(
+      /\bdisabled(?:=\{true\})?(?=[\s/>])(?!=)/,
+    );
+    expect(connect, '«Annulla richiesta» is the text link').toMatch(
+      /<Button label=\{t\('connection\.cancel', locale\)\} variant="ghost" disabled=\{pending \|\| !requestId\}/,
+    );
+    expect(connect, '«Rifiuta» is the outline pill, as on the connections list').toMatch(
+      /<Button label=\{t\('connection\.decline', locale\)\} variant="outline" disabled=\{pending \|\| !requestId\}/,
+    );
+    expect(connect.match(/variant="ghost"/g)?.length).toBe(1);
+    expect(connect).not.toMatch(/<Pressable\b/);
   });
 });
