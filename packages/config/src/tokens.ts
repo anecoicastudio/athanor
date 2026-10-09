@@ -1,13 +1,22 @@
 /**
- * Athanor design tokens — single source of truth for both Tailwind setups
- * (web Tailwind 4 @theme, mobile NativeWind config). Never use literal hex
- * in app code; import from here. Semantic role names only — the palette
- * (ATHANOR Concept Document §18) is expressed through roles, not color names.
+ * Athanor design tokens — the single source both stylesheets mirror (web `app/globals.css`,
+ * mobile `src/global.css`; a mirror test in each app holds its stylesheet to this file). Never
+ * use literal hex in app code; import from here. Role names only — a colour is named by what
+ * it does, never by what it looks like.
  *
- * Brand rule (M0.5): `aura` (the cyan light, #2BD0D2) is the action + meaning
- * color — CTAs, send, the ✦ mark, live, countdown, lit stars. Reserve the
- * GLOW for moment-grade events (waiting Momento, lit star, dream helped, match).
- * The mandala gradient (magenta → violet → indigo) is the logo/hero ring only.
+ * Two looks, one file (Marco's ruling, 2026-10-03; docs/DESIGN.md §3 and §11):
+ *
+ * - `semantic` is the WEB's dark world, the palette of the ATHANOR Concept Document §18.
+ *   `aura` (the cyan light, #2BD0D2) is its action + meaning colour — CTAs, the ✦ mark, live,
+ *   countdown — and the GLOW is reserved for moment-grade events. Its key set is pinned by
+ *   apps/web/lib/tokens-mirror.test.ts: never add, remove or retune a key for the app's sake.
+ *   The keys that test lists under `NOT_ON_WEB` were the app's: no screen draws with them now.
+ * - `galleria` is the MOBILE app: a black stage, charcoal blocks, a white primary pill. The
+ *   same cyan is a small mark there and nothing else. apps/native reads `galleria`, never
+ *   `semantic`. Its type scale is `galleriaType`, at the end of this file.
+ * - `broadsheet` is the web landing's palette, and only the landing's.
+ *
+ * The mandala gradient (magenta → violet → indigo) is the logo / hero ring only, in every look.
  */
 
 export const semantic = {
@@ -24,14 +33,16 @@ export const semantic = {
   // tertiary / quiet labels. ~5.35:1 on background, ~5.30 on surface, ~4.97 on
   // raise, ~4.69 on raise2 — every surface it is actually used on clears AA.
   // (It would NOT on border #241B3A ≈4.44; nothing pairs them today.)
-  // These ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts
-  // recomputes them from these values, so a retune here fails there. Note each figure
+  // These ratios were ASSERTED, not just claimed, while the app read this palette:
+  // apps/native/src/lib/contrast.test.ts recomputed them from these values until 2026-10-03,
+  // when it moved to `galleria` (#921). Nothing recomputes them now — `contrast.test.ts` in
+  // this folder certifies only the roles the web draws, and `faint` is not one. Note each figure
   // names a SURFACE — `raise`/`raise2` are translucent, so a chip nested inside a card
   // is a different (darker-backed) stack than the same chip on the canvas, and `faint`
   // does NOT clear AA there (4.23). Compose surfaces with contrast.ts `over()`.
   // Was #615A7E (3.05 / 2.84), which DESIGN.md §3 never contrast-certified while
   // ~150 call sites used it for readable copy. Retuned at the token so they all
-  // clear at once and no new call site can regress back. See DESIGN.md §12.
+  // clear at once and no new call site can regress back. See DESIGN.md §11 (2026-08-07).
   faint: '#8781A8',
   raise: 'rgba(255,255,255,0.04)', // a lifted surface (card/list)
   raise2: 'rgba(255,255,255,0.065)', // higher surface (chips, quiet buttons)
@@ -44,7 +55,8 @@ export const semantic = {
   // which is 3.44:1 and shipped below AA on the account-deletion CTA. `error` itself can't move
   // to fix that: darkening the fill enough for white (#C4324F, 4.64) drops `text-error` on the
   // canvas to 3.66 and breaks the ~26 sites that use it as text. One token, two roles — the
-  // fill stays put and the ink changes. Asserted in apps/native/src/lib/contrast.test.ts.
+  // fill stays put and the ink changes. Asserted in apps/native/src/lib/contrast.test.ts until
+  // 2026-10-03, when that file moved to `galleria`.
   onError: '#1A050D',
   // Apple's HIG "white" Sign in with Apple button — mandated fill + ink, ruled 2026-09-19 on
   // #79 (replaces the generic `outline` pill for the Apple CTA only). Pure white/black rather
@@ -54,6 +66,75 @@ export const semantic = {
   // enough to model as a token pair rather than a carve-out.
   appleButtonBg: '#FFFFFF',
   appleButtonInk: '#000000',
+} as const;
+
+/**
+ * Galleria — the mobile app's palette (Marco's ruling, 2026-10-03; docs/DESIGN.md §3 «Mobile»
+ * and §11). A black stage with charcoal grouped blocks, one grey for everything secondary, a
+ * white primary pill. On a converted screen cyan is a small mark — the waiting-Momento dot, the
+ * member's own Aura numeral, «✦ Un passo del percorso», the countdown seconds, the celebration
+ * screens — never an action colour, a selected state or a glow, and nothing is green: `success`
+ * below is a legacy alias. A screen not yet converted still shows the old uses (#921, open as
+ * of 2026-10-04). apps/native/src/lib/source-audit.test.ts holds the cyan clause for the pill
+ * alone (its section 47: the `celebration` Button and the five screens it may stand on) and
+ * the glow clause only as a pinned set of callers (`GLOW_SURFACES`). No test holds the green
+ * clause yet.
+ *
+ * The ratios are ASSERTED, not just claimed: apps/native/src/lib/contrast.test.ts recomputes
+ * them from these values, so a retune here fails there.
+ *
+ * It began with every key `semantic` has. The screens are converted section by section (#921,
+ * open as of 2026-10-04), and a screen that has not been converted still asks for the dark
+ * world's roles. The roles Galleria has no counterpart for are the LEGACY ALIASES at the end,
+ * each marked `@deprecated` and holding an interim value that keeps a half-converted app
+ * legible. They serve the screens not yet converted; each is deleted with its last call site.
+ * `onError` was the first to go, on 2026-10-04: its one reader was the filled danger button.
+ * Nothing counts their reads: `@deprecated` is an editor hint, not a gate.
+ */
+export const galleria = {
+  background: '#000000', // the stage — the ground of every screen, and the tab bar
+  surface: '#1D1D1F', // charcoal — grouped blocks, the card, inputs, incoming bubbles
+  hair: '#333336', // hairlines — between rows, around the card and a chip, above the tab bar
+  foreground: '#F5F5F7', // text; and the white fills — primary pill, selected chip, own bubble
+  foregroundMuted: '#86868B', // the ONE secondary — labels, placeholders, the outline pill's border
+  aura: '#2BD0D2', // the small mark — the one value both looks share
+  onAura: '#04222A', // ink on a cyan fill — the celebration pill's label
+  // Error text, an invalid field's border, the destructive outline pill. A mobile value: the
+  // web's #E0476B reads 4.23:1 on charcoal, under AA for text (ruled 2026-10-03).
+  error: '#E5536F',
+  // Apple's mandated Sign in with Apple fill and ink — a vendor rule, not a role. The reasoning
+  // is beside the same pair in `semantic`.
+  appleButtonBg: '#FFFFFF',
+  appleButtonInk: '#000000',
+
+  /** @deprecated Legacy alias — a card is `surface`. */
+  raise: '#1D1D1F',
+  /**
+   * @deprecated Legacy alias, and the one interim colour of its own: a step lighter than
+   * charcoal, so a chip inside a card stays visible. `foregroundMuted` is 3.85:1 on it — an
+   * interim failure contrast.test.ts names, with the sites that carry it.
+   */
+  raise2: '#2C2C2E',
+  /**
+   * @deprecated Legacy alias — `surface`. Two files of Athanor Live still read it
+   * (`live/AttendeeStack`, `event/[id]`), until their chunk converts them.
+   */
+  surfaceMuted: '#1D1D1F',
+  /** @deprecated Legacy alias — body copy is `foreground`. */
+  ink2: '#F5F5F7',
+  /** @deprecated Legacy alias — Galleria has one secondary, `foregroundMuted`. */
+  faint: '#86868B',
+  /** @deprecated Legacy alias — the hairline is `hair`. */
+  border: '#333336',
+  /** @deprecated Legacy alias, `semantic`'s value: the framed cyan surface, where one remains. */
+  auraSoft: 'rgba(43,208,210,0.10)',
+  /** @deprecated Legacy alias, `semantic`'s value: the 1px cyan border of that surface. */
+  auraLine: 'rgba(43,208,210,0.40)',
+  /**
+   * @deprecated Legacy alias, `semantic`'s value. Mobile has no green: a confirmation is a ✓
+   * and words.
+   */
+  success: '#36B37E',
 } as const;
 
 /** Mandala gradient — logo + hero ring ONLY. Not a UI accent. */
@@ -124,6 +205,55 @@ export const typography = {
   /** Display wordmark (letter-spaced). Plain "Athanor" in body text and SEO. */
   wordmark: 'A T H A N O R',
 } as const;
+
+/** One style of the mobile type scale. */
+export interface TypeStyle {
+  /** px at the default text size. */
+  size: number;
+  /**
+   * px at the default text size; it grows with the member's text size, as `size` does. Measured
+   * on an iPhone SE simulator (36 → 72 at the 2× cap, 2026-10-04). On Android react-native
+   * 0.86.3 converts `lineHeight` from SP (`TextAttributeProps.kt`), and a moto g17 at a font
+   * scale of 2.0 measured 24 → 36 and 21 → 34.8 the same day: less than double at these sizes.
+   */
+  lineHeight: number;
+  /** One of `typography.weights`: on device a weight is a font file, not a number. */
+  weight: number;
+  /** Letter-spacing in em, as DESIGN.md §4 prints it. 0 is none. */
+  tracking: number;
+  /** The dream register's face — Hanken italic. */
+  italic?: true;
+  /** Tabular numerals. */
+  tabular?: true;
+}
+
+/**
+ * The mobile type scale — Galleria (docs/DESIGN.md §4 «Scale — mobile»). The web's scale is in
+ * the same section and has no object here.
+ *
+ * Each style is one class in apps/native/src/global.css, `type-<name>` (`numM` is
+ * `type-num-m`), holding size, line height, tracking and face together;
+ * apps/native/src/lib/tokens-mirror.test.ts pins every class to these values. A size token
+ * alone could not carry a style: on device a weight is a font family, so «32 semibold» is two
+ * declarations, and a line height reaches the device only from a class that states it as
+ * `-rn-line-height` (that stylesheet says why).
+ *
+ * Line heights are the prototype's ratios (1.12 · 1.2 · 1.4 · 1.3 · 1) rounded to a whole px.
+ * Rendered on an iPhone SE simulator and a moto g17 on 2026-10-04: no accent or descender is
+ * cut in the seven text styles. At a ratio of 1 the simulator cuts the accent of a capital (the
+ * moto g17 draws it above the line box), so the two numerals are for digits.
+ */
+export const galleriaType = {
+  h1: { size: 32, lineHeight: 36, weight: 600, tracking: -0.02 }, // screen titles
+  title: { size: 24, lineHeight: 27, weight: 600, tracking: -0.02 }, // a pushed screen's header
+  h2: { size: 19, lineHeight: 23, weight: 600, tracking: -0.01 }, // card titles, a name on a card
+  body: { size: 17, lineHeight: 24, weight: 400, tracking: 0 }, // the default
+  small: { size: 15, lineHeight: 21, weight: 400, tracking: 0 }, // secondary lines, helper text
+  label: { size: 13, lineHeight: 17, weight: 500, tracking: 0 }, // section labels
+  quote: { size: 18, lineHeight: 23, weight: 400, tracking: 0, italic: true }, // the dream
+  num: { size: 44, lineHeight: 44, weight: 800, tracking: -0.03, tabular: true }, // Aura, countdown
+  numM: { size: 26, lineHeight: 26, weight: 800, tracking: -0.03, tabular: true }, // week, fund
+} as const satisfies Record<string, TypeStyle>;
 
 export type Semantic = typeof semantic;
 export type Gradient = typeof gradient;

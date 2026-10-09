@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { Input } from '@/components/Input';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { Screen } from '@/components/Screen';
@@ -93,18 +94,11 @@ export default function ForgotPasswordScreen() {
           {/* Reserved back slot, same recipe and same reason as welcome.tsx (#164). */}
           {/* `min-h` but a pinned `w` (#639): this slot is a COLUMN child of the ScrollView
             content container, where `align-items: stretch` would take a `min-w` box to the
-            full width and centre the chevron mid-screen. The glyph never needed to grow
-            sideways — only down. The `flex-row` slots elsewhere can use both. */}
-          <View className="-ml-3 min-h-[44px] w-[44px]">
+            full width and centre the back mid-screen. The `flex-row` slots elsewhere can
+            use both. The control inside is `HeaderBack`, the drawn back in its 44pt box. */}
+          <View className={cn(BACK_ON_GUTTER, 'min-h-[44px] w-[44px]')}>
             {router.canGoBack() ? (
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.back', locale)}
-                className="min-h-[44px] w-[44px] items-center justify-center"
-              >
-                <Text className="text-2xl text-foreground">‹</Text>
-              </Pressable>
+              <HeaderBack label={t('common.back', locale)} onPress={() => router.back()} />
             ) : null}
           </View>
 
@@ -116,23 +110,18 @@ export default function ForgotPasswordScreen() {
             />
           ) : (
             <>
-              <View className="mt-6 gap-3">
-                <SectionLabel tone="aura">{t('auth.forgot.eyebrow', locale)}</SectionLabel>
-                <Text
-                  accessibilityRole="header"
-                  className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-                >
+              <View className="mt-[26px] gap-2">
+                <SectionLabel>{t('auth.forgot.eyebrow', locale)}</SectionLabel>
+                <Text accessibilityRole="header" className="type-h1 text-foreground">
                   {t('auth.forgot.display', locale)}
                 </Text>
-                <Text className="text-[15px] leading-[22px] text-muted-foreground">
+                <Text className="type-small text-muted-foreground">
                   {t('auth.forgot.sub', locale)}
                 </Text>
               </View>
 
-              <View className="mt-8 gap-2" ref={reveal.rowRef('email')}>
-                <Text className="text-xs font-medium text-muted-foreground">
-                  {t('auth.email.label', locale)}
-                </Text>
+              <View className="mt-[26px] gap-[6px]" ref={reveal.rowRef('email')}>
+                <SectionLabel>{t('auth.email.label', locale)}</SectionLabel>
                 <Input
                   {...reveal.fieldProps('email')}
                   autoCapitalize="none"
@@ -154,19 +143,19 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
 
-              {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+              {error ? <Text className="mt-3 text-[14px] text-error">{error}</Text> : null}
 
               {/* Revealed with the email row (#752) — see the same block in welcome.tsx. */}
-              <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+              <View className="mt-[26px] gap-3" ref={reveal.submitRef()}>
                 <Button
-                  variant="light"
+                  variant="primary"
                   label={t('auth.forgot.cta', locale)}
                   disabled={disabled}
                   loading={submitting}
                   onPress={submit}
                 />
                 {submitting ? (
-                  <Text className="text-center text-[13px] text-muted-foreground">
+                  <Text className="text-center type-small text-muted-foreground">
                     {t('auth.forgot.sending', locale)}
                   </Text>
                 ) : null}

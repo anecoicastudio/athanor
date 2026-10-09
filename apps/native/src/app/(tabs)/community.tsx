@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { RefreshControl } from 'react-native';
+import { RefreshControl, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,9 +11,10 @@ import {
   subscribeNewPosts,
   subscribeNewStories,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View, cn } from '@/tw';
+import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { CategoryTabs } from '@/components/feed/CategoryTabs';
 import { EventsFeedList } from '@/components/feed/EventsFeedList';
@@ -21,9 +22,14 @@ import { FeedPost } from '@/components/feed/FeedPost';
 import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { EVENT_HREF } from '@/components/live/EventRow';
 import { EmptyState } from '@/components/EmptyState';
+import { AddIcon } from '@/components/glyphs';
 import { ListState } from '@/components/ListState';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { StoryRail } from '@/components/stories/StoryRail';
 import { useAuth } from '@/lib/auth-context';
+import { PRESS_DIM } from '@/lib/press';
+import { stacksTrailing } from '@/lib/type-scale';
 import { type FeedTab, postsFilter } from '@/lib/feed-tabs';
 import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
@@ -50,6 +56,7 @@ export default function CommunityScreen() {
   const [tab, setTab] = useState<FeedTab>('all');
   const [hasNew, setHasNew] = useState(false);
   const locale = useLocale();
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   // `null` on the «Eventi» tab: it has no posts source (#153), so the posts query stands down
   // and `EventsFeedList` draws instead. The key falls back to `'all'` — a constant, not the tab
@@ -100,7 +107,7 @@ export default function CommunityScreen() {
     queryKey: storyKeys.rail(),
     queryFn: () => getStoryRail(supabase),
   });
-  // Persisted, shared with the viewer — a ring dims when a story FINISHES, not on tap (#298).
+  // Persisted, shared with the viewer — a disc loses its ring when a story FINISHES, not on tap (#298).
   const { seenIds } = useStorySeen();
 
   // Own live-segment presence drives the «Il tuo passo» ring (#298): with a live segment it
@@ -159,13 +166,23 @@ export default function CommunityScreen() {
     void query.refetch();
   };
 
+  // The header is the prototype's column: 26 between its blocks (DESIGN §6), 20 of gutter. The
+  // chip row keeps 6 above and below inside its own scroll view, so the 44pt target a 32pt
+  // chip reaches through `hitSlop` stays inside the row's box; its neighbours take 20, not 26.
   const header = (
-    <View className="gap-4 py-4">
-      {/* h1 + compose, per DESIGN §8.3 — the in-content header (§6 → Screen headers). */}
-      <View className="flex-row items-center justify-between gap-3 px-5">
+    <View className="pb-[26px] pt-4">
+      {/* The tab's title (h1, DESIGN §6 «Screen headers») and the drawn `add` at its right.
+          At the accessibility sizes the control goes under the title, in screen order, so the
+          one word of the title is never cut to fit beside it. */}
+      <View
+        className={cn(
+          'px-5',
+          stacked ? 'items-start' : 'min-h-[44px] flex-row items-center justify-between gap-2',
+        )}
+      >
         <Text
           accessibilityRole="header"
-          className="flex-1 text-2xl font-semibold text-foreground"
+          className={cn('type-h1 text-foreground', stacked ? null : 'flex-1')}
           numberOfLines={2}
         >
           {t('community.title', locale)}
@@ -174,53 +191,70 @@ export default function CommunityScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('community.compose.prompt', locale)}
           onPress={() => router.push(COMPOSE_HREF)}
-          // Bare glyph + HIT_SLOP was ~28pt wide — the same shape `(modal)/grid.tsx` and
-          // `ModalHeader` carried. `-mr-3` keeps the ✛ optically on the px-5 gutter.
-          className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
+          // A 44pt box, pulled 12 right so the drawing stands near the gutter (the prototype's
+          // `.ib.rt`); under the title it stands on the left gutter instead.
+          className={cn(
+            'min-h-[44px] min-w-[44px] items-center justify-center',
+            stacked ? '-ml-3' : '-mr-3',
+            PRESS_DIM,
+          )}
         >
-          <Text className="text-2xl text-faint">+</Text>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <AddIcon color={galleria.foreground} />
+          </View>
         </Pressable>
       </View>
       {/* No compose prompt card (#640): §8.3's recipe is `Community +` — the card pushed
-          the same route with the same a11y label as the «+» above it, and together with the
-          Live row it spent 383pt of an SE fold on chrome before the first author's name. */}
-      <CategoryTabs active={tab} onChange={setTab} locale={locale} />
+          the same route with the same a11y label as the add control above it, and together
+          with the Live row it spent 383pt of an SE fold on chrome before the first author's
+          name. */}
+      <View className="mt-5">
+        <CategoryTabs active={tab} onChange={setTab} locale={locale} />
+      </View>
       {/* Athanor Live folded into the «Eventi» tab (#640): a standalone row on every tab
-          was fold-chrome; on the events tab it is context. */}
+          was fold-chrome; on the events tab it is context. A row in a group, not a card. */}
       {!showsPosts ? (
-        <Pressable
-          className="mx-5 min-h-[44px] flex-row items-center justify-between rounded-card border border-hair bg-raise px-5 py-3"
-          onPress={() => router.push(LIVE_HREF)}
-          accessibilityRole="link"
-        >
-          <Text className="text-[14px] text-foreground">{t('live.title', locale)}</Text>
-          <Text className="text-[13px] text-aura">{t('home.upcoming.seeLive', locale)}</Text>
-        </Pressable>
+        <View className="mt-5 px-5">
+          <RowGroup>
+            <Row title={t('live.title', locale)} onPress={() => router.push(LIVE_HREF)} />
+          </RowGroup>
+        </View>
       ) : null}
       {railQuery.data && (railQuery.data.length > 0 || profile?.handle) ? (
-        <StoryRail
-          you={{
-            handle: profile?.handle ?? null,
-            displayName: profile?.display_name ?? null,
-            avatarPath: profile?.avatar_path ?? null,
-            seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
-          }}
-          people={railQuery.data ?? []}
-          seenIds={seenIds}
-          locale={locale}
-          onOpenPerson={openPerson}
-          onOpenYours={openYours}
-          onAddYours={() => router.push(STORY_COMPOSE_HREF)}
-        />
+        <View className={showsPosts ? 'mt-5' : 'mt-[26px]'}>
+          <StoryRail
+            you={{
+              handle: profile?.handle ?? null,
+              displayName: profile?.display_name ?? null,
+              avatarPath: profile?.avatar_path ?? null,
+              // `null` while the own-story read is out (#749's window): the disc shows the photo
+              // and neither the add nor the badge, so it never promises the composer over a live
+              // story.
+              live: myStoryQuery.isLoading ? null : myHasLive,
+              seen: myHasLive ? (myId ? seenIds.has(myId) : true) : true,
+            }}
+            people={railQuery.data ?? []}
+            seenIds={seenIds}
+            locale={locale}
+            onOpenPerson={openPerson}
+            onOpenYours={openYours}
+            onAddYours={() => router.push(STORY_COMPOSE_HREF)}
+          />
+        </View>
       ) : null}
       {/* Posts-only: `hasNew` set under a post tab survives a switch to «Eventi», and
           «Nuovi passi ›» over a list of events would be a banner about the wrong thing.
           The subscription itself keeps running — it costs nothing and the flag is still
           true when the member comes back. */}
       {hasNew && showsPosts ? (
-        <Pressable className="mx-5 items-center rounded-ctl bg-aura-soft py-2" onPress={onRefresh}>
-          <Text className="text-[13px] text-aura">{t('feed.newPosts', locale)}</Text>
-        </Pressable>
+        <View className="mt-[26px] items-center px-5">
+          <Button
+            label={t('feed.newPosts', locale)}
+            variant="outline"
+            size="sm"
+            onPress={onRefresh}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -282,16 +316,14 @@ export default function CommunityScreen() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={header}
         renderItem={({ item }) => (
-          <View className="px-5 pb-4">
+          <View className="px-5 pb-[26px]">
             <FeedPost post={item} locale={locale} />
           </View>
         )}
         ListEmptyComponent={
           <View className="items-center px-5 pt-16">
-            {/* Ghost action per DESIGN §9 — the framed cyan pill this replaced put the loudest
-                surface on the screen on an empty feed (#119). Not a rule #4 breach: with no
-                shadow that pair is not a glow (§2.3, ruled 2026-09-07). It was a weight
-                problem. */}
+            {/* The action is `EmptyState`'s text link (DESIGN §9 «Empty state»): an empty feed
+                is the quietest block on the screen (#119). */}
             <EmptyState action={{ label: emptyCta, onPress: () => router.push(COMPOSE_HREF) }}>
               {emptyTitle}
             </EmptyState>
@@ -301,7 +333,7 @@ export default function CommunityScreen() {
           <RefreshControl
             refreshing={query.isRefetching}
             onRefresh={onRefresh}
-            tintColor={semantic.aura}
+            tintColor={galleria.foreground}
           />
         }
         onEndReachedThreshold={0.5}

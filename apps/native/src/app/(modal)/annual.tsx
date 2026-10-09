@@ -24,7 +24,7 @@ import {
   voteKeys,
 } from '@athanor/api';
 import { MIN_CONTRIBUTION_CENTS, consensusForCandidacy, isBallotOpen } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
@@ -355,7 +355,7 @@ export default function AnnualFundScreen() {
         <ModalHeader title={t('fund.title', locale)} backLabel={t('common.back', locale)} />
         {/* Skeleton / quiet placeholder */}
         <View className="flex-1 items-center justify-center gap-4 px-5">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.foreground} />
           <Text className="text-[13px] text-muted-foreground">— — —</Text>
         </View>
       </Screen>
@@ -420,7 +420,7 @@ export default function AnnualFundScreen() {
           />
         </View>
 
-        {/* 4. «Candida il tuo sogno» — flat light Button → candidacy wizard. One candidacy
+        {/* 4. «Candida il tuo sogno» — the `primary` Button → candidacy wizard. One candidacy
             per edition (dream_candidacies_one_per_edition), so an existing row replaces the
             CTA; while it is still 'submitted' (the RLS update window) and the window is open,
             the member can EXPLICITLY reopen the wizard prefilled (#226 — never automatic). */}
@@ -430,8 +430,7 @@ export default function AnnualFundScreen() {
               <Button
                 label={t('fund.candidate.cta', locale)}
                 onPress={() => router.push('/(modal)/candidacy')}
-                variant="light"
-                // No glow — flat CTA, rule #4
+                variant="primary"
               />
               {/* FUND-35 cross-cycle (#221): a prior-cycle candidacy offers the EXPLICIT
                   prefilled restart — a fresh row in this cycle, never an auto-carry. */}
@@ -480,7 +479,7 @@ export default function AnnualFundScreen() {
             <Button
               label={t('fund.plan.entry.cta', locale)}
               onPress={() => router.push('/(modal)/plan')}
-              variant="light"
+              variant="primary"
             />
             <Text className="text-center text-[12px] text-muted-foreground">
               {t('fund.plan.entry.hint', locale)}
@@ -506,8 +505,7 @@ export default function AnnualFundScreen() {
                 <Button
                   label={t('fund.progress.compose.entry.cta', locale)}
                   onPress={() => router.push('/(modal)/progress')}
-                  variant="light"
-                  // Flat cyan CTA — no glow (rule #4)
+                  variant="primary"
                 />
                 <Text className="text-center text-[12px] text-muted-foreground">
                   {t('fund.progress.compose.entry.hint', locale)}
@@ -516,22 +514,28 @@ export default function AnnualFundScreen() {
             ) : null}
 
             {updatesPage.isLoading ? (
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             ) : updates.length === 0 ? (
               <Text className="text-[14px] text-muted-foreground">
                 {t('fund.progress.empty', locale)}
               </Text>
             ) : (
               <View className="gap-4">
-                {updates.map((update) => (
-                  <ProgressUpdateCard
-                    key={update.id}
-                    update={update}
-                    phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
-                    locale={locale}
-                    now={nowMs}
-                  />
-                ))}
+                {/* One group (#921, 2026-10-09): each note draws its own segment, so the view
+                    that holds them sets no gap. */}
+                <View>
+                  {updates.map((update, i) => (
+                    <ProgressUpdateCard
+                      key={update.id}
+                      update={update}
+                      phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
+                      locale={locale}
+                      now={nowMs}
+                      first={i === 0}
+                      last={i === updates.length - 1}
+                    />
+                  ))}
+                </View>
                 {updatesPage.hasNextPage ? (
                   <Button
                     label={t('fund.progress.more', locale)}
@@ -564,9 +568,8 @@ export default function AnnualFundScreen() {
                   amt: String(Math.floor(amountCents / 100)),
                 })}
                 onPress={onContribute}
-                variant="light"
+                variant="primary"
                 disabled={amountCents < MIN_CONTRIBUTION_CENTS}
-                // Flat cyan CTA — no glow (rule #4)
               />
               <Text className="text-[12px] text-muted-foreground">
                 {t('fund.contribute.zeroAura', locale)}
@@ -596,7 +599,7 @@ export default function AnnualFundScreen() {
         <View className="gap-3">
           <SectionLabel>{t('fund.candidates.title', locale)}</SectionLabel>
           {candidatesQuery.isLoading ? (
-            <ActivityIndicator color={semantic.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           ) : candidates.length === 0 ? (
             <Text className="text-[14px] text-muted-foreground">
               {t('fund.candidates.empty', locale)}

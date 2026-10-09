@@ -12,6 +12,7 @@ import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
+import { RowGroup } from '@/components/RowGroup';
 import { MilestoneRow } from '@/components/profile/MilestoneRow';
 import { useToast } from '@/components/ToastHost';
 import { isDraftDirty } from '@/lib/dirty-guard';
@@ -41,13 +42,21 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  * Two entry points, one sheet:
  *
  * - `milestoneId` (+ `need`): the per-tappa «Aiuta» — straight into type / message / submit.
- * - `userId`: «Fai accadere questo sogno» from the person's dream card or their story
+ * - `userId`: «Fai accadere questo sogno» from the profile's pinned footer or their story
  *   (PRD §132). The sheet first asks WHICH tappa, then continues into the same steps.
  *   Nothing to pick (no dream, or every open tappa already offered on) is an honest empty
  *   state with no CTA — never a toast claiming a write that did not happen (issue #108).
  *
  * The (modal) route IS the sheet: the Foundation Sheet host M3 once planned was never built,
  * and no open issue revives it (as of 2026-09-26).
+ *
+ * Galleria (#921, 2026-10-09; DESIGN §8.12): no card on either step, blocks 26 apart. The
+ * picker is a small grey sentence over one group of `MilestoneRow`s, each row a button with
+ * «Aiuta» drawn as the small outline pill. The offer step is the need in body text, the three
+ * kind chips, the message field (`Field`'s `lg` floor), the no-money line in small grey and the
+ * white pill. The chips' group already carries the screen's title as its name, so the field is
+ * not given the same one. A refused second offer says so 8 above the pill. The canvas draws a
+ * grab handle on this sheet; the app's sheets have none (Marco, 2026-10-06).
  */
 export default function HelpScreen() {
   const leave = useGuardedBack();
@@ -166,7 +175,7 @@ export default function HelpScreen() {
         {pickerLoading ? (
           <LoadingScreen nested />
         ) : (
-          <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-12">
+          <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-12">
             {pickerState !== 'ready' ? (
               <ListState
                 state={pickerState}
@@ -180,21 +189,23 @@ export default function HelpScreen() {
             ) : options.length === 0 ? (
               <EmptyState>{t('help.pick.noneLeft', locale)}</EmptyState>
             ) : (
-              <View className="gap-4">
-                <Text className="text-[15px] leading-relaxed text-faint">
+              <>
+                <Text className="type-small text-muted-foreground">
                   {t('help.pick.hint', locale)}
                 </Text>
-                {options.map((m) => (
-                  <MilestoneRow
-                    key={m.id}
-                    name={m.body}
-                    status={m.status}
-                    locale={locale}
-                    helpState="available"
-                    onHelp={() => setPicked(m)}
-                  />
-                ))}
-              </View>
+                <RowGroup>
+                  {options.map((m) => (
+                    <MilestoneRow
+                      key={m.id}
+                      name={m.body}
+                      status={m.status}
+                      locale={locale}
+                      helpState="available"
+                      onHelp={() => setPicked(m)}
+                    />
+                  ))}
+                </RowGroup>
+              </>
             )}
           </ScrollView>
         )}
@@ -216,11 +227,11 @@ export default function HelpScreen() {
       />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         {needEcho ? (
-          <Text className="text-[15px] leading-relaxed text-faint">
+          <Text className="type-body text-foreground">
             {t('help.sheet.needEcho', locale, { need: needEcho })}
           </Text>
         ) : null}
@@ -254,19 +265,20 @@ export default function HelpScreen() {
           onChangeText={setMessage}
         />
 
-        <Text className="text-[13px] leading-relaxed text-faint">{t('help.noMoney', locale)}</Text>
+        <Text className="type-small text-muted-foreground">{t('help.noMoney', locale)}</Text>
 
-        {error === 'already' ? (
-          <Text className="text-sm text-error">{t('help.alreadyOffered', locale)}</Text>
-        ) : null}
-
-        {/* flat light CTA — offering help is not itself moment-grade, so no glow (rule #4). */}
-        <Button
-          label={t('help.sheet.cta', locale)}
-          variant="light"
-          disabled={saving || type === null}
-          onPress={submit}
-        />
+        {/* Unconditional wrapper: the reason arrives and leaves without remounting the pill. */}
+        <View className="gap-2">
+          {error === 'already' ? (
+            <Text className="text-[14px] text-error">{t('help.alreadyOffered', locale)}</Text>
+          ) : null}
+          <Button
+            label={t('help.sheet.cta', locale)}
+            variant="primary"
+            disabled={saving || type === null}
+            onPress={submit}
+          />
+        </View>
       </ScrollView>
     </Screen>
   );

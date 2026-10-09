@@ -1,22 +1,31 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from '@/tw';
+import { galleria } from '@athanor/config';
+import { Pressable, Text, View, cn } from '@/tw';
+import { BackIcon, CloseIcon } from '@/components/glyphs';
 import { useGuardedBack, type ExitHref } from '@/lib/modal-exit';
+import { PRESS_DIM } from '@/lib/press';
 import { wordLines } from '@/lib/word-lines';
 
 /**
- * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, h1 = 24/600.
+ * Canonical screen header (DESIGN §6 → Screen headers): left-aligned, the title in `type-title`
+ * (24/600), 8 between the band's parts, as the prototype's `.top`.
  * One recipe for every pushed screen and sheet — don't hand-roll headers (chevron
  * size/color, title weight, paddings and hit-slops drifted across 7 clusters
  * before the recipe covered their cases — #162).
  *
+ * The back and the close are drawings (`BackIcon`, `CloseIcon`, DESIGN §6 «Interface icons»)
+ * inside `HeaderBack` / `HeaderClose` below; until Galleria (2026-10-04, #921) they were the
+ * characters `‹` and `✕`. The `leading` value is still spelled `'chevron'`.
+ *
  * Shapes it covers:
- * - pushed screen: back chevron ‹ + title (+ `right` actions)
+ * - pushed screen: the drawn back + title (+ `right` actions)
  * - sheet: `leading="none"` + title (+ `subtitle`) + `right={<HeaderClose …/>}`
- * - identity header (chat): `avatar` + compact 15/600 title + `subtitle`; `onIdentityPress`
+ * - identity header (chat): `avatar` + the name in body medium (17/500) + `subtitle`, the
+ *   avatar 10 from the text (the prototype's `.line`); `onIdentityPress`
  *   makes avatar+title+subtitle ONE pressable block (the identity IS the link, #356 — no
  *   second ↗-style affordance beside it, or VoiceOver announces two identical targets)
  * - search: `titleSlot` replaces the title text entirely
- * - immersive media (lightbox): `leading="close"` — ✕ sits left, label left-aligned
+ * - immersive media (lightbox): `leading="close"` — the close sits left, label left-aligned
  *
  * The default chevron ALWAYS renders and never dead-ends (#578): it pops the stack when
  * there is one and lands on `fallbackHref` (home by default) when this screen IS the stack,
@@ -47,14 +56,14 @@ export function ModalHeader({
   identityHint,
   right,
 }: {
-  /** h1 24/600 — or compact 15/600 when `avatar` is present. */
+  /** `type-title` (24/600) — or body medium (17/500) when `avatar` is present. */
   title?: string;
   /** Replaces the title text entirely (e.g. the search bar). */
   titleSlot?: ReactNode;
-  /** String gets the recipe's style (14 faint; 11 faint next to an avatar); a node renders as-is. */
+  /** A string is the small grey line (`type-small`), two lines at most; a node renders as-is. */
   subtitle?: ReactNode;
   avatar?: ReactNode;
-  /** Left affordance: back chevron (default), close ✕ (immersive media), or nothing (sheets, tab roots). */
+  /** Left affordance: the drawn back (default), the drawn close (immersive media), or nothing (sheets, tab roots). */
   leading?: 'chevron' | 'close' | 'none';
   backLabel?: string;
   onBack?: () => void;
@@ -77,8 +86,8 @@ export function ModalHeader({
   const showLeading = leading !== 'none';
   const compact = avatar != null;
   const titleClass = compact
-    ? 'text-[15px] font-semibold text-foreground'
-    : 'text-2xl font-semibold text-foreground';
+    ? 'type-body font-medium text-foreground'
+    : 'type-title text-foreground';
   const identity = (
     <>
       {avatar}
@@ -101,10 +110,7 @@ export function ModalHeader({
             {title}
           </Text>
           {subtitle == null ? null : typeof subtitle === 'string' ? (
-            <Text
-              numberOfLines={2}
-              className={compact ? 'text-[11px] text-faint' : 'text-[14px] text-faint'}
-            >
+            <Text numberOfLines={2} className="type-small text-muted-foreground">
               {subtitle}
             </Text>
           ) : (
@@ -126,24 +132,19 @@ export function ModalHeader({
   return (
     // Top inset is the parent Screen's job (#161) — pt here is breathing room off the
     // sheet edge (or the inset), pb is the one header→content gap every screen shares.
-    <View className="flex-row items-center gap-3 px-gutter pb-4 pt-3">
+    <View className="flex-row items-center gap-2 px-gutter pb-4 pt-3">
       {showLeading ? (
-        <Pressable
-          onPress={onBack ?? guardedBack}
-          accessibilityRole="button"
-          accessibilityLabel={backLabel}
-          // A real box, not a bare glyph + hitSlop: the glyph measured ~6pt wide, so
-          // HIT_SLOP's 11 each side reached 28 — under §10's 44 floor on the axis that
-          // matters. Literal `[44px]`, not `h-11`, because a spacing step is 3.5px on
-          // device (`h-11` = 38.5pt there while measuring a passing 44px on web). `-ml-3`
-          // keeps the glyph optically on the gutter — the same recipe as the reserved back
-          // slot in (onboarding)/index.tsx, welcome.tsx and forgot-password.tsx. No
-          // hitSlop now: the rect already clears 44, and slop would reach into the
-          // identity target 12pt to its right.
-          className="-ml-3 min-h-[44px] min-w-[44px] items-center justify-center"
-        >
-          <Text className="text-2xl text-foreground">{leading === 'close' ? '✕' : '‹'}</Text>
-        </Pressable>
+        // `backLabel` is required on every `leading` but 'none' (the docblock above; §23 of
+        // `source-audit.test.ts` holds it at the call sites), so the fallback never renders.
+        leading === 'close' ? (
+          <HeaderClose side="left" label={backLabel ?? ''} onPress={onBack ?? guardedBack} />
+        ) : (
+          <HeaderBack
+            label={backLabel ?? ''}
+            onPress={onBack ?? guardedBack}
+            className={BACK_ON_GUTTER}
+          />
+        )
       ) : null}
       {onIdentityPress == null ? (
         identity
@@ -153,9 +154,9 @@ export function ModalHeader({
           accessibilityRole="button"
           accessibilityLabel={identityLabel}
           accessibilityHint={identityHint}
-          // 36pt avatar + 4pt each side = the 44pt target, without growing the header.
+          // 4pt of slop above and below the block, without growing the header.
           hitSlop={{ top: 4, bottom: 4 }}
-          className="flex-1 flex-row items-center gap-3"
+          className={cn('flex-1 flex-row items-center gap-[10px]', PRESS_DIM)}
         >
           {identity}
         </Pressable>
@@ -166,21 +167,91 @@ export function ModalHeader({
 }
 
 /**
- * Right-slot ✕ for self-dismissing sheets (recap, favor — DESIGN §6): pass as
- * `right={<HeaderClose …/>}` with `leading="none"`. Immersive media keeps its
- * ✕ on the LEFT via `leading="close"` instead.
+ * The box of a header control (DESIGN §10): 44pt each way by `min-h` / `min-w`, the drawing
+ * centred in it. A real box, not a bare glyph + hitSlop: slop would reach into the identity
+ * target 8pt to the right of the leading control. Literal `[44px]`, the one spelling of the
+ * floor (`source-audit.test.ts` section 29).
  */
-export function HeaderClose({ label, onPress }: { label: string; onPress: () => void }) {
+const ICON_BUTTON = 'min-h-[44px] min-w-[44px] items-center justify-center';
+
+/** The drawing's size inside the box: 22, as the prototype draws it (`icons()` in `build.py`).
+ *  It is a drawing, so the member's text size does not move it; the 44pt box is the target. */
+const ICON_SIZE = 22;
+
+/**
+ * Pulls the back's box left so the drawing stands near the gutter: the prototype's
+ * `.ib.bk { margin-left: -14px }`. It was `-ml-3` while the control was the character `‹`.
+ * A screen that reserves the slot itself (welcome, forgot-password, onboarding) puts this on
+ * the slot, not on the control.
+ */
+export const BACK_ON_GUTTER = '-ml-[14px]';
+
+function HeaderIcon({
+  label,
+  onPress,
+  className,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      // Same box-not-slop fix as the leading chevron above; `-mr-3` mirrors its `-ml-3`
-      // so the ✕ stays optically on the right gutter.
-      className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
+      className={cn(ICON_BUTTON, PRESS_DIM, className)}
     >
-      <Text className="text-2xl text-foreground">✕</Text>
+      {/* The button names itself; the drawing says nothing to assistive tech. */}
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {children}
+      </View>
     </Pressable>
+  );
+}
+
+/**
+ * The back control: the drawn back in a 44pt button. `ModalHeader` renders it for
+ * `leading="chevron"`; a screen that builds its own header band (welcome, forgot-password,
+ * onboarding, the candidacy wizard) renders it directly, so there is one back in the app.
+ * It carries no margin of its own: the caller places it (`BACK_ON_GUTTER`).
+ */
+export function HeaderBack({
+  label,
+  onPress,
+  className,
+}: {
+  label: string;
+  onPress: () => void;
+  className?: string;
+}) {
+  return (
+    <HeaderIcon label={label} onPress={onPress} className={className}>
+      <BackIcon size={ICON_SIZE} color={galleria.foreground} />
+    </HeaderIcon>
+  );
+}
+
+/**
+ * The close control. Right slot of a self-dismissing sheet (recap, favor — DESIGN §6): pass as
+ * `right={<HeaderClose …/>}` with `leading="none"`. Immersive media keeps its close on the
+ * LEFT via `leading="close"`, which renders this with `side="left"`. The 12 of negative margin
+ * on its side is the prototype's `.ib.rt`, and the value the character had.
+ */
+export function HeaderClose({
+  label,
+  onPress,
+  side = 'right',
+}: {
+  label: string;
+  onPress: () => void;
+  side?: 'left' | 'right';
+}) {
+  return (
+    <HeaderIcon label={label} onPress={onPress} className={side === 'left' ? '-ml-3' : '-mr-3'}>
+      <CloseIcon size={ICON_SIZE} color={galleria.foreground} />
+    </HeaderIcon>
   );
 }

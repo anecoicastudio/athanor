@@ -19,7 +19,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import * as Sentry from '@sentry/react-native';
 import { nextOnboardingStep } from '@athanor/core';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { authGuardRedirect } from '@/lib/auth-guard-route';
 import { ToastProvider } from '@/components/ToastHost';
@@ -192,7 +192,7 @@ function RootLayout() {
                   <Stack
                     screenOptions={{
                       headerShown: false,
-                      contentStyle: { backgroundColor: semantic.background },
+                      contentStyle: { backgroundColor: galleria.background },
                     }}
                   >
                     <Stack.Screen name="(tabs)" />

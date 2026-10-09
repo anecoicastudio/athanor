@@ -1,7 +1,7 @@
 import { View } from '@/tw';
 
 /**
- * Progress dots. Dot i ≤ current is filled (cyan-accent). Currently unused —
+ * Progress dots. Dot i ≤ current is filled (foreground). Currently unused —
  * deferred: the candidacy flow (M7) uses this dot variant; the onboarding funnel
  * uses `StepBars`. Kept intentionally; do not delete before M7.
  */
@@ -16,7 +16,7 @@ export function StepDots({ count, current }: { count: number; current: number })
         <View
           key={i}
           className={
-            i <= current ? 'h-2 w-2 rounded-full bg-aura' : 'h-2 w-2 rounded-full bg-raise-2'
+            i <= current ? 'h-2 w-2 rounded-full bg-foreground' : 'h-2 w-2 rounded-full bg-hair'
           }
         />
       ))}

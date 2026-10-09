@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { CITY_GEOHASH_PRECISION, encodeGeohash } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { CitySuggestion, Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Text, View } from '@/tw';
 import { Field } from '@/components/Field';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { citySearchAvailable, searchCities } from '@/lib/city-search';
 
 /**
@@ -13,6 +15,10 @@ import { citySearchAvailable, searchCities } from '@/lib/city-search';
  * clears the geohash — the text no longer matches the picked place, and a
  * free-text city deliberately stores NO geohash (the proximity term skips it).
  * Device location is never read.
+ *
+ * The suggestions are the rows of one group under the field. They answer TYPING: nothing is
+ * looked up until the member changes the text, so the editor does not open with a list under a
+ * city that was saved long ago (it did until 2026-10-05).
  */
 export function CityPicker({
   city,
@@ -34,8 +40,11 @@ export function CityPicker({
   const suggestions = result.query === city ? result.items : [];
   // Suppresses the lookup for the change that a pick itself causes.
   const picked = useRef(false);
+  // Set by the first keystroke. The stored city arrives as a prop on mount and is not a query.
+  const edited = useRef(false);
 
   useEffect(() => {
+    if (!edited.current) return;
     if (picked.current) {
       picked.current = false;
       return;
@@ -70,26 +79,27 @@ export function CityPicker({
         maxLength={80}
         placeholder={t('profile.city.empty', locale)}
         value={city}
-        onChangeText={(text) => onChange(text, null)}
+        onChangeText={(text) => {
+          edited.current = true;
+          onChange(text, null);
+        }}
       />
       {suggestions.length > 0 ? (
-        <View className="rounded-hero border border-hair bg-raise">
-          {suggestions.map((s, i) => (
-            <Pressable
+        <RowGroup>
+          {suggestions.map((s) => (
+            <Row
               key={`${s.name}-${s.lat}-${s.lng}`}
-              accessibilityRole="button"
-              className={`px-5 py-3 ${i > 0 ? 'border-t border-hair' : ''}`}
+              title={s.name}
+              description={s.context || undefined}
+              // Two places can share a name; the second line is what tells them apart.
+              accessibilityLabel={[s.name, s.context].filter(Boolean).join(', ')}
+              showChevron={false}
               onPress={() => pick(s)}
-            >
-              <Text className="text-foreground">{s.name}</Text>
-              {s.context ? (
-                <Text className="text-[13px] text-muted-foreground">{s.context}</Text>
-              ) : null}
-            </Pressable>
+            />
           ))}
-        </View>
+        </RowGroup>
       ) : null}
-      <Text className="text-[13px] text-muted-foreground">{t('profile.city.hint', locale)}</Text>
+      <Text className="type-small text-muted-foreground">{t('profile.city.hint', locale)}</Text>
     </View>
   );
 }

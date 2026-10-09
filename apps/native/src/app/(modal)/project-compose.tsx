@@ -31,6 +31,16 @@ const CATEGORIES: ProjectCategory[] = [
   'volunteer',
 ];
 
+/**
+ * «Pubblica una ricerca» (Costellazioni). Writes one `projects` row through `createProject`;
+ * never Aura (rule #1): the engine does not reward publishing.
+ *
+ * Galleria (#921, 2026-10-09; DESIGN §8.9): blocks 26 apart on the stage, no card. A small grey
+ * sentence, the title's label 6 above its pill, the type chips 8 under their label, the details'
+ * label 6 above the block (`Field`'s `lg` floor; Marco, 2026-10-09: the canvas draws it 160),
+ * and «Pubblica» pinned under a hairline. Both refusals, the empty title's and the server's,
+ * stand in the title's group: that is the row a refused publish scrolls to (#769).
+ */
 export default function ProjectComposeScreen() {
   const { session } = useAuth();
   const leave = useGuardedBack();
@@ -41,8 +51,9 @@ export default function ProjectComposeScreen() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ProjectCategory>('startup');
   const [description, setDescription] = useState('');
-  // The server's refusal only. The empty title is its own state, rendered inside the title's
-  // row, because a refusal has to be SEEN and the row is what the reveal scrolls to (#769).
+  // The server's refusal only. The empty title is its own state. Both are rendered inside the
+  // title's row, because a refusal has to be SEEN and the row is what the reveal scrolls to
+  // (#769).
   const [error, setError] = useState<string | null>(null);
   const [titleMissing, setTitleMissing] = useState(false);
 
@@ -136,12 +147,14 @@ export default function ProjectComposeScreen() {
         <ScrollView
           {...reveal.scrollProps}
           className="flex-1"
-          contentContainerClassName="gap-5 px-5 pb-8"
+          contentContainerClassName="gap-[26px] px-5 pb-8"
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-[14px] text-faint">{t('create.project.desc', locale)}</Text>
+          <Text className="type-small text-muted-foreground">
+            {t('create.project.desc', locale)}
+          </Text>
 
-          <View className="gap-2" ref={reveal.rowRef('title')}>
+          <View className="gap-1.5" ref={reveal.rowRef('title')}>
             <SectionLabel>{t('project.compose.titleLabel', locale)}</SectionLabel>
             <Input
               {...reveal.fieldProps('title')}
@@ -152,14 +165,15 @@ export default function ProjectComposeScreen() {
                 if (titleMissing) setTitleMissing(false);
               }}
               maxLength={140}
+              invalid={titleMissing}
             />
             {/* Inside the row, so revealing the row reveals the reason (#769). `Field`'s caption
-                recipe; `Input` has no `error` prop of its own. */}
+                recipe: `Input` takes `invalid` for the border and leaves the reason to its row. */}
             {titleMissing ? (
-              <Text className="text-sm text-error">{t('project.compose.error', locale)}</Text>
+              <Text className="text-[14px] text-error">{t('project.compose.error', locale)}</Text>
             ) : null}
+            {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
           </View>
-          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
 
           <View className="gap-2">
             <SectionLabel>{t('project.compose.catLabel', locale)}</SectionLabel>
@@ -170,7 +184,6 @@ export default function ProjectComposeScreen() {
               {CATEGORIES.map((c) => (
                 <Chip
                   key={c}
-                  small
                   label={t(`costellazioni.filter.${c}` as MessageKey, locale)}
                   selected={c === category}
                   onPress={() => setCategory(c)}
@@ -181,7 +194,7 @@ export default function ProjectComposeScreen() {
 
           {/* The lowest field on the form and a tall one — the below-the-fold case #689
               exists for. `Field`, not `Input`, and it forwards focus the same way. */}
-          <View className="gap-2" ref={reveal.rowRef('description')}>
+          <View className="gap-1.5" ref={reveal.rowRef('description')}>
             <SectionLabel>{t('project.compose.descLabel', locale)}</SectionLabel>
             <Field
               {...reveal.fieldProps('description')}
@@ -205,7 +218,7 @@ export default function ProjectComposeScreen() {
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={mutation.isPending}
-            variant="light"
+            variant="primary"
           />
         </View>
       </Screen>

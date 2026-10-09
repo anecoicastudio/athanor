@@ -16,17 +16,18 @@ export function DreamQuote({
 }: {
   text: string;
   /**
-   * Row-scale preview (SuggestionRow): 13px body-weight text instead of the display quote.
-   * `ink-2`, not `faint` — inside a row the dream is the payload and has to outrank the
-   * metadata Tag beside it, which is a bordered raise-2 pill and wins any colour tie.
+   * Row-scale preview (SuggestionRow): the dream italic at the `small` size (15) instead of
+   * the display quote. Foreground, not grey — inside a row the dream is the payload and has to
+   * outrank the metadata Tag beside it, which is a bordered pill and wins any colour tie.
    */
   compact?: boolean;
   numberOfLines?: number;
   className?: string;
 }) {
-  const scale = compact ? 'text-[13px] text-ink-2' : 'text-xl leading-relaxed text-foreground';
+  // `type-quote` carries the italic face itself; the compact one takes it from `font-dream`.
+  const scale = compact ? 'font-dream text-[15px]' : 'type-quote';
   return (
-    <Text numberOfLines={numberOfLines} className={cn('font-dream', scale, className)}>
+    <Text numberOfLines={numberOfLines} className={cn(scale, 'text-foreground', className)}>
       «{text}»
     </Text>
   );

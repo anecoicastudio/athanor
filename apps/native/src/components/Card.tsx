@@ -1,7 +1,34 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { View } from '@/tw';
 
-/** Section container for a labelled profile block. */
+const InsideCard = createContext(false);
+
+/**
+ * True under a `Card`, and under a `WellScope` (below). A text field reads it: the field's own
+ * fill is the card's (`surface`), so inside a card it would show nothing but its text at rest.
+ * There it takes the stage colour instead and reads as a well cut into the block (#921,
+ * 2026-10-04).
+ */
+export const useInsideCard = () => useContext(InsideCard);
+
+/**
+ * The same flag for a charcoal block that is not the card: a fold of the realization plan, a
+ * note of the progress trail. A field under it is a black well too (Marco, 2026-10-09, #921).
+ */
+export function WellScope({ children }: { children: ReactNode }) {
+  return <InsideCard.Provider value={true}>{children}</InsideCard.Provider>;
+}
+
+/**
+ * The bordered card (DESIGN §9): `surface`, radius 28, padding 20, a hairline. A screen has at
+ * most one, for the thing that matters (§2.4); a list is grouped rows, not a stack of cards.
+ */
 export function Card({ children }: { children: ReactNode }) {
-  return <View className="gap-3 rounded-card border border-hair bg-raise p-5">{children}</View>;
+  return (
+    <InsideCard.Provider value={true}>
+      <View className="gap-[14px] rounded-[28px] border border-hair bg-surface p-5">
+        {children}
+      </View>
+    </InsideCard.Provider>
+  );
 }

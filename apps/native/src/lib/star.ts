@@ -4,9 +4,9 @@ import { AURA_UNKNOWN } from './aura-display';
 /**
  * The app's star vocabulary: ✦ lit / ✧ unlit / — unknown (DESIGN §11, 2026-08-08 + 2026-08-09).
  *
- * SHAPE carries the state, not colour. `faint` was retuned for AA and stopped reading clearly
- * "off" against `aura`, and rule #3 doesn't want an assertive unlit star anyway — so the states
- * must differ by glyph, and every surface that shows a star must agree on which is which.
+ * SHAPE carries the state, not colour alone: rule #3 doesn't want an assertive unlit star, so
+ * the states must differ by glyph, and every surface that shows a star must agree on which is
+ * which.
  *
  * It lives in one place because it didn't, and it drifted: `FeedPost`'s card star kept a filled
  * ✦ through the change that introduced ✧, claiming "you lit this" on every post in the feed.
@@ -14,9 +14,9 @@ import { AURA_UNKNOWN } from './aura-display';
  * change to the app's unknown mark must move the star vocabulary with it rather than silently
  * splitting the two apart.
  *
- * NOT for the other pairs that happen to share ✦ — ✦/○ (post-compose step flag), ✦/◇ (trust,
- * verify), ✦/◓ (VideoUploadTile). Those are different vocabularies; folding them in here would
- * invent a meaning they don't have.
+ * NOT for the other pairs that happen to share ✦ — ✦/◇ (trust, verify), ✦/◓ (VideoUploadTile);
+ * the composers' step flag was a ✦/○ pair too, until #748 gave it the Switch. Those are
+ * different vocabularies; folding them in here would invent a meaning they don't have.
  */
 export const STAR = { lit: '✦', unlit: '✧', unknown: AURA_UNKNOWN } as const;
 
@@ -46,7 +46,7 @@ export function spoken(label: string): string {
     .trim();
 }
 
-/** The glyph for a star's binary state. Callers still choose the colour (`aura` / `faint`). */
+/** The glyph for a star's binary state. Callers still choose the colour (foreground lit, grey unlit). */
 export function star(lit: boolean): string {
   return lit ? STAR.lit : STAR.unlit;
 }
@@ -89,13 +89,14 @@ export function starCellState(stars: StarRow[] | null, key: StarKey): StarCellSt
  * lived only in `SixStarsGrid.tsx`, which this app's `environment: 'node'` vitest harness cannot
  * reach (`*.test.ts` glob; the 176 `.tsx` files are structurally uncollectable).
  *
- * - `'grid'` — six cells, each resolved by `starCellState`. Always for the owner; for anyone
+ * - `'grid'` — six rows (cells of a grid until 2026-10-05; the mode keeps its name), each
+ *   resolved by `starCellState`. Always for the owner; for anyone
  *   else it shows only their earned stars, since rule #3 hides what a member is missing.
  * - `'hidden'` — nothing at all, label included, for ANOTHER member with no star lit (#754). Their
- *   grid would draw no cells, leaving «LE SEI STELLE» over an empty block. Never the owner, who
+ *   group would draw no rows, leaving «LE SEI STELLE» over an empty block. Never the owner, who
  *   sees six unlit stars and the progress row, and never a failed read, which is `'unavailable'`.
  * - `'unavailable'` — a single placeholder, and ONLY for a failed read of someone else. Six
- *   unknown cells there would render more cells than a real profile with two lit stars, turning
+ *   unknown rows there would be more rows than a real profile with two lit stars, turning
  *   the viewer's own network failure into a visible shape difference — a claim about a person
  *   made out of the reader's connection. One line states the viewer's failure and asserts
  *   nothing about the member, and stays distinguishable from a genuinely starless member, whose

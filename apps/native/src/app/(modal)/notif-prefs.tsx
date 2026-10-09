@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, Linking, Switch } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
 import { t, type MessageKey } from '@athanor/i18n';
 import {
   notifKeys,
@@ -14,6 +13,7 @@ import type { NotifPrefInput, NotificationPreference } from '@athanor/schemas';
 import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
+import { Switch } from '@/components/Switch';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
 import { devWarn } from '@/lib/log';
@@ -240,8 +240,6 @@ export default function NotifPrefsScreen() {
                     setPref.mutate({ type, channel: 'push', enabled }),
                   )
                 }
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
               />
             </View>
           ))}
@@ -257,8 +255,6 @@ export default function NotifPrefsScreen() {
               accessibilityLabel={t('notif.prefs.push', locale)}
               value={masterOn}
               onValueChange={(v) => applyWithPermission(v, (enabled) => setMaster.mutate(enabled))}
-              trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-              thumbColor={semantic.foreground}
             />
           </View>
           {/* The OS half, stated only when it is positively off. Neutral chrome — this is a fact

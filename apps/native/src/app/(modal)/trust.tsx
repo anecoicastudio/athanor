@@ -1,12 +1,6 @@
 import { useCallback, useEffect } from 'react';
-// A bare `Switch` is an UNNAMED toggle: RN gives it the `switch` role and the checked state from
-// `value`, and nothing else — the label `Text` beside it is a sibling, not an association, so
-// VoiceOver announced «attivato, interruttore» with no subject (#635). Every instance below names
-// itself with the key its visible label already uses; no new copy, and the two can never drift.
-import { Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { semantic } from '@athanor/config';
 import { deriveVerifyState } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import {
@@ -23,6 +17,11 @@ import { Pressable, ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+// An unnamed toggle announces its state and no subject: the label `Text` beside it is a sibling,
+// not an association, and VoiceOver said «attivato, interruttore» (#635). Every instance below
+// names itself with the key its visible label already uses; no new copy, and the two can never
+// drift. The app's `Switch` makes the label a required prop.
+import { Switch } from '@/components/Switch';
 import { useToast } from '@/components/ToastHost';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
@@ -130,7 +129,7 @@ export default function TrustScreen() {
 
         {/* Identity (read-only — verify flow is the identity-verify slice) */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.identity.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.identity.section', locale)}</SectionLabel>
           <Pressable
             onPress={() => {
               if (verifyState !== 'verified') router.push('/(modal)/verify');
@@ -177,7 +176,7 @@ export default function TrustScreen() {
 
         {/* Privacy by design · GDPR */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.privacy.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.privacy.section', locale)}</SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             {/* dream visibility — navigational cross-link to the inline editor's
                 «Il mio sogno» visibility control (no duplicate toggle); `edit=1`
@@ -219,8 +218,6 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.location.label', locale)}
                 value={grantedFor('location_approx', LOCATION_CONSENT_DEFAULT)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'location_approx', granted: v })}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
               />
             </View>
 
@@ -234,21 +231,14 @@ export default function TrustScreen() {
                   {t('gdpr.neverSold.desc', locale)}
                 </Text>
               </View>
-              <Switch
-                accessibilityLabel={t('gdpr.neverSold.label', locale)}
-                value
-                disabled
-                accessibilityState={{ disabled: true }}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
-              />
+              <Switch accessibilityLabel={t('gdpr.neverSold.label', locale)} value disabled />
             </View>
           </View>
         </View>
 
         {/* Consent management (§3.5.3) — diagnostics opt-in (default OFF) */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('gdpr.consent.section', locale)}</SectionLabel>
+          <SectionLabel>{t('gdpr.consent.section', locale)}</SectionLabel>
           <View className="rounded-card border border-hair bg-raise">
             {/* Diagnostics — default OFF; gates Sentry egress (P1.4 / B-5): SentryConsentGate
                 inits the SDK only once this is on and closes it, native side included, when off. */}
@@ -265,8 +255,6 @@ export default function TrustScreen() {
                 accessibilityLabel={t('gdpr.consent.diagnostics', locale)}
                 value={grantedFor('analytics', false)}
                 onValueChange={(v) => setConsentMut.mutate({ kind: 'analytics', granted: v })}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
               />
             </View>
           </View>
@@ -274,7 +262,7 @@ export default function TrustScreen() {
 
         {/* Ethical moderation + report CTA */}
         <View className="gap-2 px-5">
-          <SectionLabel tone="muted">{t('trust.moderation.section', locale)}</SectionLabel>
+          <SectionLabel>{t('trust.moderation.section', locale)}</SectionLabel>
           <View className="gap-3 rounded-card border border-hair bg-raise p-5">
             <Text className="text-[13px] leading-relaxed text-muted-foreground">
               {t('trust.moderation.intro', locale)}

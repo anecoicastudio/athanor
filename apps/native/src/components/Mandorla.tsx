@@ -1,36 +1,17 @@
 import type { ReactNode } from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { View } from '@/tw';
-import { auraGlow } from '@/lib/glow';
 
 /**
- * Mandorla (vesica piscis) frame around the avatar — the brand's mandorla mark
- * applied as an avatar surround (DESIGN.md §6.2). The vertical lens is two arcs
- * meeting at the top/bottom points; the avatar sits centred inside; the cyan
- * glow scales with the read-only Aura tier.
+ * Mandorla (vesica piscis) frame around something — an avatar, a ✦: the vertical lens is two
+ * arcs meeting at the top and bottom points, and the child sits centred inside (DESIGN §5).
+ * A hairline in the secondary grey. It glowed with the Aura tier until 2026-10-04; nothing on
+ * mobile glows (rule 4), so `glowLevel` left with the shadow.
  */
-export function Mandorla({
-  size,
-  glowLevel,
-  children,
-}: {
-  size: number;
-  glowLevel: number;
-  children: ReactNode;
-}) {
+export function Mandorla({ size, children }: { size: number; children: ReactNode }) {
   return (
-    <View
-      className="items-center justify-center"
-      /* `borderRadius` is here for the GLOW, not for clipping: nothing is clipped without
-         `overflow: 'hidden'`, and the vesica is drawn by the SVG below. A CSS `boxShadow` is
-         cast from the border box, so on a square View the halo came out square — which is what
-         iOS showed the moment `auraGlow()` moved off `shadowRadius` (whose iOS implementation
-         derived the shape from the layer's contents, i.e. the round avatar, and so looked
-         right by accident). Rounding the box makes both platforms cast the round halo this mark
-         always meant to have. Measured on the iPhone 17 Pro Max sim and the moto g17, #815. */
-      style={[{ width: size, height: size, borderRadius: size / 2 }, auraGlow(glowLevel)]}
-    >
+    <View className="items-center justify-center" style={{ width: size, height: size }}>
       <Svg
         width={size}
         height={size}
@@ -44,7 +25,7 @@ export function Mandorla({
         <Path
           d="M50,4 A49,49 0 0,1 50,96 A49,49 0 0,1 50,4 Z"
           fill="none"
-          stroke={semantic.auraLine}
+          stroke={galleria.foregroundMuted}
           strokeWidth={1.5}
         />
       </Svg>

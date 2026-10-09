@@ -11,7 +11,7 @@ import { dismissesOnRelease, shouldClaimViewerDrag } from '@/lib/viewer-gesture'
 
 /**
  * Fullscreen viewer for ONE photo that is already signed (#576). Tap or swipe down dismisses,
- * and the ✕ is the dismissal a screen reader can reach — the ruling asks for a labelled control,
+ * and the close is the dismissal a screen reader can reach — the ruling asks for a labelled control,
  * not tap-only.
  *
  * Not `Lightbox`, deliberately: that one is the Momenti gallery — a `Moment[]` with dots,
@@ -75,22 +75,22 @@ export function PhotoViewer({
 
   return (
     // onRequestClose is the Android hardware back button — the third way out, and the one
-    // neither the ✕ nor the gestures cover.
+    // neither the close nor the gestures cover.
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       {/* RN <Modal> is its own native root — the app-level provider doesn't reach in (#161). */}
       <SafeAreaProvider>
         <Screen>
-          {/* Immersive media chrome: ✕ left, label left-aligned (DESIGN §6). */}
+          {/* Immersive media chrome: close left, label left-aligned (DESIGN §6). */}
           <ModalHeader
             leading="close"
             backLabel={t('common.close', locale)}
             onBack={onClose}
-            titleSlot={<Text className="text-sm text-faint">{label}</Text>}
+            titleSlot={<Text className="type-small text-muted-foreground">{label}</Text>}
           />
 
           {/* The stage stays a plain View: a Pressable here would be an accessibility element,
             and on iOS an atomic one, which would swallow the frame's own «Caricamento…» and
-            «Questa foto non si carica» labels. The ✕ above is the reachable exit; these
+            «Questa foto non si carica» labels. The close above is the reachable exit; these
             gestures are the sighted shortcut to it. */}
           <View className="flex-1" {...pan.panHandlers}>
             <MediaFrame
@@ -104,7 +104,9 @@ export function PhotoViewer({
           </View>
 
           {caption ? (
-            <Text className="px-gutter pb-10 pt-3 text-center text-foreground">{caption}</Text>
+            <Text className="type-small px-gutter pb-10 pt-3 text-center text-foreground">
+              {caption}
+            </Text>
           ) : (
             <View className="pb-10" />
           )}

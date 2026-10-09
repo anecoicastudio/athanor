@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { blockUser, reportKeys, submitReport } from '@athanor/api';
 import { t } from '@athanor/i18n';
 import { REPORT_CATEGORIES, type ReportCategory, type ReportTargetType } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
@@ -16,6 +16,7 @@ import { invalidateBlockDependents } from '@/lib/block-cache';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { supabase } from '@/lib/supabase';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { PRESS_DIM } from '@/lib/press';
 import { useGuardedBack } from '@/lib/modal-exit';
 import { Screen } from '@/components/Screen';
 
@@ -27,8 +28,12 @@ import { Screen } from '@/components/Screen';
  * is the M6 engine's job, server-only (rule #1). After a person report, offers «Blocca anche
  * questa persona» (routes through the merged blocks flow); a message report does not, because
  * the affordance below keys on `targetId` being a person and for a message it is a message —
- * the chat overflow menu still offers «Blocca» directly. Flat `light` CTA — reporting is not a
- * moment-grade event, so no glow (rule #4). Neutral chrome (no cyan/glow surfaces).
+ * the chat overflow menu still offers «Blocca» directly.
+ *
+ * Galleria (DESIGN §8.13, #921): the question as body text, the reasons as chips 8 apart, the
+ * note, and the `primary` pill, blocks 26 apart; reporting is an ordinary action. Once sent the
+ * body is a foreground ✓, the sentence and «Blocca anche questa persona» as a link in the
+ * error red. No bordered card, no cyan: a report is not a celebration.
  */
 export default function ReportScreen() {
   const leave = useGuardedBack();
@@ -41,7 +46,7 @@ export default function ReportScreen() {
 
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [note, setNote] = useState('');
-  // Track the auto-dismiss timer so an early close (✕) doesn't fire the exit after unmount.
+  // Track the auto-dismiss timer so an early close doesn't fire the exit after unmount.
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -86,72 +91,82 @@ export default function ReportScreen() {
 
   return (
     <Screen {...MODAL_A11Y}>
-      {/* head — title + close ✕ only (#754): a sheet, so `HeaderClose` on the right and no
+      {/* head — title + close only (#754): a sheet, so `HeaderClose` on the right and no
           back chevron beside it — both did the same thing (DESIGN §6). */}
       <ModalHeader
         title={t('report.title', locale)}
         leading="none"
         right={<HeaderClose label={t('common.cancel', locale)} onPress={leave} />}
       />
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12"
-        keyboardShouldPersistTaps="handled"
-      >
-        {report.isSuccess ? (
-          // submitted — body swaps to the confirmation
-          <View className="items-center gap-4 py-10">
-            <Text className="text-3xl text-aura">✓</Text>
-            <Text className="px-4 text-center text-[15px] leading-relaxed text-foreground">
-              {t('report.confirm', locale)}
-            </Text>
-            {targetType === 'person' && targetId ? (
-              <Pressable
-                // #633: the same block from user/[id] confirms with `block.confirm`; this screen
-                // has no display name in its params, so its twin key drops the {name}. One
-                // block, one confirm, everywhere.
-                onPress={() =>
-                  Alert.alert(t('report.block.confirm', locale), undefined, [
-                    { text: t('common.cancel', locale), style: 'cancel' },
-                    {
-                      text: t('report.alsoBlock', locale),
-                      style: 'destructive',
-                      onPress: () => blockAlso.mutate(),
-                    },
-                  ])
-                }
-                disabled={blockAlso.isPending}
-                accessibilityRole="button"
-                hitSlop={8}
-              >
-                <Text className="pt-2 text-[15px] text-error">{t('report.alsoBlock', locale)}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
-          <>
-            <Text className="text-[15px] leading-relaxed text-faint">
-              {t('report.sub', locale)}
-            </Text>
-
-            {/* reason picker — single-select radio group */}
-            <View
-              className="flex-row flex-wrap gap-2"
-              accessibilityRole="radiogroup"
-              accessibilityLabel={t('report.sub', locale)}
+      {report.isSuccess ? (
+        // Sent: the body swaps to the confirmation, centred. Not a celebration, so no cyan and
+        // no mark: a foreground ✓, the sentence, and for a person the way to block them too.
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="grow items-center justify-center gap-[26px] px-5 py-12"
+        >
+          <Text
+            className="type-num text-foreground"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            ✓
+          </Text>
+          <Text className="text-center type-body text-foreground">
+            {t('report.confirm', locale)}
+          </Text>
+          {targetType === 'person' && targetId ? (
+            <Pressable
+              // #633: the same block from user/[id] confirms with `block.confirm`; this screen
+              // has no display name in its params, so its twin key drops the {name}. One
+              // block, one confirm, everywhere.
+              onPress={() =>
+                Alert.alert(t('report.block.confirm', locale), undefined, [
+                  { text: t('common.cancel', locale), style: 'cancel' },
+                  {
+                    text: t('report.alsoBlock', locale),
+                    style: 'destructive',
+                    onPress: () => blockAlso.mutate(),
+                  },
+                ])
+              }
+              disabled={blockAlso.isPending}
+              accessibilityRole="button"
+              className={cn('min-h-[44px] justify-center', PRESS_DIM)}
             >
-              {REPORT_CATEGORIES.map((option) => (
-                <Chip
-                  key={option}
-                  role="radio"
-                  label={t(`report.reason.${option}`, locale)}
-                  selected={category === option}
-                  onPress={() => setCategory(option)}
-                />
-              ))}
-            </View>
+              <Text className="text-center type-small text-error underline">
+                {t('report.alsoBlock', locale)}
+              </Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-[26px] px-5 pb-12"
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text className="type-body text-foreground">{t('report.sub', locale)}</Text>
 
-            {/* optional note */}
+          {/* reason picker — single-select radio group */}
+          <View
+            className="flex-row flex-wrap gap-2"
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('report.sub', locale)}
+          >
+            {REPORT_CATEGORIES.map((option) => (
+              <Chip
+                key={option}
+                role="radio"
+                label={t(`report.reason.${option}`, locale)}
+                selected={category === option}
+                onPress={() => setCategory(option)}
+              />
+            ))}
+          </View>
+
+          {/* optional note; a failed send says so in the field's own group */}
+          <View className="gap-1.5">
             <Field
               multiline
               maxLength={2000}
@@ -160,21 +175,19 @@ export default function ReportScreen() {
               value={note}
               onChangeText={setNote}
             />
-
             {report.isError ? (
-              <Text className="text-sm text-error">{t('report.error', locale)}</Text>
+              <Text className="type-small text-error">{t('report.error', locale)}</Text>
             ) : null}
+          </View>
 
-            {/* flat light CTA — reporting is not moment-grade, so no glow (rule #4). */}
-            <Button
-              label={report.isPending ? t('report.submitting', locale) : t('report.cta', locale)}
-              variant="light"
-              disabled={category === null || report.isPending}
-              onPress={() => report.mutate()}
-            />
-          </>
-        )}
-      </ScrollView>
+          <Button
+            label={report.isPending ? t('report.submitting', locale) : t('report.cta', locale)}
+            variant="primary"
+            disabled={category === null || report.isPending}
+            onPress={() => report.mutate()}
+          />
+        </ScrollView>
+      )}
     </Screen>
   );
 }

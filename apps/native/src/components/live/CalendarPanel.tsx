@@ -53,8 +53,8 @@ export function CalendarPanel({
       data={sections}
       keyExtractor={([month]) => month}
       ListHeaderComponent={
-        // Same pill recipe as the Mappa city chips — active carries the cyan accent, which
-        // rule #4 allows for a set filter (an accent, not a moment-grade glow).
+        // The pill recipe the Mappa city chips had until they took the Galleria `Chip` on
+        // 2026-10-04; this one keeps its cyan accent until the Live screens convert (#921, open as of 2026-10-04).
         <View className="flex-row px-5 pb-3">
           <Pressable
             onPress={onOpenFilters}

@@ -1108,7 +1108,7 @@ describe('the signed-in locale is resolved in exactly one place (#331)', () => {
  * in the toolchain can see it — NativeWind has no `placeholder:` variant on native, so there is
  * no class for a linter to miss either.
  *
- * The fix is a primitive (`Input` for the pill, `Field` for the hero-radius block), and both omit
+ * The fix is a primitive (`Input` for the pill, `Field` for the block), and both omit
  * `placeholderTextColor` from their prop types so it cannot be handed back. This guard covers the
  * raw `<TextInput>`s that remain — the compose bars and the fund controls, which have their own
  * shapes and are not worth a third primitive.
@@ -1140,17 +1140,22 @@ describe('placeholders are a token, never the platform default (#499)', () => {
     expect(
       bare.map(([at]) => at),
       'a placeholder is rendering in the platform grey — route it through Field/Input, or pass ' +
-        'placeholderTextColor={semantic.foregroundMuted} (#499)',
+        'placeholderTextColor={galleria.foregroundMuted} (#499)',
     ).toEqual([]);
   });
 
   /**
    * The primitive is the reason the list above stays short, so the ways in are pinned by name.
-   * A newly hand-rolled hero-radius field is the regression this catches: it would satisfy the
+   * A newly hand-rolled block field is the regression this catches: it would satisfy the
    * assertion above just by pasting the prop, which is exactly the drift #499 removed.
    *
+   * The pin is on the block's RADIUS, because that is what a hand-rolled copy would paste. It
+   * was `hero` (26) until 2026-10-04; under Galleria a multi-line field is radius 24 (DESIGN
+   * §9), so the pin followed it, and the second assertion below keeps the old radius from
+   * coming back on a text field.
+   *
    * Matched on the ELEMENT's own attributes, not on the file — a file-level match would also
-   * name every screen that merely wraps something in a `rounded-hero` container.
+   * name every screen that merely wraps something in a container of the same radius.
    *
    * The list carries NO exceptions, and keeping it that way is the whole of #504. The three
    * compose screens — story, post, project — were the rest of this family and sat here in a
@@ -1161,18 +1166,28 @@ describe('placeholders are a token, never the platform default (#499)', () => {
    * The exception array is gone rather than emptied: an empty list is an invitation to append to,
    * and the next hand-rolled field should have nowhere to be written down.
    */
-  it('the hero-radius block field exists in exactly one place', () => {
+  it('the block field exists in exactly one place', () => {
     const users = [
       ...new Set(
         textInputs()
-          .filter(([, attrs]) => /\brounded-hero\b/.test(attrs))
+          .filter(([, attrs]) => /(?<![\w-])rounded-\[24px\]/.test(attrs))
           .map(([at]) => at.replace('apps/native/src/', '').replace(/:\d+$/, '')),
       ),
     ].sort();
     expect(
       users,
-      'a hero-radius text field has been hand-rolled again — use the Field primitive (#499)',
+      'a block text field has been hand-rolled again — use the Field primitive (#499)',
     ).toEqual(['components/Field.tsx']);
+  });
+
+  it('no text field keeps the hero radius the block had before Galleria', () => {
+    expect(
+      textInputs()
+        .filter(([, attrs]) => /\brounded-hero\b/.test(attrs))
+        .map(([at]) => at),
+      'a `rounded-hero` text field: the block field is radius 24 since 2026-10-04 (DESIGN §9) ' +
+        '— use the Field primitive (#499)',
+    ).toEqual([]);
   });
 });
 
@@ -1907,7 +1922,7 @@ describe('a (modal) screen always has a way out (#578)', () => {
     );
     expect(
       unlabelled,
-      'a ModalHeader that renders a chevron or a ✕ with no accessibilityLabel. Since #578 the ' +
+      'a ModalHeader that renders a back or a close with no accessibilityLabel. Since #578 the ' +
         'affordance renders unconditionally on every `leading` other than "none", so a missing ' +
         'backLabel is now an unlabelled button on every load rather than on a lucky one — ' +
         'VoiceOver announces it as just «button». `common.back` exists in both catalogs.',
@@ -2112,7 +2127,7 @@ describe('a post and its media are one write (#588)', () => {
 /**
  * A `text-`/`bg-`/`border-` class whose token is not declared in `global.css` produces no
  * declaration at all. react-native-css has nothing to emit, so the property is simply absent
- * and RN falls back to its own default — black text, no border colour — on a `#0a0a1a`
+ * and RN falls back to its own default — black text, no border colour — on a black
  * canvas. Nothing throws, nothing warns, and TypeScript cannot see inside a string literal.
  * #595 was `text-ink` on `RuleRow`: the Aura screen's three protection-rule headings rendered
  * at 1.07:1 against the background, invisible, for as long as the screen has existed.
@@ -2389,11 +2404,13 @@ const openingTags = (src: string, tag: string): { line: number; attrs: string }[
  *
  * ## A bare `Switch` is an unnamed control
  *
- * React Native gives `Switch` its role and its checked state from `value`, and NOTHING else. The
- * label `Text` beside it in the row is a sibling, not an association — there is no `htmlFor`
- * here — so a `Switch` with no `accessibilityLabel` announces as «attivato, interruttore» with
- * no subject. Eleven of them shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was
- * every switch the app had at the time.
+ * A switch has a role and a checked state, and NOTHING else. The label `Text` beside it in the
+ * row is a sibling, not an association — there is no `htmlFor` here — so a `Switch` with no
+ * `accessibilityLabel` announces as «attivato, interruttore» with no subject. Eleven platform
+ * switches shipped that way across `trust.tsx` and `notif-prefs.tsx`, which was every switch the
+ * app had at the time. Since 2026-10-04 the tag is the app's own `components/Switch.tsx` (#921),
+ * whose type requires the label; this walk stays, because a type does not see an empty string
+ * and the register below is what makes a new toggle screen get read.
  *
  * The check is per-JSX-site, not per-runtime-control: `notif-prefs.tsx` renders six switches
  * from one tag inside `PREF_ROWS.map`, so a count here would be a number that rots. The property
@@ -2411,14 +2428,14 @@ const openingTags = (src: string, tag: string): { line: number; attrs: string }[
  * removes; this section only checks that nothing announces around it.
  */
 describe('a11y: toggles name themselves and ornaments stay silent (#635)', () => {
-  // The two composers' «passo del percorso» Switches (#748) are row-owned: the Pressable row is
-  // the control and the Switch is hidden and touch-inert inside it. They still carry the label,
-  // so the rule below holds without an exception and a later un-hiding cannot ship unnamed.
+  // A row that IS the toggle (#748: the two composers' «passo del percorso») is `Row checked`
+  // since 2026-10-06: the row is the control and `Row.tsx` draws the Switch hidden and
+  // touch-inert inside it. That Switch still carries the label, so the rule below holds without
+  // an exception and a later un-hiding cannot ship unnamed.
   const SWITCH_FILES = [
     'app/(modal)/trust.tsx',
     'app/(modal)/notif-prefs.tsx',
-    'app/(modal)/post-compose.tsx',
-    'app/(modal)/story-compose.tsx',
+    'components/Row.tsx',
   ];
   const ANNOUNCE = /AccessibilityInfo\.announceForAccessibility\(/;
 
@@ -2440,7 +2457,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
     expect(
       unnamed,
       `an unnamed <Switch>:\n` +
-        `RN derives the role and the checked state from \`value\`, and nothing else — the label ` +
+        `A switch has a role and a checked state, and nothing else — the label ` +
         `Text beside it is an unassociated sibling, so this toggle announces with no subject. ` +
         `Pass accessibilityLabel with the SAME key the visible label renders, so the two ` +
         `cannot drift (#635).`,
@@ -2524,19 +2541,19 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * on it. Both halves below exist because the obvious way to satisfy that clause measures
  * PASSING on the only harness this repo can run and FAILING on the device it ships to.
  *
- * ## `h-11` is 44 on web and 38.5 on device
+ * ## `h-11` was 44 on web and 38.5 on device
  *
- * `react-native-css` inlines `rem` at **14** unless the stylesheet declares a `:root`
- * font-size or metro passes `inlineRem`, and `apps/native` does neither (DESIGN §11,
- * 2026-08-30). So a spacing step is 3.5px, not 4, and the eleven-step utilities that read as
- * «44» are 38.5pt where it counts. Eleven sites shipped that way — one of them under a comment
- * that claimed «a real 44pt tap target» — because `getBoundingClientRect` in the expo-web walk
- * returns 44 for every one of them. The arbitrary form `h-[44px]` is a literal on both
- * platforms, which is why `Input`'s eye toggle reaches for `style={{ width: 44 }}` and says so.
+ * Until 2026-10-04 (#921) a spacing step was 3.5px on device: Tailwind's step is 0.25rem and
+ * `react-native-css` inlines `rem` at **14** (DESIGN §11, 2026-08-30). The eleven-step
+ * utilities that read as «44» were 38.5pt where it counts, and eleven sites shipped that way —
+ * one of them under a comment that claimed «a real 44pt tap target» — because
+ * `getBoundingClientRect` in the expo-web walk returned 44 for every one of them. `global.css`
+ * now states the step in px (`--spacing: 4px`, pinned by `tokens-mirror.test.ts`), so the class
+ * is 44 on both. The arbitrary form `h-[44px]` is a literal whatever a step measures.
  *
- * The ban is on the CLASS, not on a measurement: eleven steps is only ever an attempt at the
- * floor, so there is no legitimate `h-11` to carve out. A genuine 38.5pt box would be written
- * as one.
+ * The ban stays, and it is on the CLASS, not on a measurement: eleven steps is only ever an
+ * attempt at the floor, so the floor keeps one spelling, and that spelling does not lean on a
+ * line of the stylesheet.
  *
  * ## A bare `Pressable` is whatever its text happens to measure
  *
@@ -2556,7 +2573,7 @@ describe('a11y: toggles name themselves and ornaments stay silent (#635)', () =>
  * reaches exactly 44; it is CORRECT at that size and short only when the visual is smaller.
  * Deciding that statically means knowing what the child renders to, and a scan for «a small
  * `text-[Npx]` somewhere in the body» flags ~26 sites of which several are plainly fine
- * (`StoryRing`'s Pressable wraps a 60pt avatar, `DreamCard`'s add-milestone one a whole row) — a
+ * (`StoryRing`'s Pressable wraps a 56pt avatar, `DreamCard`'s add-milestone one a whole row) — a
  * guard whose allowlist would be longer than its findings is a pin on today's tree, not an
  * invariant. §28 makes the same call in as many words for the rest of #635.
  *
@@ -2575,7 +2592,7 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
    * which is the one nobody looked at. The line moving is the point — it forces a re-read.
    */
   const BARE_PRESSABLE_OK: Record<string, string> = {
-    'components/profile/DreamCard.tsx:74':
+    'components/profile/DreamCard.tsx:88':
       'wraps <DreamQuote>, a multi-line quote block that is far taller than the floor',
   };
 
@@ -2601,9 +2618,9 @@ describe('a11y: a tap target clears 44pt on the device (#638)', () => {
     expect(
       hits,
       `an \`h-11\`/\`w-11\` used as the 44pt floor:\n` +
-        `A spacing step is 3.5px on device (rem inlines at 14 — DESIGN §11, 2026-08-30), so ` +
-        `this measures 38.5pt there while returning a passing 44px to the web walk. Write the ` +
-        `literal \`h-[44px]\`/\`w-[44px]\`, or \`min-h-[44px]\` where the box grows (#638).`,
+        `The 44pt floor has one spelling here, the literal. The class is 44 only while ` +
+        `global.css states \`--spacing: 4px\`; before 2026-10-04 it was 38.5pt on device. Write ` +
+        `the literal \`h-[44px]\`/\`w-[44px]\`, or \`min-h-[44px]\` where the box grows (#638).`,
     ).toEqual([]);
   });
 
@@ -2647,24 +2664,34 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:469':
-      'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:524':
-      'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
-      'chevron is capped to `ornament`',
-    'app/(modal)/post-compose.tsx:383': 'same measured 20pt remove-badge as chat.tsx:469',
-    'app/(modal)/story-compose.tsx:159': 'same measured 20pt remove-badge as chat.tsx:469',
-    'app/(onboarding)/index.tsx:466':
+    'app/(modal)/chat.tsx:494':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/chat.tsx:558':
+      'the 50pt send disc of the compose bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
+    'app/(modal)/post-compose.tsx:389':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/story-compose.tsx:165':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/post/[id].tsx:394':
+      'the 50pt send disc of the comment bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
+    'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
+    'app/(onboarding)/index.tsx:462':
       'the local-photo disc (an Avatar shape, without Avatar); its ✦ placeholder is capped ' +
       'to `ornament` and hidden from assistive tech',
     'components/StepBars.tsx:23': 'a 3px progress rule — no text inside',
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
-    'components/feed/CategoryTabs.tsx:52': 'a 2px selected-tab underline — no text inside',
-    'components/search/ScopeTabs.tsx:59': 'a 2px selected-tab underline — no text inside',
-    'components/stories/StoriesViewer.tsx:372': 'the reply send disc — same reason as chat.tsx:524',
-    'components/stories/StoryRing.tsx:127':
-      'the + badge, positioned by the measurement in its own docblock; its glyph is capped ' +
-      'to `ornament`',
+    'components/stories/StoriesViewer.tsx:260': 'a 3px progress step — no text inside',
+    'components/stories/StoriesViewer.tsx:408':
+      'the 50pt send disc of the reply bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
+    'components/media/MomentTile.tsx:98':
+      'the 52pt disc under a video tile’s play: a drawn glyph inside, no prose',
+    'components/search/ResultRow.tsx:73':
+      'the 44pt disc of a project or an event result; its glyph is capped to `ornament`',
+    'components/trust/NotificationRow.tsx:51':
+      'the 30pt disc that leads a notification; its glyph is capped to `ornament`',
   };
 
   const TW = `${SRC}tw/index.tsx`;
@@ -4216,7 +4243,7 @@ describe('the profile editor pins its way out, and no screen nests two scroll ax
  *   (`RNCSafeAreaViewShadowNode::adjustLayoutWithState`) rebuilds the Yoga style from the props'
  *   PHYSICAL edges and writes it back over the resolved one, so the aliases are gone.
  *   `<Screen className="px-8">` rendered edge to edge on an iPhone SE and on the moto g17.
- * - **An Android `TextInput`.** Measured on the moto g17: the same compose field put its text
+ * - **An Android `TextInput`.** On the moto g17 (2026-09-18, a 3.5px step) a compose field put its text
  *   ~7dp from the border with `px-4` and ~17dp with `pl-4 pr-4`. iOS and the web build honour
  *   both, which is how eleven screens and every text field in the app shipped the logical
  *   spelling through every pass that was not an Android device.
@@ -4465,15 +4492,18 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
    * What it pins is the CALLERS, not «the clock is unglowed»: a raw `boxShadow` or a NativeWind
    * `shadow-*` on a countdown file would evade it. Nothing in `apps/native/src` outside
    * `lib/glow*` uses either today, so the coverage is total by circumstance, not construction.
+   *
+   * Since Galleria (rule 4, mobile half, 2026-10-03) nothing on mobile glows, so the list only
+   * loses files: `components/Button.tsx` left on 2026-10-04 with its `glow` prop,
+   * `components/Mandorla.tsx` the same day with its `glowLevel`,
+   * `components/profile/MomentFlash.tsx` on 2026-10-05 with the Profilo tab,
+   * `app/(modal)/favor.tsx` on 2026-10-07 with the favour sheet, and each of the rest leaves
+   * when its own screens are converted (#921, open as of 2026-10-07).
    */
   const GLOW_SURFACES = [
-    'app/(modal)/favor.tsx',
-    'components/Button.tsx',
-    'components/Mandorla.tsx',
     'components/circle/SubscriptionStatusCard.tsx',
     'components/fund/CandidateCard.tsx',
     'components/fund/FundTicker.tsx',
-    'components/profile/MomentFlash.tsx',
   ];
 
   it('is called from exactly these files, and no countdown file is among them', () => {
@@ -4491,10 +4521,10 @@ describe('the glow surfaces are a named set, and the clock is not one (rule 4, D
 
     expect(
       callers,
-      'A glow means something happened (rule 4). Adding one is a design decision, so add the ' +
-        'file here in the same edit and say in the PR what moment it marks. If a COUNTDOWN file ' +
-        'appears, that is DESIGN.md §8.12 being broken again — the clock takes the framed pair ' +
-        '`border-aura-line bg-aura-soft`, never the shadow.',
+      'Nothing on mobile glows since Galleria (rule 4), so a file that is NEW here is a ' +
+        'regression: take the `auraGlow()` call out. A file that is MISSING was converted: drop ' +
+        'it from GLOW_SURFACES in the same edit. If a COUNTDOWN file appears, that is DESIGN.md ' +
+        '§8.12 being broken again — the clock is flat, and was before Galleria too.',
     ).toEqual(GLOW_SURFACES);
   });
 });
@@ -4534,6 +4564,45 @@ describe('a Button is never handed a fixed share of a row (#833)', () => {
         'wraps mid-word when that share is short. Put side-by-side Buttons in `ButtonRow` ' +
         '(components/ButtonRow.tsx) — the row wraps, the label never does (DESIGN §10, #833).',
     ).toEqual([]);
+  });
+
+  /**
+   * The cells of a row are not the same height: a pill is 50pt, a `ghost` link 44pt, and a cell
+   * may stack two lines (`ConnectButton` while a request is pending). Measured on an iPhone
+   * SE simulator on 2026-10-04: aligned by their tops, a pill's label and a link's sit 3pt
+   * apart; centred, a link beside a stacked cell lands 12.5pt below the stack's first control.
+   * On the text baseline every first-line label shares one line, whatever its cell holds.
+   *
+   * That baseline is the LABEL's, so a pill has to keep its label in the layout while it is
+   * busy. With the label swapped out for the spinner the cell's baseline fell to the spinner's
+   * foot: the row grew 2pt and the link beside it sat 4.5pt lower than beside an idle pill
+   * (same simulator, same day). With the label kept, a busy pill and an idle one measured the
+   * same on the simulator and on a moto g17: same width, same row, same offset to the link.
+   */
+  it('ButtonRow lines its cells up on the text baseline', () => {
+    const row = stripComments(read(`${SRC}components/ButtonRow.tsx`));
+    expect(
+      /(?<![\w-])items-baseline(?![\w-])/.test(row),
+      'components/ButtonRow.tsx no longer aligns its cells with `items-baseline`. A pill and a ' +
+        'text link then stop sharing a line of text, and which of them looks wrong depends on ' +
+        'what replaced it (the measurements are in the comment above this test).',
+    ).toBe(true);
+  });
+
+  it('a busy Button keeps its label in the layout, under the spinner', () => {
+    const button = stripComments(read(`${SRC}components/Button.tsx`)).replace(/\s+/g, ' ');
+    expect(
+      /loading && 'opacity-0'/.test(button),
+      'components/Button.tsx no longer hides the label of a busy button in place. Rendering ' +
+        'the spinner INSTEAD of the label takes the text baseline out of the cell, so a busy ' +
+        'pill in a `ButtonRow` shifts its neighbours, and a pill sized to its label shrinks ' +
+        'to the spinner.',
+    ).toBe(true);
+    expect(
+      /<View className="absolute [^"]*">\s*<ActivityIndicator\b/.test(button),
+      'the spinner of a busy Button is no longer an absolute overlay: in the flow it sits ' +
+        'beside the hidden label and widens the pill.',
+    ).toBe(true);
   });
 });
 
@@ -4575,25 +4644,37 @@ describe('a tag label built from data goes through the shared fallback (#883)', 
  */
 describe('an avatar in a row that names the member stays silent (#884)', () => {
   const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
-    'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
-    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'name Text in the row' },
-    'components/connections/ConnectionRequestRow.tsx': { decorative: true, why: 'row label' },
+    'components/chat/ConversationRow.tsx': { decorative: true, why: 'row label' },
+    'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'row label' },
+    'components/connections/ConnectionRequestRow.tsx': {
+      decorative: true,
+      why: 'the avatar button’s label',
+    },
     'components/connections/ConnectionRow.tsx': { decorative: true, why: 'row label' },
     'components/feed/PostAuthorRow.tsx': { decorative: true, why: 'row label, or the name Text' },
-    'components/costellazioni/FavorRow.tsx': { decorative: true, why: 'row label' },
+    'components/costellazioni/FavorRow.tsx': {
+      decorative: true,
+      why: 'the avatar button’s label',
+    },
+    'components/costellazioni/ProjectCard.tsx': {
+      decorative: true,
+      why: 'row label, or the name Text',
+    },
     'components/profile/IncomingOfferRow.tsx': { decorative: true, why: 'row label' },
     'components/live/AttendeeStack.tsx': { decorative: true, why: 'row label' },
     'components/chat/Bubble.tsx': { decorative: true, why: 'the avatar button’s label' },
     'components/stories/StoryRing.tsx': { decorative: true, why: 'row label' },
     'components/search/ResultRow.tsx': { decorative: true, why: 'searchRowLabel says the name' },
-    'components/trust/BlockedRow.tsx': { decorative: true, why: 'name Text beside it' },
+    'components/trust/BlockedRow.tsx': { decorative: true, why: 'the row’s title beside it' },
     'app/(modal)/settings.tsx': { decorative: true, why: 'name Text beside it' },
     'components/momenti/MomentoCard.tsx': { decorative: true, why: 'name Text beside it' },
     'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
+    'app/(modal)/dream/[id].tsx': { decorative: true, why: 'row label' },
     'components/profile/ProfileHero.tsx': { decorative: false, why: 'the profile’s own face' },
     'components/profile/ProfileEditForm.tsx': { decorative: false, why: 'whose photo this is' },
-    // The row label is generic («Hai un Momento»), so the disc is the only thing naming them.
-    'components/home/MomentiCard.tsx': { decorative: false, why: 'generic row label' },
+    'components/home/MomentiCard.tsx': { decorative: true, why: 'name Text beside it' },
+    // The row label is generic («Qualcuno ha bisogno di una mano»), so the disc is the only
+    // thing naming them.
     'components/home/FavorNudgeCard.tsx': { decorative: false, why: 'generic row label' },
   };
 
@@ -4735,7 +4816,8 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
 
   it('a MediaSheet row asks the OS before it shows anything of its own', () => {
     const src = stripComments(read(`${SRC}components/media/MediaSheet.tsx`));
-    const rows = jsxOpeningTags(src).filter((t) => t.base === 'Row' && !t.raw.includes('onClose'));
+    // The sources are `SourceRow`s; the shared `Row` in this file is the way out.
+    const rows = jsxOpeningTags(src).filter((t) => t.base === 'SourceRow');
     expect(
       rows.length,
       'MediaSheet renders no source row — the walk found nothing',
@@ -4757,5 +4839,3812 @@ describe('nothing of ours stands in front of an OS permission prompt (#908)', ()
       show,
       'onRow shows the blocked sheet before it has asked the OS — that order is a primer (#908)',
     ).toBeGreaterThan(ask);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 46 — the app reads `galleria`, never `semantic` (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half: `@athanor/config` holds two palettes and the app's is `galleria` (Marco's
+ * ruling, 2026-10-03). `semantic` is the web's dark world, and it type-checks here — same
+ * package, same key names, every value a valid colour — so a screen that imports it compiles,
+ * lints and renders, in the wrong look, with nothing to say so.
+ *
+ * By NAME over comment-stripped code, test files included: a test that recomputes a ratio or
+ * pins a config value from `semantic` certifies a colour the app does not draw. A comment may
+ * still say the word — the history of a retune is the decision record. `stripComments` leaves
+ * string bodies in place, so an assertion message that names the web palette as the remedy is
+ * caught too.
+ */
+describe('the app reads galleria, never semantic (#921)', () => {
+  it('no file under src names the web palette in code', () => {
+    const hits = codeLines()
+      .filter(([, t]) => /\bsemantic\b/.test(t))
+      .map(([where, t]) => `${where}  ${t.trim()}`);
+    expect(
+      hits,
+      'apps/native reads `galleria` from @athanor/config. `semantic` is the web palette, and ' +
+        'the same key exists on `galleria` (rule 4, docs/DESIGN.md §3).',
+    ).toEqual([]);
+  });
+
+  it('…and the palette it does read is still read somewhere', () => {
+    // The walk above also passes on a tree that went back to literals or reads no token at all.
+    expect(codeLines().some(([, t]) => /\bgalleria\.[a-zA-Z]/.test(t))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 47 — the cyan pill stands on the five celebration screens and nowhere else (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half (Marco's ruling, 2026-10-03): cyan is a small mark, never an action
+ * colour, and a test holds the list of places it may stand. One pill is cyan — `Button`'s
+ * `celebration` variant — and it belongs to the five celebration screens: match, new level,
+ * favour done, candidacy sent, contribution thanks (DESIGN §2.3, §9). On any other screen it
+ * type-checks, lints and renders, as the action colour the rule retired.
+ *
+ * Two halves, because either one alone can be walked around. The CALL SITES are an exact set of
+ * files, as `GLOW_SURFACES` is above; and the COMPONENT may put cyan in that one variant only,
+ * or a retune of `primary` would turn every other pill in the app cyan under a green allowlist.
+ *
+ * What this does not pin: a hand-rolled `bg-aura` Pressable is not a `Button`, and the screens
+ * still carry some. Each leaves with its own screen's conversion (#921, open as of 2026-10-04),
+ * and the last of those owes the whole-tree cyan list.
+ */
+
+/**
+ * The top-level entries of the object literal assigned to `const <name>`, as `key → body text`.
+ * Naive on purpose: it walks braces and quotes, which is all a table of class strings needs.
+ */
+function objectEntries(src: string, name: string): Record<string, string> {
+  const at = src.indexOf(`const ${name}`);
+  const open = at === -1 ? -1 : src.indexOf('= {', at);
+  if (open === -1) return {};
+  const entries: Record<string, string> = {};
+  let depth = 0;
+  let quote = '';
+  let start = open + 3;
+  for (let i = open + 2; i < src.length; i += 1) {
+    const c = src[i] as string;
+    if (quote) {
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c;
+    else if (c === '{') depth += 1;
+    else if (c === '}') depth -= 1;
+    if ((c === ',' && depth === 1) || depth === 0) {
+      const entry = src.slice(start, i).match(/^\s*([A-Za-z_$][\w$]*)\s*:\s*([\s\S]*)$/);
+      if (entry) entries[entry[1] as string] = entry[2] as string;
+      start = i + 1;
+      if (depth === 0) break;
+    }
+  }
+  return entries;
+}
+
+describe('the cyan pill stands on the five celebration screens and nowhere else (#921)', () => {
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+
+  const BUTTON = `${SRC}components/Button.tsx`;
+
+  /** Every `<Button>` the app renders, with the raw text of its opening tag. */
+  const buttons = () =>
+    FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => t.base === 'Button')
+        .map((t) => ({ at: `${rel(p).replace('apps/native/src/', '')}:${t.line}`, raw: t.raw })),
+    );
+
+  it('finds the Buttons it is walking', () => {
+    // A scanner that finds nothing passes both call-site assertions below. 107 on 2026-10-04.
+    expect(
+      buttons().length,
+      'no <Button> found at all — the walk is broken, not the tree',
+    ).toBeGreaterThan(80);
+  });
+
+  it('every Button names its variant as a literal, or takes the default', () => {
+    const computed = buttons()
+      .filter(({ raw }) => /\bvariant=\{/.test(raw))
+      .map(({ at }) => at);
+    expect(
+      computed,
+      'a `<Button variant={…}>` whose variant is computed:\n' +
+        'The list below reads call sites, so a pill whose variant is decided at run time is a ' +
+        'pill it cannot place. Branch on the JSX instead — two `<Button>`s, each with its own ' +
+        'literal `variant="…"`.',
+    ).toEqual([]);
+  });
+
+  it('the celebration variant is used on exactly the five celebration screens', () => {
+    const owners = [
+      ...new Set(
+        buttons()
+          .filter(({ raw }) => /\bvariant="celebration"/.test(raw))
+          .map(({ at }) => at.replace(/:\d+$/, '')),
+      ),
+    ].sort();
+    expect(
+      owners,
+      'The cyan pill belongs to the five celebration screens (rule 4; DESIGN §2.3, §9). A file ' +
+        'that is NEW here is cyan used as an action colour: the primary action is the white ' +
+        '`primary`, an action that makes a moment included. A file that is MISSING lost its ' +
+        'celebration pill, which is the one cyan control the look keeps.',
+    ).toEqual(CELEBRATION_SCREENS);
+  });
+
+  it('Button puts cyan in the celebration variant and in no other', () => {
+    const variants = objectEntries(stripComments(read(BUTTON)), 'VARIANT_CLASSES');
+    expect(
+      Object.keys(variants).length,
+      'VARIANT_CLASSES was not found in components/Button.tsx as an object literal — the ' +
+        'assertion below would pass on an empty table',
+    ).toBeGreaterThan(3);
+    const cyan = Object.entries(variants)
+      .filter(([, body]) => /aura/i.test(body))
+      .map(([variant]) => variant);
+    expect(
+      cyan,
+      'a Button variant other than `celebration` reads an `aura` class or token. Every call ' +
+        'site of that variant turns cyan with it, and the allowlist above stays green.',
+    ).toEqual(['celebration']);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 48 — a type class stands alone (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §4: a `type-*` class sets size, line height and face together, five of the nine set
+ * a tracking too, and the rule is unlayered, so it beats a Tailwind utility whatever the order
+ * in `className`. What a converted call site leaves beside it therefore fails in one of two
+ * silent ways:
+ *
+ *   - a size or a `leading-*` utility does nothing. It is dead, and it reads as if it were not;
+ *   - `type-body`, `type-small`, `type-label` and `type-quote` state NO tracking, so a
+ *     `tracking-*` left beside one of them still applies: the old letterspaced label, drawn at
+ *     the new size. `uppercase` survives the same way, and the mobile look has no uppercase
+ *     style (§4).
+ *
+ * A weight utility is the one neighbour that is meant to win («a row's title is `type-body
+ * font-medium`») — except beside `type-quote`, where the weight's upright face replaces the
+ * italic one and the dream register is gone.
+ *
+ * Read one string literal at a time. A class list split across `cn()` arguments is checked
+ * argument by argument, so a utility in a SIBLING argument is not seen: this catches the
+ * leftover in the string that was edited, which is the common case, not every composition.
+ */
+describe('a type class stands alone (#921)', () => {
+  const TYPE_CLASS = /(?<![\w-])type-(?:h1|title|h2|body|small|label|quote|num-m|num)(?![\w-])/;
+  const NEIGHBOURS: [RegExp, string][] = [
+    [/(?<![\w-])tracking-[\w[\].-]+/, 'a tracking utility'],
+    [/(?<![\w-])uppercase(?![\w-])/, '`uppercase`'],
+    [/(?<![\w-])leading-[\w[\].-]+/, 'a `leading-*` utility'],
+    [/(?<![\w-])text-(?:\[\d+(?:\.\d+)?px\]|xs|sm|base|lg|[2-9]?xl)(?![\w-])/, 'a size utility'],
+  ];
+  const WEIGHT =
+    /(?<![\w-])font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/;
+
+  /** Every string literal on a code line that carries a type class. */
+  const literals = () =>
+    CODE_LINES.filter(([p]) => !isTest(p)).flatMap(([p, ls]) =>
+      ls.flatMap((text, i) =>
+        [...text.matchAll(/(['"`])((?:(?!\1).)*)\1/g)]
+          .map((m) => m[2] as string)
+          .filter((classes) => TYPE_CLASS.test(classes))
+          .map((classes) => ({
+            at: `${rel(p).replace('apps/native/src/', '')}:${i + 1}`,
+            classes,
+          })),
+      ),
+    );
+
+  it('finds the type classes it is walking', () => {
+    // No call site used one before 2026-10-04, and a scanner that finds nothing passes below.
+    expect(
+      literals().length,
+      'no `type-*` class found in any string literal — the walk is broken, or the last call ' +
+        'site that used one is gone',
+    ).toBeGreaterThan(0);
+  });
+
+  it('no size, line-height, tracking or uppercase utility sits beside one', () => {
+    const hits = literals().flatMap(({ at, classes }) =>
+      NEIGHBOURS.filter(([re]) => re.test(classes)).map(
+        ([, what]) => `${at}  ${what} beside a type class: "${classes}"`,
+      ),
+    );
+    expect(
+      hits,
+      'a utility a type class makes dead, or one it fails to cancel:\n' +
+        'The class owns size, line height and tracking (DESIGN §4). Delete the utility; if the ' +
+        'text really needs another size, it is not that style — use the right `type-*` class ' +
+        'or one of the two fixed sizes §4 names, with no type class beside it.',
+    ).toEqual([]);
+  });
+
+  it('no weight utility sits beside type-quote', () => {
+    const hits = literals()
+      .filter(
+        ({ classes }) => /(?<![\w-])type-quote(?![\w-])/.test(classes) && WEIGHT.test(classes),
+      )
+      .map(({ at, classes }) => `${at}  "${classes}"`);
+    expect(
+      hits,
+      'a weight beside `type-quote`: on device a weight IS a font face, so it replaces the ' +
+        'italic one and the dream register reads as plain text (DESIGN §4).',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 49 — a press is spelled in one module, and its scale asks Reduce Motion (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §10: a press answers — a pill dims to 0.6 and scales to 0.98; a chip, a row or an icon
+ * dims — and under Reduce Motion a transition becomes an opacity cut. The CSS runtime cannot
+ * ask that question itself: `react-native-css@3.0.7` evaluates no `prefers-reduced-motion`
+ * media query (`testComparison` in its `native/conditions/media-query.ts` has no case for it,
+ * read 2026-10-04), so a `motion-safe:` variant is not a way to write it and a hand-typed
+ * `active:scale-*` scales for everyone. `lib/press.ts` is the one place the classes are
+ * spelled, and its `pillPress` takes the flag from `useReducedMotion()` as an argument, which
+ * `lib/press.test.ts` holds.
+ */
+describe('a press is spelled in one module, and its scale asks Reduce Motion (#921)', () => {
+  const HOME = ['apps/native/src/lib/press.ts', 'apps/native/src/lib/press.test.ts'];
+  const PRESS_CLASS = /(?<![\w-])active:(?:opacity|scale)-/;
+  const at = (where: string) => where.replace(/:\d+$/, '');
+
+  it('finds the press classes it is walking', () => {
+    expect(
+      codeLines().some(([where, t]) => at(where) === HOME[0] && PRESS_CLASS.test(t)),
+      'lib/press.ts no longer spells an `active:` class — the walk below passes on a tree ' +
+        'where nothing answers a press',
+    ).toBe(true);
+  });
+
+  it('no file spells a press class of its own', () => {
+    const hits = codeLines()
+      .filter(([where, t]) => !HOME.includes(at(where)) && PRESS_CLASS.test(t))
+      .map(([where, t]) => `${where}  ${t.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      'an `active:opacity-*` or `active:scale-*` written at a call site:\n' +
+        'Take `PRESS_DIM` (a chip, a row, an icon, a text link) or `pillPress(reduceMotion)` ' +
+        '(a pill) from `@/lib/press`. A scale typed here ignores Reduce Motion, and a second ' +
+        'dim value is a second pressed look (DESIGN §10).',
+    ).toEqual([]);
+  });
+
+  it('nobody answers the Reduce Motion question with a constant', () => {
+    const hits = codeLines()
+      .filter(
+        ([where, t]) => !HOME.includes(at(where)) && /\bpillPress\(\s*(?:true|false)\s*\)/.test(t),
+      )
+      .map(([where, t]) => `${where}  ${t.trim().slice(0, 100)}`);
+    expect(
+      hits,
+      "`pillPress(true|false)`: the argument is the member's setting, from " +
+        '`useReducedMotion()` (`@/hooks/use-reduced-motion`), never a literal.',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// 50 — chips, tags and fields keep the Galleria shape (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * DESIGN §9 on the primitives every form and every filter is built from: `Chip`, `Tag`, `Input`
+ * and `Field`. Each line below is a look that fails silently — the control still works, it is
+ * only wrong — and each was the shipped look until 2026-10-04:
+ *
+ *   - **No cyan.** A selected chip is the foreground fill. Rule 4 keeps `aura` off every
+ *     selected state, and a chip was the most common one (`bg-aura-soft` + `border-aura-line`).
+ *   - **No fill on a chip or a tag at rest.** The `raise-2` fill is the surface on which the
+ *     secondary grey is 3.85:1 (`contrast.test.ts`); a quiet `Tag` on no fill reads on the
+ *     stage or on a block, where that grey clears AA. A fill coming back brings the failure
+ *     with it.
+ *   - **A chip is 32pt tall and its target is 44.** `min-h`, so a large text size grows it, and
+ *     `hitSlop` for the rest: §10's floor is on the target, not on the drawing.
+ *   - **A press always answers.** `PRESS_DIM` sits in the class list unconditionally: an
+ *     `active:` class that appears after the first render remounts the children
+ *     (`lib/press.ts` says where that was read).
+ *   - **A field is a 50pt `surface` pill with no border at rest.** The border is there, in
+ *     `transparent`, so focus and error colour it without moving the text by a pixel.
+ *   - **A field's vertical padding is physical.** `py-*` compiles to `padding-block`, and a
+ *     multi-line iOS `TextInput` draws its text as if that were absent: 8pt higher than with
+ *     `pt-`/`pb-` on an iPhone SE simulator (2026-10-04; `Input`'s docblock has the figures).
+ *     It is §40's finding on the other axis, held here for the two files that build fields.
+ */
+describe('chips, tags and fields keep the Galleria shape (#921)', () => {
+  const code = (f: string) => stripComments(read(`${SRC}components/${f}`));
+  const PRIMITIVES = ['Chip.tsx', 'Tag.tsx', 'Input.tsx', 'Field.tsx', 'LocaleChips.tsx'];
+
+  it('none of them names a cyan class', () => {
+    const hits = PRIMITIVES.flatMap((f) =>
+      [...code(f).matchAll(/(?<![\w-])(?:text|bg|border)-(?:aura|on-aura)[\w-]*/g)].map(
+        (m) => `components/${f}  ${m[0]}`,
+      ),
+    );
+    expect(
+      hits,
+      'cyan on a chip, a tag or a field: a selected chip is the foreground fill, a focused ' +
+        'field takes a foreground border (rule 4, DESIGN §9)',
+    ).toEqual([]);
+  });
+
+  it('a chip fills only when selected, and a tag never', () => {
+    const fills = (f: string) =>
+      [...code(f).matchAll(/(?<![\w-])bg-[\w-]+(?:\/\d+)?/g)].map((m) => m[0]);
+    expect(fills('Chip.tsx'), 'the selected chip is the one fill a chip has').toEqual([
+      'bg-foreground',
+    ]);
+    expect(fills('Tag.tsx'), 'a tag is a hairline pill with nothing behind its text').toEqual([]);
+  });
+
+  it('a chip is 32pt tall with a 14px label, and its target reaches 44pt', () => {
+    const chip = code('Chip.tsx');
+    expect(chip, 'the chip lost its `min-h-[32px]` floor').toMatch(/(?<![\w-])min-h-\[32px\]/);
+    expect(chip, 'a fixed height on a chip clips its label at a large text size').not.toMatch(
+      /(?<![\w-])h-\[\d+px\]/,
+    );
+    expect(chip, 'the chip label is the fixed 14px size (DESIGN §4)').toMatch(
+      /(?<![\w-])text-\[14px\]/,
+    );
+    const slop = chip.match(/top:\s*(\d+),\s*bottom:\s*(\d+)/);
+    expect(slop, 'the chip lost its vertical `hitSlop`').not.toBeNull();
+    expect(chip, 'the slop is declared but not handed to the Pressable').toMatch(/\bhitSlop=\{/);
+    expect(
+      32 + Number(slop?.[1]) + Number(slop?.[2]),
+      'a 32pt chip and its vertical slop must make the 44pt target (DESIGN §10)',
+    ).toBeGreaterThanOrEqual(44);
+  });
+
+  it('a tag draws the same pill as a chip, at the same label size', () => {
+    const tag = code('Tag.tsx');
+    expect(tag).toMatch(/(?<![\w-])min-h-\[32px\]/);
+    expect(tag).toMatch(/(?<![\w-])text-\[14px\]/);
+  });
+
+  it('a chip always carries the pressed state', () => {
+    const chip = code('Chip.tsx');
+    expect(chip, 'the chip does not take `PRESS_DIM` from lib/press').toMatch(
+      /import \{[^}]*\bPRESS_DIM\b[^}]*\} from '@\/lib\/press'/,
+    );
+    expect(
+      chip.match(/(?:&&|\?|:)\s*PRESS_DIM\b/),
+      'a conditional `PRESS_DIM`: the class must be there from the first render',
+    ).toBeNull();
+    expect(chip, '`PRESS_DIM` is imported and never put in a class list').toMatch(
+      /[(,]\s*PRESS_DIM\s*[,)]/,
+    );
+  });
+
+  it.each(['Input.tsx', 'Field.tsx'])(
+    '%s is a 50pt surface pill with a border that only shows on focus or error',
+    (f) => {
+      const src = code(f);
+      expect(src, 'the field lost its `min-h-[50px]` floor').toMatch(/(?<![\w-])min-h-\[50px\]/);
+      expect(src, 'the field fills with `surface`').toMatch(/(?<![\w-])bg-surface(?![\w-])/);
+      expect(src, 'a legacy fill on the field').not.toMatch(/(?<![\w-])bg-raise/);
+      expect(src, 'the rest border is transparent, so focus moves nothing').toMatch(
+        /(?<![\w-])border-transparent(?![\w-])/,
+      );
+      expect(src, 'a hairline at rest: the Galleria field has no rest border').not.toMatch(
+        /(?<![\w-])border-hair(?![\w-])/,
+      );
+    },
+  );
+
+  it('the files that build fields spell vertical padding physically', () => {
+    const hits = ['Input.tsx', 'Field.tsx'].flatMap((f) => {
+      const src = code(f);
+      return [...src.matchAll(/(['"`])((?:(?!\1)[^\\\n])*)\1/g)].flatMap((lit) =>
+        [...(lit[2] as string).matchAll(/(?<![\w-])-?(?:py|my)-[\w[\].]+/g)].map(
+          (m) => `components/${f}:${src.slice(0, lit.index).split('\n').length}  ${m[0]}`,
+        ),
+      );
+    });
+    expect(
+      hits,
+      'use `pt-N pb-N`: a multi-line iOS TextInput draws its text as if `py-N` were not there',
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the shared surfaces and text primitives (#921, 2026-10-04).
+ *
+ * Cyan is five marks (DESIGN §2.3). Two of them pass through a shared component: the member's
+ * own Aura numeral (`AuraValue`) and the one-line label of a celebration screen (`SectionLabel
+ * tone="celebration"`). Everything else these components draw is white or grey — a progress
+ * fill, a step, a toast's mark, a spinner, a pull-to-refresh tint — and none of it glows or
+ * turns green. Each of those type-checks, lints and renders in cyan, which is how the action
+ * colour would come back: one component at a time, on every screen that mounts it.
+ */
+describe('surfaces and text primitives keep the Galleria look (#921)', () => {
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+
+  /** The shared components that carry no cyan, no green and no glow at all. */
+  const PLAIN = [
+    'Avatar',
+    'Card',
+    'DreamQuote',
+    'EmptyState',
+    'ListState',
+    'LoadingScreen',
+    'Mandorla',
+    'MandorlaMark',
+    'ProgressBar',
+    'RecoverySent',
+    'Screen',
+    'ShimmerBar',
+    'StatLine',
+    'StepBars',
+    'StepDots',
+    'SuspendedNotice',
+    'Toast',
+  ];
+
+  const component = (name: string) => stripComments(read(`${SRC}components/${name}.tsx`));
+
+  /** Every opening tag of `base` in the app, with the file it stands in. */
+  const tags = (base: string) =>
+    FILES.filter((p) => !isTest(p) && p.endsWith('.tsx')).flatMap((p) =>
+      jsxOpeningTags(stripComments(read(p)))
+        .filter((t) => t.base === base)
+        .map((t) => ({
+          file: rel(p).replace('apps/native/src/', ''),
+          at: `${rel(p).replace('apps/native/src/', '')}:${t.line}`,
+          raw: t.raw,
+        })),
+    );
+
+  it('finds the tags it is walking', () => {
+    // A scanner that finds nothing passes every call-site assertion below. On 2026-10-04:
+    // 111 labels, 26 spinners, 5 refresh controls.
+    expect(tags('SectionLabel').length, 'no <SectionLabel> found').toBeGreaterThan(80);
+    expect(tags('ActivityIndicator').length, 'no <ActivityIndicator> found').toBeGreaterThan(15);
+    expect(tags('RefreshControl').length, 'no <RefreshControl> found').toBeGreaterThan(2);
+  });
+
+  it('none of the plain components names cyan, green or the glow', () => {
+    const hits = PLAIN.filter((name) =>
+      /(?<![\w-])(?:text|bg|border)-(?:aura|success)|galleria\.(?:aura|success)|auraGlow/.test(
+        component(name),
+      ),
+    );
+    expect(
+      hits,
+      'a shared surface or text primitive reads `aura`, `success` or `auraGlow()`. Every screen ' +
+        'that mounts it turns cyan, green or glowing with it. A fill, a step and a mark are ' +
+        '`foreground`; what is not lit is `hair`; a confirmation is a ✓ and words (DESIGN §2.3).',
+    ).toEqual([]);
+  });
+
+  it('SectionLabel is the label style, and cyan only in its celebration tone', () => {
+    const src = component('SectionLabel');
+    expect(src, 'the label is `type-label`').toMatch(/(['"])type-label\1/);
+    const tones = objectEntries(src, 'TONE');
+    expect(
+      Object.keys(tones).sort(),
+      'SectionLabel has two tones: the plain grey label and the celebration one',
+    ).toEqual(['celebration', 'plain']);
+    expect(tones.plain, 'the plain label is the secondary grey').toMatch(/text-muted-foreground/);
+    expect(tones.plain, 'the plain label is not cyan').not.toMatch(/aura/);
+  });
+
+  it('a label names its tone as a literal, and only a celebration screen takes the cyan one', () => {
+    const labels = tags('SectionLabel');
+    expect(
+      labels.filter(({ raw }) => /\btone=\{/.test(raw)).map(({ at }) => at),
+      'a `<SectionLabel tone={…}>` whose tone is computed: the list below cannot place it',
+    ).toEqual([]);
+    expect(
+      labels.filter(({ raw }) => /\btone="(?!celebration")/.test(raw)).map(({ at }) => at),
+      'a tone the label no longer has. A section label is plain grey: drop the prop.',
+    ).toEqual([]);
+    const owners = [
+      ...new Set(
+        labels.filter(({ raw }) => /\btone="celebration"/.test(raw)).map(({ file }) => file),
+      ),
+    ].sort();
+    expect(
+      owners,
+      'The cyan label is the one line above the title of a celebration screen (rule 4; DESIGN ' +
+        '§2.3). A file that is NEW here is cyan used as an eyebrow: the label is grey. A file ' +
+        'that is MISSING lost the label the look keeps cyan.',
+    ).toEqual(CELEBRATION_SCREENS);
+  });
+
+  it('a spinner and a pull-to-refresh tint are never cyan', () => {
+    const cyan = [...tags('ActivityIndicator'), ...tags('RefreshControl')]
+      .filter(({ raw }) => /galleria\.aura/.test(raw))
+      .map(({ at }) => at);
+    expect(
+      cyan,
+      'a spinner or a refresh tint in `aura`: waiting is not one of the five cyan marks ' +
+        '(DESIGN §2.3). Use `galleria.foreground`, or `galleria.foregroundMuted` where the ' +
+        'spinner is the quietest thing on the screen.',
+    ).toEqual([]);
+  });
+
+  it('the avatar has five sizes', () => {
+    const src = component('Avatar');
+    // `objectEntries` reads identifier keys; this table's keys are numbers.
+    const table = src.match(/const INITIAL_SIZE = \{([^}]*)\}/)?.[1] ?? '';
+    const sizes = [...table.matchAll(/(\d+)\s*:/g)].map((m) => Number(m[1]));
+    // The story ring held a sixth, 60, until its screen converted (2026-10-05); its disc is 56.
+    expect(sizes, 'the avatar sizes of DESIGN §9').toEqual([30, 44, 56, 72, 104]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the grouped rows and the switch (#921, 2026-10-04).
+ *
+ * A list is rows inside one `surface` block (DESIGN §9 «Grouped rows»): `RowGroup` draws the
+ * block and the hairlines, `Row` draws a row. A toggle is the app's own `Switch` (§9), a
+ * `Pressable` with the `switch` role: the platform switch takes its colours as props from every
+ * call site, which is seven places to turn cyan again. These pin the shapes a walk would otherwise have to re-measure, and the two things that
+ * bring the old look back: a second row component, and a platform switch.
+ */
+describe('grouped rows and the switch keep the Galleria shape (#921)', () => {
+  const component = (name: string) => stripComments(read(`${SRC}components/${name}.tsx`));
+  const appCode = () =>
+    FILES.filter((p) => !isTest(p)).map((p) => [rel(p), stripComments(read(p))] as const);
+
+  it('the switch is a 46×28 pressable with the switch role and a 44pt target', () => {
+    const src = component('Switch');
+    expect(src, 'the role').toMatch(/accessibilityRole="switch"/);
+    expect(src, 'the checked state').toMatch(/accessibilityState=\{\{[^}]*\bchecked\b/);
+    expect(src, '46 wide').toMatch(/w-\[46px\]/);
+    expect(src, '28 tall').toMatch(/(?<![\w-])h-7(?![\w-])/);
+    // 28 + 8 + 8 = 44 (DESIGN §10). The width is already past the floor.
+    expect(src, 'hitSlop makes up the height').toMatch(/SWITCH_SLOP = \{ top: 8, bottom: 8 \}/);
+    expect(src, 'and the control takes it').toMatch(/hitSlop=\{SWITCH_SLOP\}/);
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(src, 'it names itself: the prop is required').toMatch(/accessibilityLabel: string/);
+  });
+
+  it('the switch is white when on, a grey outline when off, and never cyan', () => {
+    const src = component('Switch');
+    expect(src, 'on = a foreground track').toMatch(/bg-foreground/);
+    expect(src, 'on = a background knob').toMatch(/bg-background/);
+    expect(src, 'off = a secondary-grey outline').toMatch(/border-muted-foreground/);
+    expect(src, 'off = a grey knob').toMatch(/bg-muted-foreground/);
+    expect(src, 'no cyan, no green, no glow, no colour read in TS').not.toMatch(
+      /aura|success|galleria\./,
+    );
+  });
+
+  it('nothing imports the platform switch', () => {
+    const hits = appCode()
+      .filter(([, src]) => /import\s*\{[^}]*\bSwitch\b[^}]*\}\s*from\s*'react-native'/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the platform `Switch` takes its colours from the call site. Import `Switch` from ' +
+        '`@/components/Switch` (DESIGN §9).',
+    ).toEqual([]);
+  });
+
+  it('a row is one 60pt button with a 17/500 title and a 15 grey second line', () => {
+    const src = component('Row');
+    expect(src, 'min-h 60, never a fixed height').toMatch(/(?<![\w-])min-h-15(?![\w-])/);
+    expect(src, 'the title').toMatch(/type-body font-medium/);
+    expect(src, 'the second line and the value').toMatch(/type-small text-muted-foreground/);
+    expect(src, 'a destructive title is the error red').toMatch(/text-error/);
+    expect(src, 'one accessible control: a button, or a switch when it is `checked`').toMatch(
+      /accessibilityRole=\{isSwitch \? 'switch' : 'button'\}/,
+    );
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(
+      src.match(/numberOfLines=\{[^}]*\}/g)?.sort(),
+      'a long title, value or second line wraps unless the call site asks for a clamp',
+    ).toEqual(['numberOfLines={descriptionLines}', 'numberOfLines={titleLines}']);
+    expect(src, 'no cyan').not.toMatch(/aura/);
+  });
+
+  it('a row takes a leading element, 12 from its text, and draws it first', () => {
+    const src = component('Row');
+    expect(src, 'the slot takes any element, as `trailing` does').toMatch(/leading\?: ReactNode;/);
+    const shape = /const shape = '([^']*)'/.exec(src)?.[1] ?? '';
+    expect(shape.split(' '), 'the row’s one gap is the prototype’s 12').toContain('gap-3');
+    expect(
+      src.replace(/\s+/g, ' '),
+      'the leading element is the first child of the row, at every text size',
+    ).toMatch(/const body = \( <> \{leading\} <View className=\{stacked \?/);
+    expect(src, 'the row does not know what it leads with').not.toMatch(/\bAvatar\b/);
+    expect(src, 'a second line may be an element with its own register').toMatch(
+      /description\?: ReactNode;/,
+    );
+  });
+
+  it('an avatar leading a row that acts is decorative: the row says the name', () => {
+    const led = appCode().flatMap(([at, src]) =>
+      jsxOpeningTags(src)
+        .filter((t) => t.base === 'Row' && /\bleading=\{/.test(t.raw))
+        .map((t) => ({ at: `${at}:${t.line}`, raw: t.raw })),
+    );
+    // A scanner that finds nothing passes the assertion below.
+    expect(led.length, 'no `<Row leading=` found at all').toBeGreaterThanOrEqual(2);
+    const spoken = led
+      .filter((t) => /\bonPress=\{/.test(t.raw) && /<Avatar\b/.test(t.raw))
+      .filter((t) => !/<Avatar\b[^>]*?\sdecorative(?=[\s/>])/.test(t.raw))
+      .map((t) => t.at);
+    expect(
+      spoken,
+      'a pressable `Row` is one button named by its label; a labelled `Avatar` in its ' +
+        '`leading` says the name a second time (#884). Pass `decorative`.',
+    ).toEqual([]);
+  });
+
+  it('a row that is the toggle carries the role and the state, and draws the switch inert', () => {
+    const src = component('Row').replace(/\s+/g, ' ');
+    expect(src, 'the form is asked for by `checked`').toMatch(/checked: boolean;/);
+    expect(src, 'the state is the row’s').toMatch(
+      /accessibilityState=\{isSwitch \? \{ checked \} : undefined\}/,
+    );
+    expect(src, 'a string second line is the hint (#635: the «why» under the «what»)').toMatch(
+      /accessibilityHint=\{isSwitch && typeof description === 'string' \? description : undefined\}/,
+    );
+    // One tap anywhere flips it once (#748): the drawn switch takes no touch and is not a second
+    // element for a screen reader, and it has no `onValueChange` of its own.
+    expect(src, 'the switch is hidden, touch-inert and only draws the state').toMatch(
+      /<View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" > <Switch accessibilityLabel=\{accessibilityLabel \?\? title\} value=\{checked\} \/> <\/View>/,
+    );
+    expect(src, 'a toggle has no chevron').toMatch(/showChevron && onPress != null && !isSwitch/);
+  });
+
+  it('no file builds a row that is a switch by hand', () => {
+    const OWNERS = ['components/Switch.tsx', 'components/Row.tsx'];
+    const hits = appCode()
+      .filter(([at]) => !OWNERS.some((o) => at.endsWith(o)))
+      // The literal and the expression forms: `Row` itself spells it `{isSwitch ? 'switch' : …}`
+      // (Greptile, PR 941).
+      .filter(([, src]) => /accessibilityRole=(?:"switch"|\{[^}]*['"`]switch['"`])/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the switch role typed in a screen: a toggle beside its text is `Switch` in a row’s ' +
+        '`trailing`, and a row that is the toggle is `<Row checked={…} onPress={…} />` ' +
+        '(DESIGN §9 «Grouped rows»)',
+    ).toEqual([]);
+  });
+
+  it('no file builds the row by hand', () => {
+    const hits = appCode()
+      .filter(([at]) => !at.endsWith('components/Row.tsx'))
+      .filter(([, src]) => /(?<![\w-])min-h-15 flex-row items-center/.test(src))
+      .map(([at]) => at);
+    expect(
+      hits,
+      'the row recipe written out in a second file: `Row` takes a `leading` element, a ' +
+        '`trailing` one and line clamps (DESIGN §9 «Grouped rows»)',
+    ).toEqual([]);
+  });
+
+  it('a group is one borderless surface block, radius 28, with hairlines between rows', () => {
+    const src = component('RowGroup');
+    expect(src, 'radius 28').toMatch(/rounded-\[28px\]/);
+    expect(src, 'the surface fill').toMatch(/bg-surface(?![\w-])/);
+    expect(src, 'the hairline between rows').toMatch(/bg-hair/);
+    expect(src, 'no border on the block, no legacy fill').not.toMatch(/border-hair|bg-raise/);
+  });
+
+  it('there is one row component', () => {
+    const hits = FILES.map((p) => [rel(p), stripComments(read(p))] as const)
+      .filter(([, src]) => /\bSettings(?:Group|Row)\b/.test(src))
+      .map(([at]) => at);
+    expect(hits, '`SettingsGroup` / `SettingsRow` became `RowGroup` / `Row`').toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// icons, header controls and the tab bar (#921)
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Rule 4, mobile half, for the icons, the header controls and the tab bar (#921, 2026-10-04).
+ *
+ * One drawn icon set at one stroke (DESIGN §6 «Interface icons»): the nine interface icons
+ * live in `components/glyphs.tsx` beside the tab glyphs, and every drawing there takes its
+ * stroke from one constant. A header's back and close are those drawings inside one 44pt
+ * control (`HeaderBack`, `HeaderClose` in `components/ModalHeader.tsx`), never a typed
+ * character. The tab bar is black under a hairline, and a waiting Momento is an 8px cyan dot
+ * on the Momenti glyph (§9 «Tab bar»), the only cyan in the bar.
+ */
+describe('icons, header controls and the tab bar keep the Galleria shape (#921)', () => {
+  const glyphs = () => stripComments(read(`${SRC}components/glyphs.tsx`));
+  const header = () => stripComments(read(`${SRC}components/ModalHeader.tsx`));
+  const tabs = () => stripComments(read(`${SRC}app/(tabs)/_layout.tsx`));
+  const INTERFACE = ['add', 'back', 'clock', 'close', 'more', 'people', 'pin', 'send', 'share'];
+
+  it('every drawing takes the one 1.8 stroke', () => {
+    const src = glyphs();
+    expect(src, 'the stroke, stated once').toMatch(/const STROKE = 1\.8;/);
+    expect(
+      src.match(/strokeWidth\b[^,\n]*/g),
+      'a `strokeWidth` that is not the constant: header icons drew at 2 until Galleria',
+    ).toEqual(['strokeWidth: STROKE']);
+  });
+
+  it('the interface icons are the nine of DESIGN §6', () => {
+    const table = /export const INTERFACE_ICONS = \{([^}]*)\}/.exec(glyphs())?.[1] ?? '';
+    const names = [...table.matchAll(/(\w+):/g)].map((m) => m[1]).sort();
+    expect(names).toEqual(INTERFACE);
+  });
+
+  it('the Profilo tab is the person, not the meridian sphere', () => {
+    const body = /export function ProfiloGlyph[\s\S]*?\n\}/.exec(glyphs())?.[0] ?? '';
+    expect(body, 'a head').toMatch(/<Circle cx=\{12\} cy=\{8\.5\} r=\{3\.6\}/);
+    expect(body, 'over a shoulder arc').toMatch(/<Path d="M4\.5 20a7\.5 7\.5 0 0 1 15 0"/);
+    expect(body, 'no meridian').not.toMatch(/Ellipse|<Line/);
+  });
+
+  it('a header control is a drawing in a 44pt labelled button, never a typed character', () => {
+    const src = header();
+    expect(src, 'a typed back or close').not.toMatch(/[‹›✕×]/);
+    for (const name of ['HeaderBack', 'HeaderClose']) {
+      expect(src, `${name} is exported`).toMatch(new RegExp(`export function ${name}\\(`));
+    }
+    expect(src, 'the drawn back').toMatch(/<BackIcon\b/);
+    expect(src, 'the drawn close').toMatch(/<CloseIcon\b/);
+    const box = /const ICON_BUTTON =\s*'([^']*)'/.exec(src)?.[1] ?? '';
+    expect(box, 'the 44pt box (DESIGN §10)').toMatch(/min-h-\[44px\] min-w-\[44px\]/);
+    expect(src, 'the press is the shared dim').toMatch(/\bPRESS_DIM\b/);
+    expect(src, 'the label is required').toMatch(/label: string/);
+    expect(src, 'the role').toMatch(/accessibilityRole="button"/);
+    expect(src, 'the drawing is silent on iOS').toMatch(/accessibilityElementsHidden/);
+    expect(src, 'and on Android').toMatch(/importantForAccessibility="no-hide-descendants"/);
+  });
+
+  it('the header band is the prototype’s `.top`: the title in `type-title`, 8 between its parts', () => {
+    const src = header();
+    expect(
+      /const titleClass = compact\s*\?\s*'[^']*'\s*:\s*'([^']*)'/.exec(src)?.[1],
+      'the title of a pushed screen or a sheet (DESIGN §6 «Screen headers»); the compact one is chat’s',
+    ).toBe('type-title text-foreground');
+    expect(src, 'a named size: 21px at the compiler’s rem of 14, not 24').not.toMatch(
+      /\btext-2xl\b/,
+    );
+    const band = /<View className="(flex-row items-center [^"]*px-gutter[^"]*)">/.exec(src)?.[1];
+    expect(band?.split(' '), 'the band’s gap is 8 (`.top { gap: 8px }`)').toContain('gap-2');
+  });
+
+  it('no screen hand-rolls the back control', () => {
+    const hits = codeLines()
+      .filter(([where]) => !/\.test\.tsx?:/.test(where))
+      .filter(([, text]) => /‹/.test(text))
+      .map(([where]) => where.replace('apps/native/src/', '').replace(/:\d+$/, ''));
+    expect(
+      hits,
+      'a typed `‹`: the back control is `HeaderBack` from `@/components/ModalHeader`',
+    ).toEqual([]);
+  });
+
+  it('the tab bar is black under a hairline, white when selected', () => {
+    const src = tabs().replace(/\s+/g, ' ');
+    expect(src, 'the ground').toMatch(/backgroundColor: galleria\.background\b/);
+    expect(src, 'the hairline colour').toMatch(/borderTopColor: galleria\.hair\b/);
+    expect(src, 'the hairline').toMatch(/borderTopWidth: 1\b/);
+    expect(src, 'selected = foreground').toMatch(/tabBarActiveTintColor: galleria\.foreground\b/);
+    expect(src, 'the rest = the one secondary').toMatch(
+      /tabBarInactiveTintColor: galleria\.foregroundMuted\b/,
+    );
+    expect(src, 'the glyph is 24').toMatch(/const TAB_GLYPH = 24;/);
+    expect(src.match(/size=\{TAB_GLYPH\}/g), 'on all five tabs').toHaveLength(5);
+  });
+
+  it('a waiting Momento is an 8px cyan dot, the only cyan in the bar', () => {
+    const src = tabs();
+    expect(src, 'no navigator badge: it was the ✦ character').not.toMatch(/tabBarBadge|✦/);
+    expect(src, 'the dot').toMatch(/h-2 w-2 rounded-full bg-aura/);
+    expect(src.match(/aura/g), 'one cyan, and none read in TS').toHaveLength(1);
+    // The dot stands only while a Momento waits, and the tab says so in words in the same case.
+    const flat = src.replace(/\s+/g, ' ');
+    expect(flat, 'waiting = the deck is not empty').toMatch(
+      /const hasUnseen = \(deck\.data\?\.length \?\? 0\) > 0;/,
+    );
+    expect(flat, 'no dot when nothing waits').toMatch(
+      /\{hasUnseen \? \( <View className="[^"]*\bbg-aura\b[^"]*" \/> \) : null\}/,
+    );
+    expect(flat, 'the label follows the same flag').toMatch(
+      /tabBarAccessibilityLabel: hasUnseen \? t\('tabs\.a11y\.momentiUnread', locale\) : t\('tabs\.momenti', locale\)/,
+    );
+  });
+});
+
+/*
+ * The entry screens (#921, the first screen chunk): what a person sees before they are a member,
+ * and the four screens the boot can stop on. None of them is a celebration, so none carries cyan
+ * (DESIGN §2.3 lists the five marks, and none stands here), and the mobile look has no green.
+ * `BrandSplash` is the one exception by ruling: the splash animation stays as it was, only the
+ * ground under it went black.
+ */
+describe('the entry screens keep the Galleria look (#921)', () => {
+  const ENTRY_ROUTES = [
+    'app/(auth)/_layout.tsx',
+    'app/(auth)/forgot-password.tsx',
+    'app/(auth)/welcome.tsx',
+    'app/(modal)/new-password.tsx',
+    'app/(onboarding)/_layout.tsx',
+    'app/(onboarding)/handle.tsx',
+    'app/(onboarding)/index.tsx',
+    'app/+not-found.tsx',
+    'app/[handle].tsx',
+    'app/auth-callback.tsx',
+    'app/invite/[code].tsx',
+    'app/momento/[id].tsx',
+  ];
+  const BOOT = FILES.filter((p) => !isTest(p) && p.includes('/components/boot/')).map((p) =>
+    rel(p).replace('apps/native/src/', ''),
+  );
+  /** Ruling 6: the splash animation keeps its colours. */
+  const SPLASH = 'components/boot/BrandSplash.tsx';
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** A colour class or a token read; `result.success` and the word in prose are neither. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border)-(?:aura|success)\b|\bgalleria\.(?:aura|success)\w*|\bauraGlow\b/;
+
+  it('the boot folder is the ten files this section was written against', () => {
+    expect(BOOT.sort()).toEqual([
+      'components/boot/AppErrorScreen.tsx',
+      'components/boot/BootGate.tsx',
+      'components/boot/BrandSplash.tsx',
+      'components/boot/CrashTrailGate.tsx',
+      'components/boot/ForceUpdateScreen.tsx',
+      'components/boot/MaintenanceScreen.tsx',
+      'components/boot/NotificationRouter.tsx',
+      'components/boot/ProfileErrorScreen.tsx',
+      'components/boot/PushPermissionAsk.tsx',
+      'components/boot/SentryConsentGate.tsx',
+    ]);
+  });
+
+  it('no entry screen carries cyan, green or a glow', () => {
+    const hits = [
+      ...ENTRY_ROUTES,
+      ...BOOT.filter((f) => f !== SPLASH),
+      'components/profile/HandleField.tsx',
+    ]
+      .filter((file) => CYAN_OR_GREEN.test(code(file)))
+      .sort();
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3) and none is an entry screen; green left the mobile palette',
+    ).toEqual([]);
+  });
+
+  it('the splash is the only boot file that reads cyan', () => {
+    expect(BOOT.filter((file) => /galleria\.aura\b/.test(code(file)))).toEqual([SPLASH]);
+  });
+
+  it('a boot screen draws the outline mandorla, not the vertical lens', () => {
+    const lens = BOOT.filter((file) => /@\/components\/Mandorla'/.test(code(file)));
+    expect(lens, '`Mandorla` frames an avatar or a ✦; a state screen takes `MandorlaMark`').toEqual(
+      [],
+    );
+    const marked = BOOT.filter((file) => /<MandorlaMark\b/.test(code(file))).sort();
+    expect(marked).toEqual([
+      'components/boot/AppErrorScreen.tsx',
+      'components/boot/ForceUpdateScreen.tsx',
+      'components/boot/MaintenanceScreen.tsx',
+      'components/boot/ProfileErrorScreen.tsx',
+    ]);
+  });
+
+  it('an entry screen sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE = /(?<![\w-])(?:leading-[\w[\].-]+|rounded-(?:card|hero|ctl)\b|bg-raise\b)/;
+    const hits = [
+      ...ENTRY_ROUTES,
+      ...BOOT.filter((f) => f !== SPLASH),
+      'components/profile/HandleField.tsx',
+    ]
+      .filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)))
+      .sort();
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits nothing',
+    ).toEqual([]);
+  });
+});
+
+/*
+ * The Home tab (#921, the second screen chunk). The prototype draws ONE bordered card here, the
+ * waiting Momento, and everything else as bare blocks or grouped rows (Marco, 2026-10-05: the
+ * blocks it does not draw are borderless too). Cyan stands once on this screen: the 8px dot
+ * beside «Hai un Momento» (DESIGN §2.3). The fund block shows days, not seconds, so it carries
+ * none; the bell's unread dot is foreground; the member's Aura numeral is not on Home.
+ * `live/EventRow` under «In arrivo» is not in this list: it converts with Athanor Live.
+ */
+describe('the Home tab keeps the Galleria look (#921)', () => {
+  const HOME_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/home/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  /** `aura/WeekCard` has one caller, `home/WeekSlot`: it is Home's week block. */
+  const HOME = ['app/(tabs)/index.tsx', 'components/aura/WeekCard.tsx', ...HOME_FOLDER];
+  const MOMENTO = 'components/home/MomentiCard.tsx';
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the home folder is the nine files this section was written against', () => {
+    expect(HOME_FOLDER).toEqual([
+      'components/home/DreamHeroCard.tsx',
+      'components/home/FavorNudgeCard.tsx',
+      'components/home/HomeHeader.tsx',
+      'components/home/InviteCard.tsx',
+      'components/home/MomentiCard.tsx',
+      'components/home/PrimeStelleCard.tsx',
+      'components/home/StarsMiniRow.tsx',
+      'components/home/TodaySection.tsx',
+      'components/home/WeekSlot.tsx',
+    ]);
+  });
+
+  it('the one cyan on Home is the dot of the waiting Momento', () => {
+    const hits = HOME.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(hits, 'cyan is five marks (DESIGN §2.3); Home carries the first and no other').toEqual([
+      `${MOMENTO}  bg-aura`,
+    ]);
+  });
+
+  it('the one bordered card on Home is the waiting Momento', () => {
+    const carded = HOME.filter((file) => /<Card\b/.test(code(file)));
+    expect(carded, 'a screen has at most one bordered card (DESIGN §6)').toEqual([MOMENTO]);
+    const bordered = HOME.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(bordered, '`Card` brings the hairline; no Home file draws a border of its own').toEqual(
+      [],
+    );
+  });
+
+  it('a Home file sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm)\b|bg-raise(?:-2)?\b|text-faint\b)/;
+    const hits = HOME.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no Home file types a close, and the one typed chevron is the fund line’s', () => {
+    const typed = HOME.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'the close is the drawn `HeaderClose`; a row’s chevron is `Row`’s; the fund line ends on a ' +
+        '`›` that is part of its text, as the catalog’s «Scopri chi è ›» is',
+    ).toEqual(['components/home/DreamHeroCard.tsx  ›']);
+  });
+
+  it('every pressable on Home dims when pressed', () => {
+    const undimmed = HOME.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the three header controls are 44pt boxes, not a glyph with hitSlop', () => {
+    const header = code('components/home/HomeHeader.tsx');
+    expect(header).not.toMatch(/\bhitSlop\b/);
+    expect(header).toMatch(/min-h-\[44px\] min-w-\[44px\]/);
+  });
+
+  it('the stars and the invite are one group of rows', () => {
+    const screen = code('app/(tabs)/index.tsx').replace(/\s+/g, ' ');
+    expect(screen).toMatch(/<RowGroup> <StarsMiniRow\b[^]*?\/> <InviteCard\b[^]*?\/> <\/RowGroup>/);
+  });
+});
+
+/*
+ * The Community tab (#921, the third screen chunk). The prototype draws NO bordered card here:
+ * each post is a borderless `surface` block of its own (Marco, 2026-10-05). Cyan stands once,
+ * on «✦ Un passo del percorso» (DESIGN §2.3). The story ring and a lit star are foreground.
+ * `live/EventRow` under the «Eventi» filter and `media/MediaFrame` are not in this list:
+ * `EventRow` converts with Athanor Live, and the media section below holds `MediaFrame` (C14c).
+ */
+describe('the Community tab keeps the Galleria look (#921)', () => {
+  const FEED_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/feed/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const RING = 'components/stories/StoryRing.tsx';
+  const POST = 'components/feed/FeedPost.tsx';
+  const MEDIA = 'components/feed/PostMedia.tsx';
+  const SCREEN = 'app/(tabs)/community.tsx';
+  const COMMUNITY = [SCREEN, ...FEED_FOLDER, 'components/stories/StoryRail.tsx', RING];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the feed folder is the eight files this section was written against', () => {
+    expect(FEED_FOLDER).toEqual([
+      'components/feed/CategoryTabs.tsx',
+      'components/feed/Comment.tsx',
+      'components/feed/EventsFeedList.tsx',
+      'components/feed/FeedPost.tsx',
+      'components/feed/FeedSkeleton.tsx',
+      'components/feed/PostAuthorRow.tsx',
+      'components/feed/PostMedia.tsx',
+      'components/feed/ReactionStar.tsx',
+    ]);
+  });
+
+  it('the one cyan on Community is «✦ Un passo del percorso»', () => {
+    const hits = COMMUNITY.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); Community carries the third and no other',
+    ).toEqual([`${POST}  text-aura`]);
+    expect(code(POST), 'and it is on the step line').toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('feed\.flag\.step', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('Community has no bordered card', () => {
+    const carded = COMMUNITY.filter((file) => /<Card\b/.test(code(file)));
+    expect(carded, 'a post is a borderless block (DESIGN §8.3)').toEqual([]);
+    const bordered = COMMUNITY.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(
+      bordered,
+      'a hairline stands on a media tile and the audio pill, and on the story disc, its ring ' +
+        'and its badge; nowhere else',
+    ).toEqual([MEDIA, RING]);
+  });
+
+  it('a Community file sizes its text with a type class or a literal px, never a named size', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const hits = COMMUNITY.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured 2026-10-04, DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no Community file types a control: the add is the drawn icon', () => {
+    const typed = COMMUNITY.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'a typed `+`, `✕`, `×` or chevron as a control').toEqual([]);
+    for (const file of [SCREEN, RING]) {
+      expect(code(file), `${file} draws the add`).toMatch(/<AddIcon\b/);
+    }
+  });
+
+  it('every pressable on Community dims when pressed', () => {
+    const undimmed = COMMUNITY.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the title is h1 and the filters are chips', () => {
+    const screen = code(SCREEN);
+    expect(screen, 'tab roots are h1 (DESIGN §6 «Screen headers»)').toMatch(
+      /cn\('type-h1 text-foreground'/,
+    );
+    const tabs = code('components/feed/CategoryTabs.tsx');
+    expect(tabs, 'DESIGN §9 «Tabs (feed)»').toMatch(/<Chip\b/);
+    expect(tabs, 'no hand-rolled tab').not.toMatch(/<Pressable\b/);
+  });
+
+  it('a story to watch is a 2px foreground ring on a 56 disc', () => {
+    const ring = code(RING);
+    expect(ring).toMatch(/const DISC = 56;/);
+    expect(ring, 'the ring').toMatch(/absolute inset-0 rounded-full border-2 border-foreground/);
+    expect(ring, 'drawn only while unseen').toMatch(/\{seen \? null : \(/);
+  });
+
+  it('your own disc is the add only once it is known you have no live story', () => {
+    const ring = code(RING);
+    // `live` is `null` while the own-story read is out: the photo, neither add (Greptile, PR 936).
+    expect(ring).toMatch(/const adds = isYou && live === false;/);
+    expect(ring).toMatch(/\{isYou && live === true && onAddPress \? \(/);
+    expect(code(SCREEN)).toMatch(/live: myStoryQuery\.isLoading \? null : myHasLive,/);
+  });
+
+  it('a comment with no action draws no action row', () => {
+    expect(code('components/feed/Comment.tsx').replace(/\s+/g, ' ')).toMatch(
+      /\{onReply \|\| onDelete \? \( <View className=\{cn\('flex-row gap-4'/,
+    );
+  });
+
+  it('a lit star is foreground', () => {
+    expect(code('components/feed/ReactionStar.tsx')).toMatch(
+      /lit \? 'text-foreground' : 'text-muted-foreground'/,
+    );
+  });
+});
+
+/*
+ * The Momenti and Costellazioni tabs (#921, the fifth screen chunk). Momenti's one bordered card
+ * is the staging Momento; Costellazioni has none: the favour band is a `Row` and each project a
+ * borderless `surface` block (Marco, 2026-10-05). Cyan stands once, on the dot beside «Hai un
+ * Momento» (DESIGN §2.3). The swipe stamps are foreground and grey: no green, and passing is
+ * not an error. `costellazioni/FavorRow` is not in this list: its one caller is the favour
+ * sheet, and it converted with it on 2026-10-07 (the last section of this file holds it).
+ */
+describe('the Momenti and Costellazioni tabs keep the Galleria look (#921)', () => {
+  const folder = (name: string) =>
+    FILES.filter((p) => !isTest(p) && p.includes(`/components/${name}/`))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+  const MOMENTI_FOLDER = folder('momenti');
+  const COSTELLAZIONI_FOLDER = folder('costellazioni');
+  const FAVOR = 'components/costellazioni/FavorRow.tsx';
+  const MOMENTI = 'app/(tabs)/momenti.tsx';
+  const COSTELLAZIONI = 'app/(tabs)/costellazioni.tsx';
+  const CARD = 'components/momenti/MomentoCard.tsx';
+  const STAMP = 'components/momenti/SwipeStamp.tsx';
+  const TABS = [
+    MOMENTI,
+    COSTELLAZIONI,
+    ...MOMENTI_FOLDER,
+    ...COSTELLAZIONI_FOLDER.filter((file) => file !== FAVOR),
+  ];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the two folders are the files this section was written against', () => {
+    expect(MOMENTI_FOLDER).toEqual([
+      'components/momenti/AffinityRow.tsx',
+      'components/momenti/MomentoCard.tsx',
+      'components/momenti/SuggestionRow.tsx',
+      'components/momenti/SwipeDeck.tsx',
+      'components/momenti/SwipeStamp.tsx',
+    ]);
+    expect(COSTELLAZIONI_FOLDER).toEqual([
+      FAVOR,
+      'components/costellazioni/ProjectCard.tsx',
+      'components/costellazioni/ProjectFilterTabs.tsx',
+    ]);
+  });
+
+  it('the one cyan on the two tabs is the dot of the waiting Momento', () => {
+    const hits = TABS.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); Momenti carries the first, Costellazioni none',
+    ).toEqual([`${MOMENTI}  bg-aura`]);
+    expect(code(MOMENTI).replace(/\s+/g, ' '), 'and it stands beside «Hai un Momento»').toMatch(
+      /\{hasMomento \? \( <View className="flex-row items-center gap-2"> <View className="h-2 w-2 rounded-full bg-aura" \/> <SectionLabel>\{t\('momenti\.eyebrow', locale\)\}<\/SectionLabel>/,
+    );
+  });
+
+  it('the one bordered card is the staging Momento', () => {
+    expect(code(CARD), 'the prototype’s `.card`: hairline, charcoal, 28, 20 inside').toMatch(
+      /grow gap-\[14px\] overflow-hidden rounded-\[28px\] border border-hair bg-surface p-5/,
+    );
+    const bordered = TABS.filter((file) =>
+      /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file)),
+    );
+    expect(
+      bordered,
+      'a hairline stands on the Momento card, on its loading stand-in and the deck’s toast in ' +
+        'the route, and on a swipe stamp; Costellazioni draws none (DESIGN §6, §8.9)',
+    ).toEqual([MOMENTI, CARD, STAMP]);
+    expect(
+      TABS.filter((file) => /<Card\b/.test(code(file))),
+      'the shared `Card` cannot fill the deck well; the Momento card writes its shape',
+    ).toEqual([]);
+  });
+
+  it('a file of the two tabs sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const hits = TABS.filter(
+      (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+    );
+    expect(
+      hits,
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of the two tabs types a control', () => {
+    const typed = TABS.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'the favour band’s chevron is `Row`’s; «+ Pubblica» is a catalog label').toEqual(
+      [],
+    );
+  });
+
+  it('every pressable on the two tabs dims when pressed', () => {
+    const undimmed = TABS.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the deck well is a minimum: the top card can grow it', () => {
+    // Measured 2026-10-05 on the iPhone SE simulator at AX5: three reasons in body text and a
+    // three-line dream need 826pt, the well gives 760. A fixed height cut the dream's last line.
+    expect(code(MOMENTI)).toMatch(/style=\{\{ minHeight: wellHeight \}\}/);
+    expect(code(MOMENTI), 'no arm of the well is `flex-1`').not.toMatch(
+      /className="flex-1 (?:rounded|justify-center|items-center)/,
+    );
+    const deck = code('components/momenti/SwipeDeck.tsx');
+    expect(deck).toMatch(/<View className="grow">/);
+    expect(deck).toMatch(/flexGrow: 1,/);
+    expect(deck, 'the peek card takes the top card’s box').toMatch(
+      /className="absolute inset-0 opacity-70"/,
+    );
+  });
+
+  it('only the Costellazioni title may shrink to fit', () => {
+    // DESIGN §10 forbids `adjustsFontSizeToFit` and names this one exception (Marco, 2026-10-05).
+    const users = FILES.filter(
+      (p) => !isTest(p) && /\badjustsFontSizeToFit\b/.test(stripComments(read(p))),
+    ).map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(users).toEqual([COSTELLAZIONI]);
+    expect(code(COSTELLAZIONI).replace(/\s+/g, ' ')).toMatch(
+      /className="type-h1 text-foreground" numberOfLines=\{wordLines\(title\)\} adjustsFontSizeToFit/,
+    );
+  });
+
+  it('both titles are h1', () => {
+    for (const file of [MOMENTI, COSTELLAZIONI]) {
+      expect(
+        code(file).replace(/\s+/g, ' '),
+        `${file}: tab roots are h1 (DESIGN §6 «Screen headers»)`,
+      ).toMatch(/accessibilityRole="header" className="type-h1 text-foreground"/);
+    }
+  });
+
+  it('the deck keeps its two pills: a swipe is never the only way to answer', () => {
+    const screen = code(MOMENTI).replace(/\s+/g, ' ');
+    expect(screen, 'the pills line up and wrap through `ButtonRow`').toMatch(/<ButtonRow>/);
+    expect(screen, '«Passa» is the outline pill').toMatch(
+      /<Button variant="outline" label=\{t\('momenti\.pass', locale\)\}[^>]*onPress=\{\(\) => deckRef\.current\?\.swipe\('left'\)\}/,
+    );
+    expect(screen, '«Connetti ✦» is the white pill, not the cyan one').toMatch(
+      /<Button label=\{t\('momenti\.connect', locale\)\}[^>]*onPress=\{\(\) => deckRef\.current\?\.swipe\('right'\)\}/,
+    );
+    // The height the action row has until it is measured is the pill's own floor.
+    expect(screen).toMatch(/const ACTION_ROW_FALLBACK = 50;/);
+    expect(code('components/Button.tsx')).toMatch(/'min-h-\[50px\] rounded-full py-3'/);
+  });
+
+  it('a swipe stamp is foreground for yes and grey for no', () => {
+    const stamp = code(STAMP);
+    expect(stamp).toMatch(/isYes \? 'border-foreground' : 'border-muted-foreground'/);
+    expect(stamp).toMatch(/isYes \? 'text-foreground' : 'text-muted-foreground'/);
+    expect(stamp, 'passing is not an error').not.toMatch(/(?<![\w-])(?:text|border)-error\b/);
+  });
+
+  it('a reason’s tick is the reason’s own colour', () => {
+    expect(code('components/momenti/AffinityRow.tsx')).toMatch(
+      /<Text className="type-body text-foreground">✓ \{text\}<\/Text>/,
+    );
+  });
+
+  it('a suggestion is a row of a group, and its tag goes under the text at the largest sizes', () => {
+    const screen = code(MOMENTI).replace(/\s+/g, ' ');
+    expect(screen).toMatch(/<RowGroup> \{suggestions\.data\.map\(/);
+    const row = code('components/momenti/SuggestionRow.tsx');
+    expect(row, 'the row is `Row`, the disc in its leading slot').toMatch(/<Row\s+leading=\{/);
+    expect(row, 'no row of its own').not.toMatch(/<Pressable\b|min-h-15/);
+    expect(row).toMatch(/const stacked = stacksTrailing\(useWindowDimensions\(\)\.fontScale\);/);
+    expect(row, 'the tag’s 40% cap holds only beside the text').toMatch(
+      /trailing=\{<Tag shrink=\{!stacked\} quiet label=\{reason\} \/>\}/,
+    );
+  });
+
+  it('Costellazioni: the favour band is a row, the publish a small outline pill, the filters chips', () => {
+    const screen = code(COSTELLAZIONI).replace(/\s+/g, ' ');
+    expect(screen).toMatch(
+      /<RowGroup> <Row title=\{t\('costellazioni\.favor\.title', locale\)\} description=\{t\('costellazioni\.favor\.desc', locale\)\} onPress=\{\(\) => router\.push\(FAVOR_HREF\)\} \/> <\/RowGroup>/,
+    );
+    expect(screen).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('costellazioni\.publish', locale\)\}/,
+    );
+    const tabs = code('components/costellazioni/ProjectFilterTabs.tsx');
+    expect(tabs).toMatch(/<Chip\b/);
+    expect(tabs, 'no hand-rolled tab').not.toMatch(/<Pressable\b/);
+    expect(tabs, 'a selected chip that is off screen is brought back').toMatch(/scrollTo\(/);
+    expect(tabs, 'the chips’ `hitSlop` stays inside the row').toMatch(/px-5 py-1\.5/);
+  });
+
+  it('a project is a borderless block whose author line is small and grey', () => {
+    const card = code('components/costellazioni/ProjectCard.tsx').replace(/\s+/g, ' ');
+    expect(card, 'the prototype’s `.rows > .row.col`').toMatch(
+      /<RowGroup> <View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(card, 'pitch over person (DESIGN §8.9)').toMatch(
+      /className="shrink type-small text-muted-foreground"/,
+    );
+    expect(card, 'the shared author row is 17/500: not here').not.toMatch(/<PostAuthorRow\b/);
+  });
+});
+
+/**
+ * The Profilo tab (#921, C13): the route, `components/profile/`, and the three components only
+ * the profile renders (`aura/StarProgress`, `media/MomentiGallery`, and `ProfileBody` through
+ * which the other member's profile draws the same hero, Aura block, dream and stars).
+ */
+describe('the Profilo tab keeps the Galleria look (#921)', () => {
+  const PROFILE_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/profile/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const TAB = 'app/(tabs)/profile.tsx';
+  const HERO = 'components/profile/ProfileHero.tsx';
+  const AURA = 'components/profile/AuraBlock.tsx';
+  const DREAM = 'components/profile/DreamCard.tsx';
+  const TAPPA = 'components/profile/MilestoneRow.tsx';
+  const OFFER = 'components/profile/IncomingOfferRow.tsx';
+  const FLASH = 'components/profile/MomentFlash.tsx';
+  const STARS = 'components/profile/SixStarsGrid.tsx';
+  const EDITOR = 'components/profile/ProfileEditForm.tsx';
+  const SECTION = 'components/profile/Section.tsx';
+  const NEXT_STAR = 'components/aura/StarProgress.tsx';
+  const GALLERY = 'components/media/MomentiGallery.tsx';
+  const PROFILE = [TAB, ...PROFILE_FOLDER, NEXT_STAR, GALLERY];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the folder is the files this section was written against', () => {
+    expect(PROFILE_FOLDER).toEqual([
+      AURA,
+      'components/profile/CityPicker.tsx',
+      DREAM,
+      'components/profile/DreamSection.tsx',
+      'components/profile/FoundingBadge.tsx',
+      'components/profile/HandleField.tsx',
+      OFFER,
+      TAPPA,
+      FLASH,
+      'components/profile/ProfileBody.tsx',
+      EDITOR,
+      HERO,
+      'components/profile/ProfileView.tsx',
+      SECTION,
+      STARS,
+      'components/profile/ZodiacMark.tsx',
+    ]);
+  });
+
+  it('the one cyan on the profile is the member’s own Aura numeral', () => {
+    const hits = PROFILE.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); the profile carries the second, and no green, no glow',
+    ).toEqual([`${AURA}  text-aura`]);
+    expect(code(AURA), 'cyan on the own profile, foreground on another member’s').toMatch(
+      /own \? 'text-aura' : 'text-foreground'/,
+    );
+  });
+
+  it('nothing on the profile stands for the Aura tier', () => {
+    // Ruling 5 (Marco, 2026-10-03): no mandorla frame, no glow.
+    expect(code(HERO)).not.toMatch(/Mandorla/);
+    expect(code(FLASH)).not.toMatch(/glow/i);
+  });
+
+  it('the one bordered card is the dream, and it holds the label and the quote', () => {
+    expect(
+      PROFILE.filter((file) => /<Card\b/.test(code(file))),
+      'tappe, offers, stars and the editor’s sections are groups or bare blocks (DESIGN §6)',
+    ).toEqual([DREAM]);
+    expect(
+      PROFILE.filter((file) => /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file))),
+      'a hairline is typed on the «Aiuta» pill shape and on the flash; the card’s is `Card`’s',
+    ).toEqual([TAPPA, FLASH]);
+    const card = flat(DREAM);
+    expect(card, 'the tappe stand outside the card, in a group').toMatch(
+      /<\/Card> \{showTappe \? \( <RowGroup label=\{t\('milestone\.sectionLabel', locale\)\}>/,
+    );
+  });
+
+  it('a file of the profile sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      PROFILE.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of the profile types a control', () => {
+    const typed = PROFILE.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(code(file).match(/>\s*\+\s*<|\{\s*['"`]\+['"`]\s*\}/g) ?? []).map(
+        (hit) => `${file}  ${hit}`,
+      ),
+    ]);
+    expect(typed, 'share, add and more are drawings; a chevron is `Row`’s').toEqual([]);
+  });
+
+  it('every pressable on the profile dims when pressed', () => {
+    const undimmed = PROFILE.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the header is two drawn icons and a small outline pill, and «saved» is the shared toast', () => {
+    const tab = flat(TAB);
+    expect(tab, 'share is the drawn icon, not a cyan ✦').toMatch(/<ShareIcon\b/);
+    expect(tab).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('profile\.edit', locale\)\}/,
+    );
+    expect(tab, 'no green line under the profile (ruling 7)').not.toMatch(/\bsetSaved\b/);
+    expect(tab).toMatch(/showToast\(t\('profile\.saved', locale\)/);
+  });
+
+  it('the hero is a row that stacks at the largest sizes, in screen order', () => {
+    const hero = flat(HERO);
+    expect(hero).toMatch(/const stacked = stacksTrailing\(useWindowDimensions\(\)\.fontScale\);/);
+    expect(hero).toMatch(/stacked \? 'gap-4' : 'flex-row items-center gap-4'/);
+    expect(hero, 'no reversed order in either layout').not.toMatch(/-reverse\b/);
+    expect(hero, 'the name is the pushed-header size').toMatch(/shrink type-title text-foreground/);
+  });
+
+  it('the six stars are rows of one group, and no grid cell is left', () => {
+    const stars = code(STARS);
+    expect(stars).toMatch(/<RowGroup\b/);
+    expect(stars).toMatch(/<Row\b/);
+    expect(
+      stars.replace(/\s+/g, ' '),
+      'a `Row` without `onPress` takes no label: an inert star is one labelled element',
+    ).toMatch(/<View key=\{key\} accessible accessibilityLabel=\{label\}> <Row title=\{title\}/);
+    expect(
+      FILES.filter((p) => /\bStarCell\b/.test(stripComments(read(p)))).map(rel),
+      '`aura/StarCell` had one caller, the grid',
+    ).toEqual([]);
+  });
+
+  it('the other member’s profile spaces the shared blocks as the tab does', () => {
+    // `ProfileHero` and `DreamCard` return their blocks side by side: the caller's gap is
+    // what stands between them, so both callers set the screen's 26.
+    for (const file of [TAB, 'app/(modal)/user/[id].tsx']) {
+      expect(code(file), file).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12/);
+    }
+  });
+
+  it('an incoming offer is a block of the «Aiuti in arrivo» group with two small pills', () => {
+    expect(flat('components/profile/DreamSection.tsx')).toMatch(
+      /<RowGroup label=\{t\('help\.owner\.sectionLabel', locale\)\}>/,
+    );
+    const offer = flat(OFFER);
+    expect(offer, 'the prototype’s `.rows > .row.col`').toMatch(/gap-\[10px\] py-\[14px\]/);
+    expect(offer).toMatch(
+      /<ButtonRow> <Button size="sm" label=\{t\('help\.owner\.accept', locale\)\}[^>]*\/> <Button variant="outline" size="sm" label=\{t\('help\.owner\.decline', locale\)\}/,
+    );
+  });
+
+  it('a tappa keeps its own row: the whole row offers help, the pill is a shape', () => {
+    const row = code(TAPPA);
+    expect(row, 'row geometry inside the group').toMatch(/min-h-15 flex-row gap-3 py-2/);
+    expect(row, 'a done tappa’s tick is foreground').not.toMatch(/line-through/);
+    expect(row, 'the kebab is the drawn icon').toMatch(/<MoreIcon\b/);
+  });
+
+  it('the editor’s sections stand on the stage, and its second action is the outline pill', () => {
+    expect(code(SECTION), 'no card: a field in a card would need the black well').not.toMatch(
+      /\bCard\b/,
+    );
+    expect(flat(EDITOR)).toMatch(
+      /<Button variant="outline" label=\{t\('profile\.cancel', locale\)\}/,
+    );
+    expect(
+      code('components/profile/CityPicker.tsx'),
+      'the list answers typing, not the stored city: nothing is looked up until the field changes',
+    ).toMatch(/if \(!edited\.current\) return;/);
+  });
+
+  it('the gallery’s «see all» is a 44pt underlined link beside its label', () => {
+    const gallery = flat(GALLERY);
+    expect(gallery).toMatch(
+      /stacked \? 'items-start gap-2' : 'flex-row items-center justify-between gap-3'/,
+    );
+    expect(gallery).toMatch(/type-small text-foreground underline/);
+  });
+});
+
+describe('search and notifications keep the Galleria look (#921)', () => {
+  const SEARCH_FOLDER = FILES.filter((p) => !isTest(p) && p.includes('/components/search/'))
+    .map((p) => rel(p).replace('apps/native/src/', ''))
+    .sort();
+  const SEARCH = 'app/(modal)/search.tsx';
+  const FILTERS = 'app/(modal)/search-filters.tsx';
+  const NOTIFS = 'app/(modal)/notifications.tsx';
+  const BAR = 'components/search/SearchBar.tsx';
+  const SCOPES = 'components/search/ScopeTabs.tsx';
+  const RESULT = 'components/search/ResultRow.tsx';
+  const NOTIF_ROW = 'components/trust/NotificationRow.tsx';
+  const NOTIF_TYPES = 'components/trust/notifTypes.ts';
+  const ALL = [SEARCH, FILTERS, NOTIFS, ...SEARCH_FOLDER, NOTIF_ROW, NOTIF_TYPES];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the folder is the files this section was written against', () => {
+    expect(SEARCH_FOLDER).toEqual([RESULT, SCOPES, BAR]);
+  });
+
+  it('the one cyan is the dot on a waiting Momento’s row', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a matched word, a filter set, a chip and an unread ' +
+        'row are foreground or grey',
+    ).toEqual([`${NOTIF_ROW}  bg-aura`]);
+    expect(flat(NOTIF_ROW), 'unread and a Momento: read, it takes the disc like any row').toMatch(
+      /const waiting = item\.type === 'moment' && item\.read_at == null;/,
+    );
+  });
+
+  it('none of the three screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<![\w-])border(?:-[\w/[\].-]+)?(?![\w-])/.test(code(file))),
+      'a border is typed on the search field (focus) and on the two leading discs',
+    ).toEqual([RESULT, BAR, NOTIF_ROW]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close and clear are the drawn icon; a chevron is `Row`’s').toEqual([]);
+  });
+
+  it('every pressable on these screens dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the scopes are chips, and the filters opener is the small outline pill', () => {
+    expect(code(SCOPES), 'the last underlined tab row').toMatch(/<Chip\b/);
+    expect(code(SCOPES)).not.toMatch(/<Pressable\b/);
+    expect(flat(SEARCH)).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('search\.filters\.open', locale\)\}/,
+    );
+  });
+
+  it('the search field keeps its clear control mounted', () => {
+    // Mounted on the first character it lost typed characters (iPhone SE simulator,
+    // 2026-10-06; `SearchBar`'s docblock has the counts).
+    const bar = flat(BAR);
+    expect(bar).toMatch(/disabled=\{!hasClearButton\}/);
+    expect(bar, 'hidden, not unmounted').not.toMatch(/hasClearButton \? \(/);
+    expect(bar, 'a `TextInput` takes physical padding (section 40)').toMatch(
+      /className="flex-1 pb-3 pr-4 pt-3 text-\[17px\] text-foreground"/,
+    );
+  });
+
+  it('a result is a row of its section’s group, and only its grey line marks the match', () => {
+    const row = flat(RESULT);
+    expect(row).toMatch(/<Row leading=\{/);
+    expect(row, 'the row says what `searchRowLabel` says').toMatch(
+      /accessibilityLabel=\{searchRowLabel\(result\)\}/,
+    );
+    expect(row, 'the title is the row’s own: all foreground').toMatch(/title=\{result\.title\}/);
+    expect(row, 'a matched span of the second line is foreground on grey').toMatch(
+      /span\.match \? 'text-foreground' : undefined/,
+    );
+    expect(flat(SEARCH)).toMatch(/<SectionLabel heading>.*?<\/SectionLabel> <RowGroup>/);
+  });
+
+  it('the filters close on the drawn icon and reset on an outline pill', () => {
+    const filters = flat(FILTERS);
+    expect(filters).toMatch(/<HeaderClose\b/);
+    expect(filters).toMatch(/<Button label=\{t\('common\.reset', locale\)\} variant="outline"/);
+    expect(filters, 'blocks 26 apart').toMatch(/contentContainerClassName="[^"]*gap-\[26px\]/);
+  });
+
+  it('a notification is a row of «Nuove» or «Prima», with no chevron and no unread dot', () => {
+    const row = flat(NOTIF_ROW);
+    expect(row).toMatch(/<Row leading=\{/);
+    expect(row, 'the prototype draws no chevron on a notification').toMatch(
+      /showChevron=\{false\}/,
+    );
+    expect(row, 'the action is a tag: the row is the control').toMatch(/trailing=\{/);
+    expect(row).toMatch(/<Tag label=\{t\('notif\.action\.openMoment', locale\)\}/);
+    expect(flat(NOTIFS)).toMatch(/<SectionLabel heading>.*?<\/SectionLabel> <RowGroup>/);
+    expect(code(NOTIF_TYPES), 'a type has a glyph and nothing else to draw').not.toMatch(
+      /accentClass|celebratory/,
+    );
+  });
+});
+
+/*
+ * The post and the two composers (#921, C14b, 2026-10-06). The prototype draws no bordered card
+ * on any of the three. Cyan stands once: «✦ Un passo del percorso» on the post (DESIGN §2.3);
+ * the comment bar's send is a white disc. The replies look like one group of rows and stay a
+ * virtualized list: `feed/Comment` draws its own segment (Marco, 2026-10-06).
+ * `media/MediaSheet` and `media/MediaFrame` are not in this list: the media section below holds
+ * them (C14c).
+ */
+describe('the post and the two composers keep the Galleria look (#921)', () => {
+  const POST = 'app/(modal)/post/[id].tsx';
+  const POST_COMPOSE = 'app/(modal)/post-compose.tsx';
+  const STORY_COMPOSE = 'app/(modal)/story-compose.tsx';
+  const COMMENT = 'components/feed/Comment.tsx';
+  const STAR = 'components/feed/ReactionStar.tsx';
+  const MEDIA = 'components/feed/PostMedia.tsx';
+  const COMPOSERS = [POST_COMPOSE, STORY_COMPOSE];
+  const ALL = [POST, ...COMPOSERS, COMMENT, STAR, MEDIA];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  it('the one cyan is «✦ Un passo del percorso» on the post', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a send control, a selected chip, a switch and a lit ' +
+        'star are foreground',
+    ).toEqual([`${POST}  text-aura`]);
+    expect(flat(POST)).toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('feed\.flag\.step', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('none of the three screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): these screens draw none',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|text-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'remove and send are drawn icons (DESIGN §6 «Interface icons»)').toEqual([]);
+  });
+
+  it('every pressable on these screens dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('the blocks of each screen stand 26 apart', () => {
+    expect(flat(POST), 'the post, above its replies').toMatch(
+      /<View className="gap-\[26px\] pb-2">/,
+    );
+    for (const file of COMPOSERS) {
+      expect(flat(file), file).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-8"/);
+    }
+  });
+
+  it('the header’s link is an underlined 44pt link, red when it deletes', () => {
+    const post = flat(POST);
+    expect(post).toMatch(/className=\{cn\('min-h-\[44px\] justify-center', PRESS_DIM\)\}/);
+    expect(post).toMatch(/'type-small underline', isAuthor \? 'text-error' : 'text-foreground'/);
+  });
+
+  it('the replies are segments of one group, and the list still virtualizes them', () => {
+    const comment = flat(COMMENT);
+    expect(comment, 'the group’s ends').toMatch(
+      /first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null/,
+    );
+    expect(comment, 'a hairline above every reply but the first').toMatch(
+      /\{first \? null : <View className="h-px bg-hair" \/>\}/,
+    );
+    const post = flat(POST);
+    expect(post, 'still a list item per reply').toMatch(/<FlatList\b/);
+    expect(post).toMatch(/first=\{index === 0\} last=\{index === comments\.length - 1\}/);
+    expect(post, 'the group’s label is a heading, 8 above its first row').toMatch(
+      /<SectionLabel heading>\{t\('comment\.sectionLabel', locale\)\}<\/SectionLabel>/,
+    );
+  });
+
+  it('the comment bar is the small field and a white 50pt send that stays mounted', () => {
+    const post = flat(POST);
+    expect(post, 'the compose-bar field, multi-line').toMatch(
+      /<Input className="flex-1" size="sm"/,
+    );
+    expect(post).toMatch(/\bmultiline\b/);
+    expect(post, 'a white disc with the drawn send, 50 like the field (2026-10-09)').toMatch(
+      /'h-\[50px\] w-\[50px\] items-center justify-center rounded-full bg-foreground'/,
+    );
+    expect(post).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+    // A control that mounts beside a `TextInput` on the first character lost typed characters
+    // (`search/SearchBar`'s docblock has the counts): disabled and dimmed, never unmounted.
+    expect(post, 'disabled is 40%, never unmounted (DESIGN §8.11)').toMatch(
+      /cannotSend \? 'opacity-40' : null/,
+    );
+    expect(post).not.toMatch(/\{draft\.trim\(\)\.length > 0 \? \(/);
+  });
+
+  it('a composer attaches through an outline pill and switches its step on a row', () => {
+    expect(flat(POST_COMPOSE)).toMatch(
+      /<Button variant="outline" label=\{t\('post\.compose\.attach', locale\)\}/,
+    );
+    expect(flat(STORY_COMPOSE)).toMatch(
+      /<Button variant="outline" label=\{t\('story\.add\.attach', locale\)\}/,
+    );
+    for (const file of COMPOSERS) {
+      expect(flat(file), file).toMatch(/<RowGroup> <Row title=[^>]*? checked=\{isStep\}/);
+    }
+  });
+
+  it('a staged tile is a radius-14 hairline tile, and its remove control is drawn and named', () => {
+    for (const file of COMPOSERS) {
+      const src = flat(file);
+      expect(src, `${file}: the tile`).toMatch(/rounded-\[14px\] border border-hair bg-surface/);
+      // A picked photo is an RN `Image`, which takes no class here: its hairline is in `style`.
+      expect(src, `${file}: a photo tile has the hairline too`).toMatch(
+        /borderRadius: 14, borderWidth: 1, borderColor: galleria\.hair/,
+      );
+      expect(src, `${file}: the control says what it does`).toMatch(
+        /accessibilityLabel=\{t\('media\.a11y\.remove', locale\)\}/,
+      );
+      expect(src, `${file}: the drawn close`).toMatch(
+        /<CloseIcon size=\{12\} color=\{galleria\.foreground\} \/>/,
+      );
+    }
+  });
+
+  it('a field’s label stands 6 above it', () => {
+    expect(flat(POST_COMPOSE)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('create\.post\.desc', locale\)\}<\/SectionLabel> <Field/,
+    );
+  });
+});
+
+/*
+ * Stories, the grid and the media components (#921, C14c, 2026-10-06). The prototype draws two
+ * of these (`stories`, `grid`) and no bordered card on either; the lightbox, the photo viewer
+ * and the three sheets take their look from `base.css`. Cyan stands once: «✦ Un passo del
+ * percorso» in the story viewer (DESIGN §2.3). Ruled by Marco that day: the viewer stays
+ * full-bleed under its two scrim bands, its reply bar is the post's (44 + 44, white), the three
+ * sheets are a charcoal panel with no grab handle, and the grid's add is the header's alone.
+ */
+describe('stories, the grid and the media components keep the Galleria look (#921)', () => {
+  const GRID = 'app/(modal)/grid.tsx';
+  const STORIES = 'app/(modal)/stories.tsx';
+  const VIEWER = 'components/stories/StoriesViewer.tsx';
+  const FRAME = 'components/media/MediaFrame.tsx';
+  const TILE = 'components/media/MomentTile.tsx';
+  const LIGHTBOX = 'components/media/Lightbox.tsx';
+  const PHOTO = 'components/media/PhotoViewer.tsx';
+  const SHEET = 'components/media/MediaSheet.tsx';
+  const RECORDER = 'components/media/AudioRecorderSheet.tsx';
+  const BLOCKED = 'components/media/PermissionBlockedSheet.tsx';
+  const SHEETS = [SHEET, RECORDER, BLOCKED];
+  const ALL = [GRID, STORIES, VIEWER, FRAME, TILE, LIGHTBOX, PHOTO, ...SHEETS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|<AuraValue\b/gi;
+
+  /** The 70% dim, as a layer: an alpha on the colour class draws nothing on device. */
+  const SCRIM_LAYER =
+    /<View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" \/>/g;
+
+  it('a scrim is a layer, never an alpha on a colour class', () => {
+    // `bg-background/70` compiled and drew nothing: on the iPhone SE simulator (Expo Go,
+    // 2026-10-06) the story's name stood on the bare photo and a sheet's parent kept its pixels.
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw the dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('the media folder is the eight files this section and the Profilo one name', () => {
+    const folder = FILES.map(rel)
+      .map((p) => p.replace(/^apps\/native\/src\//, ''))
+      .filter((p) => p.startsWith('components/media/') && !/\.test\.tsx?$/.test(p))
+      .sort();
+    expect(
+      folder,
+      'a new file in `components/media/` joins this section’s list (or the Profilo one’s)',
+    ).toEqual(
+      [
+        FRAME,
+        SHEET,
+        TILE,
+        'components/media/MomentiGallery.tsx',
+        LIGHTBOX,
+        PHOTO,
+        RECORDER,
+        BLOCKED,
+      ].sort(),
+    );
+  });
+
+  it('the one cyan is «✦ Un passo del percorso» in the story viewer', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3); a progress step, a send control, a lit star, a page ' +
+        'dot and a recording timer are foreground',
+    ).toEqual([`${VIEWER}  text-aura`]);
+    expect(flat(VIEWER)).toMatch(
+      /<Text className="type-label text-aura">✦ \{t\('story\.stepBadge', locale\)\}<\/Text>/,
+    );
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): these screens draw none',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close, add and send are drawn icons (DESIGN §6 «Interface icons»)').toEqual([]);
+    expect(
+      ALL.filter((file) => />\s*\+\s*<\/Text>/.test(code(file))),
+      'a typed plus as a control: draw `AddIcon`',
+    ).toEqual([]);
+  });
+
+  it('every control dims when pressed; a scrim, a panel and the lightbox stage do not', () => {
+    // Not controls: a sheet's scrim and its panel are silenced frames (`accessible={false}`,
+    // §21), and the lightbox stage is the photo itself, which would flicker at every step.
+    const frame = (raw: string) =>
+      /accessible=\{false\}/.test(raw) ||
+      /className="flex-1 items-center justify-center px-5"/.test(raw);
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(
+          ({ base, raw }) => base === 'Pressable' && !frame(raw) && !/\bPRESS_DIM\b/.test(raw),
+        )
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      SHEETS.map(
+        (file) =>
+          (flat(file).match(/<Pressable accessible=\{false\}/g) ?? []).length +
+          (flat(file).match(/<Pressable \{\.\.\.MODAL_A11Y\} accessible=\{false\}/g) ?? []).length,
+      ),
+      'each sheet has exactly a scrim and a panel as its silenced frames',
+    ).toEqual([2, 2, 2]);
+  });
+
+  it('a Momento tile is a radius-14 hairline tile, with no caption and no typed mark', () => {
+    const tile = flat(TILE);
+    expect(tile, 'the tile').toMatch(
+      /aspect-square w-full overflow-hidden rounded-\[14px\] bg-surface/,
+    );
+    // The hairline is a view drawn OVER the media, so a photo that fills the tile cannot cover it.
+    expect(tile, 'the hairline stands over the photo').toMatch(
+      /<View pointerEvents="none" className="absolute inset-0 rounded-\[14px\] border border-hair" \/>/,
+    );
+    expect(tile, 'a video is marked by the drawn play in a 52 disc').toMatch(
+      /h-\[52px\] w-\[52px\] items-center justify-center overflow-hidden rounded-full/,
+    );
+    expect(tile).toMatch(/<View className="absolute inset-0 bg-background opacity-55" \/>/);
+    expect(tile, 'the caption is the lightbox’s, not the tile’s').not.toMatch(
+      /moment\.caption \? \(/,
+    );
+    expect(tile, 'the add tile holds the drawn add').toMatch(
+      /<AddIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(tile, 'one tile shape: no variant').not.toMatch(/\bvariant\b/);
+  });
+
+  it('the grid adds from its header alone, and its tiles stand 6 apart', () => {
+    const grid = flat(GRID);
+    expect(grid, 'the header’s drawn add').toMatch(
+      /<AddIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(grid, 'no add tile on the grid').not.toMatch(/MomentAddTile/);
+    expect(grid).toMatch(/<View className="-m-\[3px\] flex-row flex-wrap">/);
+    expect(grid).toMatch(/<View key=\{m\.id\} className="w-1\/3 p-\[3px\]">/);
+    expect(grid, 'blocks 26 apart').toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-11"/);
+  });
+
+  it('the lightbox marks its place in foreground on hairline', () => {
+    expect(flat(LIGHTBOX)).toMatch(/i === index \? 'bg-foreground' : 'bg-hair'/);
+  });
+
+  it('the viewer’s chrome: white steps, a drawn close, the post’s reply bar', () => {
+    const viewer = flat(VIEWER);
+    expect(viewer, 'steps 3px on hairline, 6 apart').toMatch(/<View className="flex-row gap-1\.5 /);
+    expect(viewer).toMatch(/className="h-\[3px\] flex-1 overflow-hidden rounded-full bg-hair"/);
+    expect(viewer).toMatch(/<View className="h-full bg-foreground" \/>/);
+    expect(viewer, 'the drawn close').toMatch(
+      /<CloseIcon size=\{22\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(
+      viewer.match(SCRIM_LAYER)?.length,
+      'still full-bleed under two scrim bands (DESIGN §6)',
+    ).toBe(2);
+    expect(viewer, 'a long caption scrolls, so it cannot push the controls off the screen').toMatch(
+      /<ScrollView style=\{\{ maxHeight: windowHeight \/ 3 \}\}/,
+    );
+    expect(viewer, 'a finger on the caption holds the segment').toMatch(
+      /onTouchStart=\{\(\) => setPaused\(true\)\} onTouchEnd=\{\(\) => setPaused\(false\)\} onTouchCancel=\{\(\) => setPaused\(false\)\}/,
+    );
+    expect(viewer, 'the compose-bar field').toMatch(/<Input className="flex-1" size="sm"/);
+    expect(viewer, 'a white disc with the drawn send, 50 like the field (2026-10-09)').toMatch(
+      /'h-\[50px\] w-\[50px\] items-center justify-center rounded-full bg-foreground'/,
+    );
+    expect(viewer).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+    expect(viewer, 'disabled is 40%, never unmounted').toMatch(/canSend \? null : 'opacity-40'/);
+    expect(viewer, 'a lit star is foreground').toMatch(
+      /viewerReacted \? 'text-foreground' : 'text-muted-foreground'/,
+    );
+  });
+
+  it('the viewer’s actions are the shared pills', () => {
+    const viewer = flat(VIEWER);
+    expect(viewer).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('story\.makeDream', locale\)\}/,
+    );
+    expect(viewer).toMatch(/<Button variant="outline" label=\{t\('story\.own\.add', locale\)\}/);
+    expect(viewer).toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('story\.own\.pin', locale\)\}/,
+    );
+    expect(viewer).toMatch(
+      /<Button variant="destructive" size="sm" label=\{t\('story\.own\.delete', locale\)\}/,
+    );
+  });
+
+  it('a sheet is a charcoal panel on the 70% scrim, with no grab handle', () => {
+    for (const file of SHEETS) {
+      const src = flat(file);
+      expect(src.match(SCRIM_LAYER)?.length, `${file}: the scrim`).toBe(1);
+      expect(src, `${file}: the panel`).toMatch(
+        /className="(?:max-h-\[88%\] )?rounded-t-\[28px\] bg-surface /,
+      );
+      expect(src, `${file}: its title`).toMatch(/accessibilityRole="header" className="type-h2 /);
+    }
+    const sheet = flat(SHEET);
+    expect(sheet, 'the sources are rows of one group').toMatch(/<RowGroup>/);
+    // With five rows at the largest text size the panel is taller than an iPhone SE.
+    expect(sheet, 'the panel scrolls when it is taller than the screen').toMatch(
+      /className="max-h-\[88%\] rounded-t-\[28px\][^"]*" onPress=\{\(\) => \{\}\} > \{ \} <ScrollView\b/,
+    );
+    expect(sheet, 'the way out is a row that is never disabled').toMatch(
+      /<Row title=\{t\('common\.cancel', locale\)\} showChevron=\{false\} onPress=\{onClose\} \/>/,
+    );
+    expect(flat(RECORDER), 'the timer is a foreground numeral').toMatch(
+      /className="type-num text-foreground"/,
+    );
+  });
+});
+
+/*
+ * The favour sheet and the week recap (#921, C14d, 2026-10-07). The prototype draws three
+ * screens: the favour list (one group of rows, «Aiuta» a small outline pill), the favour done
+ * screen (a celebration: DESIGN §2.3, §8.12) and the recap (one group of three figures over the
+ * one bordered card). Ruled by Marco that day: a favour row is an inert `Row` whose disc is the
+ * way to the profile; the cyan ✦ of a celebration lives in `CelebrationMark`; the recap's three
+ * figures are foreground; «Prossima stella» stays inert.
+ */
+describe('the favour sheet and the week recap keep the Galleria look (#921)', () => {
+  const FAVOR_SHEET = 'app/(modal)/favor.tsx';
+  const RECAP = 'app/(modal)/recap.tsx';
+  const FAVOR_ROW = 'components/costellazioni/FavorRow.tsx';
+  const MARK = 'components/CelebrationMark.tsx';
+  const ALL = [FAVOR_SHEET, RECAP, FAVOR_ROW, MARK];
+  const CELEBRATION_SCREENS = [
+    'app/(modal)/candidacy-success.tsx',
+    'app/(modal)/contribution-thanks.tsx',
+    'app/(modal)/favor.tsx',
+    'app/(modal)/level.tsx',
+    'app/(modal)/match.tsx',
+  ];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b/gi;
+
+  it('the one cyan class is the ✦ of the celebration mark', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): «Aiuta» is an outline pill and a week’s figure is ' +
+        'foreground. The label and the pill of the done screen are cyan by `tone` and `variant`',
+    ).toEqual([`${MARK}  text-aura`]);
+    expect(flat(MARK)).toMatch(
+      /<MandorlaMark \/>.*?<Text className="absolute text-\[22px\] text-aura"/,
+    );
+  });
+
+  it('the mark stands on the celebration screens and nowhere else', () => {
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => /<CelebrationMark\b/.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''))
+      .sort();
+    expect(users, 'no file renders the mark — the walk is broken').not.toEqual([]);
+    expect(
+      users.filter((file) => !CELEBRATION_SCREENS.includes(file)),
+      'an empty, error or loading state draws `MandorlaMark`, with nothing at its centre (§5)',
+    ).toEqual([]);
+    expect(users).toContain(FAVOR_SHEET);
+  });
+
+  it('the recap has the one bordered card; the favour sheet has none', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([RECAP]);
+    expect((code(RECAP).match(/<Card\b/g) ?? []).length).toBe(1);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): only `Card` draws it here',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device (`text-sm` is 12.25) and `leading-*` emits ' +
+        'nothing (measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close is the drawn `HeaderClose` (DESIGN §6 «Interface icons»)').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+  });
+
+  it('a favour row is an inert Row: the disc opens the profile, «Aiuta» is the small outline pill', () => {
+    const row = flat(FAVOR_ROW);
+    expect(row, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(
+      row.match(/\bonPress=/g)?.length,
+      'two controls, the disc and the pill: the row itself is not a button',
+    ).toBe(2);
+    expect(row, 'the disc is a 44pt button named for the profile it opens').toMatch(
+      /<Pressable accessibilityRole="button" accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} className=\{PRESS_DIM\}/,
+    );
+    expect(row).toMatch(/size=\{44\}/);
+    expect(row, 'a name on one line, a need on two (Marco, 2026-10-05)').toMatch(
+      /titleLines=\{1\} description=\{need\.need\} descriptionLines=\{2\}/,
+    );
+    expect(row, '«Aiuta» is named by its visible label').toMatch(
+      /<Button variant="outline" size="sm" label=\{t\('favor\.help', locale\)\} loading=\{busy\} onPress=\{onHelp\} \/>/,
+    );
+    // The list is paged, so each row draws its own segment of the group (`feed/Comment`'s recipe).
+    expect(row).toMatch(/'bg-surface px-4'/);
+    expect(row).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+    expect(row).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+  });
+
+  it('the favour sheet states its terms in a paragraph and closes from the header', () => {
+    const sheet = flat(FAVOR_SHEET);
+    expect(sheet).toMatch(/<HeaderClose\b/);
+    expect(sheet, 'never a header subtitle (#633, DESIGN §8.9)').toMatch(
+      /<Text className="pb-4 type-small text-muted-foreground"> \{t\('favor\.sheet\.sub', locale\)\} <\/Text>/,
+    );
+    expect(sheet, 'one group: no gap between its segments').toMatch(
+      /contentContainerClassName="grow px-5 pb-12"/,
+    );
+    expect(sheet).toMatch(/first=\{index === 0\} last=\{index === needs\.length - 1\}/);
+    // Rows in hand hide `ListEmptyComponent`, so a failed later page says so under them.
+    expect(sheet, 'a failed read with rows on screen keeps a reason and a retry').toMatch(
+      /ListFooterComponent=\{ query\.isError && needs\.length > 0 \? \(/,
+    );
+    expect(sheet).toMatch(
+      /query\.isFetchNextPageError \? query\.fetchNextPage\(\) : query\.refetch\(\)/,
+    );
+  });
+
+  it('favour done is the one quiet composition of a celebration, and nothing glows', () => {
+    const sheet = flat(FAVOR_SHEET);
+    expect(sheet).toMatch(/<CelebrationMark \/>/);
+    expect(sheet).toMatch(
+      /<SectionLabel tone="celebration">\{t\('favor\.done\.eyebrow', locale\)\}<\/SectionLabel>/,
+    );
+    expect(sheet).toMatch(
+      /accessibilityRole="header" className="text-center type-h1 text-foreground"/,
+    );
+    expect(sheet).toMatch(
+      /<Button label=\{t\('favor\.done\.write', locale, \{ name \}\)\} variant="celebration"/,
+    );
+    expect(sheet, 'the way out is the text link').toMatch(
+      /<Button label=\{t\('favor\.done\.dismiss', locale\)\} variant="ghost" onPress=\{leave\} \/>/,
+    );
+    expect(sheet, 'no card around the celebration').not.toMatch(/rounded-\[28px\]/);
+    expect(code(FAVOR_SHEET)).not.toMatch(/glow/i);
+  });
+
+  it('the recap is one group of three foreground figures', () => {
+    const recap = flat(RECAP);
+    expect(recap).toMatch(/<RowGroup>/);
+    expect(recap.match(/<Figure\b/g)?.length, 'Aura, contributions, dreams').toBe(3);
+    expect(recap, 'the figure, digits only (a type-num line is as tall as its size)').toMatch(
+      /<Text className="type-num-m text-foreground" style=\{\{ fontVariant: \['tabular-nums'\] \}\}>/,
+    );
+    expect(recap, 'one spoken line per figure').toMatch(
+      /<View accessible accessibilityLabel=\{`\$\{label\}, \$\{shown\}`\}>/,
+    );
+    expect(recap, 'the source row is the Aura screen’s').not.toMatch(/AuraSourceRow/);
+    expect(recap, 'blocks 26 apart').toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/);
+    expect(recap, 'the card’s title').toMatch(
+      /accessibilityRole="header" className="type-h2 text-foreground"/,
+    );
+  });
+});
+
+/**
+ * C15a: the connections hub, the blocked list and the report sheet (DESIGN §8.13, §9 «Grouped
+ * rows»; #921). `connections/ConnectButton` is not in this list: its one caller is the member's
+ * profile, which converts with `match` in the chunk after this one.
+ */
+describe('connections, the blocked list and the report sheet keep the Galleria look (#921)', () => {
+  const HUB = 'app/(modal)/connections.tsx';
+  const BLOCKED = 'app/(modal)/blocked.tsx';
+  const REPORT = 'app/(modal)/report.tsx';
+  const TOGGLE = 'components/connections/SegmentedToggle.tsx';
+  const CONNECTION_ROW = 'components/connections/ConnectionRow.tsx';
+  const REQUEST_ROW = 'components/connections/ConnectionRequestRow.tsx';
+  const BLOCKED_ROW = 'components/trust/BlockedRow.tsx';
+  const PAGE_ERROR = 'components/ListPageError.tsx';
+  const ROWS = [CONNECTION_ROW, REQUEST_ROW, BLOCKED_ROW];
+  const ALL = [HUB, BLOCKED, REPORT, TOGGLE, ...ROWS, PAGE_ERROR];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('the connections folder is the four files', () => {
+    const folder = FILES.map((p) => rel(p).replace('apps/native/src/', ''))
+      .filter((p) => p.startsWith('components/connections/') && !/\.test\./.test(p))
+      .sort();
+    expect(folder).toEqual([
+      'components/connections/ConnectButton.tsx',
+      REQUEST_ROW,
+      CONNECTION_ROW,
+      TOGGLE,
+    ]);
+  });
+
+  it('nothing here is cyan: a connection is routine and a report is not a celebration', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): «Accetta» is the white small pill, the selected ' +
+        'segment a foreground chip, the sent ✓ foreground',
+    ).toEqual([]);
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device and `leading-*` emits nothing (measured ' +
+        'on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'close is the drawn `HeaderClose` (DESIGN §6 «Interface icons»)').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed, and no opacity rides a style object', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bopacity\s*:/.test(code(file))),
+      'a row in flight dims by class, the literal and the `style` spelling alike',
+    ).toEqual([]);
+  });
+
+  it('the segments are two chips', () => {
+    const toggle = flat(TOGGLE);
+    expect(toggle).toMatch(/<View className="flex-row flex-wrap gap-2">/);
+    expect(toggle).toMatch(
+      /<Chip key=\{segment\} label=\{labels\[segment\]\} selected=\{value === segment\} onPress=\{\(\) => onChange\(segment\)\} \/>/,
+    );
+    expect(toggle, 'the chip is the control: no second pressable').not.toMatch(/<Pressable\b/);
+  });
+
+  it('each row draws its own segment of the group, because every list here is paged', () => {
+    for (const file of ROWS) {
+      const row = flat(file);
+      expect(row, file).toMatch(/'bg-surface px-4'/);
+      expect(row, file).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+      expect(row, file).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+      expect(row, file).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+      expect(row, `${file}: the 44 disc is decorative, the name beside it is text`).toMatch(
+        /<Avatar decorative [^>]*size=\{44\} \/>/,
+      );
+    }
+    for (const [file, rows] of [
+      [HUB, 'requests'],
+      [HUB, 'connections'],
+      [BLOCKED, 'rows'],
+    ] as const) {
+      expect(flat(file), `${file} ${rows}`).toContain(
+        `first={index === 0} last={index === ${rows}.length - 1}`,
+      );
+    }
+    expect(flat('app/(modal)/new-message.tsx'), 'the row’s other caller pages too').toContain(
+      'first={index === 0} last={index === connections.length - 1}',
+    );
+  });
+
+  it('a connection row is one button; a request row is inert, its two small pills under the name', () => {
+    const connection = flat(CONNECTION_ROW);
+    expect(connection.match(/\bonPress=/g)?.length, 'the whole row opens the profile').toBe(1);
+    expect(connection, 'named for the profile unless the caller says otherwise').toMatch(
+      /a11yKey = 'connection\.a11y\.open'/,
+    );
+    expect(connection).toMatch(
+      /accessibilityLabel=\{t\(a11yKey, locale, \{ name \}\)\} showChevron=\{showChevron\} onPress=\{onPress\}/,
+    );
+    expect(connection, 'a lone-word handle keeps one line (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/,
+    );
+
+    const request = flat(REQUEST_ROW);
+    expect(request, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(
+      request.match(/\bonPress=/g)?.length,
+      'three controls — the disc and two pills: the row itself is not a button (Marco, 2026-10-07)',
+    ).toBe(3);
+    expect(request, 'the disc is a button named for the profile it opens (#356)').toMatch(
+      /<Pressable accessibilityRole="button" accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} className=\{PRESS_DIM\}/,
+    );
+    expect(request, 'named by its verb, spoken with the name').toMatch(
+      /<Button size="sm" label=\{t\('connection\.accept', locale\)\} accessibilityLabel=\{t\('connection\.a11y\.accept', locale, \{ name \}\)\} disabled=\{pending\} onPress=\{onAccept\} \/> <Button variant="outline" size="sm" label=\{t\('connection\.decline', locale\)\} accessibilityLabel=\{t\('connection\.a11y\.decline', locale, \{ name \}\)\} disabled=\{pending\} onPress=\{onDecline\} \/>/,
+    );
+    expect(
+      request,
+      'the pills are the row’s second line, never beside the name (Marco, 2026-10-07): a name ' +
+        'beside them broke inside a word on an iPhone SE',
+    ).toMatch(
+      /description=\{ <View className=\{stacked \? 'items-start gap-2 pt-2' : 'flex-row items-center gap-3 pt-2'\}> \{pills\} <\/View> \}/,
+    );
+    expect(request).not.toMatch(/\btrailing=/);
+    expect(request).toMatch(/titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/);
+    expect(request).not.toMatch(/<ButtonRow\b/);
+  });
+
+  it('a blocked row is inert and «Sblocca» is an underlined link at its right', () => {
+    const row = flat(BLOCKED_ROW);
+    expect(row.match(/\bonPress=/g)?.length, 'one control: nothing opens a blocked profile').toBe(
+      1,
+    );
+    expect(row, 'a 44pt link, not a pill (Marco, 2026-10-07)').toMatch(
+      /className=\{cn\('min-h-\[44px\] justify-center', PRESS_DIM\)\}/,
+    );
+    expect(row).toMatch(
+      /<Text className="type-small text-foreground underline">\{unblockLabel\}<\/Text>/,
+    );
+    expect(row, 'in flight the row dims and the link is inert').toMatch(
+      /className=\{mutating \? 'opacity-50' : undefined\}/,
+    );
+    expect(row).not.toMatch(/<Button\b/);
+  });
+
+  it('a paged list is one group with no gap, and a failed later page says so under the rows', () => {
+    for (const file of [HUB, BLOCKED]) {
+      const screen = flat(file);
+      const lists = screen.match(/<FlatList\b/g)?.length ?? 0;
+      expect(lists, file).toBe(file === HUB ? 2 : 1);
+      expect(
+        screen.match(/contentContainerClassName="grow px-5 pb-12"/g)?.length,
+        `${file}: the group’s segments touch`,
+      ).toBe(lists);
+      expect(
+        screen.match(/ListFooterComponent=\{ <ListPageError\b/g)?.length,
+        `${file}: rows in hand hide ListEmptyComponent, so the footer carries the reason`,
+      ).toBe(lists);
+      expect(screen.match(/\bstaleWins: true\b/g)?.length, file).toBe(lists);
+    }
+    const footer = flat(PAGE_ERROR);
+    expect(footer, 'only with rows on screen: the empty arm is ListState’s').toMatch(
+      /if \(!query\.isError \|\| !hasRows\) return null;/,
+    );
+    expect(footer).toMatch(
+      /query\.isFetchNextPageError \? query\.fetchNextPage\(\) : query\.refetch\(\)/,
+    );
+    expect(footer).toMatch(/<Text className="text-center type-small text-muted-foreground">/);
+    expect(footer).toMatch(/<Button label=\{retryLabel\} variant="ghost"/);
+  });
+
+  it('the hub stands its chips and its search field 26 from what follows', () => {
+    const hub = flat(HUB);
+    expect(hub).toMatch(/<View className="px-5 pb-\[26px\]"> <SegmentedToggle/);
+    expect(hub).toMatch(/<View className="px-5 pb-\[26px\]"> <Input/);
+  });
+
+  it('the report sheet is body text, chips, a field and the white pill, 26 apart', () => {
+    const report = flat(REPORT);
+    expect(report).toMatch(/<HeaderClose\b/);
+    expect(report).toMatch(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/);
+    expect(report).toMatch(
+      /<Text className="type-body text-foreground">\{t\('report\.sub', locale\)\}<\/Text>/,
+    );
+    expect(report, 'reasons are chips, 8 apart, one chosen').toMatch(
+      /<View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup"/,
+    );
+    expect(report).toMatch(/<Chip key=\{option\} role="radio"/);
+    expect(report, 'the failure line stands in the field’s group, always mounted').toMatch(
+      /<View className="gap-1\.5"> <Field\b/,
+    );
+    expect(report).toMatch(/<Text className="type-small text-error">/);
+    expect(report).toMatch(/variant="primary"/);
+  });
+
+  it('a sent report is a foreground ✓, one sentence and the red link: no celebration', () => {
+    const report = flat(REPORT);
+    expect(report).toMatch(
+      /contentContainerClassName="grow items-center justify-center gap-\[26px\] px-5 py-12"/,
+    );
+    expect(report).toMatch(/className="type-num text-foreground"/);
+    expect(report).toMatch(
+      /<Text className="text-center type-body text-foreground"> ?\{t\('report\.confirm', locale\)\} ?<\/Text>/,
+    );
+    expect(report, '«Blocca anche questa persona»: a 44pt link in the error red').toMatch(
+      /<Text className="text-center type-small text-error underline"> ?\{t\('report\.alsoBlock', locale\)\} ?<\/Text>/,
+    );
+    expect(report).not.toMatch(/<SectionLabel\b|<MandorlaMark\b/);
+  });
+});
+
+/**
+ * C15b: another member's profile, the match screen and the profile's connect control (DESIGN
+ * §8.5, §8.12, §2.3; #921). Ruled by Marco on 2026-10-07: match copies favour done, keeps its
+ * fade and the ✦'s flash (§10) and its «✦ Aura» line as a second grey line; «Continua a
+ * esplorare» and «Scrivi» are outline pills; «Fai accadere questo sogno» stands in the footer
+ * and not in the dream card; the reviews are a label and one grey line; another member's city
+ * shows beside the handle (`get_person_profile` masks it when its owner hid it).
+ */
+describe('the member’s profile, the match screen and the connect control keep the Galleria look (#921)', () => {
+  const PROFILE = 'app/(modal)/user/[id].tsx';
+  const MATCH = 'app/(modal)/match.tsx';
+  const CONNECT = 'components/connections/ConnectButton.tsx';
+  const ALL = [PROFILE, MATCH, CONNECT];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('the only cyan is the match screen’s: its mark, its label and its pill', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3). A match is a celebration; a profile is not: its share ' +
+        'is the drawn icon in foreground, another member’s Aura numeral is foreground, and a ' +
+        'connection is routine',
+    ).toEqual([
+      `${MATCH}  <CelebrationMark`,
+      `${MATCH}  tone="celebration"`,
+      `${MATCH}  variant="celebration"`,
+    ]);
+  });
+
+  it('none of the three writes a card: the profile’s one card is the dream’s own', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+    expect(flat(PROFILE), 'the shared dream card, read-only').toMatch(/<DreamCard variant="read"/);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size resolves at a rem of 14 on device and `leading-*` emits nothing (measured ' +
+        'on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or a mark, or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯✦✧'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'close, share and options are drawings (DESIGN §6 «Interface icons»); the ✦ of a ' +
+        'celebration is `CelebrationMark`’s, and a ✦ in a sentence is the catalog’s',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every pressable dims when pressed', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        .filter(({ base, raw }) => base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bhitSlop\b/.test(code(file))),
+      'a header control is a 44pt box, not a glyph with slop',
+    ).toEqual([]);
+  });
+
+  it('match is the celebration composition: mark, cyan label, h1, two grey lines, two pills', () => {
+    const match = flat(MATCH);
+    expect(match, 'the drawn close, on the gutter').toMatch(
+      /<View className="flex-row justify-end px-5"> <HeaderClose label=\{t\('common\.close', locale\)\} onPress=\{dismiss\} \/> <\/View>/,
+    );
+    expect(match, 'it scrolls: nothing here is capped').toMatch(
+      /<ScrollView contentContainerClassName="grow items-center justify-center gap-\[26px\] px-5 py-12">/,
+    );
+    expect(match, 'the mark flashes; under Reduce Motion it does not move (DESIGN §10)').toMatch(
+      /<Animated\.View style=\{reduceMotion \? undefined : \{ transform: \[\{ scale \}\] \}\}> <CelebrationMark \/> <\/Animated\.View>/,
+    );
+    expect(match).not.toMatch(/<Mandorla\b/);
+    expect(match).toMatch(
+      /<View className="items-center gap-2"> <SectionLabel tone="celebration">/,
+    );
+    expect(match, 'the title is the heading, not the label (DESIGN §10)').toMatch(
+      /<Text accessibilityRole="header" className="text-center type-h1 text-foreground">/,
+    );
+    expect(
+      match.match(/<Text className="text-center type-small text-muted-foreground">/g)?.length,
+      'the sentence and «✦ Aura», both grey (Marco, 2026-10-07)',
+    ).toBe(2);
+    expect(match).toMatch(/\{t\('momenti\.aura\.chip', locale\)\}/);
+    expect(match).toMatch(/<View className="gap-2 self-stretch"> <Button variant="celebration"/);
+    expect(match, '«Continua a esplorare» / «Più tardi»: the outline pill').toMatch(
+      /<Button variant="outline" label=\{accepted \? t\('match\.accepted\.keepCta', locale\) : t\('match\.laterCta', locale\)\} onPress=\{dismiss\} \/>/,
+    );
+    expect(match).not.toMatch(/variant="ghost"/);
+    expect(match, 'the gutter is the scroll’s 20, not the screen’s').not.toMatch(/\bp[lr]-8\b/);
+  });
+
+  it('the profile’s header holds the drawn share and the drawn options, each a 44pt button', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(/<View className="flex-row items-center gap-1">/);
+    expect(profile).toMatch(
+      /accessibilityLabel=\{t\('profile\.share\.label', locale\)\} className=\{cn\('min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM\)\} onPress=\{\(\) => void shareProfile\(\)\} > <ShareIcon color=\{galleria\.foreground\} \/>/,
+    );
+    expect(
+      profile,
+      'named for what it opens: block, unblock and report sit behind it. 12 into the gutter, ' +
+        'like the header’s close',
+    ).toMatch(
+      /accessibilityLabel=\{t\('profile\.a11y\.options', locale\)\} className=\{cn\('-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM\)\} onPress=\{openMenu\} > <MoreIcon color=\{galleria\.foreground\} \/>/,
+    );
+    expect(profile, 'the options control is not named for one of its entries').not.toMatch(
+      /accessibilityLabel=\{t\('block\.cta', locale\)\}/,
+    );
+  });
+
+  it('every arm of the profile spaces its blocks 26 apart', () => {
+    const profile = flat(PROFILE);
+    expect(
+      profile.match(/contentContainerClassName="gap-\[26px\] px-5 pb-12"/g)?.length,
+      'the loaded profile, «non disponibile» and the removed account',
+    ).toBe(3);
+    expect(profile).not.toMatch(/\bgap-8\b/);
+    expect(profile, 'a `Modal` in the scroll’s content would take a gap of its own').toMatch(
+      /<\/ScrollView> (?:\{ ?\} )?<Lightbox\b/,
+    );
+  });
+
+  it('the footer is a row of pills: «Scrivi» outline beside the one primary', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(
+      /<ButtonRow className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('profile\.write\.cta', locale\)\} variant="outline"/,
+    );
+    expect(profile).not.toMatch(/variant="ghost"/);
+    expect(
+      profile.match(/t\('dream\.makeHappenCta', locale\)/g)?.length,
+      '«Fai accadere questo sogno» stands in the footer alone (Marco, 2026-10-07)',
+    ).toBe(1);
+    expect(profile, 'the dream card is the label and the quote (DESIGN §8.5)').not.toMatch(
+      /\bonMakeHappen\b/,
+    );
+    expect(profile).toMatch(/<ConnectButton peerId=\{id\} locale=\{locale\} \/>/);
+  });
+
+  it('the hero shows the city its owner left visible, and the reviews are one grey line', () => {
+    const profile = flat(PROFILE);
+    expect(profile).toMatch(/\bcity: person\.city \?\? null,/);
+    expect(profile).toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('profile\.reviews\.label', locale\)\}<\/SectionLabel> <Text className="type-small text-muted-foreground"> ?\{t\('profile\.reviews\.empty', locale\)\} ?<\/Text> <\/View>/,
+    );
+    expect(
+      profile.match(/<EmptyState\b/g)?.length,
+      'the mandorla is for «non disponibile» and the removed account, not for a block',
+    ).toBe(2);
+  });
+
+  it('a connection’s status is grey text, never a link that cannot be followed', () => {
+    const connect = flat(CONNECT);
+    expect(
+      connect.match(/<Text className="text-center type-small text-muted-foreground">/g)?.length,
+      '«Richiesta inviata» and «Connessi ✦»',
+    ).toBe(2);
+    expect(connect, 'no control exists to do nothing').not.toMatch(/onPress=\{\(\) => \{\}\}/);
+    expect(connect, 'and none is disabled for good').not.toMatch(
+      /\bdisabled(?:=\{true\})?(?=[\s/>])(?!=)/,
+    );
+    expect(connect, '«Annulla richiesta» is the text link').toMatch(
+      /<Button label=\{t\('connection\.cancel', locale\)\} variant="ghost" disabled=\{pending \|\| !requestId\}/,
+    );
+    expect(connect, '«Rifiuta» is the outline pill, as on the connections list').toMatch(
+      /<Button label=\{t\('connection\.decline', locale\)\} variant="outline" disabled=\{pending \|\| !requestId\}/,
+    );
+    expect(connect.match(/variant="ghost"/g)?.length).toBe(1);
+    expect(connect).not.toMatch(/<Pressable\b/);
+  });
+});
+
+/**
+ * C16: the conversation list, the new-message picker and the chat (DESIGN §8.8; #921). The three
+ * compose bars (chat, the post's comments, the story reply) take one shape here: the 50pt small
+ * field and a 50pt white disc (Marco, 2026-10-09).
+ */
+describe('messages, the new-message picker and chat keep the Galleria look (#921)', () => {
+  const LIST = 'app/(modal)/messages.tsx';
+  const PICKER = 'app/(modal)/new-message.tsx';
+  const CHAT = 'app/(modal)/chat.tsx';
+  const BUBBLE = 'components/chat/Bubble.tsx';
+  const CONVERSATION_ROW = 'components/chat/ConversationRow.tsx';
+  const ACTIONS = 'components/chat/MessageActionsSheet.tsx';
+  const CONNECTION_ROW = 'components/connections/ConnectionRow.tsx';
+  const HEADER = 'components/ModalHeader.tsx';
+  const POST = 'app/(modal)/post/[id].tsx';
+  const VIEWER = 'components/stories/StoriesViewer.tsx';
+  const ALL = [LIST, PICKER, CHAT, BUBBLE, CONVERSATION_ROW, ACTIONS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+  const DISC = "'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground'";
+
+  it('the chat folder is the three files', () => {
+    const folder = FILES.map((p) => rel(p).replace('apps/native/src/', ''))
+      .filter((p) => p.startsWith('components/chat/') && !/\.test\./.test(p))
+      .sort();
+    expect(folder).toEqual([BUBBLE, CONVERSATION_ROW, ACTIONS]);
+  });
+
+  it('nothing here is cyan: a sent message, the send disc and an unread thread are routine', () => {
+    const hits = [...ALL, HEADER].flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the own bubble and the send disc are foreground fills, ' +
+        'an unread thread a foreground dot, the peer’s Aura a grey line',
+    ).toEqual([]);
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      [...ALL, HEADER].filter(
+        (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+      ),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    // `+` is checked as a JSX text child: the character is also an operator.
+    const typed = ALL.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(flat(file).match(/> ?\+ ?<\/Text>/g) ?? []).map((hit) => `${file}  ${hit}`),
+    ]);
+    expect(
+      typed,
+      'a control is a drawing from `components/glyphs` (DESIGN §6 «Interface icons»)',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every control dims when pressed, and no opacity rides a style object', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        // A sheet's scrim and panel are not controls: they are the two `accessible={false}` ones.
+        .filter(
+          ({ base, raw }) =>
+            base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw) && !/accessible=\{false\}/.test(raw),
+        )
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bopacity\s*:/.test(code(file))),
+      'a dim is a class or a layer, the literal and the `style` spelling alike',
+    ).toEqual([]);
+  });
+
+  it('the conversation list’s header controls are two drawings in 44pt boxes', () => {
+    const list = flat(LIST);
+    expect(list).toMatch(/<PeopleIcon color=\{galleria\.foreground\} \/>/);
+    expect(list).toMatch(/<AddIcon color=\{galleria\.foreground\} \/>/);
+    expect(
+      list.match(/min-h-\[44px\] min-w-\[44px\] items-center justify-center'/g)?.length,
+      'a real box each, not a glyph and a `hitSlop` (DESIGN §10)',
+    ).toBe(2);
+    expect(list, 'the last control stands on the gutter, as `HeaderClose` does').toMatch(
+      /'-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center'/,
+    );
+    expect(list).not.toMatch(/\bhitSlop=/);
+  });
+
+  it('a conversation is a row of one group: the disc, the name, one line, the time, a dot', () => {
+    const row = flat(CONVERSATION_ROW);
+    expect(row, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(row).toMatch(/'bg-surface px-4'/);
+    expect(row).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+    expect(row).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(row, 'the 44 disc is decorative: the row’s label says the name').toMatch(
+      /<Avatar decorative [^>]*size=\{44\} \/>/,
+    );
+    expect(row, 'a lone-word handle keeps one line (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/,
+    );
+    expect(row, 'the preview is one grey line, read or not').toMatch(
+      /description=\{preview\} descriptionLines=\{1\}/,
+    );
+    expect(row, 'the time is the row’s value').toMatch(/value=\{time\}/);
+    expect(row, 'opening a thread is not a disclosure: no chevron').toMatch(
+      /showChevron=\{false\}/,
+    );
+    expect(row, 'unread is a foreground dot, 8px (Marco, 2026-10-05 and 2026-10-09)').toMatch(
+      /unread \? <View className="h-2 w-2 rounded-full bg-foreground" \/> : undefined/,
+    );
+    expect(
+      row,
+      'one button, so its label carries what the row shows, unread included (#884)',
+    ).toMatch(
+      /accessibilityLabel=\{\[name, preview, time, unread \? t\('messages\.a11y\.unread', locale\) : null\] \.filter\(Boolean\) \.join\(', '\)\}/,
+    );
+    expect(row.match(/\bonPress=/g)?.length, 'the whole row opens the thread').toBe(1);
+    expect(row).not.toMatch(/<Pressable\b/);
+  });
+
+  it('both lists page: each row is told where it stands, and a failed later page says so', () => {
+    expect(flat(LIST)).toContain('first={index === 0} last={index === items.length - 1}');
+    expect(flat(PICKER)).toContain('first={index === 0} last={index === connections.length - 1}');
+    for (const file of [LIST, PICKER]) {
+      expect(flat(file), file).toMatch(/contentContainerClassName="grow px-5 pb-12"/);
+      expect(flat(file), `${file}: rows in hand hide the list's own error arm`).toMatch(
+        /ListFooterComponent=\{ <ListPageError /,
+      );
+    }
+  });
+
+  it('a picker row starts a chat and says so; a connections row still opens the profile', () => {
+    const picker = flat(PICKER);
+    expect(picker, 'the row is named for what a tap does').toMatch(
+      /a11yKey="messages\.a11y\.start" showChevron=\{false\}/,
+    );
+    expect(picker, 'the field stands 26 above the group').toMatch(
+      /<View className="px-5 pb-\[26px\]"> <Input /,
+    );
+    const row = flat(CONNECTION_ROW);
+    expect(row, 'the default is the profile').toMatch(/a11yKey = 'connection\.a11y\.open'/);
+    expect(row).toMatch(/accessibilityLabel=\{t\(a11yKey, locale, \{ name \}\)\}/);
+    expect(flat('app/(modal)/connections.tsx'), 'Connessioni passes neither').not.toMatch(
+      /\ba11yKey=|\bshowChevron=/,
+    );
+  });
+
+  it('the chat header is the identity form: body-medium name, a small grey line, the drawn more', () => {
+    const header = flat(HEADER);
+    expect(
+      /const titleClass = compact \? '([^']*)'/.exec(header)?.[1],
+      'the prototype’s `.t`: 17/500',
+    ).toBe('type-body font-medium text-foreground');
+    expect(header, 'a string subtitle is the small grey line, compact or not').toMatch(
+      /<Text numberOfLines=\{2\} className="type-small text-muted-foreground">/,
+    );
+    expect(header, 'the identity block’s gap is the prototype’s `.line`: 10').toMatch(
+      /className=\{cn\('flex-1 flex-row items-center gap-\[10px\]', PRESS_DIM\)\}/,
+    );
+    const chat = flat(CHAT);
+    expect(chat, 'the peer’s Aura is not the member’s own numeral: grey').toMatch(
+      /<Text className="type-small text-muted-foreground" accessibilityLabel=\{peerAuraA11y\}>/,
+    );
+    expect(chat).toMatch(/<MoreIcon color=\{galleria\.foreground\} \/>/);
+    expect(chat, 'the options control is a 44pt box on the gutter').toMatch(
+      /accessibilityLabel=\{t\('chat\.a11y\.menu', locale\)\} className=\{cn\( ?'-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM,? ?\)\}/,
+    );
+  });
+
+  it('the own bubble is the white fill with black text; the peer’s is charcoal with a hairline', () => {
+    const bubble = flat(BUBBLE);
+    expect(bubble, 'own').toMatch(/cn\('rounded-\[20px\] bg-foreground', bubblePad\)/);
+    expect(bubble.match(/content\('text-background'\)/g)?.length, 'black on white').toBe(2);
+    expect(bubble, 'peer: as wide as its content, never the whole row').toMatch(
+      /cn\('shrink rounded-\[20px\] border border-hair bg-surface', bubblePad\)/,
+    );
+    expect(bubble.match(/content\('text-foreground'\)/g)?.length).toBe(2);
+    expect(bubble, 'the prototype’s padding: 10 and 16').toMatch(
+      /hasMedia \? 'p-1\.5' : 'px-4 py-\[10px\]'/,
+    );
+    expect(bubble, 'a message is body text').toMatch(/cn\('type-body', textClass,/);
+    expect(bubble, 'the photo keeps the tile radius inside the bubble').toMatch(
+      /className="overflow-hidden rounded-\[14px\] bg-background"/,
+    );
+    expect(bubble, 'the server’s sentence is a small grey italic line').toMatch(
+      /<Text className="text-center type-small italic text-muted-foreground">/,
+    );
+  });
+
+  it('the three ice-breaker prompts are one centred row of inert pills', () => {
+    const chat = flat(CHAT);
+    expect(chat, 'consecutive prompts share a row').toMatch(/type: 'prompts'/);
+    expect(chat).toMatch(
+      /<View className="my-1\.5 flex-row flex-wrap justify-center gap-2"> \{item\.prompts\.map\(\(prompt\) => \( <Tag key=\{prompt\.id\} label=\{serverLine\(prompt, locale\)\} \/> \)\)\} <\/View>/,
+    );
+    expect(chat, 'the day is a small grey line, not a label').toMatch(
+      /<Text className="type-small text-muted-foreground">\{item\.label\}<\/Text>/,
+    );
+    expect(chat).not.toMatch(/<SectionLabel\b/);
+  });
+
+  it('the three compose bars are the 50pt field and a 50pt white send that stays mounted', () => {
+    const input = code('components/Input.tsx');
+    expect(
+      /sm: '([^']*)'/.exec(input)?.[1],
+      'the compose-bar field: 50 like the form pill, radius 25 so several lines stay a box',
+    ).toBe('min-h-[50px] rounded-[25px] pb-3 pl-5 pr-5 pt-[13px]');
+    for (const file of [CHAT, POST, VIEWER]) {
+      const src = flat(file);
+      expect(src, file).toMatch(/<Input className="flex-1" size="sm"/);
+      expect(src, `${file}: a white disc`).toContain(DISC);
+      expect(src, file).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+      expect(src, `${file}: no 44pt disc is left`).not.toMatch(
+        /h-\[44px\] w-\[44px\] items-center justify-center rounded-full/,
+      );
+    }
+    const chat = flat(CHAT);
+    // A control that mounts beside a `TextInput` on the first character lost typed characters
+    // (`search/SearchBar`'s docblock has the counts): disabled and dimmed, never unmounted.
+    expect(chat, 'disabled is 40%, never unmounted').toMatch(/canSend \? null : 'opacity-40'/);
+    expect(chat).toMatch(/accessibilityState=\{\{ disabled: !canSend \}\}/);
+    expect(chat, 'the bar’s gap and gutter').toMatch(
+      /<View className="flex-row items-end gap-\[10px\] px-5 py-3">/,
+    );
+    expect(chat, 'attach is the drawn add').toMatch(/<AddIcon color=\{galleria\.foreground\} \/>/);
+  });
+
+  it('a staged photo is a radius-14 tile with a hairline, a drawn close and a layer for the dim', () => {
+    const chat = flat(CHAT);
+    expect(chat, 'an RN `Image` takes no class: radius and hairline in `style`').toMatch(
+      /borderRadius: 14, borderWidth: 1, borderColor: galleria\.hair,? \}\}/,
+    );
+    expect(chat, 'the no-poster arm').toMatch(
+      /className="h-16 w-16 items-center justify-center rounded-\[14px\] border border-hair bg-surface"/,
+    );
+    expect(chat, 'the remove badge').toMatch(
+      /'absolute right-\[-6px\] top-\[-6px\] h-\[20px\] w-\[20px\] items-center justify-center rounded-full border border-hair bg-surface'/,
+    );
+    expect(chat).toMatch(/<CloseIcon size=\{12\} color=\{galleria\.foreground\} \/>/);
+    expect(chat, 'while it uploads').toMatch(
+      /<View className="absolute inset-0 rounded-\[14px\] bg-background opacity-60" \/>/,
+    );
+  });
+
+  it('the message sheet is the charcoal panel over a dim layer, its actions shared rows', () => {
+    const sheet = flat(ACTIONS);
+    expect(sheet).toMatch(
+      /<View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" \/>/,
+    );
+    expect(sheet, 'no grab handle, no border (Marco, 2026-10-06)').toMatch(
+      /className="max-h-\[88%\] rounded-t-\[28px\] bg-surface px-1 pb-12 pt-7"/,
+    );
+    expect(sheet).toMatch(
+      /<Text accessibilityRole="header" className="type-h2 px-4 text-center text-foreground">/,
+    );
+    expect(sheet, 'report, then the way out').toMatch(
+      /<RowGroup> <Row title=\{t\('chat\.message\.report', locale\)\} showChevron=\{false\} onPress=\{onReport\} \/> <Row title=\{t\('common\.cancel', locale\)\} showChevron=\{false\} onPress=\{onClose\} \/> <\/RowGroup>/,
+    );
+    expect(sheet, 'the local row is gone').not.toMatch(/function Row\b/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// The dream screens and the offer-help sheet (#921, 2026-10-09). The dream's own screen has the
+// one bordered card, the dream; its author and its tappe are groups of rows. The three forms and
+// the help sheet stand on the stage: a grey sentence, a label 6 above its field, blocks 26 apart.
+// ---------------------------------------------------------------------------------------
+describe('the dream screens and the offer-help sheet keep the Galleria look (#921)', () => {
+  const DREAM = 'app/(modal)/dream/[id].tsx';
+  const EDITOR = 'app/(modal)/dream-editor.tsx';
+  const MILESTONE = 'app/(modal)/milestone.tsx';
+  const PROJECT = 'app/(modal)/project-compose.tsx';
+  const HELP = 'app/(modal)/help.tsx';
+  const FORMS = [EDITOR, MILESTONE, PROJECT, HELP];
+  const ALL = [DREAM, ...FORMS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('nothing here is cyan: a dream read, written or helped is not a celebration', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the author’s handle is a grey line, the initial in ' +
+        'the disc foreground, every action a white or outline pill',
+    ).toEqual([]);
+  });
+
+  it('the dream is the one bordered card, and only its own screen has it', () => {
+    expect((code(DREAM).match(/<Card\b/g) ?? []).length, 'one card on the dream screen').toBe(1);
+    expect(flat(DREAM), 'the card is the label and the quote').toMatch(
+      /<Card> \{author \? \( <SectionLabel> \{t\('publicDream\.titleWithAuthor', locale, \{ handle: author\.handle \}\)\} <\/SectionLabel> \) : null\} <DreamQuote text=\{dream\.text\} \/> <\/Card>/,
+    );
+    expect(FORMS.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): the shared `Card` draws it',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class, or the fixed 14 of a reason', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl|full)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11); a disc is `Avatar`',
+    ).toEqual([]);
+    // The only literal size on these screens is the reason under a field (DESIGN §4), in `error`.
+    const literal = ALL.flatMap((file) =>
+      [...code(file).matchAll(/className="([^"]*\btext-\[\d+px\][^"]*)"/g)]
+        .map((m) => m[1] as string)
+        .filter((cls) => cls !== 'text-[14px] text-error')
+        .map((cls) => `${file}  ${cls}`),
+    );
+    expect(literal, 'every other line takes a `type-*` class').toEqual([]);
+    const reasons = ALL.flatMap((file) =>
+      [...code(file).matchAll(/className="([^"]*\btext-error\b[^"]*)"/g)]
+        .map((m) => m[1] as string)
+        .filter((cls) => cls !== 'text-[14px] text-error')
+        .map((cls) => `${file}  ${cls}`),
+    );
+    expect(reasons, 'a reason is the fixed 14, whichever way it is spelled').toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'a control is a drawing from `components/glyphs`; a row’s chevron is `Row`’s own',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('no file here builds its own pressable: rows, chips and pills are the shared ones', () => {
+    const own = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'Pressable' || base === 'TextInput' || base === 'Image')
+        .map(({ base, line }) => `${file}:${line} <${base}>`),
+    );
+    expect(
+      own,
+      'the author is a `Row` with an `Avatar`, a field is `Field` or `Input`, a choice a `Chip`',
+    ).toEqual([]);
+  });
+
+  it('blocks stand 26 apart in every scroll, on the gutter', () => {
+    for (const file of ALL) {
+      const scrolls = [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map(
+        (m) => m[1] as string,
+      );
+      expect(scrolls.length, `${file}: no scroll found`).toBeGreaterThan(0);
+      // `project-compose` ends in a pinned bar, so its scroll keeps the composers' `pb-8`.
+      const want = file === PROJECT ? 'gap-[26px] px-5 pb-8' : 'gap-[26px] px-5 pb-12';
+      expect(scrolls, file).toEqual(scrolls.map(() => want));
+    }
+    // A block with its own gap is a group (8), a label over a field (6) or chips (8): no other.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '1.5'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(
+      gaps,
+      'the prototype’s rhythm: 26 between blocks, 8 in a group, 6 under a label',
+    ).toEqual([]);
+  });
+
+  it('the author is one row of a group, named by what a tap does', () => {
+    const dream = flat(DREAM);
+    expect(dream).toMatch(
+      /<RowGroup> <Row leading=\{ <Avatar decorative handle=\{author\.handle\} displayName=\{author\.displayName\} previewUri=\{author\.avatarUrl \?\? null\} size=\{44\} \/> \}/,
+    );
+    expect(dream, 'the row says whose profile opens').toMatch(
+      /accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name: authorName \}\)\}/,
+    );
+    expect(dream, 'a lone-word handle ellipsizes (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(authorName\) === 1 \? 1 : undefined\}/,
+    );
+  });
+
+  it('the tappe are a group of rows, on the dream and in the picker', () => {
+    // A JSX comment between two siblings survives `stripComments` as `{ }`.
+    expect(flat(DREAM)).toMatch(
+      /<RowGroup label=\{t\('publicProfile\.milestonesLabel', locale\)\}> (?:\{ ?\} )?\{dream\.milestones\.map\(\(m\) => \( <MilestoneRow key=\{m\.id\} name=\{m\.body\} status=\{m\.status\} locale=\{locale\} \/> \)\)\} <\/RowGroup>/,
+    );
+    expect(flat(HELP)).toMatch(
+      /<RowGroup> \{options\.map\(\(m\) => \( <MilestoneRow key=\{m\.id\} name=\{m\.body\} status=\{m\.status\} locale=\{locale\} helpState="available" onHelp=\{\(\) => setPicked\(m\)\} \/> \)\)\} <\/RowGroup>/,
+    );
+  });
+
+  it('a helper sentence is small and grey, and the need it answers is body', () => {
+    for (const [file, key] of [
+      [EDITOR, 'dream.editor.sub'],
+      [MILESTONE, 'milestone.sheet.desc'],
+      [PROJECT, 'create.project.desc'],
+      [HELP, 'help.pick.hint'],
+      [HELP, 'help.noMoney'],
+    ] as const) {
+      expect(flat(file), `${file} ${key}`).toMatch(
+        new RegExp(
+          `<Text className="type-small text-muted-foreground"> ?\\{t\\('${key.replace(/\./g, '\\.')}', locale\\)\\} ?</Text>`,
+        ),
+      );
+    }
+    expect(flat(HELP), 'the canvas draws the need as plain body text').toMatch(
+      /<Text className="type-body text-foreground"> \{t\('help\.sheet\.needEcho', locale, \{ need: needEcho \}\)\} <\/Text>/,
+    );
+  });
+
+  it('a label stands 6 above its field, and the dream field keeps its register', () => {
+    expect(flat(MILESTONE)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('milestone\.field\.label', locale\)\}<\/SectionLabel> <Field /,
+    );
+    const project = flat(PROJECT);
+    expect(project).toMatch(
+      /<View className="gap-1\.5" ref=\{reveal\.rowRef\('title'\)\}> <SectionLabel>\{t\('project\.compose\.titleLabel', locale\)\}<\/SectionLabel> <Input /,
+    );
+    expect(project).toMatch(
+      /<View className="gap-1\.5" ref=\{reveal\.rowRef\('description'\)\}> <SectionLabel>\{t\('project\.compose\.descLabel', locale\)\}<\/SectionLabel> <Field /,
+    );
+    expect(project, 'chips stand 8 under their label and 8 apart').toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('project\.compose\.catLabel', locale\)\}<\/SectionLabel> <View className="flex-row flex-wrap gap-2">/,
+    );
+    expect(flat(EDITOR), 'the dream is written in the dream register (DESIGN §4)').toMatch(
+      /<Field size="lg" register="dream" /,
+    );
+    // Marco, 2026-10-09: the multi-line fields keep `Field`'s two heights (the canvas draws 220,
+    // 160 and 120), so no call site sets one.
+    expect(
+      ALL.filter((file) => /(?<![\w-])(?:min-)?h-(?:\[\d+px\]|\d+)/.test(code(file))),
+      'a field’s height is `Field`’s `size`',
+    ).toEqual([]);
+  });
+
+  it('the dream field has no label above it, so the screen’s title names it', () => {
+    expect(flat(EDITOR)).toMatch(/accessibilityLabel=\{t\('dream\.editor\.title', locale\)\}/);
+    // On the help sheet the chips' group already says the title: the field does not repeat it.
+    expect(
+      (flat(HELP).match(/accessibilityLabel=\{t\('help\.sheet\.title', locale\)\}/g) ?? []).length,
+      'one element named by the title, the radiogroup',
+    ).toBe(1);
+  });
+
+  it('the publish bar is pinned under a hairline, and a refusal stands by what it refuses', () => {
+    const project = flat(PROJECT);
+    expect(project).toMatch(/<View className="border-t border-hair bg-background px-5 py-3">/);
+    expect(
+      project,
+      'the server’s refusal is in the title’s group, with the empty-title one',
+    ).toMatch(
+      /\{titleMissing \? \( <Text className="text-\[14px\] text-error">\{t\('project\.compose\.error', locale\)\}<\/Text> \) : null\} \{error \? <Text className="text-\[14px\] text-error">\{error\}<\/Text> : null\} <\/View>/,
+    );
+    expect(flat(HELP), 'the refusal stands 8 above the pill it refuses').toMatch(
+      /<View className="gap-2"> \{error === 'already' \? \( <Text className="text-\[14px\] text-error">\{t\('help\.alreadyOffered', locale\)\}<\/Text> \) : null\} <Button /,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// The realization plan and the progress notes (#921, 2026-10-09). The plan's one bordered card
+// is the budget. A draft phase is a folding charcoal group with its fields as black wells; a
+// published plan lists its phases as blocks of one group. The notes are one group too, each
+// drawing its own segment, on the winner's trail and on the fund screen alike.
+// ---------------------------------------------------------------------------------------
+describe('the plan and the progress notes keep the Galleria look (#921)', () => {
+  const PLAN = 'app/(modal)/plan.tsx';
+  const PROGRESS = 'app/(modal)/progress.tsx';
+  const ANNUAL = 'app/(modal)/annual.tsx';
+  const PHASE = 'components/fund/PlanPhaseCard.tsx';
+  const UPDATE = 'components/fund/ProgressUpdateCard.tsx';
+  const SCREENS = [PLAN, PROGRESS];
+  const ALL = [PLAN, PROGRESS, PHASE, UPDATE];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('nothing here is cyan: money planned and work told are not one of the five marks', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the budget and a phase’s cost are foreground, a ' +
+        'note’s phase line grey, «Salva la correzione» a foreground link',
+    ).toEqual([]);
+  });
+
+  it('the budget is the plan’s one bordered card, and its figure the middle numeral', () => {
+    expect((code(PLAN).match(/<Card\b/g) ?? []).length, 'one card on the plan').toBe(1);
+    expect(flat(PLAN), 'the label, then what there is').toMatch(
+      /<Card> <SectionLabel>\{t\('fund\.plan\.budget\.label', locale\)\}<\/SectionLabel> <Text className="type-num-m text-foreground">\{formatFundTotal\(payable, locale\)\}<\/Text>/,
+    );
+    expect([PROGRESS, PHASE, UPDATE].filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-(?:t-|b-)?(?:\[28px\]|card|hero)[^'"`]*\bborder\b(?!-)|\bborder\b(?!-)[^'"`]*rounded-(?:t-|b-)?(?:\[28px\]|card|hero)/.test(
+          code(file),
+        ),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): the shared `Card` draws it',
+    ).toEqual([]);
+  });
+
+  it('the plan states its money and bends none of it', () => {
+    const plan = code(PLAN);
+    // Rule 6: what there is, what the phases promise, what is left. Each is computed by
+    // `@athanor/core` or summed from the draft, and the screen rounds or caps nothing.
+    expect(plan).toMatch(
+      /payableCents\(edition\?\.confirmed_pool_cents \?\? 0, edition\?\.split_pct \?\? 0\)/,
+    );
+    expect(plan).toMatch(/const costed = costedCents\(phases\);/);
+    expect(plan).toMatch(/remainingPayableCents\(/);
+    expect(
+      [PLAN, PHASE].filter((file) =>
+        /\bMath\.(?:min|max|floor|ceil)\b|\bclamp\w*\(/.test(code(file)),
+      ),
+      'a ceiling is the database’s to refuse, shown as itself',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b|(?<![\w-])text-\[\d+px\]/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b|font-(?:extrabold|bold|semibold)\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11); no line here ' +
+        'is a reason under a field, so none takes the fixed 14 either',
+    ).toEqual([]);
+    // No `tabular-nums` utility here: the numeral class carries the variant (`-rn-font-variant`
+    // in `global.css`), and a figure in body text asks for it through `fontVariant`.
+    expect(
+      ALL.filter((file) => /(?<!fontVariant: \[')\btabular-nums\b/.test(code(file))),
+      'the `tabular-nums` utility',
+    ).toEqual([]);
+  });
+
+  it('no file here types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'one `›`, the fold’s: the same character a row draws (Marco, 2026-10-04), turned down ' +
+        'while the fold is shut and up while it is open',
+    ).toEqual([`${PHASE}  ›`]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('a field is `Field`, and every hand-built control is a button that dims', () => {
+    const raw = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'TextInput' || base === 'Image' || base === 'Input')
+        .map(({ base, line }) => `${file}:${line} <${base}>`),
+    );
+    expect(raw, 'the raw `TextInput`s of these screens became `Field`s').toEqual([]);
+    const pressables = (file: string) =>
+      jsxOpeningTags(code(file)).filter(({ base }) => base === 'Pressable');
+    // The fold's summary, the «Quando» button and «Togli questa fase»; on the trail, the one
+    // recipe its four links share. Everything else is a shared pill, chip or link.
+    expect(ALL.map((file) => [file, pressables(file).length])).toEqual([
+      [PLAN, 0],
+      [PROGRESS, 1],
+      [PHASE, 3],
+      [UPDATE, 0],
+    ]);
+    const bare = ALL.flatMap((file) =>
+      pressables(file)
+        .filter(({ raw: tag }) => !/accessibilityRole="button"/.test(tag) || !/PRESS_DIM/.test(tag))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(bare, 'a role, and the shared pressed state (`lib/press`)').toEqual([]);
+  });
+
+  it('blocks stand 26 apart in both scrolls, on the gutter', () => {
+    for (const file of SCREENS) {
+      const scrolls = [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map(
+        (m) => m[1] as string,
+      );
+      expect(scrolls, file).toEqual(['gap-[26px] px-5 pb-12']);
+    }
+    // 26 between blocks, 8 in a group, 6 under a label; 14 inside a fold and 10 inside a block
+    // of a group (the prototype's `.in-fold` and `.row.col`); 12 beside a row's chevron or
+    // figure; 20 between two links.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '1.5', '[14px]', '[10px]', '3', '5'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(gaps, 'the prototype’s rhythm').toEqual([]);
+    // A height typed here is a floor: the fold's row, a 44pt target, the date button's pill.
+    const heights = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])((?:min-)?h-(?:\[\d+px\]|\d+))(?![\w-])/g)]
+        .map((m) => m[1] as string)
+        .filter((h) => !['min-h-[60px]', 'min-h-[44px]', 'min-h-[50px]'].includes(h))
+        .map((h) => `${file}  ${h}`),
+    );
+    expect(heights, 'a field’s height is `Field`’s `size` (Marco, 2026-10-09)').toEqual([]);
+  });
+
+  it('a helper sentence is small and grey', () => {
+    for (const [file, key] of [
+      [PLAN, 'fund.plan.lead'],
+      [PLAN, 'fund.plan.budget.hint'],
+      [PLAN, 'fund.plan.phases.hint'],
+      [PLAN, 'fund.plan.zeroAura'],
+      [PROGRESS, 'fund.progress.compose.lead'],
+      [PROGRESS, 'fund.progress.public'],
+      [PROGRESS, 'fund.progress.zeroAura'],
+    ] as const) {
+      expect(flat(file), `${file} ${key}`).toMatch(
+        new RegExp(
+          `<Text className="type-small text-muted-foreground"> ?\\{t\\('${key.replace(/\./g, '\\.')}', locale\\)\\} ?</Text>`,
+        ),
+      );
+    }
+  });
+
+  it('a draft phase is a fold: one charcoal group, a row that says whether it is open', () => {
+    const phase = flat(PHASE);
+    expect(phase, 'radius 28, no border, 16 inside').toMatch(
+      /<WellScope> <View className="rounded-\[28px\] bg-surface px-4"> <Pressable /,
+    );
+    expect(phase, 'the row is at least 60 and tells assistive tech its state').toMatch(
+      /accessibilityState=\{\{ expanded: open \}\}/,
+    );
+    expect(phase).toMatch(
+      /className=\{cn\( ?'min-h-\[60px\] flex-row items-center justify-between gap-3 py-2', PRESS_DIM,? ?\)\}/,
+    );
+    expect(phase, 'named by the line it shows, not by its chevron').toMatch(
+      /accessibilityLabel=\{summary\}/,
+    );
+    expect(phase, 'the fields stand 14 apart under the row').toMatch(
+      /\{open \? \( <View className="gap-\[14px\] pb-\[18px\] pt-1">/,
+    );
+    expect((phase.match(/<Field\b/g) ?? []).length, 'title, cost, verification').toBe(3);
+    expect(phase, '«Togli questa fase» is an underlined link').toMatch(
+      /<Text className="type-small text-foreground underline"> ?\{t\('fund\.plan\.phase\.remove', locale\)\} ?<\/Text>/,
+    );
+    // Marco, 2026-10-09: shut at rest, several may be open, a new phase opens, and a save
+    // refused for an unfinished phase opens that phase and brings it up.
+    const plan = flat(PLAN);
+    expect(plan).toMatch(/useState<ReadonlySet<string>>\(\(\) => new Set\(\)\)/);
+    expect(plan).toMatch(/open=\{openKeys\.has\(phase\.key\)\}/);
+    expect(plan, 'a refused save names the phase by opening it').toMatch(
+      /const unfinished = phases\.find\(\(p\) => !phaseComplete\(p\)\);/,
+    );
+    expect(plan).toMatch(/scroller\.current\?\.scrollTo\(\{ y: top - 12, animated: false \}\)/);
+    expect(plan, 'a shut fold is scrolled to once it is laid out open').toMatch(
+      /if \(pendingReveal\.current === phase\.key\) \{ pendingReveal\.current = null; revealPhase\(phase\.key\); \}/,
+    );
+  });
+
+  it('a field in a fold or in a note is a black well, through the card’s own flag', () => {
+    expect(code('components/Card.tsx')).toMatch(/export function WellScope\(/);
+    expect(flat('components/Card.tsx')).toMatch(
+      /return <InsideCard\.Provider value=\{true\}>\{children\}<\/InsideCard\.Provider>;/,
+    );
+    expect(flat(UPDATE), 'the correction field of a note').toMatch(/<WellScope>/);
+    // The «Quando» button is not a `Field`, so it writes the well itself, in the pill's shape.
+    expect(flat(PHASE)).toMatch(
+      /className=\{cn\( ?'min-h-\[50px\] justify-center rounded-full bg-background px-5 py-\[13px\]', PRESS_DIM,? ?\)\}/,
+    );
+    expect(flat(PHASE), 'named by its label and its date').toMatch(
+      /accessibilityLabel=\{\[dateLabel, when\]\.join\(', '\)\}/,
+    );
+  });
+
+  it('a published plan lists its phases as blocks of one group, nothing to open', () => {
+    expect(flat(PLAN)).toMatch(
+      /<RowGroup> \{phases\.map\(\(phase, index\) => \( <PlanPhaseFacts key=\{phase\.key\} phase=\{phase\} index=\{index\} locale=\{locale\} \/> \)\)\} <\/RowGroup>/,
+    );
+    expect(code(PHASE)).toMatch(/export function PlanPhaseFacts\(/);
+    expect(flat(PHASE), 'a block of a group: its own padding down, none across').toMatch(
+      /const large = stacksTrailing\(useWindowDimensions\(\)\.fontScale\); return \( <View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(code(PHASE), 'publication is a second component, not a mode').not.toMatch(/readOnly/);
+    expect(code(PLAN)).not.toMatch(/readOnly/);
+  });
+
+  it('the plan’s two pills share a row that wraps, under a hairline', () => {
+    expect(flat(PLAN)).toMatch(
+      /<ButtonRow className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('fund\.plan\.save', locale\)\} onPress=\{onSave\} variant="primary" disabled=\{busy\} \/> \{plan && phases\.length > 0 \? \( <Button label=\{t\('fund\.plan\.publish\.cta', locale\)\} onPress=\{onPublish\} variant="outline" disabled=\{busy\} \/> \) : null\} <\/ButtonRow>/,
+    );
+    expect(flat(PROGRESS)).toMatch(
+      /<View className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('fund\.progress\.compose\.cta', locale\)\}/,
+    );
+    expect(flat(PLAN), 'the draft line is a tag, not a sentence').toMatch(/<Tag label=\{/);
+  });
+
+  it('a note draws its own segment of one group, wherever it is listed', () => {
+    const update = flat(UPDATE);
+    expect(update).toMatch(
+      /className=\{cn\( ?'bg-surface px-4', first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null,? ?\)\}/,
+    );
+    expect(update).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(update, 'the block of a group: 10 inside, 14 above and below').toMatch(
+      /<View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(update, 'the phase is a grey line beside the time').toMatch(
+      /type-small text-muted-foreground[^>]*> ?\{t\('fund\.progress\.phase', locale, \{ n: String\(phase\.sort\), title: phase\.title \}\)\}/,
+    );
+    // Segments must touch: the view that holds them sets no gap, on the trail and on the fund
+    // screen alike.
+    expect(flat(PROGRESS)).toMatch(/<View> \{mine\.map\(\(update, i\) => /);
+    expect(flat(PROGRESS)).toMatch(/first=\{i === 0\} last=\{i === mine\.length - 1\}/);
+    expect(flat(ANNUAL)).toMatch(/<View> \{updates\.map\(\(update, i\) => /);
+    expect(flat(ANNUAL)).toMatch(/first=\{i === 0\} last=\{i === updates\.length - 1\}/);
+  });
+
+  it('a note’s controls are underlined links, and a withdrawn note says so in their place', () => {
+    const progress = flat(PROGRESS);
+    expect(progress, 'one recipe: foreground, underlined, never grey and never cyan').toMatch(
+      /<Text className="type-small text-foreground underline">\{label\}<\/Text>/,
+    );
+    for (const key of [
+      'fund.progress.edit',
+      'fund.progress.withdraw',
+      'fund.progress.edit.save',
+      'fund.progress.edit.cancel',
+    ]) {
+      expect(progress, key).toMatch(
+        new RegExp(`link\\( ?t\\('${key.replace(/\./g, '\\.')}', locale\\),`),
+      );
+    }
+    expect(progress, 'the pair is 20 apart and wraps').toMatch(
+      /<View className=\{cn\('flex-row flex-wrap gap-x-5', large \? null : '-my-3'\)\}>/,
+    );
+    expect(flat(UPDATE), 'a status is words (DESIGN §8.12), grey').toMatch(
+      /\{update\.deleted_at \? \( <Text className="type-small text-muted-foreground"> ?\{t\('fund\.progress\.withdrawn', locale\)\} ?<\/Text> \) : \( footer \)\}/,
+    );
+  });
+
+  it('a label stands 6 above its field, and the note is the field its screen is about', () => {
+    expect(flat(PROGRESS)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('fund\.progress\.compose\.label', locale\)\}<\/SectionLabel> <Field size="lg" multiline /,
+    );
+    expect(flat(PROGRESS), 'chips stand 8 under their label and 8 apart').toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('fund\.progress\.compose\.phase\.label', locale\)\}<\/SectionLabel> <View className="flex-row flex-wrap gap-2">/,
+    );
+    expect(flat(PLAN)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{label\}<\/SectionLabel> \{published \? \( <Text className="type-body text-foreground">\{value \|\| '—'\}<\/Text> \) : \( <> <Field multiline accessibilityLabel=\{label\} /,
+    );
+  });
+});
+
+/**
+ * Galleria, chunk C18a (#921, 2026-10-09): the Aura screen, its ledger, the star sheet and the
+ * level-up. Marco's rulings that day: the Aura numeral stands alone, cyan, over the grey
+ * tagline; the six sources are bare blocks on the stage with their figure in foreground; the
+ * three rules and the ledger link are one group of rows; `tier.up.sub` is one short sentence
+ * pair. `trust` and `verify` are the second half of the chunk and are not read here.
+ */
+describe('the Aura screen, its ledger, the star sheet and the level-up keep the Galleria look (#921)', () => {
+  const AURA = 'app/(modal)/aura.tsx';
+  const LEDGER = 'app/(modal)/aura/ledger.tsx';
+  const STAR_SHEET = 'app/(modal)/star.tsx';
+  const LEVEL = 'app/(modal)/level.tsx';
+  const SOURCE = 'components/aura/AuraSourceRow.tsx';
+  const LEDGER_ROW = 'components/aura/LedgerRow.tsx';
+  const RULE = 'components/aura/RuleRow.tsx';
+  const VALUE = 'components/AuraValue.tsx';
+  const SCREENS = [AURA, LEDGER, STAR_SHEET, LEVEL];
+  const ALL = [...SCREENS, SOURCE, LEDGER_ROW, RULE, VALUE];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('cyan is the member’s own numeral and the level-up’s three marks, nothing else', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3). The own Aura numeral is one, a new level is a ' +
+        'celebration; a source’s figure, a ledger row’s points, a rule’s glyph and a lit star ' +
+        'are foreground',
+    ).toEqual([
+      `${AURA}  <AuraValue`,
+      `${LEVEL}  <CelebrationMark`,
+      `${LEVEL}  tone="celebration"`,
+      `${LEVEL}  variant="celebration"`,
+      `${VALUE}  text-aura`,
+    ]);
+  });
+
+  it('the numeral is the numeral style, and only the Aura screen mounts it', () => {
+    expect(flat(VALUE)).toMatch(/className=\{cn\('type-num text-aura', className\)\}/);
+    expect(code(VALUE), 'the inline size lost its last caller on 2026-10-05').not.toMatch(
+      /\bsize\b|fontSize/,
+    );
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => /<AuraValue\b/.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(users, 'another member’s Aura is a plain foreground `Text` (rule 3)').toEqual([AURA]);
+    const aura = flat(AURA);
+    // A JSX comment between two siblings survives `stripComments` as `{ }`.
+    expect(aura, 'the numeral alone over its grey line, 8 apart, no frame').toMatch(
+      /<View className="items-center gap-2 py-2"> (?:\{ ?\} )?\{full === undefined \|\| query\.isError \? \( <Text accessibilityLabel=\{t\('aura\.unknown', locale\)\} className="type-num text-muted-foreground" > \{AURA_UNKNOWN\} <\/Text> \) : \( <AuraValue value=\{score\} flashOnIncrease \/> \)\} <Text className="text-center type-small text-muted-foreground"> ?\{t\('aura\.tagline', locale\)\} ?<\/Text> <\/View>/,
+    );
+  });
+
+  it('none of these draws a card or the vertical frame', () => {
+    expect(
+      ALL.filter((file) => /<Card\b|<Mandorla\b|\bMandorla\b(?!Mark)/.test(code(file))),
+      'nothing on a profile or on the Aura screen stands for a tier (Marco, 2026-10-03); a ' +
+        'celebration draws `CelebrationMark`',
+    ).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-(?:t-|b-)?(?:\[28px\]|card|hero)[^'"`]*\bborder\b(?!-)|\bborder\b(?!-)[^'"`]*rounded-(?:t-|b-)?(?:\[28px\]|card|hero)/.test(
+          code(file),
+        ),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b|(?<![\w-])text-\[\d+px\]/g;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl|full)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|bg-aura-soft\b|(?:text|bg)-faint\b|text-ink-2\b|font-(?:extrabold|bold|semibold)\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const sized = ALL.flatMap((file) =>
+      (code(file).match(NAMED_SIZE) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      sized,
+      'a named size resolves at a rem of 14 on device (measured on the iPhone SE simulator, ' +
+        '2026-10-04; DESIGN §6). One literal: the star’s own glyph, 72 as the canvas draws it',
+    ).toEqual([`${STAR_SHEET}  text-[72px]`]);
+    expect(ALL.filter((file) => LEGACY_SHAPE.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<!fontVariant: \[')\btabular-nums\b/.test(code(file))),
+      'the `tabular-nums` utility emits nothing on device: ask through `fontVariant`',
+    ).toEqual([]);
+  });
+
+  it('no file here types a control, builds a pressable or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'a row draws its own chevron; back is `ModalHeader`’s').toEqual([]);
+    const pressables = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'Pressable')
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(pressables, 'every control here is a shared `Row`, `Chip` or `Button`').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('blocks stand 26 apart, on the gutter', () => {
+    const scrolls = (file: string) =>
+      [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map((m) => m[1] as string);
+    expect(scrolls(AURA)).toEqual(['gap-[26px] px-5 pb-12']);
+    expect(scrolls(STAR_SHEET)).toEqual(['gap-[26px] px-5 pb-12']);
+    expect(scrolls(LEVEL)).toEqual(['grow items-center justify-center gap-[26px] px-5 py-12']);
+    expect(flat(LEDGER), 'the sentence and the chips head the list and scroll with it').toMatch(
+      /ListHeaderComponent=\{ <View className="gap-\[26px\] pb-\[26px\]"> <Text className="type-small text-muted-foreground">\{t\('ledger\.sub', locale\)\}<\/Text> <FilterChips /,
+    );
+    // 26 between blocks, 8 in a group and between chips, 12 between sources and beside a
+    // row's figure, 4 between a source's line and its bar.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '3', '1'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(gaps, 'the prototype’s rhythm').toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<![\w-])m[tby]?-(?:\d|\[)/.test(code(file))),
+      'a block’s distance is its parent’s gap, not a margin of its own',
+    ).toEqual([]);
+  });
+
+  it('a source is a bare block: its name, its figure in foreground, the bar under them', () => {
+    const source = flat(SOURCE);
+    expect(source).toMatch(
+      /<View className="gap-1" accessible accessibilityLabel=\{\[label, String\(value\)\]\.join\(', '\)\}> <View className="flex-row items-baseline justify-between gap-3"> <Text className="flex-1 type-body text-foreground">\{label\}<\/Text> <Text className="type-small text-foreground" style=\{\{ fontVariant: \['tabular-nums'\] \}\}> ?\{value\} ?<\/Text> <\/View> <ProgressBar width=\{width\} \/> <\/View>/,
+    );
+    expect(code(SOURCE), 'a bucket is a subtotal, not a change: no sign').not.toMatch(
+      /\bsign\b|'\+'/,
+    );
+    expect(code(SOURCE), 'the bar is the row: `showBar` lost its last caller').not.toMatch(
+      /showBar/,
+    );
+    expect(flat(AURA), 'sources 12 apart, 8 under their label, the label a heading').toMatch(
+      /<View className="gap-2"> <SectionLabel heading>\{t\('aura\.sources\.title', locale\)\}<\/SectionLabel> <View className="gap-3">/,
+    );
+  });
+
+  it('the three rules and the ledger link are one group of rows', () => {
+    const aura = flat(AURA);
+    expect(aura).toMatch(
+      /<RowGroup label=\{t\('aura\.protection\.title', locale\)\}> <RuleRow glyph="◎"/,
+    );
+    expect((aura.match(/<RuleRow\b/g) ?? []).length).toBe(3);
+    expect(aura, 'the drawn scales take the row’s ink, not cyan').toMatch(
+      /<ScalesGlyph size=\{20\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(aura, 'the catalog types the link’s own chevron, so the row draws none').toMatch(
+      /<Row title=\{t\('aura\.ledger\.cta', locale\)\} showChevron=\{false\} onPress=\{\(\) => router\.push\('\/aura\/ledger'\)\} \/> <\/RowGroup>/,
+    );
+    const rule = flat(RULE);
+    expect(
+      rule,
+      'the shared row, the glyph before the text and hidden from assistive tech',
+    ).toMatch(
+      /<Row leading=\{ <View className="min-w-6 items-center" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" >/,
+    );
+    expect(rule).toMatch(/<Text className="type-body text-foreground">\{glyph\}<\/Text>/);
+    expect(rule).toMatch(/title=\{title\} description=\{desc\} \/>/);
+  });
+
+  it('the idle window is the engine’s, read from core (rule 10)', () => {
+    expect(code(AURA)).toMatch(/import \{[^}]*\bDECAY\b[^}]*\} from '@athanor\/core';/);
+    expect(code(AURA)).toMatch(/elapsed > DECAY\.IDLE_DAYS_BEFORE/);
+    expect(code(AURA), 'no second copy of the 30 days').not.toMatch(/\b30\b|IDLE_THRESHOLD/);
+    expect(flat(AURA)).toMatch(
+      /<Text className="type-small text-muted-foreground"> ?\{t\('aura\.decay\.caption', locale, \{ days: idleDays \}\)\} ?<\/Text>/,
+    );
+  });
+
+  it('a ledger row draws its own segment of its day’s group and says itself in one line', () => {
+    const row = flat(LEDGER_ROW);
+    expect(row).toMatch(
+      /className=\{cn\( ?'bg-surface px-4', first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null,? ?\)\}/,
+    );
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(
+      row,
+      'an inert `Row` ignores a label: the wrapper carries it (#921, 2026-10-05)',
+    ).toMatch(
+      /<View accessible accessibilityLabel=\{\[title, when, figure\]\.join\(', '\)\}> <Row leading=\{/,
+    );
+    expect(row, 'points are the middle numeral: foreground, decay alone grey').toMatch(
+      /className=\{cn\( ?'type-num-m', type === 'decay' \? 'text-muted-foreground' : 'text-foreground',? ?\)\}/,
+    );
+    expect(
+      code(LEDGER_ROW),
+      'a penalty is not an error state, and nothing here is red',
+    ).not.toMatch(/text-error/);
+    expect(
+      code(LEDGER_ROW),
+      'the glyph was spoken by English words typed here (rule 5); the joined label replaces them',
+    ).not.toMatch(/LEDGER_GLYPH_A11Y|'identity'|'organized'/);
+    const ledger = flat(LEDGER);
+    expect(ledger).toMatch(/first=\{index === 0\} last=\{index === section\.data\.length - 1\}/);
+    expect(ledger, 'a day’s label is a heading, 12 above its group').toMatch(
+      /<View className="bg-background pb-3"> <SectionLabel heading>\{section\.title\}<\/SectionLabel> <\/View>/,
+    );
+    expect(ledger, 'a failed later page says so under the rows it leaves on screen').toMatch(
+      /<ListPageError query=\{query\} hasRows=\{rows\.length > 0\}/,
+    );
+  });
+
+  it('the star sheet says the state by glyph and by word, never by cyan', () => {
+    const star = flat(STAR_SHEET);
+    expect(star, 'lit is foreground, unlit and unknown grey').toMatch(
+      /className=\{cn\( ?'text-\[72px\]', earned \? 'text-foreground' : 'text-muted-foreground',? ?\)\}/,
+    );
+    expect(star, 'a decorative glyph does not grow with the text (DESIGN §10)').toMatch(
+      /maxFontSizeMultiplier=\{FONT_SCALE_CAP\.ornament\}/,
+    );
+    expect(star, 'the group is the heading: the name and the state, as one line').toMatch(
+      /<View className="items-center gap-3" accessible=\{true\} accessibilityRole="header" accessibilityLabel=\{t\(/,
+    );
+    expect(star, 'a one-word name takes one line and never breaks inside the word (§10)').toMatch(
+      /<Text numberOfLines=\{wordLines\(starName\)\} className="text-center type-h1 text-foreground" ?> ?\{starName\} ?<\/Text>/,
+    );
+    expect(star, 'the back alone: `ModalHeader` would add an empty heading before it').toMatch(
+      /<View className="flex-row px-5 pb-4 pt-3"> <HeaderBack className=\{BACK_ON_GUTTER\} label=\{t\('common\.back', locale\)\} onPress=\{back\} \/> <\/View>/,
+    );
+    expect(star).not.toMatch(/<ModalHeader\b/);
+    expect(star, 'the state word is a tag, quiet unless lit').toMatch(
+      /<Tag quiet=\{!earned\} label=\{t\(unknown \? 'star\.unknown' : earned \? 'star\.lit' : 'star\.unlit', locale\)\} \/>/,
+    );
+    expect(star).toMatch(
+      /<Text className="type-body text-foreground">\{t\(criteriaKey, locale\)\}<\/Text>/,
+    );
+    expect(star).toMatch(
+      /<View className="gap-2"> <Text className="type-small text-muted-foreground"> ?\{t\('star\.next\.progress', locale, \{ done, total, unit \}\)\} ?<\/Text> <ProgressBar width=\{progressWidth\} \/> <\/View>/,
+    );
+  });
+
+  it('a new level is the shared celebration: the mark flashes, one grey line, the cyan pill', () => {
+    const level = flat(LEVEL);
+    expect(level, 'the mark flashes; under Reduce Motion it does not move (DESIGN §10)').toMatch(
+      /<Animated\.View style=\{reduceMotion \? undefined : \{ transform: \[\{ scale \}\] \}\}> <CelebrationMark \/> <\/Animated\.View>/,
+    );
+    expect(level, 'the title is the heading, not the label (DESIGN §10)').toMatch(
+      /<View className="items-center gap-2"> <SectionLabel tone="celebration">\{t\('tier\.up\.eyebrow', locale\)\}<\/SectionLabel> <Text accessibilityRole="header" className="text-center type-h1 text-foreground"> ?\{headline\} ?<\/Text> <Text className="text-center type-small text-muted-foreground"> ?\{t\('tier\.up\.sub', locale\)\} ?<\/Text> <\/View>/,
+    );
+    expect(level).toMatch(
+      /<View className="self-stretch"> <Button variant="celebration" label=\{t\('common\.continue', locale\)\} onPress=\{leave\} \/> <\/View>/,
+    );
+    expect(level, 'the gutter is the scroll’s 20, not the screen’s').not.toMatch(/\bp[lr]-8\b/);
+    // The line's wording (Marco, 2026-10-09) is pinned beside the catalogs, in
+    // `packages/i18n/src/i18n.test.ts`, so this file reads nothing outside `apps/native`.
   });
 });

@@ -1,20 +1,25 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 import type { Moment } from '@/types/moment';
 import { momentPosterPath } from '@/lib/media/moment-media';
-import { Pressable, Text, View } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
+import { Pressable, View, cn } from '@/tw';
 import { MediaFrame } from '@/components/media/MediaFrame';
-import { PlayGlyph } from '@/components/glyphs';
+import { AddIcon, PlayGlyph } from '@/components/glyphs';
 
-export type TileVariant = 'gallery' | 'full';
+/**
+ * The one tile shape (DESIGN §8.5, the prototype's `.ph`; #921): a square of `surface`, radius
+ * 14, with a hairline. The hairline is a view of its own drawn OVER the media ({@link Hairline}),
+ * so a photo that fills the tile cannot cover it.
+ */
+const TILE = 'aspect-square w-full overflow-hidden rounded-[14px] bg-surface';
 
-// Profilo gallery tiles = 14px radius (prototype .gallery .media);
-// full-grid tiles = ~3px radius (prototype .grid-full .media).
-const RADIUS: Record<TileVariant, string> = {
-  gallery: 'rounded-ctl',
-  full: 'rounded-sm',
-};
+function Hairline() {
+  return (
+    <View pointerEvents="none" className="absolute inset-0 rounded-[14px] border border-hair" />
+  );
+}
 
 /**
  * A single Momento media tile (1:1, fills its parent cell). The tile picks its own path out of
@@ -23,17 +28,17 @@ const RADIUS: Record<TileVariant, string> = {
  *
  * The signed URL renders through `MediaFrame`, so a tile whose URL is still signing looks
  * different from one whose URL is never coming (#135) — it used to be the same empty box either
- * way. A ▶ glyph marks video once there is something to play; a caption overlays the bottom in
- * every state, because the member's own words survive their media failing to load.
+ * way. The drawn play in a 52 disc marks a video once there is something to play. The tile shows
+ * no caption (the prototype draws none, Marco 2026-10-06): the member's words are the tile's
+ * spoken label here and are read under the media in the `Lightbox`.
  *
  * A fourth state sits outside `MediaFrame` entirely: a video with no poster (#131). Nothing is
  * signing and nothing is broken, so neither the loading fill nor the ✦ «non si carica» is true —
- * the video plays perfectly, it just has no still to show. It gets the ▶ at `faint` weight, which
- * reads as placeholder rather than as the `foreground` ▶ sitting on top of a real poster.
+ * the video plays perfectly, it just has no still to show. It gets the play in the secondary grey
+ * and no disc, which reads as placeholder rather than as the play standing on a real poster.
  */
 export function MomentTile({
   moment,
-  variant,
   locale,
   urls,
   isLoading,
@@ -41,7 +46,6 @@ export function MomentTile({
   onLongPress,
 }: {
   moment: Moment;
-  variant: TileVariant;
   locale: Locale;
   /** Signed URLs by storage path (from `useSignedUrls('moments', momentSignPaths(…))`). */
   urls: Record<string, string>;
@@ -65,7 +69,7 @@ export function MomentTile({
       }
       onPress={onPress}
       onLongPress={onLongPress}
-      className={`aspect-square w-full justify-end overflow-hidden bg-raise ${RADIUS[variant]}`}
+      className={cn(TILE, PRESS_DIM)}
     >
       {posterPath === null ? (
         <View
@@ -74,7 +78,7 @@ export function MomentTile({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          <PlayGlyph size={24} color={semantic.faint} />
+          <PlayGlyph size={24} color={galleria.foregroundMuted} />
         </View>
       ) : (
         <MediaFrame
@@ -89,48 +93,39 @@ export function MomentTile({
           overlay={
             moment.kind === 'video' ? (
               // Ready-state only: over the unavailable glyph this would be two centred marks on
-              // top of each other, and ▶ would promise playback that isn't there.
+              // top of each other, and the play would promise playback that isn't there.
               <View className="absolute inset-0 items-center justify-center">
-                <PlayGlyph size={24} color={semantic.foreground} />
+                <View className="h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-full">
+                  {/* The disc's fill is a layer, so its 55% does not dim the play. */}
+                  <View className="absolute inset-0 bg-background opacity-55" />
+                  <PlayGlyph size={22} color={galleria.foreground} />
+                </View>
               </View>
             ) : null
           }
         />
       )}
-      {moment.caption ? (
-        <Text
-          numberOfLines={1}
-          className="bg-surface-muted/40 px-2 py-1 text-[11px] text-foreground"
-        >
-          {moment.caption}
-        </Text>
-      ) : null}
+      <Hairline />
     </Pressable>
   );
 }
 
 /**
- * The trailing "+" tile. Create/upload is LIVE (M3): pressing it opens the
- * `MediaSheet` so the owner can add a Momento (see `useMomentUpload`). The add
- * writes only the `moments` table — never any Aura/score mutation (rule #1).
+ * The trailing add tile of the Profilo gallery: the same tile, holding the drawn `add`. Pressing
+ * it opens the `MediaSheet` so the owner can add a Momento (see `useMomentUpload`). The add
+ * writes only the `moments` table — never any Aura/score mutation (rule #1). The full grid has
+ * no such tile: its header's add is the one way in there (Marco, 2026-10-06).
  */
-export function MomentAddTile({
-  variant,
-  label,
-  onPress,
-}: {
-  variant: TileVariant;
-  label: string;
-  onPress: () => void;
-}) {
+export function MomentAddTile({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      className={`aspect-square w-full items-center justify-center bg-raise ${RADIUS[variant]}`}
+      className={cn(TILE, 'items-center justify-center', PRESS_DIM)}
     >
-      <Text className="text-2xl text-faint">+</Text>
+      <AddIcon size={22} color={galleria.foreground} />
+      <Hairline />
     </Pressable>
   );
 }

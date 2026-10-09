@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Switch } from 'react-native';
+import { Image } from 'react-native';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import * as Haptics from 'expo-haptics';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postKeys, postMediaKeys, publishPost } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { MEDIA_LIMITS, derivePostType } from '@athanor/core';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostCategory, PostMediaPublish } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
-import { PlayGlyph } from '@/components/glyphs';
+import { CloseIcon, PlayGlyph } from '@/components/glyphs';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ModalHeader } from '@/components/ModalHeader';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
@@ -34,8 +36,8 @@ import {
   uploadLocalFile,
 } from '@/lib/media/upload';
 import { useGuardedBack } from '@/lib/modal-exit';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
-import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
@@ -281,33 +283,32 @@ export default function PostComposeScreen() {
             keyboard (#748, story-compose's twin). */}
         <ScrollView
           className="flex-1"
-          contentContainerClassName="gap-5 px-5 pb-8"
+          contentContainerClassName="gap-[26px] px-5 pb-8"
           keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-[14px] text-faint">{t('create.post.desc', locale)}</Text>
+          {/* The prototype's `.fld`: the sentence is the field's label, 6 above it; the reason
+              stands 6 under it. The wrapper is unconditional, so a reason that comes and goes
+              never remounts the field. Not `Field`'s own `error`: that lights the field's
+              border, and this line also carries what the media sheet reports. */}
+          <View className="gap-1.5">
+            <SectionLabel>{t('create.post.desc', locale)}</SectionLabel>
+            <Field
+              size="lg"
+              multiline
+              placeholder={t('post.compose.placeholder', locale)}
+              value={body}
+              onChangeText={setBody}
+            />
+            {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
+          </View>
 
-          <Field
-            size="lg"
-            multiline
-            placeholder={t('post.compose.placeholder', locale)}
-            value={body}
-            onChangeText={setBody}
-          />
-          {error ? <Text className="text-[13px] text-error">{error}</Text> : null}
-
-          {/* Attach affordance — flat, no glow (rule #4) */}
-          <Pressable
-            className="flex-row items-center gap-2 rounded-ctl border border-hair bg-raise px-4 py-3"
+          {/* Attach: an outline pill, the second action of the screen (the prototype's `pill o`). */}
+          <Button
+            variant="outline"
+            label={t('post.compose.attach', locale)}
             onPress={() => setSheetOpen(true)}
             disabled={mutation.isPending || items.length >= MEDIA_LIMITS.MAX_POST_MEDIA}
-            accessibilityRole="button"
-          >
-            <Text
-              className={`text-[14px] ${items.length >= MEDIA_LIMITS.MAX_POST_MEDIA ? 'text-faint' : 'text-foreground'}`}
-            >
-              {t('post.compose.attach', locale)}
-            </Text>
-          </Pressable>
+          />
 
           {/* Preview tiles */}
           {items.length > 0 ? (
@@ -321,23 +322,23 @@ export default function PostComposeScreen() {
                     // gets one and needs its own surface. The duration is the only thing there
                     // is to show, so it is what the tile shows.
                     <View
-                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      className="h-20 w-20 items-center justify-center rounded-[14px] border border-hair bg-surface"
                       accessible
                       accessibilityLabel={t('media.noPoster.audio', locale)}
                     >
                       <View
                         // A drawing, not the 🎧 character (#753), so it cannot outgrow the hard
-                        // 70pt tile at any text size — the job the `ornament` cap did for the
+                        // 80pt tile at any text size — the job the `ornament` cap did for the
                         // character. `PlayGlyph`, not the set's `waves`: on the phone that mark
                         // reads as a Wi-Fi signal (ruling 2026-09-20), and the duration under it
                         // already says audio. The wrapper above carries the label.
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={semantic.faint} />
+                        <PlayGlyph size={24} color={galleria.foregroundMuted} />
                       </View>
                       <Text
-                        className="mt-0.5 text-[11px] text-faint"
+                        className="mt-0.5 text-[11px] text-muted-foreground"
                         style={{ fontVariant: ['tabular-nums'] }}
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
@@ -348,10 +349,10 @@ export default function PostComposeScreen() {
                   ) : item.kind === 'video' ? (
                     // An <Image> handed a video file URI draws nothing (#318) — this tile was a
                     // blank box with a ▶ badge. Same no-poster state the feed card falls back to:
-                    // dark fill, centred faint ▶ (MomentTile pairing — wrapper announces, glyph
-                    // is decorative).
+                    // the tile's fill, a centred grey ▶ (MomentTile pairing — wrapper announces,
+                    // glyph is decorative).
                     <View
-                      className="h-20 w-20 items-center justify-center rounded-[8px] bg-raise-2"
+                      className="h-20 w-20 items-center justify-center rounded-[14px] border border-hair bg-surface"
                       accessible
                       accessibilityLabel={t('media.noPoster.video', locale)}
                     >
@@ -360,40 +361,45 @@ export default function PostComposeScreen() {
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
-                        <PlayGlyph size={24} color={semantic.faint} />
+                        <PlayGlyph size={24} color={galleria.foregroundMuted} />
                       </View>
                     </View>
                   ) : (
                     <Image
                       source={{ uri: item.uri }}
-                      style={{ width: 80, height: 80, borderRadius: 8 }}
+                      // The tile's hairline, as on the placeholders beside it (Greptile, PR 942).
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: galleria.hair,
+                      }}
                       resizeMode="cover"
                     />
                   )}
                   {/* Uploading dim overlay */}
                   {mutation.isPending ? (
-                    <View
-                      className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
-                      style={{ opacity: 0.6 }}
-                    />
+                    <View className="absolute inset-0 rounded-[14px] bg-background opacity-60" />
                   ) : null}
                   {/* Remove button — hidden while uploading */}
                   {!mutation.isPending ? (
                     <Pressable
-                      className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
+                      className={cn(
+                        'absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-surface',
+                        PRESS_DIM,
+                      )}
                       onPress={() => removeItem(index)}
                       accessibilityRole="button"
+                      accessibilityLabel={t('media.a11y.remove', locale)}
                       hitSlop={12}
                     >
-                      {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
-                        sits on, so the ✕ cannot grow without leaving it. The control is named by
-                        its own accessibilityLabel, so the glyph carries nothing. */}
-                      <Text
-                        className="text-[11px] text-faint"
-                        maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-                      >
-                        ✕
-                      </Text>
+                      {/* The drawn close (DESIGN §6 «Interface icons»), a ✕ character until
+                          2026-10-06. This badge's 20pt box is MEASURED against the thumbnail it
+                          sits on (#639); a drawing does not grow with the text, so it cannot
+                          leave the box. The control is named by its label: until that day it
+                          had none, and its whole name was the character. */}
+                      <CloseIcon size={12} color={galleria.foreground} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -403,7 +409,7 @@ export default function PostComposeScreen() {
 
           {/* Uploading indicator */}
           {mutation.isPending && items.length > 0 ? (
-            <Text className="text-[13px] text-faint">
+            <Text className="type-small text-muted-foreground">
               {t('media.uploadingIndeterminate', locale)}
             </Text>
           ) : null}
@@ -422,13 +428,12 @@ export default function PostComposeScreen() {
             <SectionLabel>{t('post.compose.catLabel', locale)}</SectionLabel>
             {/* `Chip`, not a hand-rolled pill (#635). These four announced no selected state at
                 all — the cyan fill was the only thing saying which category was chosen, and
-                colour is not an announcement. `small` is the compact variant and the only one
-                that carries DESIGN §10's 44pt floor, which these pills (py-2, ~34pt) missed. */}
+                colour is not an announcement. `Chip` also carries DESIGN §10's 44pt target,
+                which these pills (py-2, ~34pt) missed. */}
             <View className="flex-row flex-wrap gap-2">
               {CATEGORIES.map((c) => (
                 <Chip
                   key={c}
-                  small
                   label={t(`feed.filter.${c}` as MessageKey, locale)}
                   selected={c === category}
                   onPress={() => setCategory(c)}
@@ -439,42 +444,20 @@ export default function PostComposeScreen() {
 
           {/*
             A `switch`, because that is what it is (#635). It announced as prose — the title and
-            the description read as one flat sentence — with no role, no state, and the ✦/○ that
-            carries the state visually read aloud as a glyph. Whether a post is a STEP of your
-            dream is real product meaning, so a member has to be able to hear it and hear it
-            change: `checked` is what says so.
-
-            Title as the label, description as the hint: the hint is the sentence VoiceOver
-            defers, which is the right rank for the «why» under the «what».
+            the description read as one flat sentence — with no role and no state. Whether a
+            post is a STEP of your dream is real product meaning, so a member has to be able to
+            hear it and hear it change. `Row checked` is that shape since 2026-10-06: the row is
+            the control (role, checked state, the title as its label and the description as its
+            hint, the «why» under the «what») and draws the app's Switch inert at its right.
           */}
-          <Pressable
-            className="flex-row items-center justify-between rounded-card border border-hair bg-raise p-5"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isStep }}
-            accessibilityLabel={t('post.compose.stepTitle', locale)}
-            accessibilityHint={t('post.compose.stepDesc', locale)}
-            onPress={() => setIsStep((v) => !v)}
-          >
-            <View className="flex-1 pr-4">
-              <Text className="text-[15px] text-foreground">
-                {t('post.compose.stepTitle', locale)}
-              </Text>
-              <Text className="text-[13px] text-faint">{t('post.compose.stepDesc', locale)}</Text>
-            </View>
-            {/* Platform Switch, row-owned — same shape and reasons as story-compose (#748). */}
-            <View
-              pointerEvents="none"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Switch
-                accessibilityLabel={t('post.compose.stepTitle', locale)}
-                value={isStep}
-                trackColor={{ false: semantic.raise2, true: semantic.auraSoft }}
-                thumbColor={semantic.foreground}
-              />
-            </View>
-          </Pressable>
+          <RowGroup>
+            <Row
+              title={t('post.compose.stepTitle', locale)}
+              description={t('post.compose.stepDesc', locale)}
+              checked={isStep}
+              onPress={() => setIsStep((v) => !v)}
+            />
+          </RowGroup>
         </ScrollView>
 
         {/* Publish pinned below the list, as in story-compose (#748): inside the ScrollView the
@@ -484,7 +467,7 @@ export default function PostComposeScreen() {
             label={t('common.publish', locale)}
             onPress={onPublish}
             disabled={mutation.isPending}
-            variant="light"
+            variant="primary"
           />
         </View>
       </Screen>

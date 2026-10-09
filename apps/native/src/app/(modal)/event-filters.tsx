@@ -33,8 +33,8 @@ import type { EventCategory } from '@athanor/schemas';
  * capability, and `features.advancedFilters` is the people-search perk. Copying the
  * entitlement guard here would invent a paywall the product never asked for.
  *
- * Rule #4: cyan `Chip` fills are correct here — a selected filter is an active accent,
- * not a moment-grade glow. No literal hex below; every colour is a token class.
+ * A selected filter is `Chip`'s foreground fill: rule 4 keeps cyan off every selected
+ * state. No literal hex below; every colour is a token class.
  */
 
 export default function EventFiltersScreen() {
@@ -84,7 +84,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Categoria ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.category', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.category', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             <Chip
               label={t('live.filter.category.any', locale)}
@@ -104,7 +104,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Città ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.city', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.city', locale)}</SectionLabel>
           <Input
             placeholder={t('live.filter.city.placeholder', locale)}
             value={city}
@@ -117,7 +117,7 @@ export default function EventFiltersScreen() {
 
         {/* ── Quando ── */}
         <View className="gap-3">
-          <SectionLabel tone="foreground">{t('live.filter.section.date', locale)}</SectionLabel>
+          <SectionLabel>{t('live.filter.section.date', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {DATE_PRESETS.map((p) => (
               <Chip
@@ -131,7 +131,7 @@ export default function EventFiltersScreen() {
         </View>
 
         <View className="gap-3 pt-2">
-          <Button label={t('common.apply', locale)} variant="light" onPress={handleApply} />
+          <Button label={t('common.apply', locale)} variant="primary" onPress={handleApply} />
           <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
         </View>
       </ScrollView>

@@ -7,11 +7,13 @@
  * canvas, where `faint` is 4.22:1 — under the AA floor. A certified ratio names a SURFACE, not
  * a token, and nothing here could check that. Now it can.
  *
- * Pure and dependency-free, so it runs in the app's existing node vitest. Same shape as
- * `lib/glow.ts`: style math that reads `@athanor/config` rather than literal hex.
+ * Pure and dependency-free. It lives beside the tokens it certifies: moved here from
+ * apps/native on 2026-10-03, once this package had a test runner. `contrast.test.ts` in this
+ * folder holds the arithmetic and the web's pairs; apps/native/src/lib/contrast.test.ts holds
+ * the mobile palette's, next to the call sites it names.
  *
- * Belongs in `packages/config` beside the tokens it certifies; it lives here because that
- * package has no test runner (scripts: `typecheck` only). Move it if that ever changes.
+ * Reached as `@athanor/config/contrast`, not through the barrel: apps import tokens, and only
+ * tests import this.
  */
 
 /** WCAG AA floor for normal-size text (<18.66px regular / <24px bold). */

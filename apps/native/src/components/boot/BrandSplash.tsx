@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { t } from '@athanor/i18n';
-import { mandorla, semantic } from '@athanor/config';
+import { galleria, mandorla } from '@athanor/config';
 import { Text } from '@/tw';
 import { deviceLocale } from '@/lib/locale';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
@@ -117,7 +117,7 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
       style={[
         StyleSheet.absoluteFill,
         fillStyle,
-        { backgroundColor: semantic.background, opacity: container },
+        { backgroundColor: galleria.background, opacity: container },
       ]}
     >
       <Svg
@@ -133,8 +133,8 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
             <Stop offset="1" stopColor={mandorla.lensBottom} />
           </LinearGradient>
           <RadialGradient id="splashGlow" cx="50%" cy="42%" r="60%">
-            <Stop offset="0" stopColor={semantic.aura} stopOpacity={0.24} />
-            <Stop offset="1" stopColor={semantic.aura} stopOpacity={0} />
+            <Stop offset="0" stopColor={galleria.aura} stopOpacity={0.24} />
+            <Stop offset="1" stopColor={galleria.aura} stopOpacity={0} />
           </RadialGradient>
         </Defs>
 
@@ -168,7 +168,7 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         <AnimatedPath
           d={LENS}
           fill="none"
-          stroke={semantic.aura}
+          stroke={galleria.aura}
           strokeOpacity={0.6}
           strokeWidth={1.2}
           strokeDasharray={DASH}
@@ -176,15 +176,15 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
         />
 
         {/* three dots on the lens spine */}
-        <Circle cx={50} cy={38} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
-        <Circle cx={50} cy={50} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
-        <Circle cx={50} cy={62} r={1.9} fill={semantic.aura} fillOpacity={0.75} />
+        <Circle cx={50} cy={38} r={1.9} fill={galleria.aura} fillOpacity={0.75} />
+        <Circle cx={50} cy={50} r={1.9} fill={galleria.aura} fillOpacity={0.75} />
+        <Circle cx={50} cy={62} r={1.9} fill={galleria.aura} fillOpacity={0.75} />
 
         {/* spark — pops at the top of the lens */}
         <AnimatedG x={50} y={24} scale={sparkScale} opacity={spark}>
           <Path
             d="M0 -9 L1.6 -1.6 L9 0 L1.6 1.6 L0 9 L-1.6 1.6 L-9 0 L-1.6 -1.6 Z"
-            fill={semantic.aura}
+            fill={galleria.aura}
             fillOpacity={0.775}
           />
         </AnimatedG>

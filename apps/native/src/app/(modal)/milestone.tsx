@@ -22,6 +22,9 @@ import { Screen } from '@/components/Screen';
  * (modal)/* routes). Writes only dream_milestones; never Aura (rule #1). Copy via i18n.
  * The (modal) route IS the sheet: the Foundation Sheet host M3 once planned was never built,
  * and no open issue revives it (as of 2026-09-26).
+ *
+ * Galleria (#921, 2026-10-09; DESIGN §8.12): three blocks 26 apart on the stage, no card. A
+ * small grey sentence, the label 6 above its one-line field, the white pill.
  */
 export default function MilestoneScreen() {
   const leave = useGuardedBack();
@@ -64,15 +67,15 @@ export default function MilestoneScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12 pt-4"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-[15px] leading-relaxed text-faint">
+        <Text className="type-small text-muted-foreground">
           {t('milestone.sheet.desc', locale)}
         </Text>
 
-        <View className="gap-2">
-          <SectionLabel tone="aura">{t('milestone.field.label', locale)}</SectionLabel>
+        <View className="gap-1.5">
+          <SectionLabel>{t('milestone.field.label', locale)}</SectionLabel>
           <Field
             error={error ? t('milestone.error.empty', locale) : null}
             maxLength={200}
@@ -86,10 +89,9 @@ export default function MilestoneScreen() {
           />
         </View>
 
-        {/* flat light CTA — adding a tappa is not moment-grade, so no glow (rule #4). */}
         <Button
           label={t('milestone.sheet.cta', locale)}
-          variant="light"
+          variant="primary"
           disabled={saving}
           onPress={add}
         />

@@ -9,8 +9,7 @@ import {
   sendConnection,
 } from '@athanor/api';
 import { type Locale, t } from '@athanor/i18n';
-import { Pressable, Text, View } from '@/tw';
-import { HIT_SLOP } from '@/lib/a11y';
+import { Text, View } from '@/tw';
 import { spoken } from '@/lib/star';
 import { Button } from '@/components/Button';
 import { ButtonRow } from '@/components/ButtonRow';
@@ -20,11 +19,15 @@ import { supabase } from '@/lib/supabase';
 
 /**
  * Profile action: send / cancel / accept-decline / connected, driven by the live
- * connection status for `peerId`. Flat cyan only (rule #4) — a connection is routine,
- * never a glow moment, which is also why its toasts carry no tone mark. Aura is never
- * written here (rule #1). Feedback goes through the global toast host (#118); the
- * private pill this component hand-rolled was the last ad-hoc Toast variant on the
- * profile screen.
+ * connection status for `peerId`. White and outline pills, one text link and grey words: a
+ * connection is routine, never a moment, which is also why its toasts carry no tone mark and
+ * nothing here is cyan (DESIGN §2.3). Aura is never written here (rule #1). Feedback goes
+ * through the global toast host (#118); the private pill this component hand-rolled was the
+ * last ad-hoc Toast variant on the profile screen.
+ *
+ * A STATUS is words, not a control (Galleria, 2026-10-07, #921): «Richiesta inviata» and
+ * «Connessi ✦» are `small` grey text. Until then each was a disabled text link with an empty
+ * press, which read as a link that cannot be followed.
  */
 export function ConnectButton({ peerId, locale }: { peerId: string; locale: Locale }) {
   const queryClient = useQueryClient();
@@ -49,7 +52,7 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
     mutationFn: () => sendConnection(supabase, peerId),
     onSuccess: () => {
       invalidateAll();
-      // No toast: the button itself flips to «Richiesta inviata» — the state change IS
+      // No toast: the pill itself gives way to «Richiesta inviata» — the state change IS
       // the feedback, and the removed toast said those exact words over it (#118).
       // Screen readers can't see the flip, so announce the new state once.
       AccessibilityInfo.announceForAccessibility(spoken(t('connection.pending', locale)));
@@ -102,30 +105,23 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       {state === 'none' ? (
         <Button
           label={t('connection.cta', locale)}
-          variant="light"
+          variant="primary"
           disabled={pending || statusQuery.isLoading}
           onPress={() => sendMutation.mutate()}
         />
       ) : null}
 
       {state === 'pending-out' ? (
-        <View className="gap-2">
+        <View className="items-center">
+          <Text className="text-center type-small text-muted-foreground">
+            {t('connection.pending', locale)}
+          </Text>
           <Button
-            label={t('connection.pending', locale)}
+            label={t('connection.cancel', locale)}
             variant="ghost"
-            disabled
-            onPress={() => {}}
-          />
-          <Pressable
-            accessibilityRole="button"
             disabled={pending || !requestId}
-            hitSlop={HIT_SLOP}
             onPress={() => requestId && cancelMutation.mutate(requestId)}
-          >
-            <Text className={`text-center text-[13px] text-faint ${pending ? 'opacity-40' : ''}`}>
-              {t('connection.cancel', locale)}
-            </Text>
-          </Pressable>
+          />
         </View>
       ) : null}
 
@@ -133,13 +129,13 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
         <ButtonRow>
           <Button
             label={t('connection.accept', locale)}
-            variant="light"
+            variant="primary"
             disabled={pending || !requestId}
             onPress={() => requestId && respondMutation.mutate({ requestId, accept: true })}
           />
           <Button
             label={t('connection.decline', locale)}
-            variant="ghost"
+            variant="outline"
             disabled={pending || !requestId}
             onPress={() => requestId && respondMutation.mutate({ requestId, accept: false })}
           />
@@ -147,12 +143,9 @@ export function ConnectButton({ peerId, locale }: { peerId: string; locale: Loca
       ) : null}
 
       {state === 'connected' ? (
-        <Button
-          label={t('connection.connected', locale)}
-          variant="ghost"
-          disabled
-          onPress={() => {}}
-        />
+        <Text className="text-center type-small text-muted-foreground">
+          {t('connection.connected', locale)}
+        </Text>
       ) : null}
     </View>
   );

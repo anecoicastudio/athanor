@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, type FlatList as RNFlatList } from 'react-native';
+import { Alert, type FlatList as RNFlatList, useWindowDimensions } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,18 +19,21 @@ import {
   subscribeComments,
   togglePostReaction,
 } from '@athanor/api';
+import { galleria } from '@athanor/config';
 import { type MessageKey, t } from '@athanor/i18n';
 import type { PostComment } from '@athanor/schemas';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ListState } from '@/components/ListState';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
 import { Comment } from '@/components/feed/Comment';
 import { PostAuthorRow } from '@/components/feed/PostAuthorRow';
 import { PostMedia } from '@/components/feed/PostMedia';
 import { ReactionStar } from '@/components/feed/ReactionStar';
+import { SendIcon } from '@/components/glyphs';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { isDraftDirty } from '@/lib/dirty-guard';
@@ -38,7 +41,9 @@ import { useAuth } from '@/lib/auth-context';
 import { prependComment } from '@/lib/comment-cache';
 import { listState } from '@/lib/list-state';
 import { useGuardedBack } from '@/lib/modal-exit';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
+import { stacksTrailing } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 
@@ -49,6 +54,8 @@ export default function PostDetailScreen() {
   const queryClient = useQueryClient();
   const locale = useLocale();
   const myId = session?.user.id;
+  // At the accessibility sizes the header's link stands under the header (below).
+  const stacked = stacksTrailing(useWindowDimensions().fontScale);
 
   const [draft, setDraft] = useState('');
   const { showToast } = useToast();
@@ -109,7 +116,7 @@ export default function PostDetailScreen() {
   });
 
   // #101: optimistic insert. The row appears (dimmed) at the top of the replies the moment
-  // the ✦ is tapped, and the list scrolls to it — no blocking alert, no invisible landing.
+  // send is tapped, and the list scrolls to it — no blocking alert, no invisible landing.
   // The client uuid doubles as the insert's PK, so the queryClient's `retry: 1` on a lost
   // response conflicts on the key instead of double-posting.
   const sendComment = useMutation({
@@ -188,21 +195,9 @@ export default function PostDetailScreen() {
     saving: sendComment.isPending,
   });
 
-  if (postQuery.isLoading) {
-    return (
-      <Screen className="items-center justify-center">
-        {/* Decorative spinner-glyph — hidden, like `(tabs)/profile.tsx`'s loading ✦. Unhidden it is a
-            focusable element whose whole name is «✦» (#635). */}
-        <Text
-          className="text-2xl text-faint"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          ✦
-        </Text>
-      </Screen>
-    );
-  }
+  // The outline mandorla every first read shows (DESIGN §5), hidden from assistive tech by
+  // `MandorlaMark` itself: a typed ✦ here was a focusable element whose whole name was «✦» (#635).
+  if (postQuery.isLoading) return <LoadingScreen />;
   // Two answers where there used to be one (#749). Every `!post` rendered «Non siamo riusciti a
   // caricare il feed.» with no header, and `/post/<id>` is an app-link target, so a deep link to a
   // deleted post was a stack root with nothing on it that leaves. `getPostById` returns null for
@@ -230,7 +225,7 @@ export default function PostDetailScreen() {
     // sits on a real stack, which `replace` would flatten. Its label says where it goes.
     return (
       <Screen className="items-center justify-center gap-6 pl-8 pr-8">
-        <Text className="text-center text-base text-muted-foreground">
+        <Text className="type-body text-center text-muted-foreground">
           {t('post.unavailable', locale)}
         </Text>
         <Button
@@ -243,6 +238,30 @@ export default function PostDetailScreen() {
   }
 
   const categoryLabel = t(`feed.filter.${post.category}` as MessageKey, locale);
+  const cannotSend = draft.trim().length === 0 || sendComment.isPending;
+  // The header's one link: the author deletes, anyone else reports. An underlined link in a 44pt
+  // box (the prototype's `.lk`), named by its visible word; deleting is the error red. Beside a
+  // one-word title it would squeeze the title at the accessibility sizes, so there it stands
+  // under the header, at the left, as «Segna lette» does on notifications.
+  const headerLink = (
+    <Pressable
+      onPress={
+        isAuthor
+          ? confirmDelete
+          : () =>
+              router.push({
+                pathname: '/(modal)/report',
+                params: { targetType: 'post', targetId: post.id },
+              })
+      }
+      accessibilityRole="button"
+      className={cn('min-h-[44px] justify-center', PRESS_DIM)}
+    >
+      <Text className={cn('type-small underline', isAuthor ? 'text-error' : 'text-foreground')}>
+        {t(isAuthor ? 'post.delete' : 'report.title', locale)}
+      </Text>
+    </Pressable>
+  );
 
   return (
     <KeyboardAvoiding>
@@ -250,77 +269,64 @@ export default function PostDetailScreen() {
         <ModalHeader
           title={categoryLabel}
           backLabel={t('common.back', locale)}
-          right={
-            isAuthor ? (
-              <Pressable onPress={confirmDelete} accessibilityRole="button" hitSlop={8}>
-                <Text className="text-[13px] text-error">{t('post.delete', locale)}</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(modal)/report',
-                    params: { targetType: 'post', targetId: post.id },
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={t('report.title', locale)}
-                hitSlop={8}
-              >
-                <Text className="text-[13px] text-faint">{t('report.title', locale)}</Text>
-              </Pressable>
-            )
-          }
+          right={stacked ? undefined : headerLink}
         />
+        {stacked ? <View className="items-start px-5 pb-4">{headerLink}</View> : null}
         <FlatList
           ref={listRef}
           data={comments}
           keyExtractor={(item) => item.id}
-          contentContainerClassName="gap-3 px-5 pb-4 pt-2"
+          // No gap: the replies are segments of one group and must touch (`feed/Comment`).
+          contentContainerClassName="px-5 pb-4 pt-2"
           // Index 0 sits below the (possibly unmeasured) post header; fall back to the top.
           onScrollToIndexFailed={() =>
             listRef.current?.scrollToOffset({ offset: 0, animated: true })
           }
           ListHeaderComponent={
-            <View className="gap-5 pb-3">
+            // The prototype's blocks, 26 apart; the last one is the replies' label, 8 above the
+            // group it names.
+            <View className="gap-[26px] pb-2">
               <PostAuthorRow authorId={post.author_id} />
 
               {post.is_step ? (
-                <Text className="text-[12px] text-aura">✦ {t('feed.flag.step', locale)}</Text>
+                <Text className="type-label text-aura">✦ {t('feed.flag.step', locale)}</Text>
               ) : null}
-              <Text className="text-[16px] leading-7 text-foreground">{post.body}</Text>
+              <Text className="type-body text-foreground">{post.body}</Text>
               <PostMedia postId={post.id} postType={post.type} variant="detail" locale={locale} />
 
-              <View className="flex-row items-center gap-2 border-t border-hair pt-4">
-                {isAuthor ? (
-                  <Text className="text-[13px] text-muted-foreground">
-                    ✦ {t('post.author.reactions', locale, { n: countQuery.data ?? 0 })}
-                  </Text>
-                ) : (
+              {isAuthor ? (
+                <Text className="type-small text-muted-foreground">
+                  ✦ {t('post.author.reactions', locale, { n: countQuery.data ?? 0 })}
+                </Text>
+              ) : (
+                // The star is a 44pt target around a 20px glyph: the negative margins put the
+                // glyph on the gutter and give back the 12 above and below, except at the
+                // accessibility sizes, where the glyph fills its target (`FeedPost`'s rule).
+                <View className={cn('flex-row', stacked ? null : '-my-3 -ml-3')}>
                   <ReactionStar
                     lit={Boolean(reactionQuery.data)}
                     pending={toggleReaction.isPending}
                     onPress={() => toggleReaction.mutate()}
                     locale={locale}
                   />
-                )}
-              </View>
+                </View>
+              )}
 
               {/* The section's own text, so it takes `heading` (DESIGN §10, #651) — the inline
                   14px spelling this replaces carried no role, and the Android pass (#749) saw it
                   collapse to ~8px on a Play build. */}
-              <SectionLabel heading className="pt-2">
-                {t('comment.sectionLabel', locale)}
-              </SectionLabel>
+              <SectionLabel heading>{t('comment.sectionLabel', locale)}</SectionLabel>
             </View>
           }
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const isOptimistic = sendComment.isPending && sendComment.variables?.id === item.id;
             return (
               <Comment
                 comment={item}
                 locale={locale}
                 pending={isOptimistic}
+                first={index === 0}
+                last={index === comments.length - 1}
                 onDelete={
                   // No delete while in flight: the row's uuid isn't on the server yet, so the
                   // soft-delete would match nothing and the row would "survive" its own deletion.
@@ -361,7 +367,7 @@ export default function PostDetailScreen() {
           }}
         />
 
-        <View className="flex-row items-center gap-2 border-t border-hair bg-background px-5 py-3">
+        <View className="flex-row items-center gap-[10px] border-t border-hair bg-background px-5 py-3">
           <Input
             className="flex-1"
             size="sm"
@@ -373,17 +379,24 @@ export default function PostDetailScreen() {
           {/* P2.5 hint-truth: no comment-hint — the engine never rewards commenting (anti-gaming). */}
           {/* Role, name and state (#635). With none of the three this announced as a bare
               `generic` — and when the draft is empty, as `generic disabled`: a control a
-              screen-reader user could neither identify nor tell was refusing them. The ✦ is
-              decorative here; the label is the sentence. */}
+              screen-reader user could neither identify nor tell was refusing them. The drawing
+              is decorative; the label is the sentence.
+              A white disc, never `aura` (DESIGN §8.11): 40% while there is nothing to send.
+              Always mounted: a control that mounts beside a `TextInput` on the first character
+              lost typed characters on the search bar (`search/SearchBar`'s docblock). */}
           <Pressable
-            disabled={draft.trim().length === 0 || sendComment.isPending}
+            disabled={cannotSend}
             accessibilityRole="button"
             accessibilityLabel={t('comment.a11y.send', locale)}
-            accessibilityState={{ disabled: draft.trim().length === 0 || sendComment.isPending }}
+            accessibilityState={{ disabled: cannotSend }}
             onPress={() => sendComment.mutate({ id: Crypto.randomUUID(), body: draft.trim() })}
-            className="min-h-[44px] items-center justify-center rounded-ctl bg-aura px-4"
+            className={cn(
+              'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground',
+              PRESS_DIM,
+              cannotSend ? 'opacity-40' : null,
+            )}
           >
-            <Text className="text-[20px] text-background">✦</Text>
+            <SendIcon size={22} color={galleria.background} />
           </Pressable>
         </View>
       </Screen>

@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { t } from '@athanor/i18n';
 import { PASSWORD_REQUIREMENTS, passwordSchema, unmetPasswordRequirements } from '@athanor/schemas';
-import { ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { EyeGlyph, EyeOffGlyph } from '@/components/glyphs';
 import { Input } from '@/components/Input';
@@ -97,23 +97,18 @@ export default function NewPasswordScreen() {
           contentContainerClassName="grow px-5 pb-9 pt-4"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="mt-6 gap-3">
-            <SectionLabel tone="aura">{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
-            <Text
-              accessibilityRole="header"
-              className="text-[28px] font-bold tracking-[-0.02em] text-foreground"
-            >
+          <View className="mt-11 gap-2">
+            <SectionLabel>{t('auth.newPassword.eyebrow', locale)}</SectionLabel>
+            <Text accessibilityRole="header" className="type-h1 text-foreground">
               {t('auth.newPassword.display', locale)}
             </Text>
-            <Text className="text-[15px] leading-[22px] text-muted-foreground">
+            <Text className="type-small text-muted-foreground">
               {t('auth.newPassword.sub', locale)}
             </Text>
           </View>
 
-          <View className="mt-8 gap-2" ref={reveal.rowRef('password')}>
-            <Text className="text-xs font-medium text-muted-foreground">
-              {t('auth.password.label', locale)}
-            </Text>
+          <View className="mt-[26px] gap-[6px]" ref={reveal.rowRef('password')}>
+            <SectionLabel>{t('auth.password.label', locale)}</SectionLabel>
             <Input
               {...reveal.fieldProps('password')}
               autoCapitalize="none"
@@ -141,10 +136,11 @@ export default function NewPasswordScreen() {
               }}
             />
             {/* The welcome.tsx checklist, verbatim recipe: rule stated before typing,
-              live afterwards; `success` not `aura` (a satisfied rule is a confirmation);
-              met/unmet carried by mark + SR label, never colour alone (G2). */}
+              live afterwards; a met rule turns foreground, never cyan or green (a satisfied
+              rule is a confirmation); met/unmet carried by mark + SR label, never colour
+              alone (G2). */}
             {password.length === 0 ? (
-              <Text className="px-5 text-xs text-muted-foreground">
+              <Text className="px-5 type-small text-muted-foreground">
                 {t('auth.password.hint', locale)}
               </Text>
             ) : (
@@ -155,7 +151,10 @@ export default function NewPasswordScreen() {
                   return (
                     <Text
                       key={requirement}
-                      className={`text-xs ${met ? 'text-success' : 'text-muted-foreground'}`}
+                      className={cn(
+                        'type-small',
+                        met ? 'text-foreground' : 'text-muted-foreground',
+                      )}
                       accessibilityLabel={`${t(met ? 'a11y.req.met' : 'a11y.req.unmet', locale)} ${label}`}
                     >
                       {met ? '✓' : '•'} {label}
@@ -166,20 +165,20 @@ export default function NewPasswordScreen() {
             )}
           </View>
 
-          {error ? <Text className="mt-3 text-sm text-error">{error}</Text> : null}
+          {error ? <Text className="mt-3 text-[14px] text-error">{error}</Text> : null}
 
           {/* Revealed with the password row (#766) — see the same block in (auth)/welcome.tsx.
             The whole block, so «Più tardi» rides along too: skipping is the sheet's other way
             out, and dismissing it only re-presents it. */}
-          <View className="mt-7 gap-3" ref={reveal.submitRef()}>
+          <View className="mt-[26px] gap-2" ref={reveal.submitRef()}>
             <Button
-              variant="light"
+              variant="primary"
               label={t('auth.newPassword.cta', locale)}
               disabled={disabled}
               loading={saving}
               onPress={submit}
             />
-            <Button variant="ghost" label={t('auth.newPassword.skip', locale)} onPress={leave} />
+            <Button variant="outline" label={t('auth.newPassword.skip', locale)} onPress={leave} />
           </View>
         </ScrollView>
       </Screen>

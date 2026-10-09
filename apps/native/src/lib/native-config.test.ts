@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import type { ExpoConfig } from 'expo/config';
 import { afterAll, describe, expect, it } from 'vitest';
 import resolveAppConfig from '../../app.config';
@@ -116,7 +116,7 @@ describe.each([
   it('gives expo-notifications the mandorla icon, tinted aura (#772)', () => {
     const props = pluginProps(config, 'expo-notifications');
     expect(props?.icon).toBe('./assets/images/notification-icon.png');
-    expect(props?.color).toBe(semantic.aura);
+    expect(props?.color).toBe(galleria.aura);
   });
 
   it('registers the Sentry plugin and gives it no auth token (#466)', () => {
@@ -611,5 +611,74 @@ describe('production-simulator EAS profile (#83)', () => {
     expect(resolveEnv(build, 'production-simulator', platform)).toEqual(
       resolveEnv(build, 'production', platform),
     );
+  });
+});
+
+/*
+ * The app version is app.json's, and two places repeat it: `package.json`, which
+ * docs/RELEASE-RUNBOOK.md R-5 wants aligned with it at every release, and the literal
+ * `(modal)/settings.tsx` falls back to when the embedded config is missing. A release that
+ * bumps app.json alone leaves both behind, and nothing else says so.
+ */
+describe('the copies of the app version follow app.json', () => {
+  it('package.json carries the version app.json declares', () => {
+    const pkg = JSON.parse(readFileSync(join(NATIVE, 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    expect(pkg.version).toBe(staticConfig().version);
+  });
+
+  it('the settings fallback is the version app.json declares', () => {
+    const settings = readFileSync(join(NATIVE, 'src/app/(modal)/settings.tsx'), 'utf8');
+    const fallback = settings.match(/expoConfig\?\.version \?\? '([^']+)'/)?.[1];
+    expect(
+      fallback,
+      'settings.tsx no longer carries a literal version fallback — this pin has nothing to hold',
+    ).toBeDefined();
+    expect(fallback).toBe(staticConfig().version);
+  });
+});
+
+/*
+ * Three grounds are painted by the native side before any of our JS draws: the root view
+ * (`backgroundColor`), the splash, and the Android adaptive icon's ground. Galleria keeps the
+ * splash animation and the icon art and moves only the ground under them to the stage's black
+ * (ruling 6 of #921, 2026-10-03). They are native config: a change here reaches a phone with a
+ * build, never with a bundle. Asserted on both variants, since `app.config.ts` rewrites the
+ * Android block for the dev client.
+ */
+describe('the three native grounds are the Galleria stage (#921)', () => {
+  const stage = galleria.background.toLowerCase();
+  const grounds = (config: ExpoConfig) => ({
+    root: config.backgroundColor?.toLowerCase(),
+    splash: (
+      pluginProps(config, 'expo-splash-screen')?.backgroundColor as string | undefined
+    )?.toLowerCase(),
+    adaptiveIcon: config.android?.adaptiveIcon?.backgroundColor?.toLowerCase(),
+  });
+
+  it.each([['production', undefined] as const, ['development', 'development'] as const])(
+    'root, splash and adaptive icon are black on the %s variant',
+    (_name, variant) => {
+      expect(stage).toBe('#000000');
+      expect(grounds(resolveVariant(variant))).toEqual({
+        root: stage,
+        splash: stage,
+        adaptiveIcon: stage,
+      });
+    },
+  );
+
+  it('the splash image and the icon art are the files they were', () => {
+    const config = staticConfig();
+    expect(pluginProps(config, 'expo-splash-screen')?.android).toEqual({
+      image: './assets/images/splash-icon.png',
+      imageWidth: 76,
+    });
+    expect(config.android?.adaptiveIcon).toMatchObject({
+      foregroundImage: './assets/images/android-icon-foreground.png',
+      backgroundImage: './assets/images/android-icon-background.png',
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    });
   });
 });

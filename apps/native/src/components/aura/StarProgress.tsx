@@ -1,11 +1,13 @@
 import { Text, View } from '@/tw';
 import { ProgressBar } from '@/components/ProgressBar';
+import { SectionLabel } from '@/components/SectionLabel';
 import type { NextStar } from '@athanor/core';
 import { t, type MessageKey } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
 
 /**
- * Next-star progress strip — own profile only.
+ * Next-star progress — own profile only, a bare block under the six stars (a bordered card
+ * until 2026-10-05: the profile's one card is the dream, DESIGN §6).
  * Shows the closest unearned star (by progress ratio) + a progress bar + hint.
  * Returns null when `next` is null (all earned or engine dormant → no rows).
  */
@@ -17,15 +19,13 @@ export function StarProgress({ next, locale }: { next: NextStar | null; locale: 
   const width = next.total > 0 ? next.done / next.total : 0;
 
   return (
-    <View className="gap-2 rounded-card border border-hair bg-raise px-4 py-3">
-      <Text className="text-[13px] font-semibold text-foreground">
-        {t('star.next.title', locale, { star: starName })}
-      </Text>
-      <Text className="text-[12px] text-faint">
+    <View className="gap-2">
+      <SectionLabel>{t('star.next.title', locale, { star: starName })}</SectionLabel>
+      <Text className="type-small text-foreground">
         {t('star.next.progress', locale, { done: next.done, total: next.total, unit })}
       </Text>
       <ProgressBar width={width} />
-      <Text className="text-[11px] text-muted-foreground">{t('star.next.hint', locale)}</Text>
+      <Text className="type-small text-muted-foreground">{t('star.next.hint', locale)}</Text>
     </View>
   );
 }

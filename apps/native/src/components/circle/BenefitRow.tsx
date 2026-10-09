@@ -5,14 +5,14 @@ import { Tag } from '@/components/Tag';
 
 /**
  * One benefit row for the Circle paywall surface (M8 §3.2).
- * Leading check glyph ✓ tinted `aura` when unlocked, `faint` when locked — mirrors
- * the MilestoneRow.tsx pattern (done ? '✓' : '○', text-aura : text-faint).
+ * Leading check glyph ✓ tinted `aura` when unlocked, `faint` when locked — the ✓ / ○ pair
+ * a tappa uses in `MilestoneRow` (which draws it foreground / grey since 2026-10-05).
  * Trailing `Tag` «in arrivo» when `soon` (cosmetic, no interaction) — `quiet`, so its label is
  * `muted-foreground`, matching `desc` below.
  *
  * A locked title is `faint`, i.e. dimmer than both the Tag and its own `desc`. That is NOT the
  * metadata-outranks-payload inversion the quiet tone exists to fix: here `faint` marks STATE
- * (locked), the same way MilestoneRow dims a done row, not rank. Raising it to `ink-2` would
+ * (locked), not rank. Raising it to `ink-2` would
  * buy a tidier ladder by spending the locked signal. Left as is, deliberately.
  *
  * Min-height ≥44pt for touch accessibility.
@@ -32,7 +32,7 @@ export function BenefitRow({
 }) {
   return (
     <View className="min-h-[44px] flex-row items-start gap-3 py-1">
-      {/* Check glyph — aura when unlocked, faint when locked (MilestoneRow pattern) */}
+      {/* Check glyph — aura when unlocked, faint when locked (the ✓ / ○ pair of MilestoneRow) */}
       <Text
         className={`pt-0.5 text-base ${unlocked ? 'text-aura' : 'text-faint'}`}
         accessibilityLabel={unlocked ? t('common.done', locale) : t('common.locked', locale)}

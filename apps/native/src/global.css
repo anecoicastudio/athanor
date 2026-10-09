@@ -3,35 +3,39 @@
 @import 'tailwindcss/utilities.css';
 
 /*
- * Athanor brand tokens — values mirror packages/config/src/tokens.ts.
- * Update both together.
- * aura (the cyan light, --color-aura) is the action + meaning color; reserve
- * the glow for moment-grade events (Momento, lit star, dream helped, match).
- * The mandala gradient (--color-gradient-*) is the logo/hero ring only.
+ * Athanor mobile tokens — values mirror `galleria` (colours) and `galleriaType`
+ * (the type-* classes) in packages/config/src/tokens.ts; lib/tokens-mirror.test.ts
+ * holds the two files together. Update both.
+ * Galleria (DESIGN.md §3): a black stage, charcoal blocks, one secondary grey.
+ * On a converted screen aura (--color-aura) is a small mark, never an action
+ * colour and never a glow; a screen not yet converted shows the old uses.
+ * The mandala gradient (--color-gradient-*) is the logo and boot splash only.
+ * surface-muted, line, success, ink-2, faint, raise, raise-2, aura-soft and
+ * aura-line are LEGACY ALIASES holding interim values, kept for the screens
+ * not yet converted. Each is deleted with its last call site.
  */
 @layer theme {
   @theme {
-    --color-background: #0a0a1a;
-    --color-surface: #100a1c;
-    --color-surface-muted: #04030a;
-    --color-foreground: #f0edf7;
-    --color-muted-foreground: #9a9db5;
+    --color-background: #000000;
+    --color-surface: #1d1d1f;
+    --color-surface-muted: #1d1d1f;
+    --color-foreground: #f5f5f7;
+    --color-muted-foreground: #86868b;
     --color-aura: #2bd0d2;
     --color-gradient-1: #7d236e;
     --color-gradient-2: #672088;
     --color-gradient-3: #223d86;
-    --color-line: #241b3a;
+    --color-line: #333336;
     --color-success: #36b37e;
-    --color-error: #e0476b;
-    --color-ink-2: #c9c3de;
-    --color-faint: #8781a8;
-    --color-raise: rgba(255, 255, 255, 0.04);
-    --color-raise-2: rgba(255, 255, 255, 0.065);
-    --color-hair: rgba(176, 158, 222, 0.1);
+    --color-error: #e5536f;
+    --color-ink-2: #f5f5f7;
+    --color-faint: #86868b;
+    --color-raise: #1d1d1f;
+    --color-raise-2: #2c2c2e;
+    --color-hair: #333336;
     --color-aura-soft: rgba(43, 208, 210, 0.1);
     --color-aura-line: rgba(43, 208, 210, 0.4);
     --color-on-aura: #04222a;
-    --color-on-error: #1a050d;
     --color-apple-button-bg: #ffffff;
     --color-apple-button-ink: #000000;
     --radius-ctl: 14px;
@@ -39,6 +43,15 @@
     --radius-hero: 26px;
     /* spacing.gutter — screen horizontal padding (DESIGN.md §6). px-gutter etc. */
     --spacing-gutter: 20px;
+    /*
+     * spacing.xs — the step of Tailwind's numeric scale (p-4, gap-3, h-11), in px.
+     * Tailwind's default is 0.25rem and react-native-css resolves a rem at 14, so
+     * without this line a step is 3.5 on device (p-4 14, h-11 38.5) against 4 in
+     * the web build. Measured on an iPhone SE simulator and a moto g17, 2026-10-04.
+     * Named text sizes (text-sm 12.25) and rem radii (rounded-xl 10.5) still
+     * resolve at 14: a converted screen takes the type-* classes and px radii.
+     */
+    --spacing: 4px;
 
     /*
      * RN selects fonts by exact loaded family name (one file = one family),
@@ -60,13 +73,130 @@
  * DESIGN §4: everything is Hanken Grotesk. The @/tw Text/TextInput wrappers
  * prepend `font-app` as the default family. All rules below are unlayered
  * and ordered by precedence (react-native-css resolves equal-specificity
- * conflicts by source order): font-app first, then the weight remaps —
+ * conflicts by source order): font-app first, the type-* classes, then the weight remaps —
  * Tailwind's font-weight utilities only set font-weight, but RN picks faces
  * by exact family name (one file = one family) — then font-dream re-asserted
  * last so the dream register always beats the default.
  */
 .font-app {
   font-family: var(--font-sans);
+}
+/*
+ * The type scale (DESIGN.md §4 «Scale — mobile»): one class per style of
+ * `galleriaType` in packages/config/src/tokens.ts, holding size, line height,
+ * tracking and face together. lib/tokens-mirror.test.ts pins every declaration
+ * below to that object. Update both.
+ *
+ * Measured on an iPhone SE simulator, a moto g17 and the web build, 2026-10-04
+ * (react-native-css 3.0.7):
+ *  - `-rn-line-height`, never `line-height`. The standard property emits nothing
+ *    on device: a 32px Text measures 42 with `leading-[36px]`, 36 with this.
+ *  - Never both in one rule: the class then emits no line height at all.
+ *  - A browser ignores `-rn-*`, so the web build reads the standard properties
+ *    from the `@supports selector(div > div)` block, which the device compiler
+ *    skips.
+ *  - Tracking is px: size × the em DESIGN prints.
+ *
+ * Placed by precedence, like the rest of this file: after `.font-app`, so the
+ * class's face beats the wrapper's default, and before the weight remaps, so a
+ * `font-bold` at the call site still wins. Size and line height are the class's
+ * own, and tracking where the class states one: on the simulator `text-[30px]`
+ * or `leading-6` beside `type-body`, and `tracking-widest` beside `type-h1`,
+ * changed nothing, in either order. The four classes that state no tracking do
+ * not override a `tracking-*` utility. Colour is the call site's.
+ * `font-weight: 400` for the reason the remaps give below.
+ */
+.type-h1 {
+  font-family: var(--font-sans-semibold);
+  font-weight: 400;
+  font-size: 32px;
+  -rn-line-height: 36px;
+  letter-spacing: -0.64px;
+}
+.type-title {
+  font-family: var(--font-sans-semibold);
+  font-weight: 400;
+  font-size: 24px;
+  -rn-line-height: 27px;
+  letter-spacing: -0.48px;
+}
+.type-h2 {
+  font-family: var(--font-sans-semibold);
+  font-weight: 400;
+  font-size: 19px;
+  -rn-line-height: 23px;
+  letter-spacing: -0.19px;
+}
+.type-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 17px;
+  -rn-line-height: 24px;
+}
+.type-small {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 15px;
+  -rn-line-height: 21px;
+}
+.type-label {
+  font-family: var(--font-sans-medium);
+  font-weight: 400;
+  font-size: 13px;
+  -rn-line-height: 17px;
+}
+.type-quote {
+  font-family: var(--font-dream);
+  font-weight: 400;
+  font-size: 18px;
+  -rn-line-height: 23px;
+}
+.type-num {
+  font-family: var(--font-sans-extrabold);
+  font-weight: 400;
+  font-size: 44px;
+  -rn-line-height: 44px;
+  letter-spacing: -1.32px;
+  -rn-font-variant: tabular-nums;
+}
+.type-num-m {
+  font-family: var(--font-sans-extrabold);
+  font-weight: 400;
+  font-size: 26px;
+  -rn-line-height: 26px;
+  letter-spacing: -0.78px;
+  -rn-font-variant: tabular-nums;
+}
+@supports selector(div > div) {
+  .type-h1 {
+    line-height: 36px;
+  }
+  .type-title {
+    line-height: 27px;
+  }
+  .type-h2 {
+    line-height: 23px;
+  }
+  .type-body {
+    line-height: 24px;
+  }
+  .type-small {
+    line-height: 21px;
+  }
+  .type-label {
+    line-height: 17px;
+  }
+  .type-quote {
+    line-height: 23px;
+  }
+  .type-num {
+    line-height: 44px;
+    font-variant-numeric: tabular-nums;
+  }
+  .type-num-m {
+    line-height: 26px;
+    font-variant-numeric: tabular-nums;
+  }
 }
 /* font-weight reset to 400: the face already carries the weight; leaving
  * Tailwind's font-weight in place makes Android synthesize faux-bold on top

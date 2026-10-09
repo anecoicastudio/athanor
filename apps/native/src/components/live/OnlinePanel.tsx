@@ -1,7 +1,7 @@
 import { ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getEventsOnline } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type Locale, t } from '@athanor/i18n';
 import { ScrollView, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
@@ -49,7 +49,7 @@ export function OnlinePanel({
         {all.length === 0 && !query.isLoading ? (
           <EmptyState>{t('live.calendar.empty', locale)}</EmptyState>
         ) : null}
-        {query.isLoading ? <ActivityIndicator color={semantic.aura} /> : null}
+        {query.isLoading ? <ActivityIndicator color={galleria.foreground} /> : null}
       </View>
     </ScrollView>
   );

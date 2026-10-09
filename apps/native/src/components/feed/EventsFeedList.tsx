@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { ActivityIndicator, RefreshControl } from 'react-native';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { type Locale, t } from '@athanor/i18n';
 import { FlatList, View } from '@/tw';
 import { ListState } from '@/components/ListState';
@@ -10,7 +10,7 @@ import { useEntitlement } from '@/hooks/use-entitlement';
 import { listState } from '@/lib/list-state';
 
 /**
- * The feed's «Eventi» tab (#153): real `events` rows as feed cards, tap → event detail.
+ * The feed's «Eventi» tab (#153): real `events` rows as `EventRow`s, tap → event detail.
  *
  * Reads the shared calendar query with no filters — the same cache entry Live's Calendario and
  * Mappa hold, so opening the tab warms Live rather than duplicating it. `starts_at` ascending,
@@ -31,7 +31,7 @@ export function EventsFeedList({
   onCreate,
 }: {
   locale: Locale;
-  /** The screen's own header (title, composer, tabs, Live card, rail) — shared with the posts list. */
+  /** The screen's own header (title, add control, filters, Live row, rail) — shared with the posts list. */
   header: ReactElement;
   onOpen: (id: string) => void;
   onCreate: () => void;
@@ -75,7 +75,7 @@ export function EventsFeedList({
           className="px-8 pt-16"
           loading={
             <View className="items-center pt-16">
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             </View>
           }
         />
@@ -84,7 +84,7 @@ export function EventsFeedList({
         <RefreshControl
           refreshing={query.isRefetching}
           onRefresh={onRefresh}
-          tintColor={semantic.aura}
+          tintColor={galleria.foreground}
         />
       }
       onEndReachedThreshold={0.5}

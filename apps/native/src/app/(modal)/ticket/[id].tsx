@@ -3,7 +3,7 @@ import { ActivityIndicator } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useQuery } from '@tanstack/react-query';
 import { eventKeys, getMyTicket } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import { ScrollView, Text, View } from '@/tw';
 import { EmptyState } from '@/components/EmptyState';
@@ -37,7 +37,7 @@ export default function TicketViewerScreen() {
 
         {ticketQ.isLoading ? (
           <View className="items-center pt-16">
-            <ActivityIndicator color={semantic.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           </View>
         ) : ticket?.status === 'refunded' ? (
           // The webhook nulls qr_token on refund/dispute, but say WHY instead of falling
@@ -56,13 +56,13 @@ export default function TicketViewerScreen() {
               chip + QR background are the light `foreground` token, modules the dark `background`. */}
             <View
               className="rounded-hero border border-aura-line p-6"
-              style={{ backgroundColor: semantic.foreground }}
+              style={{ backgroundColor: galleria.foreground }}
             >
               <QRCode
                 value={ticket.qr_token}
                 size={224}
-                color={semantic.background}
-                backgroundColor={semantic.foreground}
+                color={galleria.background}
+                backgroundColor={galleria.foreground}
               />
             </View>
             <Text className="text-center text-[15px] text-ink-2">{t('ticket.show', locale)}</Text>

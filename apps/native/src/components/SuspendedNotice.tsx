@@ -40,10 +40,10 @@ export function SuspendedNotice() {
   return (
     <View
       accessibilityRole="alert"
-      className="mx-5 mt-2 rounded-card border border-error bg-raise px-4 py-3"
+      className="mx-5 mt-2 rounded-[28px] border border-error bg-surface px-5 py-4"
     >
-      <Text className="text-[13px] font-semibold text-foreground">{title}</Text>
-      <Text className="mt-1 text-xs text-muted-foreground">{body}</Text>
+      <Text className="type-small font-semibold text-foreground">{title}</Text>
+      <Text className="mt-1 type-small text-muted-foreground">{body}</Text>
     </View>
   );
 }

@@ -1,16 +1,23 @@
 import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
-import { Pressable, Text } from '@/tw';
+import { Pressable, Text, cn } from '@/tw';
+import { PRESS_DIM } from '@/lib/press';
 import { wordLines } from '@/lib/word-lines';
 import { Avatar } from '@/components/Avatar';
 import { useLocale } from '@/hooks/use-locale';
 import { useProfile } from '@/hooks/use-profile';
 
 /**
- * Post/comment author identity — Avatar + handle. Tap → person detail (M2 read view).
- * The aura-chip NUMBER is deferred to M6 (Aura reads zero pre-engine — no fabricated
- * badge, rule #1/#3). `size` lets comments render a smaller row than the post header.
+ * Post/comment author identity — the 30pt Avatar and the name, 10 apart, the name in body at
+ * 500 as a row's title is (the prototype's `.av.xs` + `.t`). Tap → person detail (M2 read
+ * view). The aura-chip NUMBER is deferred to M6 (Aura reads zero pre-engine — no fabricated
+ * badge, rule #1/#3).
+ *
+ * `fill` makes the row take the width its parent leaves and the name fill the row: for a
+ * «name left, something right» line, where a name sized to its own words is what Android
+ * drew a word short (moto g17, 2026-10-05, seen on Home). Without it the row is as wide as
+ * its content and shrinks.
  *
  * A BANNED author renders the tombstone (#314). This row is the reason the ban's read side
  * could not be RLS alone: a banned member's reply STAYS inside someone else's thread by
@@ -31,7 +38,7 @@ import { useProfile } from '@/hooks/use-profile';
  * the profile becomes unreachable (#518). `ProjectCard` used to and no longer does; the shape to
  * copy is `FeedPost`, where the row is a SIBLING of the card's tap target rather than inside it.
  */
-export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; size?: 'sm' | 'md' }) {
+export function PostAuthorRow({ authorId, fill = false }: { authorId: string; fill?: boolean }) {
   const router = useRouter();
   const locale = useLocale();
   const { data: profile } = useProfile(authorId);
@@ -39,14 +46,12 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
   const label = profile?.removed
     ? t('profile.removed.name', locale)
     : memberLabel(profile?.display_name, handle);
-  const avatarSize = size === 'sm' ? 28 : 36;
-  const nameClass = size === 'sm' ? 'text-[13px]' : 'text-[14px]';
   return (
     <Pressable
       // `shrink` on the row and the name (#847): a name wider than what its parent leaves it
-      // wraps by word instead of overflowing the card; a lone word ellipsizes (DESIGN §10) and
+      // wraps by word instead of overflowing its block; a lone word ellipsizes (DESIGN §10) and
       // the full name stays on this row's label.
-      className="shrink flex-row items-center gap-3"
+      className={cn('flex-row items-center gap-[10px]', fill ? 'flex-1' : 'shrink', PRESS_DIM)}
       accessibilityRole="button"
       accessibilityLabel={
         profile?.removed || !label ? undefined : t('connection.a11y.open', locale, { name: label })
@@ -58,10 +63,10 @@ export function PostAuthorRow({ authorId, size = 'md' }: { authorId: string; siz
         handle={handle}
         displayName={profile?.display_name ?? null}
         avatarPath={profile?.avatar_path ?? null}
-        size={avatarSize}
+        size={30}
       />
       <Text
-        className={`${nameClass} shrink font-semibold text-foreground`}
+        className={cn('type-body font-medium text-foreground', fill ? 'flex-1' : 'shrink')}
         numberOfLines={wordLines(label)}
         // The removed-author row has no label of its own, so the ellipsized name must carry one.
         accessibilityLabel={label ?? undefined}

@@ -11,8 +11,9 @@ import {
   profileKeys,
   unblockUser,
 } from '@athanor/api';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/Button';
 import { ButtonRow } from '@/components/ButtonRow';
@@ -21,9 +22,11 @@ import { useToast } from '@/components/ToastHost';
 import { ConnectButton } from '@/components/connections/ConnectButton';
 import { DreamCard } from '@/components/profile/DreamCard';
 import { EmptyState } from '@/components/EmptyState';
+import { MoreIcon, ShareIcon } from '@/components/glyphs';
 import { Lightbox } from '@/components/media/Lightbox';
 import { ProfileBody } from '@/components/profile/ProfileBody';
 import { SectionLabel } from '@/components/SectionLabel';
+import { PRESS_DIM } from '@/lib/press';
 import { momentSignPaths } from '@/lib/media/moment-media';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { useAuth } from '@/lib/auth-context';
@@ -45,12 +48,16 @@ import { useProfile } from '@/hooks/use-profile';
 import { useStars } from '@/hooks/use-stars';
 
 /**
- * Person Detail — read-only third-person profile (M2, frontend `02` §3.5). Mirrors the own
- * Profilo VIEW layout (hero / stat line / six stars / momenti / dream / reviews) but in
+ * Person Detail — read-only third-person profile (M2, frontend `02` §3.5; DESIGN §8.5). Mirrors
+ * the own Profilo VIEW layout (hero / dream / stat line / six stars / momenti / reviews) but in
  * third person and read-only: the dream card uses `variant="read"` so each tappa offers
- * «Aiuta» → the offer-help sheet. No Aura is ever written here (rule #1); «Connetti»/«Scrivi»
- * are M5 toast stubs; reviews are empty (Fase 3). This is the data contract the web `@handle`
- * page will reuse. No discovery entry point exists in M2 yet — reachable via deep-link for QA.
+ * «Aiuta» → the offer-help sheet. No Aura is ever written here (rule #1): «Scrivi» opens or
+ * creates the conversation, `ConnectButton` drives the connection request, the options menu
+ * blocks, unblocks and reports. Reviews are empty (Fase 3).
+ *
+ * Galleria (2026-10-07, #921): nothing here is cyan — another member's Aura numeral is
+ * foreground and the share is the drawn icon. The one bordered card is the dream's. The footer
+ * is a row of pills, «Scrivi» outline beside the one white pill.
  */
 export default function PersonDetailScreen() {
   const router = useRouter();
@@ -232,26 +239,28 @@ export default function PersonDetailScreen() {
     }
   };
 
-  // Header right slot: share ✦ + kebab ⋯ overflow (shared by the missing + loaded branches).
+  // Header right slot: the drawn share and the drawn options (shared by the missing + loaded
+  // branches). Two 44pt boxes 4 apart, the last one 12 into the gutter like the header's close
+  // (the prototype's `.ib` and `.ib.rt`). Boxes, not `hitSlop`: slop rects of neighbours overlap.
   const headerRight = (
-    <View className="flex-row items-center gap-4">
+    <View className="flex-row items-center gap-1">
       {shareMessage != null && (
         <Pressable
-          onPress={() => void shareProfile()}
           accessibilityRole="button"
           accessibilityLabel={t('profile.share.label', locale)}
-          hitSlop={8}
+          className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
+          onPress={() => void shareProfile()}
         >
-          <Text className="text-xl text-aura">✦</Text>
+          <ShareIcon color={galleria.foreground} />
         </Pressable>
       )}
       <Pressable
-        onPress={openMenu}
         accessibilityRole="button"
-        accessibilityLabel={t('block.cta', locale)}
-        hitSlop={8}
+        accessibilityLabel={t('profile.a11y.options', locale)}
+        className={cn('-mr-3 min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
+        onPress={openMenu}
       >
-        <Text className="text-xl text-foreground">⋯</Text>
+        <MoreIcon color={galleria.foreground} />
       </Pressable>
     </View>
   );
@@ -274,7 +283,7 @@ export default function PersonDetailScreen() {
           backLabel={t('common.back', locale)}
           right={headerRight}
         />
-        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
+        <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-12">
           <EmptyState>{t('profile.unavailable', locale)}</EmptyState>
         </ScrollView>
       </Screen>
@@ -296,7 +305,7 @@ export default function PersonDetailScreen() {
           title={t('profile.removed.title', locale)}
           backLabel={t('common.back', locale)}
         />
-        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
+        <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-12">
           <EmptyState>{t('profile.removed.body', locale)}</EmptyState>
         </ScrollView>
       </Screen>
@@ -325,11 +334,12 @@ export default function PersonDetailScreen() {
         /* Action bar — pinned footer (#117), not scroll content: the two things the screen
           exists for stay tappable at any scroll position, and the toast band clears them by
           construction. «Scrivi» opens-or-creates the conversation; «Connetti» drives the
-          full connection-requests state machine (M5). */
+          full connection-requests state machine (M5). A `ButtonRow`: «Scrivi» is the outline
+          pill beside the primary, and drops to a line of its own when the two do not fit. */
         <ButtonRow className="border-t border-hair px-5 pb-3 pt-3">
           <Button
             label={t('profile.write.cta', locale)}
-            variant="ghost"
+            variant="outline"
             onPress={async () => {
               try {
                 const conversationId = await getOrCreateConversation(supabase, id);
@@ -361,7 +371,7 @@ export default function PersonDetailScreen() {
       />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-8 px-5 pb-12"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         {/* Shared Profilo stack in third person: hero → stat line → stelle → momenti (02 §3.5) */}
@@ -380,10 +390,14 @@ export default function PersonDetailScreen() {
             // verified member's badge never rendered on their public profile.
             verified: person.identity_verified,
             zodiacSign: person.zodiac_sign ?? null,
+            // Beside the handle, as on the member's own profile (DESIGN §8.5). NULL when its
+            // owner hid it: `get_person_profile` masks the column (20260925143552).
+            city: person.city ?? null,
           }}
           statCounts={statCounts}
           dream={
-            /* Il suo sogno — read-only, per-tappa «Aiuta»; directly under the hero (#640). */
+            /* Il suo sogno — read-only, per-tappa «Aiuta»; directly under the hero (#640). The
+               card is the label and the quote: «Fai accadere questo sogno» is the footer's. */
             <DreamCard
               variant="read"
               dream={dreamText}
@@ -394,11 +408,6 @@ export default function PersonDetailScreen() {
                 const need = tappe.find((m) => m.id === milestoneId)?.body ?? '';
                 router.push({ pathname: '/(modal)/help', params: { milestoneId, need } });
               }}
-              onMakeHappen={
-                dreamText != null && hasHelpableTappa
-                  ? () => router.push({ pathname: '/(modal)/help', params: { userId: id } })
-                  : undefined
-              }
             />
           }
           stars={stars}
@@ -425,22 +434,25 @@ export default function PersonDetailScreen() {
         />
 
         {/* Recensioni umane — Fase 3, no backend. A real empty line, no vanity count (#119
-          replaced the bare untranslatable «—» that stood here). */}
-        <View className="gap-3">
+          replaced the bare untranslatable «—» that stood here): the label and one grey line,
+          8 apart. */}
+        <View className="gap-2">
           <SectionLabel>{t('profile.reviews.label', locale)}</SectionLabel>
-          <EmptyState>{t('profile.reviews.empty', locale)}</EmptyState>
+          <Text className="type-small text-muted-foreground">
+            {t('profile.reviews.empty', locale)}
+          </Text>
         </View>
-
-        <Lightbox
-          moments={moments}
-          urls={urls}
-          urlsLoading={urlsLoading}
-          index={lightboxIndex}
-          locale={locale}
-          onClose={() => setLightboxIndex(null)}
-          onIndexChange={setLightboxIndex}
-        />
       </ScrollView>
+      {/* A sibling of the scroll, not a block of its content: there it would take a gap. */}
+      <Lightbox
+        moments={moments}
+        urls={urls}
+        urlsLoading={urlsLoading}
+        index={lightboxIndex}
+        locale={locale}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+      />
     </Screen>
   );
 }

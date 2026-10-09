@@ -35,8 +35,8 @@ export function useStorySeen(): {
 
   // One-shot heal: a restored pre-fix cache entry is `{}` — defined, not an array — and
   // staleTime: Infinity would freeze it forever, shadowing the intact canonical list in
-  // AsyncStorage. Invalidate so the queryFn reloads it: dimmed rings come back instead of
-  // re-lighting.
+  // AsyncStorage. Invalidate so the queryFn reloads it: watched discs stay without their ring
+  // instead of taking it back.
   useEffect(() => {
     if (query.data !== undefined && !Array.isArray(query.data)) {
       void queryClient.invalidateQueries({ queryKey: SEEN_KEY });

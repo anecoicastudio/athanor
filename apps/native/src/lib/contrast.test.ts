@@ -1,140 +1,208 @@
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { describe, expect, it } from 'vitest';
-import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from './contrast';
+import { AA_LARGE, AA_NORMAL, luminance, over, ratio } from '@athanor/config/contrast';
 
 /**
- * The surfaces text actually renders on, composed in render order. `raise`/`raise2`/`auraSoft`
- * are translucent, so these must be built with `over()` — naming the token is not enough.
+ * The surfaces text actually renders on. Since Galleria (2026-10-03, #921) the grounds are
+ * opaque — a black stage, a charcoal block — so they are plain tokens: `over()` takes an
+ * `rgba(…)` layer and throws on a hex one, and a composed constant up here would stop the whole
+ * file from collecting. `auraSoft` is the one translucent surface left, so it is still composed
+ * in render order, outermost backdrop last.
+ *
+ * `raise`, `raise2`, `auraSoft`, `faint`, `ink2` and `success` are legacy aliases carrying
+ * interim values (`galleria` in packages/config/src/tokens.ts). A block below that is about one
+ * of them states the interim truth, and is retired with the alias it is about — as the one
+ * about `onError` was on 2026-10-04, when the filled danger button it inked became an outline.
+ *
+ * The arithmetic lives with the tokens, in packages/config/src/contrast.ts, and so do its own
+ * tests and the web's pairs (`contrast.test.ts` there). This file is the app's surfaces.
  */
-const CANVAS = semantic.background; // #0A0A1A — screens, modals
-const SURFACE = semantic.surface; // #100A1C — sheets
-const RAISE = over(semantic.raise, CANVAS); // #141423 — a card / list row
-const RAISE2 = over(semantic.raise2, CANVAS); // #1A1A29 — a chip on the canvas
-const NESTED = over(semantic.raise2, RAISE); // #232331 — a chip INSIDE a card ← the trap
-const AURA_SOFT = over(semantic.auraSoft, CANVAS); // #0D1E2C — accent surface on the canvas
-const AURA_SOFT_ON_RAISE = over(semantic.auraSoft, RAISE); // #162734 — accent chip INSIDE a card
+const CANVAS = galleria.background; // #000000 — the stage: screens, modals
+const SURFACE = galleria.surface; // #1D1D1F — charcoal: grouped blocks, cards, sheets
+const RAISE = galleria.raise; // #1D1D1F — a card / list row: the same charcoal as SURFACE
+const RAISE2 = galleria.raise2; // #2C2C2E — the legacy chip fill, on the canvas or in a card
+const AURA_SOFT = over(galleria.auraSoft, CANVAS); // #041515 — accent surface on the canvas
+const AURA_SOFT_ON_RAISE = over(galleria.auraSoft, RAISE); // #1e2f31 — accent chip INSIDE a card
 
-describe('over', () => {
-  it('composites a translucent layer onto an opaque backdrop', () => {
-    expect(over('rgba(255,255,255,0.04)', semantic.background)).toBe('#141423');
-    expect(over('rgba(0,0,0,1)', '#FFFFFF')).toBe('#000000');
-    expect(over('rgba(255,255,255,0)', '#0A0A1A')).toBe('#0a0a1a');
+describe('over, on the app’s surfaces', () => {
+  it('composes the one translucent surface Galleria still has', () => {
+    // No Galleria surface is translucent twice over, so the chain itself (a chip inside a card)
+    // is exercised with the dark world's stack in packages/config/src/contrast.test.ts.
+    expect(AURA_SOFT).toBe('#041515');
+    expect(AURA_SOFT_ON_RAISE).toBe('#1e2f31');
   });
 
-  it('chains, so a chip inside a card lands on the real backdrop', () => {
-    expect(over(semantic.raise2, over(semantic.raise, CANVAS))).toBe('#232331');
-    // The whole point: nesting is NOT the same surface as the token's own name.
-    expect(NESTED).not.toBe(RAISE2);
+  it('the interim ink2 is the foreground value, literally', () => {
+    // `ink2` is a legacy alias of `foreground`; the literal is that value.
+    expect(luminance('#F5F5F7')).toBeCloseTo(luminance(galleria.ink2), 10);
   });
 });
 
-describe('luminance / ratio', () => {
-  it('anchors at the WCAG extremes', () => {
-    expect(luminance('#000000')).toBe(0);
-    expect(luminance('#FFFFFF')).toBeCloseTo(1, 5);
-    expect(ratio('#FFFFFF', '#000000')).toBeCloseTo(21, 5);
-    expect(ratio('#0A0A1A', '#0A0A1A')).toBeCloseTo(1, 5);
+/**
+ * The pairs DESIGN.md §3 «Contrast — mobile» prints, recomputed from the tokens: two grounds,
+ * the black stage and the charcoal block, and every text tone the look has on both.
+ */
+describe('the Galleria pairs (DESIGN.md §3)', () => {
+  it.each([
+    ['foreground', 19.29, 15.46],
+    ['foregroundMuted', 5.8, 4.65],
+    ['aura', 11.06, 8.86],
+    ['error', 5.8, 4.65],
+  ] as const)('%s clears AA on black and on charcoal', (token, onBlack, onCharcoal) => {
+    expect(ratio(galleria[token], CANVAS)).toBeCloseTo(onBlack, 2);
+    expect(ratio(galleria[token], SURFACE)).toBeCloseTo(onCharcoal, 2);
+    expect(ratio(galleria[token], SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('expands shorthand hex to the same colour as the long form', () => {
-    // NOT `ratio('#FFF','#000') === ratio('#000','#FFF')` — ratio() sorts hi/lo internally, so
-    // that holds by construction for any implementation, right or wrong.
-    expect(ratio('#FFF', '#000')).toBeCloseTo(ratio('#FFFFFF', '#000000'), 10);
-    expect(luminance('#C9C3DE')).toBeCloseTo(luminance(semantic.ink2), 10);
+  it('onAura is readable ink on a cyan fill — the celebration pill', () => {
+    expect(ratio(galleria.onAura, galleria.aura)).toBeCloseTo(8.72, 2);
+  });
+
+  it('black on the white pill — the primary action, the selected chip, the own bubble', () => {
+    expect(ratio(galleria.background, galleria.foreground)).toBeCloseTo(19.29, 2);
+  });
+
+  it('the web’s red would not have cleared charcoal, which is why mobile has its own', () => {
+    // Ruled 2026-10-03: `#E0476B` stays the web's `semantic.error`; the app reads `#E5536F`.
+    expect(ratio('#E0476B', SURFACE)).toBeCloseTo(4.23, 2);
+    expect(ratio('#E0476B', SURFACE)).toBeLessThan(AA_NORMAL);
+  });
+
+  it('the hairline is decoration: it never carries meaning alone', () => {
+    expect(ratio(galleria.hair, CANVAS)).toBeCloseTo(1.67, 2);
+    expect(ratio(galleria.hair, CANVAS)).toBeLessThan(AA_LARGE);
   });
 });
 
 /**
  * The bug this module exists for. A `Tag` pill (`bg-raise-2`) inside a `SuggestionRow`
- * (`bg-raise`) does NOT sit on the surface `tokens.ts` certifies. `faint` was shipped there on
- * the strength of the 4.69 figure and was actually 4.23 — under the floor.
+ * (`bg-raise`) did NOT sit on the surface the token comment certified: both were translucent
+ * whites, and `faint` shipped there on the strength of a 4.69 figure that was really 4.23.
+ *
+ * Galleria closes that trap for the card and the chip — an opaque chip is one surface wherever
+ * it sits — and leaves an interim failure in its place: `raise2` has to be lighter than
+ * charcoal to stay visible inside a card, and the one secondary grey does not clear it.
+ *
+ * `Tag` itself left that surface on 2026-10-04: the Galleria tag is a hairline pill with no
+ * fill (DESIGN §9), so its label reads on whatever the tag stands on.
  */
 describe('the nested-surface trap (regression)', () => {
-  it('faint fails AA on a chip nested inside a card', () => {
-    expect(ratio(semantic.faint, NESTED)).toBeCloseTo(4.229, 2);
-    expect(ratio(semantic.faint, NESTED)).toBeLessThan(AA_NORMAL);
+  it('is closed for the card and the chip: both are opaque', () => {
+    // A translucent `raise`/`raise2` would make the backdrop depend on the nesting again, and
+    // every figure in this file that names RAISE or RAISE2 would be a claim about a token.
+    for (const token of [galleria.raise, galleria.raise2]) {
+      expect(token).toMatch(/^#[0-9A-F]{6}$/i);
+    }
   });
 
-  it('…while clearing it on the bare-canvas chip the token comment certifies', () => {
-    expect(ratio(semantic.faint, RAISE2)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('a quiet Tag has no fill: its grey reads on the stage and on a charcoal row', () => {
+    // `components/Tag.tsx` draws a hairline and nothing behind the label (`source-audit` section
+    // 50 holds that), so the pair is the grey on what the tag stands on: the stage under
+    // `BenefitRow`, and since 2026-10-05 the `surface` block of a `RowGroup` under
+    // `SuggestionRow` (the same charcoal as the legacy `raise`, which is its alias).
+    expect(ratio(galleria.foregroundMuted, CANVAS)).toBeCloseTo(5.8, 2);
+    expect(ratio(galleria.foregroundMuted, RAISE)).toBeCloseTo(4.65, 2);
+    expect(ratio(galleria.foregroundMuted, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('foregroundMuted — the tone Tag.quiet actually uses — clears both', () => {
-    expect(ratio(semantic.foregroundMuted, NESTED)).toBeCloseTo(5.798, 2);
-    expect(ratio(semantic.foregroundMuted, NESTED)).toBeGreaterThanOrEqual(AA_NORMAL);
-    expect(ratio(semantic.foregroundMuted, RAISE2)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('INTERIM: the secondary grey is under AA on a chip — EventRow', () => {
+    // One site sets readable copy in `muted-foreground` on `bg-raise-2`:
+    // `components/live/EventRow.tsx`. It stops when Athanor Live converts (#921, open as of
+    // 2026-10-06); `Tag` (`quiet`) left on 2026-10-04 and `app/(modal)/search.tsx` on
+    // 2026-10-06. Charcoal would clear (4.65) but hides the unbordered blocks inside cards, so that
+    // fill is a step lighter and this is the cost. A mark in the same grey on the same fill is
+    // above the 3:1 non-text floor.
+    expect(ratio(galleria.foregroundMuted, RAISE2)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.foregroundMuted, RAISE2)).toBeLessThan(AA_NORMAL);
+    expect(ratio(galleria.foregroundMuted, RAISE2)).toBeGreaterThanOrEqual(AA_LARGE);
+  });
+
+  it('…and faint, the same grey in the interim, fails there with it', () => {
+    expect(ratio(galleria.faint, RAISE2)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.faint, RAISE2)).toBeLessThan(AA_NORMAL);
   });
 });
 
 /**
- * `tokens.ts` lines 24-30 certify `faint` in prose. Pin those numbers so a retune fails here
- * instead of silently invalidating the comment.
+ * `faint` was the dark world's tertiary tone, certified in prose beside `semantic.faint` in
+ * packages/config/src/tokens.ts and pinned here against that world's surfaces. Galleria has ONE
+ * secondary grey, so `galleria.faint` is a legacy alias of it; what is pinned now is that grey
+ * on Galleria's surfaces.
  */
-describe('the faint certification in tokens.ts', () => {
+describe('the faint alias in galleria', () => {
+  it('is the secondary grey, value for value', () => {
+    expect(galleria.faint).toBe(galleria.foregroundMuted);
+  });
+
   // Precision 2 (±0.005), not 1 — a "pin" at ±0.05 is loose enough to hide the very drift it
-  // claims to catch. The comment said "~4.98 on raise"; the true value is 4.97.
-  it('matches the documented ratios', () => {
-    expect(ratio(semantic.faint, CANVAS)).toBeCloseTo(5.35, 2);
-    expect(ratio(semantic.faint, SURFACE)).toBeCloseTo(5.3, 2);
-    expect(ratio(semantic.faint, RAISE)).toBeCloseTo(4.97, 2);
-    expect(ratio(semantic.faint, RAISE2)).toBeCloseTo(4.69, 2);
+  // claims to catch.
+  it('matches the ratios the secondary has on each surface', () => {
+    expect(ratio(galleria.faint, CANVAS)).toBeCloseTo(5.8, 2);
+    expect(ratio(galleria.faint, SURFACE)).toBeCloseTo(4.65, 2);
+    expect(ratio(galleria.faint, RAISE)).toBeCloseTo(4.65, 2);
+    expect(ratio(galleria.faint, RAISE2)).toBeCloseTo(3.85, 2);
   });
 
-  // `border` is the surface the comment excludes. It read `bandAlt` until #68 deleted that
-  // token — the two carried the identical #241B3A, and only `border` is still rendered, so the
-  // ratio and the exclusion are unchanged; the name now points at the token that survives.
-  it('and the border exclusion the comment calls out', () => {
-    expect(ratio(semantic.faint, semantic.border)).toBeCloseTo(4.44, 2);
-    expect(ratio(semantic.faint, semantic.border)).toBeLessThan(AA_NORMAL);
-  });
-
-  it('stays clearly below foregroundMuted, as the retune promised', () => {
-    expect(ratio(semantic.foregroundMuted, CANVAS)).toBeCloseTo(7.34, 2);
-    expect(luminance(semantic.faint)).toBeLessThan(luminance(semantic.foregroundMuted));
+  // `border` is a legacy alias too (the hairline's value). No call site pairs the two; pinned so
+  // that stays a decision, as it was for the dark world's #241B3A.
+  it('and stays excluded from the border colour', () => {
+    expect(ratio(galleria.faint, galleria.border)).toBeCloseTo(3.48, 2);
+    expect(ratio(galleria.faint, galleria.border)).toBeLessThan(AA_NORMAL);
   });
 });
 
 /**
  * The hierarchy ladder (DESIGN §11, 2026-08-08). A metadata annotation must never outrank the
- * payload it labels. This ordering is why `Tag.quiet` cannot go below `foregroundMuted` and why
- * a `faint` payload had to be raised to `ink2` when the annotation landed above it.
+ * payload it labels. The dark world had four rungs; Galleria has two — text and one secondary —
+ * and the two legacy rungs stand on them in the interim. So the ladder holds as «never above»,
+ * not as «strictly below», and each equality here goes when its alias does.
  */
 describe('the tone ladder', () => {
-  const rung = (token: keyof typeof semantic) => luminance(semantic[token] as string);
+  const rung = (token: keyof typeof galleria) => luminance(galleria[token]);
 
-  it('descends foreground > ink2 > foregroundMuted > faint', () => {
-    expect(rung('foreground')).toBeGreaterThan(rung('ink2'));
+  it('INTERIM: descends foreground = ink2 > foregroundMuted = faint', () => {
+    expect(rung('foreground')).toBe(rung('ink2'));
     expect(rung('ink2')).toBeGreaterThan(rung('foregroundMuted'));
-    expect(rung('foregroundMuted')).toBeGreaterThan(rung('faint'));
+    expect(rung('foregroundMuted')).toBe(rung('faint'));
   });
 
-  it('SuggestionRow reads handle > dream > marker on bg-raise', () => {
-    const handle = ratio(semantic.foreground, RAISE); // 15.74
-    const dream = ratio(semantic.ink2, RAISE); // 10.70
-    const marker = ratio(semantic.foregroundMuted, NESTED); // 5.80 — in the pill
-    expect(handle).toBeGreaterThan(dream);
+  it('SuggestionRow reads handle = dream > marker on its group’s surface', () => {
+    // No longer interim (2026-10-05): the row reads `foreground` for both lines and stands on
+    // a `RowGroup`'s `surface`, not on a `bg-raise` card.
+    const handle = ratio(galleria.foreground, SURFACE); // 15.46
+    const dream = ratio(galleria.foreground, SURFACE); // `DreamQuote`, the dream register
+    // 4.65 — the quiet Tag has no fill since 2026-10-04, so its label is on the row itself.
+    const marker = ratio(galleria.foregroundMuted, SURFACE);
+    expect(handle).toBe(dream);
     expect(dream).toBeGreaterThan(marker);
     for (const r of [handle, dream, marker]) expect(r).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('a quiet Tag only outranks a payload that is ink2 or brighter', () => {
-    // Why IncomingOfferRow's message had to move faint → ink2, and why BenefitRow's locked
-    // title (faint by STATE, not rank) is deliberately left inverted.
-    expect(luminance(semantic.foregroundMuted)).toBeGreaterThan(luminance(semantic.faint));
-    expect(luminance(semantic.ink2)).toBeGreaterThan(luminance(semantic.foregroundMuted));
+  it('INTERIM: a quiet Tag ties a faint payload and never outranks an ink2 one', () => {
+    // Why IncomingOfferRow's message had to move faint → ink2 (it carries no Tag since
+    // 2026-10-05: the kind of help is part of its one grey line), and why BenefitRow's locked
+    // title (faint by STATE, not rank) is deliberately left inverted. With one secondary grey
+    // the annotation can no longer be brighter than a faint payload — only level with it.
+    expect(luminance(galleria.foregroundMuted)).toBe(luminance(galleria.faint));
+    expect(luminance(galleria.ink2)).toBeGreaterThan(luminance(galleria.foregroundMuted));
   });
 });
 
 /**
  * The `inert` token rejected in DESIGN §11 was the pre-retune `faint`. Pinned because the
- * decisions log cites these numbers as part of the reasoning.
+ * decisions log cites these numbers as part of the reasoning. They are figures about the dark
+ * world, so its canvas and card are written out: the app has not read that palette since
+ * 2026-10-03.
  */
 describe('the rejected inert value #615A7E', () => {
+  const DARK_CANVAS = '#0A0A1A';
+  const DARK_CARD = over('rgba(255,255,255,0.04)', DARK_CANVAS); // #141423
+
   it('clears the 1.4.11 non-text floor on the canvas but not on a card', () => {
-    expect(ratio('#615A7E', CANVAS)).toBeCloseTo(3.05, 1);
-    expect(ratio('#615A7E', CANVAS)).toBeGreaterThanOrEqual(AA_LARGE);
-    expect(ratio('#615A7E', RAISE)).toBeCloseTo(2.84, 1);
-    expect(ratio('#615A7E', RAISE)).toBeLessThan(AA_LARGE);
+    expect(ratio('#615A7E', DARK_CANVAS)).toBeCloseTo(3.05, 1);
+    expect(ratio('#615A7E', DARK_CANVAS)).toBeGreaterThanOrEqual(AA_LARGE);
+    expect(ratio('#615A7E', DARK_CARD)).toBeCloseTo(2.84, 1);
+    expect(ratio('#615A7E', DARK_CARD)).toBeLessThan(AA_LARGE);
   });
 });
 
@@ -146,100 +214,124 @@ describe('the rejected inert value #615A7E', () => {
  * this module's own mistake in miniature, a claim about a TOKEN standing in for a claim about
  * SURFACES. They were then re-labelled as shipping failures, which was true, and finally fixed:
  *
- *   - MilestoneRow's kebab menu went `bg-raise-2` → opaque `bg-surface` (3.90 → 4.88), so it no
- *     longer composites over DreamCard's `bg-raise`.
+ *   - MilestoneRow's kebab menu went `bg-raise-2` → opaque `bg-surface`, so it no longer sat on
+ *     a chip inside DreamCard's `bg-raise`. (Since 2026-10-05 it is a `bg-background` well in
+ *     the tappe group, opaque still.)
  *   - SubscriptionStatusCard's past-due warning moved OUT of the aura-soft glow card onto the
- *     modal canvas (4.26 → 4.93).
- *   - `onError` went `#F0EDF7` → `#1A050D` (3.44 → 4.93); that one asserts its PASS below.
- *   - DateBadge's month label switched to `muted-foreground` when highlighted (4.17 → 5.72) —
- *     found only after this block existed, because `AURA_SOFT` was composed over the canvas and
- *     nothing modelled an accent chip inside a card. Hence `AURA_SOFT_ON_RAISE`.
+ *     modal canvas.
+ *   - `onError` went `#F0EDF7` → `#1A050D`. The filled danger button it inked became an
+ *     outline on 2026-10-04 and the token left with it: the destructive pill is certified below.
+ *   - DateBadge's month label switched to `muted-foreground` when highlighted — found only
+ *     after this block existed, because `AURA_SOFT` was composed over the canvas and nothing
+ *     modelled an accent chip inside a card. Hence `AURA_SOFT_ON_RAISE`.
  *
- * So these are guards now — but only because the sites moved, NOT because the pairs got safe.
- * `error` on a nested chip is still 3.90 and on aura-soft still 4.26. If a new call site puts
- * them together it is just as broken as before. Don't read a passing test as permission.
+ * So these are guards — but only because the sites moved, NOT because the pairs got safe. The
+ * figures are Galleria's since 2026-10-03: `error` on a chip is 3.85 and on aura-soft inside a
+ * card 3.85. If a new call site puts them together it is just as broken as before. Don't read
+ * a passing test as permission.
  */
 describe('forbidden pairs — no call site may use these', () => {
   it('error clears on the canvas and on a card — the surfaces it IS used on', () => {
-    expect(ratio(semantic.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.93 — modal bodies, Circle past-due
-    expect(ratio(semantic.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.58 — SettingsRow danger
-    expect(ratio(semantic.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.88 — MilestoneRow menu
+    expect(ratio(galleria.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL); // 5.80 — modal bodies, Circle past-due
+    expect(ratio(galleria.error, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — `raise`, the legacy alias of the same charcoal
+    expect(ratio(galleria.error, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL); // 4.65 — a destructive Row
   });
 
-  it('error on a chip nested in a card stays unusable (was MilestoneRow, now bg-surface)', () => {
-    expect(ratio(semantic.error, NESTED)).toBeCloseTo(3.9, 2);
-    expect(ratio(semantic.error, NESTED)).toBeLessThan(AA_NORMAL);
+  it('error on a chip stays unusable (was MilestoneRow, now bg-surface)', () => {
+    expect(ratio(galleria.error, RAISE2)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.error, RAISE2)).toBeLessThan(AA_NORMAL);
   });
 
-  it('error on aura-soft stays unusable (was the Circle past-due warning, now on the canvas)', () => {
-    expect(ratio(semantic.error, AURA_SOFT)).toBeCloseTo(4.26, 2);
-    expect(ratio(semantic.error, AURA_SOFT)).toBeLessThan(AA_NORMAL);
+  it('error on aura-soft clears on the black canvas, and that is not permission', () => {
+    // It was 4.26 on the dark world's canvas, which is why the Circle past-due warning left the
+    // glow card. On black it clears — and inside a card, the next assertion, it does not.
+    expect(ratio(galleria.error, AURA_SOFT)).toBeCloseTo(5.16, 2);
+    expect(ratio(galleria.error, AURA_SOFT)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('and an accent chip nested in a card is worse still', () => {
+  it('and an accent chip nested in a card is unusable for error and for faint', () => {
     // The gap that let DateBadge's `faint` month label ship at 4.17: `AURA_SOFT` alone is
     // aura-soft over the CANVAS, but an accent chip inside a card composites over `raise`.
-    // Same surface-not-token lesson as NESTED, one accent surface later.
-    // 3.84, not the 3.85 quoted while this was being investigated: that figure came from a
-    // scratch implementation using Python's round() (banker's rounding) where JS Math.round is
-    // half-up, shifting a composited channel by 1. The in-repo `over()` is authoritative.
-    expect(ratio(semantic.error, AURA_SOFT_ON_RAISE)).toBeCloseTo(3.84, 2);
-    expect(ratio(semantic.error, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
-    expect(ratio(semantic.faint, AURA_SOFT_ON_RAISE)).toBeCloseTo(4.17, 2);
-    expect(ratio(semantic.faint, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
+    // Same surface-not-token lesson as the nested chip, one accent surface later.
+    // The in-repo `over()` is authoritative for the composite: a scratch implementation that
+    // rounds half-to-even instead of half-up shifts a channel by 1 and the ratio with it.
+    expect(ratio(galleria.error, AURA_SOFT_ON_RAISE)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.error, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
+    expect(ratio(galleria.faint, AURA_SOFT_ON_RAISE)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.faint, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
   });
 
-  it('muted-foreground is the tone that survives an accent chip in a card', () => {
-    // What DateBadge.tsx switches to when `highlight` is set.
-    expect(ratio(semantic.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeCloseTo(5.72, 2);
-    expect(ratio(semantic.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('INTERIM: muted-foreground no longer survives an accent chip in a card — DateBadge', () => {
+    // What `components/live/DateBadge.tsx` switches its month label to when `highlight` is set,
+    // inside EventRow's `bg-raise`. It was 5.72 there in the dark world. With one secondary grey
+    // and `auraSoft` unchanged it is 3.85, and it stays so until the Live screens are converted
+    // (#921, open as of 2026-10-03). The day number above it is `aura`, which clears.
+    expect(ratio(galleria.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeCloseTo(3.85, 2);
+    expect(ratio(galleria.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeLessThan(AA_NORMAL);
+    expect(ratio(galleria.foregroundMuted, AURA_SOFT_ON_RAISE)).toBeGreaterThanOrEqual(AA_LARGE);
+    expect(ratio(galleria.aura, AURA_SOFT_ON_RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('the old near-white onError stays unusable on the error fill', () => {
-    // The exact value `onError` used to hold. Pinned so the revert is visibly a regression.
-    expect(ratio(semantic.foreground, semantic.error)).toBeCloseTo(3.44, 2);
-    expect(ratio(semantic.foreground, semantic.error)).toBeLessThan(AA_NORMAL);
+  it('…while on aura-soft over the canvas the secondary clears', () => {
+    // An accent surface straight on the stage, with no card under it.
+    expect(ratio(galleria.foregroundMuted, AURA_SOFT)).toBeCloseTo(5.16, 2);
+    expect(ratio(galleria.foregroundMuted, AURA_SOFT)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
-  it('PASSES NOW: the danger Button — dark onError on its error fill', () => {
-    // Button.tsx `VARIANT_CLASSES.danger` = { bg: 'bg-error', text: 'text-on-error' }, on the
-    // account-deletion CTA in (modal)/delete-account.tsx. Every filled variant is
-    // dark-ink-on-light-fill. (Symbols, not line numbers: adding four comment lines to Button
-    // moved this one, in the very module that exists because a claim drifted from its code.)
-    expect(ratio(semantic.onError, semantic.error)).toBeCloseTo(4.93, 2);
-    expect(ratio(semantic.onError, semantic.error)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('light text on an error FILL stays unusable', () => {
+    // The pair a filled destructive button would draw if it came back with a light label
+    // (`foreground` is #F5F5F7). No surface fills with `error` today; pinned so that revert is
+    // visibly a regression.
+    expect(ratio(galleria.foreground, galleria.error)).toBeCloseTo(3.33, 2);
+    expect(ratio(galleria.foreground, galleria.error)).toBeLessThan(AA_NORMAL);
+  });
+
+  it('the destructive pill — error ink and border, no fill, on the stage', () => {
+    // Button.tsx `VARIANT_CLASSES.destructive` is an outline: `error` on the label and on the
+    // 1px border, nothing behind them. Its one call site is the account-deletion CTA in
+    // (modal)/delete-account.tsx, which stands on the canvas. The label needs AA; the border is
+    // a boundary and needs the 3:1 non-text floor, which the same figure clears.
+    expect(ratio(galleria.error, CANVAS)).toBeCloseTo(5.8, 2);
+    expect(ratio(galleria.error, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it('the outline pill — its grey border is a boundary on the stage and on a block', () => {
+    // Button.tsx `VARIANT_CLASSES.outline`: a 1px `foregroundMuted` border, foreground label.
+    expect(ratio(galleria.foregroundMuted, CANVAS)).toBeGreaterThanOrEqual(AA_LARGE);
+    expect(ratio(galleria.foregroundMuted, SURFACE)).toBeGreaterThanOrEqual(AA_LARGE);
   });
 
   it('the Apple Sign-In button — black ink on its HIG-mandated white fill', () => {
     // Button.tsx `VARIANT_CLASSES.apple` = { bg: 'apple-button-bg', text: 'apple-button-ink' },
     // welcome.tsx's Apple CTA only. Pure white/black, not Athanor's near-white/near-black roles
-    // (ruled 2026-09-19 on #79) — trivially AA, asserted for the same reason every other filled
-    // variant is: a retune here should fail a test, not just look wrong on a phone.
-    expect(ratio(semantic.appleButtonInk, semantic.appleButtonBg)).toBeGreaterThanOrEqual(
+    // (ruled 2026-09-19 on #79) — trivially AA, asserted for the same reason the two other
+    // filled variants are (`primary` and `celebration`, in the Galleria pairs above): a retune
+    // here should fail a test, not just look wrong on a phone.
+    expect(ratio(galleria.appleButtonInk, galleria.appleButtonBg)).toBeGreaterThanOrEqual(
       21 - 0.01,
     );
   });
 
   it('success clears AA where it marks a satisfied rule', () => {
-    // The signup password checklist ((auth)/welcome.tsx) is the newest call site:
-    // `success` for a met requirement, deliberately not `aura` — a form rule going
-    // green is a confirmation, not a moment (rule 4).
-    expect(ratio(semantic.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
-    expect(ratio(semantic.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
+    // `success` is a legacy alias: mobile has no green (ruled 2026-10-03), and the value stays
+    // only while its sites are unconverted. The password checklists and the handle status
+    // left it with the entry screens (2026-10-04), `SwipeStamp` with the Momenti tab and the
+    // profile's «saved» line with the Profilo tab (2026-10-05); the check-in frame still reads it.
+    expect(ratio(galleria.success, CANVAS)).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(ratio(galleria.success, RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 
   it('aura and onAura are comfortable everywhere they are used', () => {
-    for (const s of [CANVAS, SURFACE, RAISE, RAISE2, NESTED, AURA_SOFT]) {
-      expect(ratio(semantic.aura, s)).toBeGreaterThanOrEqual(AA_NORMAL);
+    for (const s of [CANVAS, SURFACE, RAISE, RAISE2, AURA_SOFT, AURA_SOFT_ON_RAISE]) {
+      expect(ratio(galleria.aura, s)).toBeGreaterThanOrEqual(AA_NORMAL);
     }
-    expect(ratio(semantic.onAura, semantic.aura)).toBeGreaterThanOrEqual(AA_NORMAL);
+    expect(ratio(galleria.onAura, galleria.aura)).toBeGreaterThanOrEqual(AA_NORMAL);
   });
 });
 
 // A cross-product of readable tokens against the standard surfaces — NOT a usage audit. It
 // proves each pair would clear if it occurred, not that every occurrence is covered.
 describe('readable tokens × standard surfaces', () => {
-  const READABLE = ['foreground', 'ink2', 'foregroundMuted', 'faint'] as const;
   const SURFACES: [string, string][] = [
     ['canvas', CANVAS],
     ['surface', SURFACE],
@@ -248,27 +340,47 @@ describe('readable tokens × standard surfaces', () => {
     ['auraSoft', AURA_SOFT],
   ];
 
-  it.each(READABLE)('%s would clear AA on canvas, surface, raise, raise2 and auraSoft', (token) => {
-    for (const [name, surface] of SURFACES) {
-      const r = ratio(semantic[token], surface);
-      expect(r, `${token} on ${name} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA_NORMAL);
-    }
-  });
+  it.each(['foreground', 'ink2'] as const)(
+    '%s would clear AA on canvas, surface, raise, raise2 and auraSoft',
+    (token) => {
+      for (const [name, surface] of SURFACES) {
+        const r = ratio(galleria[token], surface);
+        expect(r, `${token} on ${name} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA_NORMAL);
+      }
+    },
+  );
 
-  // `faint` is the bottom rung, so it is the token that runs out first. Three surfaces above
-  // are NOT in the list, and calling any of them "the one exclusion" was wrong — there are
-  // three. Composed surfaces are where the floor gets crossed; keep this list honest.
+  // INTERIM: the secondary grey and its alias clear every standard surface but the chip.
+  it.each(['foregroundMuted', 'faint'] as const)(
+    '%s would clear AA on canvas, surface, raise and auraSoft — not on raise2',
+    (token) => {
+      for (const [name, surface] of SURFACES) {
+        const r = ratio(galleria[token], surface);
+        if (name === 'raise2') {
+          expect(r, `${token} on ${name} = ${r.toFixed(2)}`).toBeLessThan(AA_NORMAL);
+        } else {
+          expect(r, `${token} on ${name} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA_NORMAL);
+        }
+      }
+    },
+  );
+
+  // The secondary is the bottom rung, so it is the tone that runs out first. Three surfaces are
+  // where it does, and calling any of them "the one exclusion" was wrong — there are three.
+  // Composed and lifted surfaces are where the floor gets crossed; keep this list honest.
   it.each([
-    ['a chip nested in a card (NESTED)', () => NESTED],
+    ['a chip (RAISE2)', () => RAISE2],
     ['an accent chip nested in a card (AURA_SOFT_ON_RAISE)', () => AURA_SOFT_ON_RAISE],
-    ['border', () => semantic.border],
-  ])('faint does NOT survive %s', (_label, surface) => {
-    expect(ratio(semantic.faint, surface())).toBeLessThan(AA_NORMAL);
+    ['border', () => galleria.border],
+  ])('the secondary does NOT survive %s', (_label, surface) => {
+    expect(ratio(galleria.foregroundMuted, surface())).toBeLessThan(AA_NORMAL);
+    expect(ratio(galleria.faint, surface())).toBeLessThan(AA_NORMAL);
   });
 
-  it('…and the three tones above it do survive the nested chip', () => {
-    for (const token of ['foreground', 'ink2', 'foregroundMuted'] as const) {
-      expect(ratio(semantic[token], NESTED)).toBeGreaterThanOrEqual(AA_NORMAL);
+  it('…and the two text tones above it do survive the chip and the accent chip', () => {
+    for (const token of ['foreground', 'ink2'] as const) {
+      expect(ratio(galleria[token], RAISE2)).toBeGreaterThanOrEqual(AA_NORMAL);
+      expect(ratio(galleria[token], AURA_SOFT_ON_RAISE)).toBeGreaterThanOrEqual(AA_NORMAL);
     }
   });
 });

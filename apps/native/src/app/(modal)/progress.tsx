@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert } from 'react-native';
+import { ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type RealizationUpdateCursor,
-  type RealizationUpdateRow,
   candidacyKeys,
   deleteRealizationUpdate,
   editRealizationUpdate,
@@ -15,13 +14,15 @@ import {
   realizationPlanKeys,
   realizationUpdateKeys,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
+import { Field } from '@/components/Field';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { ModalHeader } from '@/components/ModalHeader';
 import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -29,8 +30,10 @@ import { ProgressUpdateCard } from '@/components/fund/ProgressUpdateCard';
 import { useToast } from '@/components/ToastHost';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
+import { PRESS_DIM } from '@/lib/press';
 import { progressRefusalKey } from '@/lib/progress-refusal';
 import { supabase } from '@/lib/supabase';
+import { stacksTrailing } from '@/lib/type-scale';
 import { useActiveEdition } from '@/hooks/use-active-edition';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useNow } from '@/hooks/use-now';
@@ -49,10 +52,18 @@ import { useLocale } from '@/hooks/use-locale';
  * not the cycle's confirmed winner, and #106's restrictive net refuses a suspended member.
  * The screen hides what it knows is pointless to show; it never decides on the database's
  * behalf what would have been allowed.
+ *
+ * The look (Galleria, Marco 2026-10-09, #921): blocks 26 apart on the stage and no card. The
+ * note is the field the screen is about; the phase it is about is a row of chips; the author's
+ * own notes are one group, each drawing its segment (`fund/ProgressUpdateCard`), with two
+ * underlined links under a note and, while one is being corrected, under its field. Nothing
+ * here is cyan.
  */
 export default function ProgressScreen() {
   const { session } = useAuth();
   const locale = useLocale();
+  // At the accessibility sizes a link's line fills its 44pt target: no margin to give back.
+  const large = stacksTrailing(useWindowDimensions().fontScale);
   const uid = session?.user.id ?? '';
   const qc = useQueryClient();
   const { showToast } = useToast();
@@ -217,9 +228,7 @@ export default function ProgressScreen() {
     return (
       <Screen>
         {header}
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={semantic.aura} />
-        </View>
+        <LoadingScreen nested />
       </Screen>
     );
   }
@@ -248,63 +257,52 @@ export default function ProgressScreen() {
     );
   }
 
-  // `Chip small` (#635). The role was already here; the SELECTED state was not, so which phase
-  // an update belongs to was conveyed by cyan alone — and at py-2 the pill missed 44pt.
+  // `Chip` (#635). The role was already here; the SELECTED state was not, so which phase
+  // an update belongs to was conveyed by colour alone — and at py-2 the pill missed 44pt.
   const phaseChip = (id: string | null, label: string) => (
     <Chip
       key={id ?? 'none'}
-      small
       label={label}
       selected={phaseId === id}
       onPress={() => setPhaseId(id)}
     />
   );
 
-  // The four own-update controls (edit/withdraw here, save/cancel in the editor below) were
-  // 12px labels with no padding and no hitSlop — ~15pt targets. They edit and withdraw
-  // PUBLISHED progress, so §10's floor is not optional on them.
-  const ownControls = (update: RealizationUpdateRow) =>
-    update.deleted_at ? null : (
-      <View className="flex-row gap-4 pt-1">
-        <Pressable
-          onPress={() => {
-            setEditingId(update.id);
-            setEditingBody(update.body);
-            setEditingBaseline(update.body);
-          }}
-          accessibilityRole="button"
-          disabled={busy}
-          className="min-h-[44px] min-w-[44px] items-center justify-center"
-        >
-          <Text className="text-[12px] text-muted-foreground">
-            {t('fund.progress.edit', locale)}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onWithdraw(update.id)}
-          accessibilityRole="button"
-          disabled={busy}
-          className="min-h-[44px] min-w-[44px] items-center justify-center"
-        >
-          <Text className="text-[12px] text-muted-foreground">
-            {t('fund.progress.withdraw', locale)}
-          </Text>
-        </Pressable>
-      </View>
-    );
+  // A note's own controls are text links: foreground, underlined, 20 apart (the prototype's
+  // `a.sub`). They edit and withdraw PUBLISHED progress, so each is a 44pt target (§10);
+  // `-my-3` on the row gives back what the targets add to a 21pt line, except at the
+  // accessibility sizes. The row wraps, so a pair wider than the group takes two lines.
+  const link = (label: string, onPress: () => void, disabled: boolean) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      disabled={disabled}
+      className={cn(
+        'min-h-[44px] min-w-[44px] justify-center',
+        disabled ? 'opacity-40' : null,
+        PRESS_DIM,
+      )}
+    >
+      <Text className="type-small text-foreground underline">{label}</Text>
+    </Pressable>
+  );
+  const links = (first: React.ReactNode, second: React.ReactNode) => (
+    <View className={cn('flex-row flex-wrap gap-x-5', large ? null : '-my-3')}>
+      {first}
+      {second}
+    </View>
+  );
 
   return (
     <Screen
       footer={
         realizing ? (
-          <View className="px-5 pb-2">
+          <View className="border-t border-hair px-5 pb-3 pt-3">
             <Button
               label={t('fund.progress.compose.cta', locale)}
               onPress={onPost}
-              variant="light"
+              variant="primary"
               disabled={busy}
-              // Flat cyan CTA — no glow (rule #4): a progress note is the ordinary rhythm
-              // of a realization, not a moment.
             />
           </View>
         ) : undefined
@@ -312,32 +310,31 @@ export default function ProgressScreen() {
     >
       {header}
       <KeyboardAvoiding>
-        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
-          <View className="gap-2">
-            <Text className="text-[14px] leading-5 text-foreground">
-              {t('fund.progress.compose.lead', locale)}
-            </Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {t('fund.progress.public', locale)}
-            </Text>
-          </View>
+        <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-12">
+          <Text className="type-small text-muted-foreground">
+            {t('fund.progress.compose.lead', locale)}
+          </Text>
+          <Text className="type-small text-muted-foreground">
+            {t('fund.progress.public', locale)}
+          </Text>
 
           {/* The cycle left realization: the trail is frozen and the compose surface is
               absent rather than disabled — a box that cannot be sent is worse than none. */}
           {!realizing ? (
             <EmptyState>{t('fund.progress.error.notRealizing', locale)}</EmptyState>
           ) : (
-            <View className="gap-3">
-              <SectionLabel>{t('fund.progress.compose.label', locale)}</SectionLabel>
-              <TextInput
-                className="min-h-[120px] rounded-card border border-hair bg-raise p-5 text-[15px] leading-6 text-foreground"
-                value={body}
-                onChangeText={setBody}
-                multiline
-                maxLength={2000}
-                placeholder={t('fund.progress.compose.placeholder', locale)}
-                placeholderTextColor={semantic.foregroundMuted}
-              />
+            <>
+              <View className="gap-1.5">
+                <SectionLabel>{t('fund.progress.compose.label', locale)}</SectionLabel>
+                <Field
+                  size="lg"
+                  multiline
+                  maxLength={2000}
+                  placeholder={t('fund.progress.compose.placeholder', locale)}
+                  value={body}
+                  onChangeText={setBody}
+                />
+              </View>
 
               {phases.length > 0 ? (
                 <View className="gap-2">
@@ -356,81 +353,93 @@ export default function ProgressScreen() {
                   </View>
                 </View>
               ) : null}
-            </View>
+            </>
           )}
 
-          <View className="gap-3">
+          <View className="gap-2">
             <SectionLabel>{t('fund.progress.mine.title', locale)}</SectionLabel>
             {minePage.isLoading ? (
-              <ActivityIndicator color={semantic.aura} />
+              <ActivityIndicator color={galleria.foreground} />
             ) : mine.length === 0 ? (
-              <Text className="text-[14px] text-muted-foreground">
+              <Text className="type-small text-muted-foreground">
                 {t('fund.progress.mine.empty', locale)}
               </Text>
             ) : (
-              <View className="gap-4">
-                {mine.map((update) =>
-                  editingId === update.id ? (
-                    <View
-                      key={update.id}
-                      className="gap-3 rounded-card border border-hair bg-raise p-5"
-                    >
-                      <TextInput
-                        className="min-h-[100px] text-[15px] leading-6 text-foreground"
-                        value={editingBody}
-                        onChangeText={setEditingBody}
-                        multiline
-                        maxLength={2000}
-                      />
-                      <View className="flex-row gap-4">
-                        <Pressable
-                          onPress={() =>
-                            editMutation.mutate({ id: update.id, body: editingBody.trim() })
-                          }
-                          accessibilityRole="button"
-                          disabled={busy || editingBody.trim().length === 0}
-                          className="min-h-[44px] min-w-[44px] items-center justify-center"
-                        >
-                          <Text className="text-[12px] text-aura">
-                            {t('fund.progress.edit.save', locale)}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => setEditingId(null)}
-                          accessibilityRole="button"
-                          disabled={busy}
-                          className="min-h-[44px] min-w-[44px] items-center justify-center"
-                        >
-                          <Text className="text-[12px] text-muted-foreground">
-                            {t('fund.progress.edit.cancel', locale)}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  ) : (
+              // One group: the notes draw its segments, so this view sets no gap.
+              <View>
+                {mine.map((update, i) => {
+                  const editing = editingId === update.id;
+                  return (
                     <ProgressUpdateCard
                       key={update.id}
                       update={update}
                       phase={phases.find((p) => p.id === update.plan_phase_id) ?? null}
                       locale={locale}
                       now={now}
-                      footer={realizing ? ownControls(update) : null}
-                    />
-                  ),
-                )}
-                {minePage.hasNextPage ? (
-                  <Button
-                    label={t('fund.progress.more', locale)}
-                    onPress={() => void minePage.fetchNextPage()}
-                    variant="ghost"
-                    disabled={minePage.isFetchingNextPage}
-                  />
-                ) : null}
+                      first={i === 0}
+                      last={i === mine.length - 1}
+                      footer={
+                        editing
+                          ? links(
+                              link(
+                                t('fund.progress.edit.save', locale),
+                                () =>
+                                  editMutation.mutate({ id: update.id, body: editingBody.trim() }),
+                                busy || editingBody.trim().length === 0,
+                              ),
+                              link(
+                                t('fund.progress.edit.cancel', locale),
+                                () => setEditingId(null),
+                                busy,
+                              ),
+                            )
+                          : realizing
+                            ? links(
+                                link(
+                                  t('fund.progress.edit', locale),
+                                  () => {
+                                    setEditingId(update.id);
+                                    setEditingBody(update.body);
+                                    setEditingBaseline(update.body);
+                                  },
+                                  busy,
+                                ),
+                                link(
+                                  t('fund.progress.withdraw', locale),
+                                  () => onWithdraw(update.id),
+                                  busy,
+                                ),
+                              )
+                            : null
+                      }
+                    >
+                      {/* The note under correction keeps its place in the group; its text
+                          becomes a field, named by the control that opened it. */}
+                      {editing ? (
+                        <Field
+                          multiline
+                          maxLength={2000}
+                          accessibilityLabel={t('fund.progress.edit', locale)}
+                          value={editingBody}
+                          onChangeText={setEditingBody}
+                        />
+                      ) : null}
+                    </ProgressUpdateCard>
+                  );
+                })}
               </View>
             )}
+            {minePage.hasNextPage ? (
+              <Button
+                label={t('fund.progress.more', locale)}
+                onPress={() => void minePage.fetchNextPage()}
+                variant="ghost"
+                disabled={minePage.isFetchingNextPage}
+              />
+            ) : null}
           </View>
 
-          <Text className="text-[12px] text-muted-foreground">
+          <Text className="type-small text-muted-foreground">
             {t('fund.progress.zeroAura', locale)}
           </Text>
         </ScrollView>

@@ -11,8 +11,8 @@ import { Chip } from '@/components/Chip';
  * Home's event cards, and this row sits inside the fund modal's vertical scroll. At most six
  * chips wrap to two lines, which is what the candidacy wizard's own category picker does.
  *
- * Active = the Chip vocabulary (aura-soft fill + aura-line border). Flat cyan, no glow: a
- * ballot filter is a control, not a moment (rule #4).
+ * Active = `Chip`'s selected state, the foreground fill, never cyan: a ballot filter is a
+ * control, not a moment (rule 4).
  *
  * The caller decides whether the row exists at all — `ballotFilters` returns `[]` when fewer
  * than two categories are on the ballot, because «all» beside a single category is chrome
@@ -46,7 +46,6 @@ export function BallotFilterChips({
       {filters.map((f) => (
         <Chip
           key={f}
-          small
           role="radio"
           // Same keys the candidacy wizard and Costellazioni use — one vocabulary, one
           // label set, so a chip here and a chip there can never drift apart.

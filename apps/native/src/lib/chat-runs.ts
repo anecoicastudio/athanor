@@ -4,7 +4,9 @@
  * The chat thread draws the peer's avatar once per run rather than once per bubble (#76), on the
  * LAST bubble, because the gutter is bottom-aligned and that is the row the face lines up with.
  * A day marker between two messages ends the run even when the sender did not change — the
- * marker is a visual break, and a face floating above it reads as a reply to the marker.
+ * marker is a visual break, and a face floating above it reads as a reply to the marker. The
+ * row of ice-breaker prompts (`type: 'prompts'`, 2026-10-09) ends one the same way: any row that
+ * is not a message does.
  *
  * Pure and structural: it knows only that a row is a message with a sender, so it can be tested
  * without a renderer.

@@ -11,7 +11,7 @@ import {
   subscribeEventPresence,
   upsertRsvp,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { ENGINE_WEIGHTS } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { Rsvp } from '@athanor/schemas';
@@ -238,7 +238,7 @@ export default function EventDetailScreen() {
             className="px-5 pt-16"
             loading={
               <View className="items-center pt-16">
-                <ActivityIndicator color={semantic.aura} />
+                <ActivityIndicator color={galleria.foreground} />
               </View>
             }
           />
@@ -259,7 +259,7 @@ export default function EventDetailScreen() {
 
             <View className="gap-1">
               <SectionLabel>{t('event.organizedBy', locale)}</SectionLabel>
-              <PostAuthorRow authorId={event.organizer_id} size="sm" />
+              <PostAuthorRow authorId={event.organizer_id} />
             </View>
 
             <View className="gap-3 rounded-card border border-hair bg-raise p-5">

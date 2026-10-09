@@ -4,7 +4,7 @@ import type { SearchResult } from '@athanor/schemas';
  * The screen-reader label of a search result row. On the person arm `title` is the handle and
  * `subtitle` the bio, so the member's display name reached assistive tech only through the
  * avatar's own label — and the avatar is decorative inside a row that names the member (#884).
- * The row says the name itself now, ahead of the handle the result list highlights. Empty parts
+ * The row says the name itself now, ahead of the handle the row shows as its title. Empty parts
  * are skipped, so a result with no bio never ends on a dangling comma.
  */
 export function searchRowLabel(

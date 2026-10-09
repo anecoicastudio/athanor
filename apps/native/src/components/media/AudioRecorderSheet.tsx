@@ -47,8 +47,8 @@ const POLL_MS = 250;
  * a photo. A review step («keep this / record again») was built and removed: without playback
  * it can only show a duration the timer already showed, and `expo-audio`'s player would need
  * its own failure handling here (`PostMedia`'s `DetailAudio` documents why — there is no
- * playback error signal, only a load grace window). The composer tile's ✕ is the undo, which
- * is the same undo every other picked item has.
+ * playback error signal, only a load grace window). The composer tile's remove badge is the
+ * undo, which is the same undo every other picked item has.
  *
  * ## The modal recipe, both halves (source-audit §21 and §22)
  *
@@ -59,14 +59,12 @@ const POLL_MS = 250;
  * the scrim does — never gated on a busy flag, because backing out matters most while
  * something is in flight.
  *
- * ## Rule #4 — flat cyan, no glow
+ * ## The look (#921, Marco 2026-10-06)
  *
- * `MediaSheet` states the principle for this whole family: attaching media is not itself a
- * moment. The timer is `text-aura` because a live indicator and a countdown are both on the
- * flat-cyan list, and it is tabular so the digits do not jitter as they climb. No shadow, which
- * is the half rule #4 actually reserves — nothing has happened yet. No `auraSoft`/`auraLine`
- * either, though that pair alone would be allowed (§2.3, ruled 2026-09-07): the sheet has no
- * selected or active state to mark.
+ * The same sheet as `MediaSheet`: a charcoal `surface` panel with a 28 top radius on a 70% black
+ * scrim, no grab handle. The timer is the `num` style in foreground: an elapsed time counts up,
+ * it is not the countdown's seconds, so it is none of the five cyan marks (DESIGN §2.3). The
+ * style is tabular, so the digits do not jitter as they climb. «Annulla» is the text link.
  */
 export function AudioRecorderSheet({
   visible,
@@ -293,30 +291,26 @@ export function AudioRecorderSheet({
       {...(onDismissed ? { onDismiss: onDismissed } : {})}
     >
       {/* scrim — silenced so VoiceOver can descend (§21); `cancel` is the named exit (§22) */}
-      <Pressable
-        accessible={false}
-        className="flex-1 justify-end bg-surface-muted"
-        onPress={cancel}
-      >
+      <Pressable accessible={false} className="flex-1 justify-end" onPress={cancel}>
+        {/* The dim: a layer of its own, because an opacity on the scrim would dim the panel
+            too, and `bg-background/70` draws nothing here (iPhone SE simulator, Expo Go,
+            2026-10-06: the screen behind kept its pixels). */}
+        <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
         {/* sheet — stop propagation so taps inside don't dismiss */}
         <Pressable
           {...MODAL_A11Y}
           accessible={false}
-          className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-7"
+          className="rounded-t-[28px] bg-surface px-5 pb-12 pt-7"
           onPress={() => {}}
         >
-          <Text
-            accessibilityRole="header"
-            className="text-center text-lg font-semibold text-foreground"
-          >
+          <Text accessibilityRole="header" className="type-h2 text-center text-foreground">
             {t('media.record.title', locale)}
           </Text>
 
           <View className="mt-6 items-center">
             {/*
-             * The timer. Flat `aura` — a live indicator, on rule #4's allowed list — and never
-             * glowing: nothing has happened yet. Tabular so the digits hold their columns
-             * instead of reflowing the row every second.
+             * The timer, a foreground numeral. `type-num` is tabular, so the digits hold their
+             * columns instead of reflowing the row every second.
              *
              * One composed label on the wrapper rather than on the numeral, the MomentTile
              * pairing: a screen reader should hear «12 secondi registrati», not «0:12».
@@ -326,15 +320,14 @@ export function AudioRecorderSheet({
               accessibilityLabel={t('media.record.elapsed', locale, { sec: seconds })}
             >
               <Text
-                className="text-[44px] font-extrabold text-aura"
-                style={{ fontVariant: ['tabular-nums'] }}
+                className="type-num text-foreground"
                 accessibilityElementsHidden
                 importantForAccessibility="no-hide-descendants"
               >
                 {formatDuration(seconds)}
               </Text>
             </View>
-            <Text className="mt-2 text-center text-[14px] leading-5 text-faint">
+            <Text className="type-small mt-2 text-center text-muted-foreground">
               {t('media.record.hint', locale)}
             </Text>
           </View>
@@ -343,13 +336,13 @@ export function AudioRecorderSheet({
             {recording ? (
               <Button
                 label={t('media.record.stop', locale)}
-                variant="light"
+                variant="primary"
                 onPress={() => void finish()}
               />
             ) : (
               <Button
                 label={t('media.record.start', locale)}
-                variant="light"
+                variant="primary"
                 loading={busy}
                 onPress={() => void start()}
               />
@@ -360,13 +353,7 @@ export function AudioRecorderSheet({
              * sheet is working restores the dead end for exactly as long as a member is most
              * likely to want out.
              */}
-            <Pressable
-              className="min-h-[52px] items-center justify-center py-3"
-              accessibilityRole="button"
-              onPress={cancel}
-            >
-              <Text className="tracking-widest text-faint">{t('common.cancel', locale)}</Text>
-            </Pressable>
+            <Button variant="ghost" label={t('common.cancel', locale)} onPress={cancel} />
           </View>
         </Pressable>
       </Pressable>

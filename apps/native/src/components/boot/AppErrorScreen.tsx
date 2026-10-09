@@ -1,6 +1,6 @@
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-import { Mandorla } from '@/components/Mandorla';
+import { MandorlaMark } from '@/components/MandorlaMark';
 import { Button } from '@/components/Button';
 import { deviceLocale } from '@/lib/locale';
 import { useAnnounceOnMount, MODAL_A11Y } from '@/lib/a11y';
@@ -8,7 +8,7 @@ import { useAnnounceOnMount, MODAL_A11Y } from '@/lib/a11y';
 /**
  * The fallback behind the root error boundary (#452): what a render fatal shows instead of a
  * white screen. Sibling of ProfileErrorScreen and MaintenanceScreen, and deliberately the same
- * shape — mandorla, one headline, one line, one way out — because a member who lands here is
+ * shape — the outline mandorla, one headline, one line, one way out — because a member who lands here is
  * already having the worst moment the app can give them.
  *
  * Rendered as a COMPONENT by `@sentry/react`'s ErrorBoundary, not called as a render prop
@@ -33,22 +33,17 @@ export function AppErrorScreen({ error, resetError }: { error: unknown; resetErr
       accessibilityRole="alert"
       {...MODAL_A11Y}
     >
-      <Mandorla size={120} glowLevel={0}>
-        <View />
-      </Mandorla>
-      <Text
-        className="mt-8 text-center text-2xl font-bold text-foreground"
-        accessibilityRole="header"
-      >
+      <MandorlaMark />
+      <Text className="mt-8 text-center type-h2 text-foreground" accessibilityRole="header">
         {t('crash.title', deviceLocale)}
       </Text>
-      <Text className="mt-3 text-center text-base text-muted-foreground">
+      <Text className="mt-3 text-center type-small text-muted-foreground">
         {t('crash.body', deviceLocale)}
       </Text>
       {__DEV__ && error instanceof Error ? (
         // Not routed through @athanor/i18n, and not exempted either: the checker reads literals,
         // and this is the exception's own text. Dev-only, never shown to a member.
-        <Text className="mt-4 text-center text-[13px] text-muted-foreground">{error.message}</Text>
+        <Text className="mt-4 text-center type-small text-muted-foreground">{error.message}</Text>
       ) : null}
       <View className="mt-8 w-full gap-3">
         <Button label={t('crash.retry', deviceLocale)} variant="primary" onPress={resetError} />

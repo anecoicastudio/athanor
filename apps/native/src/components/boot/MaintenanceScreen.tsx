@@ -1,6 +1,6 @@
 import { t } from '@athanor/i18n';
 import { Text, View } from '@/tw';
-import { Mandorla } from '@/components/Mandorla';
+import { MandorlaMark } from '@/components/MandorlaMark';
 import { Button } from '@/components/Button';
 import { deviceLocale } from '@/lib/locale';
 import { useAnnounceOnMount, MODAL_A11Y } from '@/lib/a11y';
@@ -18,20 +18,15 @@ export function MaintenanceScreen({ eta, onRetry }: { eta?: string | null; onRet
       accessibilityRole="alert"
       {...MODAL_A11Y}
     >
-      <Mandorla size={120} glowLevel={0}>
-        <View />
-      </Mandorla>
-      <Text
-        className="mt-8 text-center text-2xl font-bold text-foreground"
-        accessibilityRole="header"
-      >
+      <MandorlaMark />
+      <Text className="mt-8 text-center type-h2 text-foreground" accessibilityRole="header">
         {t('maintenance.title', deviceLocale)}
       </Text>
-      <Text className="mt-3 text-center text-base text-muted-foreground">
+      <Text className="mt-3 text-center type-small text-muted-foreground">
         {t('maintenance.body', deviceLocale)}
       </Text>
       {eta ? (
-        <Text className="mt-2 text-center text-sm text-muted-foreground">
+        <Text className="mt-2 text-center type-small text-muted-foreground">
           {t('maintenance.eta', deviceLocale, { time: eta })}
         </Text>
       ) : null}

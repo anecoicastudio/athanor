@@ -15,6 +15,7 @@ import { t } from '@athanor/i18n';
 import type { ConnectionRequestListItem } from '@athanor/schemas';
 import { FlatList, View } from '@/tw';
 import { Input } from '@/components/Input';
+import { ListPageError } from '@/components/ListPageError';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConnectionRequestRow } from '@/components/connections/ConnectionRequestRow';
@@ -29,8 +30,14 @@ type Segment = 'requests' | 'connections';
 
 /**
  * Connessioni hub (M5): the Richieste inbox (accept/decline incoming requests, live via
- * realtime) and the searchable Connessioni list. Keyset pagination only (rule #9); flat
- * cyan accent on the active segment, no glow (rule #4); all copy via i18n (rule #5).
+ * realtime) and the searchable Connessioni list. Keyset pagination only (rule #9); all copy
+ * via i18n (rule #5).
+ *
+ * Galleria (DESIGN §8.13, #921): two chips pick the list, and each list is ONE group of rows on
+ * the stage, 26 under what stands above it. No bordered card and no cyan. Both lists are paged,
+ * so a row draws its own segment of the group and the list has no gap. Loading, empty and a
+ * failed first read are `ListState`'s, in `ListEmptyComponent`; a read that fails with rows on
+ * screen says so in the footer, under the rows.
  */
 export default function ConnectionsScreen() {
   const locale = useLocale();
@@ -93,7 +100,7 @@ export default function ConnectionsScreen() {
     <Screen>
       <ModalHeader title={t('connection.hub.title', locale)} backLabel={t('common.back', locale)} />
 
-      <View className="px-5 pb-4">
+      <View className="px-5 pb-[26px]">
         <SegmentedToggle
           value={segment}
           onChange={setSegment}
@@ -108,14 +115,16 @@ export default function ConnectionsScreen() {
         <FlatList
           data={requests}
           keyExtractor={(item) => item.id}
-          contentContainerClassName="px-5 pb-10"
-          renderItem={({ item }) => (
+          contentContainerClassName="grow px-5 pb-12"
+          renderItem={({ item, index }) => (
             <ConnectionRequestRow
               item={item}
               locale={locale}
               pending={respondingId === item.id}
               onAccept={() => respondMutation.mutate({ accept: true, item })}
               onDecline={() => respondMutation.mutate({ accept: false, item })}
+              first={index === 0}
+              last={index === requests.length - 1}
             />
           )}
           ListEmptyComponent={
@@ -134,6 +143,14 @@ export default function ConnectionsScreen() {
               loading={null}
             />
           }
+          ListFooterComponent={
+            <ListPageError
+              query={requestsQuery}
+              hasRows={requests.length > 0}
+              label={t('connection.inbox.error', locale)}
+              retryLabel={t('common.retry', locale)}
+            />
+          }
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (requestsQuery.hasNextPage && !requestsQuery.isFetchingNextPage)
@@ -142,7 +159,7 @@ export default function ConnectionsScreen() {
         />
       ) : (
         <View className="flex-1">
-          <View className="px-5 pb-3">
+          <View className="px-5 pb-[26px]">
             <Input
               placeholder={t('connection.list.search', locale)}
               value={search}
@@ -155,13 +172,15 @@ export default function ConnectionsScreen() {
           <FlatList
             data={connections}
             keyExtractor={(item) => item.id}
-            contentContainerClassName="px-5 pb-10"
+            contentContainerClassName="grow px-5 pb-12"
             keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <ConnectionRow
                 item={item}
                 locale={locale}
                 onPress={() => router.push(`/(modal)/user/${item.peerId}`)}
+                first={index === 0}
+                last={index === connections.length - 1}
               />
             )}
             ListEmptyComponent={
@@ -185,6 +204,14 @@ export default function ConnectionsScreen() {
                 emptyBody={search.trim() ? undefined : t('connection.list.emptyBody', locale)}
                 onRetry={() => void connectionsQuery.refetch()}
                 loading={null}
+              />
+            }
+            ListFooterComponent={
+              <ListPageError
+                query={connectionsQuery}
+                hasRows={connections.length > 0}
+                label={t('connection.list.error', locale)}
+                retryLabel={t('common.retry', locale)}
               />
             }
             onEndReachedThreshold={0.5}

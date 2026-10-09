@@ -13,13 +13,13 @@ import { Pressable, Text, View, cn } from '@/tw';
  * `get-circle-prices` serves (#644); until they arrive the segments show the names alone,
  * and the CTA slot below says why (spinner or retry).
  *
- * The numerals are `tabular-nums` with NO tracking (DESIGN §4: tracking belongs to pill
- * labels and `micro`, numerals get tabular figures) — run 12 of the 2026-09 review found the
- * decision-critical string rendered only inside the CTA's letterspaced label, which breaks
- * numeral grouping. The CTA keeps its §9 label; the comparison lives here.
+ * The numerals are `tabular-nums` with NO tracking (numerals get tabular figures, DESIGN §4)
+ * — run 12 of the 2026-09 review found the decision-critical string rendered only inside the
+ * CTA's label, which was letterspaced then and broke numeral grouping. The CTA keeps its §9
+ * label; the comparison lives here.
  *
  * Active segment uses foreground-fill chip (not cyan — rule #4; a pricing toggle is not a
- * moment-grade event). Mirrors SegmentedToggle.tsx shape with typed plan values.
+ * moment-grade event). The plan values are typed.
  *
  * Roles: the container is a `radiogroup` and each segment a `radio` — two exclusive options,
  * which VoiceOver then announces as «1 di 2» with `checked` (the pairing `Chip.tsx` documents,

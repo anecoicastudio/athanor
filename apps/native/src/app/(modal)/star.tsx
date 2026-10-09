@@ -1,28 +1,36 @@
 import { useLocalSearchParams } from 'expo-router';
 import { localeTag, t, type MessageKey } from '@athanor/i18n';
 import { starKeySchema } from '@athanor/schemas';
-import { ScrollView, Text, View } from '@/tw';
-import { ModalHeader } from '@/components/ModalHeader';
+import { ScrollView, Text, View, cn } from '@/tw';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { ProgressBar } from '@/components/ProgressBar';
+import { Tag } from '@/components/Tag';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/hooks/use-locale';
 import { useStars } from '@/hooks/use-stars';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { useGuardedBack } from '@/lib/modal-exit';
 import { starsOrNull } from '@/lib/aura-display';
 import { starCellState, starGlyph } from '@/lib/star';
+import { FONT_SCALE_CAP } from '@/lib/type-scale';
+import { wordLines } from '@/lib/word-lines';
 import { Screen } from '@/components/Screen';
 
 /**
- * Star detail sheet (M6 §3.2).
- * Reads own `stars` rows from TanStack cache; shows glyph + name + state chip
- * + criteria line. Unearned → progress bar + {done}/{total} {unit}.
- * Earned → «Accesa il {date}» formatted like ledger short-date.
+ * Star detail sheet (M6 §3.2; Galleria, 2026-10-09, #921).
+ * Reads the member's OWN `stars` rows from the TanStack cache. The header is the drawn back
+ * alone. Blocks 26 apart: the glyph, the
+ * name and the state word, centred; the criteria line; then, unearned, {done}/{total} {unit}
+ * over a progress bar, or, earned, «Accesa il {date}» formatted like the ledger's short date.
+ * The state is the glyph's shape and the word. A lit star is foreground, not cyan (DESIGN
+ * §2.3: it is not one of the five marks); unlit and unknown are grey.
  * Rule #1: read-only, no Aura writes.
  */
 export default function StarScreen() {
   const { session } = useAuth();
   const locale = useLocale();
   const me = session?.user.id ?? '';
+  const back = useGuardedBack();
 
   const { starId: rawStarId } = useLocalSearchParams<{ starId: string }>();
 
@@ -67,16 +75,21 @@ export default function StarScreen() {
 
   return (
     <Screen {...MODAL_A11Y}>
-      {/* Header — chevron-only (star name is the in-body header below) */}
-      <ModalHeader title="" backLabel={t('common.back', locale)} />
+      {/* Header: the back alone, in `ModalHeader`'s own band. `ModalHeader` always renders a
+          title, and an empty one was an empty heading before the star's own (seen in the
+          simulator's accessibility tree, Expo Go, 2026-10-09). */}
+      <View className="flex-row px-5 pb-4 pt-3">
+        <HeaderBack className={BACK_ON_GUTTER} label={t('common.back', locale)} onPress={back} />
+      </View>
 
-      <ScrollView contentContainerClassName="px-5 pb-12">
+      <ScrollView contentContainerClassName="gap-[26px] px-5 pb-12">
         {starId != null ? (
-          <View className="gap-5">
-            {/* Glyph + name + state chip */}
+          <>
+            {/* Glyph + name + state word */}
             <View
-              className="items-center gap-3 py-6"
+              className="items-center gap-3"
               accessible={true}
+              accessibilityRole="header"
               accessibilityLabel={t(
                 unknown ? 'star.a11y.unknown' : earned ? 'star.a11y.lit' : 'star.a11y.unlit',
                 locale,
@@ -84,59 +97,61 @@ export default function StarScreen() {
               )}
             >
               {/* One glyph, three states, from lib/star.ts. DESIGN §11 (2026-08-08 (c)) named
-                  this `text-5xl` pair as the site that had already drifted once. */}
-              <Text className="text-5xl">
-                <Text
-                  className={`text-5xl ${earned ? 'text-aura' : 'text-faint'}`}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                >
-                  {starGlyph(state)}
-                </Text>
-              </Text>
+                  this site as one that had already drifted once. It is an ornament here (the
+                  group's label says the state), so it keeps its size at every text size. */}
               <Text
-                accessibilityRole="header"
-                className="text-[20px] font-semibold text-foreground"
+                className={cn('text-[72px]', earned ? 'text-foreground' : 'text-muted-foreground')}
+                maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {starGlyph(state)}
+              </Text>
+              {/* The group above is the heading: it says the name and the state as one line,
+                  and an element inside an `accessible` view is not reached on its own.
+                  A star's name is one word, so it takes one line (DESIGN §10): at the largest
+                  text size «Collaboratore» broke as «Collaborat / ore» on an iPhone SE
+                  (simulator, Expo Go, 2026-10-09). The group's label keeps the whole name. */}
+              <Text
+                numberOfLines={wordLines(starName)}
+                className="text-center type-h1 text-foreground"
               >
                 {starName}
               </Text>
               {/* `earned` is already false when unknown (no rows → no row → no grantedAt), so
-                  the accent branch needs no extra guard — only the WORD changes. */}
-              <View className={`rounded-full px-3 py-1 ${earned ? 'bg-aura-soft' : 'bg-raise'}`}>
-                <Text className={`text-[12px] font-medium ${earned ? 'text-aura' : 'text-faint'}`}>
-                  {t(unknown ? 'star.unknown' : earned ? 'star.lit' : 'star.unlit', locale)}
-                </Text>
-              </View>
+                  the quiet branch needs no extra guard — only the WORD changes. */}
+              <Tag
+                quiet={!earned}
+                label={t(unknown ? 'star.unknown' : earned ? 'star.lit' : 'star.unlit', locale)}
+              />
             </View>
 
-            {/* Criteria */}
+            {/* Criteria, and the day it was lit */}
             {criteriaKey != null ? (
-              <Text className="text-[14px] leading-relaxed text-foreground">
-                {t(criteriaKey, locale)}
-              </Text>
-            ) : null}
-
-            {/* Earned: date */}
-            {earned && earnedDateStr != null ? (
-              <Text className="text-[13px] text-muted-foreground">
-                {t('star.earnedOn', locale, { date: earnedDateStr })}
-              </Text>
+              <View className="gap-2">
+                <Text className="type-body text-foreground">{t(criteriaKey, locale)}</Text>
+                {earned && earnedDateStr != null ? (
+                  <Text className="type-small text-muted-foreground">
+                    {t('star.earnedOn', locale, { date: earnedDateStr })}
+                  </Text>
+                ) : null}
+              </View>
             ) : null}
 
             {/* Unearned: progress bar */}
             {!earned && row != null ? (
               <View className="gap-2">
-                <Text className="text-[13px] text-faint">
+                <Text className="type-small text-muted-foreground">
                   {t('star.next.progress', locale, { done, total, unit })}
                 </Text>
                 <ProgressBar width={progressWidth} />
               </View>
             ) : null}
-          </View>
+          </>
         ) : (
-          <View className="items-center py-12">
-            <Text className="text-faint">{t('common.back', locale)}</Text>
-          </View>
+          <Text className="text-center type-small text-muted-foreground">
+            {t('common.back', locale)}
+          </Text>
         )}
       </ScrollView>
     </Screen>

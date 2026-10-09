@@ -3,12 +3,12 @@
     "name": "Athanor",
     "slug": "athanor",
     "owner": "anecoica",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "athanor",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0a0a1a",
+    "backgroundColor": "#000000",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -65,7 +65,7 @@
         }
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#0a0a1a",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -96,7 +96,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0a0a1a",
+          "backgroundColor": "#000000",
           "android": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76

@@ -3,22 +3,25 @@ import { Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { momentKeys, removeFromBucket, softDeleteMoment } from '@athanor/api';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
 import type { Moment } from '@/types/moment';
 import { useAuth } from '@/lib/auth-context';
 import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
 import { momentSignPaths } from '@/lib/media/moment-media';
+import { PRESS_DIM } from '@/lib/press';
 import { uploadErrorKey } from '@/lib/media/upload';
 import { useMomentUpload } from '@/lib/media/use-moment-upload';
 import { useSignedUrls } from '@/lib/media/use-signed-urls';
 import { supabase } from '@/lib/supabase';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
+import { AddIcon } from '@/components/glyphs';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
-import { MomentAddTile, MomentTile } from '@/components/media/MomentTile';
+import { MomentTile } from '@/components/media/MomentTile';
 import { Screen } from '@/components/Screen';
 import { useLocale } from '@/hooks/use-locale';
 import { useMomentsPage } from '@/hooks/use-moments-page';
@@ -28,6 +31,10 @@ import { useMomentsPage } from '@/hooks/use-moments-page';
  * by default; with a `userId` param it renders another member's grid read-only
  * (P3.6: members-read RLS, no add/delete affordances). A self deep-link falls
  * back to owner mode.
+ *
+ * Galleria (DESIGN §8.5, #921): no bordered card. A grey sentence, then the tiles three to a
+ * row and 6 apart, blocks 26 apart. The owner adds from the header's drawn `add` and nowhere
+ * else: the grid has no add tile (Marco, 2026-10-06).
  */
 export default function GridScreen() {
   const { session } = useAuth();
@@ -101,51 +108,49 @@ export default function GridScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('moment.add', locale)}
               onPress={() => setSheetOpen(true)}
-              // Bare glyph + `hitSlop={8}` measured ~13pt wide. Same box recipe as
-              // `HeaderClose`, which sits in this same right slot.
-              className="-mr-3 min-h-[44px] min-w-[44px] items-center justify-center"
+              // Same box recipe as `HeaderClose`, which sits in this same right slot.
+              className={cn(
+                '-mr-3 min-h-[44px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+              )}
             >
-              <Text className="text-2xl text-faint">+</Text>
+              {/* The button names itself; the drawing says nothing to assistive tech. */}
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <AddIcon size={22} color={galleria.foreground} />
+              </View>
             </Pressable>
           )
         }
       />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-11">
+      <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-11">
         {readOnly ? null : (
-          <Text className="mt-0.5 text-[13px] text-muted-foreground">
+          <Text className="type-small text-muted-foreground">
             {t('moment.gallery.sub', locale)}
           </Text>
         )}
 
-        {error ? <Text className="mt-2 text-[13px] text-error">{error}</Text> : null}
+        {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
 
-        <View className="mt-4 flex-row flex-wrap">
-          {moments.map((m, i) => (
-            <View key={m.id} className="w-1/3 p-0.5">
-              <MomentTile
-                moment={m}
-                variant="full"
-                locale={locale}
-                urls={urls}
-                isLoading={urlsLoading}
-                onPress={() => setIndex(i)}
-                onLongPress={readOnly ? undefined : () => confirmDelete(m)}
-              />
-            </View>
-          ))}
-          {empty && !readOnly ? (
-            <View className="w-1/3 p-0.5">
-              <MomentAddTile
-                variant="full"
-                label={t('moment.add', locale)}
-                onPress={() => setSheetOpen(true)}
-              />
-            </View>
-          ) : null}
-        </View>
+        {/* Three to a row, 6 apart: 3 of padding on each, taken back at the grid's edges. */}
+        {empty ? null : (
+          <View className="-m-[3px] flex-row flex-wrap">
+            {moments.map((m, i) => (
+              <View key={m.id} className="w-1/3 p-[3px]">
+                <MomentTile
+                  moment={m}
+                  locale={locale}
+                  urls={urls}
+                  isLoading={urlsLoading}
+                  onPress={() => setIndex(i)}
+                  onLongPress={readOnly ? undefined : () => confirmDelete(m)}
+                />
+              </View>
+            ))}
+          </View>
+        )}
 
-        {/* The add tile above stays through every arm for the owner: putting a Momento up does
+        {/* The header's add stays through every arm for the owner: putting a Momento up does
             not depend on the read that failed. Only the sentence changes. */}
         <ListState
           state={gridState}
@@ -153,33 +158,34 @@ export default function GridScreen() {
           errorLabel={t('profile.moments.error', locale)}
           emptyLabel={t(readOnly ? 'profile.moments.theirEmpty' : 'moment.empty', locale)}
           onRetry={() => void momentsQuery.refetch()}
-          className="mt-2"
+          className=""
           loading={null}
         />
-
-        <Lightbox
-          moments={moments}
-          urls={urls}
-          urlsLoading={urlsLoading}
-          index={index}
-          locale={locale}
-          onClose={() => setIndex(null)}
-          onIndexChange={setIndex}
-        />
-
-        {/* «Aggiungi un Momento» — owner only (rule #1: writes only `moments`). Stays
-          mounted in owner mode (iOS picker-under-Modal trap — close-then-launch). */}
-        {readOnly ? null : (
-          <MediaSheet
-            visible={sheetOpen}
-            allowVideo
-            locale={locale}
-            onClose={() => setSheetOpen(false)}
-            onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
-            onError={(key) => setError(t(key, locale))}
-          />
-        )}
       </ScrollView>
+
+      {/* Both are Modals: siblings of the scroll, so they are not blocks of its 26 rhythm. */}
+      <Lightbox
+        moments={moments}
+        urls={urls}
+        urlsLoading={urlsLoading}
+        index={index}
+        locale={locale}
+        onClose={() => setIndex(null)}
+        onIndexChange={setIndex}
+      />
+
+      {/* «Aggiungi un Momento» — owner only (rule #1: writes only `moments`). Stays
+          mounted in owner mode (iOS picker-under-Modal trap — close-then-launch). */}
+      {readOnly ? null : (
+        <MediaSheet
+          visible={sheetOpen}
+          allowVideo
+          locale={locale}
+          onClose={() => setSheetOpen(false)}
+          onPick={(m) => addMoment(m).catch((err) => setError(t(uploadErrorKey(err), locale)))}
+          onError={(key) => setError(t(key, locale))}
+        />
+      )}
     </Screen>
   );
 }

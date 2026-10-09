@@ -1,8 +1,10 @@
 import { Modal } from 'react-native';
 import { t } from '@athanor/i18n';
 import type { Locale } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 import { MODAL_A11Y } from '@/lib/a11y';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 
 /**
  * The per-message action sheet (#574) — today one action: report THIS message.
@@ -12,7 +14,10 @@ import { MODAL_A11Y } from '@/lib/a11y';
  * only harness this app can be walked on here (no simulator on this machine). An affordance
  * built on it would be untestable by construction and dead on the web build. This is the
  * `MediaSheet` / `AudioRecorderSheet` idiom instead: a transparent bottom Modal, a scrim that
- * closes on tap, and rows that are ordinary Pressables.
+ * closes on tap, and rows that are ordinary Pressables. Since 2026-10-09 (#921) it is
+ * `MediaSheet`'s panel too: charcoal `surface`, radius 28 at the top, no grab handle and no
+ * border, over a 70% dim drawn as a layer of its own, the actions the shared `Row` in one
+ * `RowGroup`. The panel scrolls when it is taller than the screen, as that one does.
  *
  * `accessible={false}` on the scrim and the sheet body, copied from `MediaSheet` for the same
  * reason (#518): `Pressable` defaults to being an accessibility ELEMENT, and on iOS an
@@ -53,44 +58,32 @@ export function MessageActionsSheet({
       onRequestClose={onClose}
       {...(onDismissed ? { onDismiss: onDismissed } : {})}
     >
-      <Pressable
-        accessible={false}
-        className="flex-1 justify-end bg-surface-muted"
-        onPress={onClose}
-      >
+      <Pressable accessible={false} className="flex-1 justify-end" onPress={onClose}>
+        <View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" />
         <Pressable
           {...MODAL_A11Y}
           accessible={false}
-          className="rounded-t-card border-t border-hair bg-raise px-6 pb-12 pt-7"
+          className="max-h-[88%] rounded-t-[28px] bg-surface px-1 pb-12 pt-7"
           onPress={() => {}}
         >
-          <Text
-            accessibilityRole="header"
-            className="text-center text-lg font-semibold text-foreground"
-          >
-            {t('chat.message.actions', locale)}
-          </Text>
-          <View className="mt-6 gap-2">
-            <Row label={t('chat.message.report', locale)} onPress={onReport} />
-            <View className="mt-1 border-t border-hair pt-1">
-              <Row label={t('common.cancel', locale)} onPress={onClose} />
+          <ScrollView alwaysBounceVertical={false}>
+            <Text accessibilityRole="header" className="type-h2 px-4 text-center text-foreground">
+              {t('chat.message.actions', locale)}
+            </Text>
+            {/* The group's own 16 and the panel's 4 put the rows on the 20 gutter. */}
+            <View className="mt-4">
+              <RowGroup>
+                <Row
+                  title={t('chat.message.report', locale)}
+                  showChevron={false}
+                  onPress={onReport}
+                />
+                <Row title={t('common.cancel', locale)} showChevron={false} onPress={onClose} />
+              </RowGroup>
             </View>
-          </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
-  );
-}
-
-/** One row in the sheet — same measurements as `MediaSheet`'s, so the two read as one idiom. */
-function Row({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      className="min-h-[52px] flex-row items-center rounded-ctl px-4 py-3"
-      accessibilityRole="button"
-      onPress={onPress}
-    >
-      <Text className="text-[16px] text-foreground">{label}</Text>
-    </Pressable>
   );
 }

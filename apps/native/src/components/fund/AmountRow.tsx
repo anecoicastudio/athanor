@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MIN_CONTRIBUTION_CENTS, parseEuroToCents } from '@athanor/core';
 import { t } from '@athanor/i18n';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { Pressable, Text, TextInput, View } from '@/tw';
 
 // The smallest chip IS the floor — a preset the parser would reject is a chip that cannot be
@@ -77,7 +77,7 @@ export function AmountRow({
             onChangeText={onDraft}
             keyboardType="decimal-pad"
             placeholder={t('fund.amount.customPlaceholder', locale, { min: MIN_EURO })}
-            placeholderTextColor={semantic.foregroundMuted}
+            placeholderTextColor={galleria.foregroundMuted}
             className="rounded-ctl border border-hair bg-raise pl-4 pr-4 py-3 text-[15px] text-foreground"
             accessibilityLabel={t('fund.amount.custom', locale)}
           />

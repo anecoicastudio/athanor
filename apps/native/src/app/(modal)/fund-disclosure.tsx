@@ -198,9 +198,8 @@ export default function FundDisclosureScreen() {
                   })
             }
             onPress={() => void onAccept()}
-            variant="light"
+            variant="primary"
             disabled={contribPhase === 'opening' || !validAmount || !edition}
-            // Flat cyan CTA — no glow (rule #4)
           />
           {contribPhase === 'canceled' ? (
             <Text className="text-[12px] text-muted-foreground">

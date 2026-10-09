@@ -8,7 +8,8 @@ import { t, tagLabel } from '@athanor/i18n';
 import type { AuraSnapshot, Locale, Profile, StarKey } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { SectionLabel } from '@/components/SectionLabel';
-import { SettingsRow } from '@/components/settings/SettingsRow';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { Lightbox } from '@/components/media/Lightbox';
 import { MediaSheet } from '@/components/media/MediaSheet';
 import { ProfileBody } from '@/components/profile/ProfileBody';
@@ -25,8 +26,9 @@ import { useAuraScore } from '@/hooks/use-aura-score';
 import { useStars } from '@/hooks/use-stars';
 
 /**
- * Read-mode Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02
- * §3.5), plus the dream slot and Chi sei / Cosa cerchi tags. Owns the momenti
+ * Read-mode Profilo stack: hero → dream → stat line → Connessioni → Sei Stelle → Momenti
+ * (frontend 02 §3.5), then the mission and the Chi sei / Cosa cerchi tags: 8 from a label to
+ * what it names, 8 between tags, 26 between blocks (the tab's own gap). Owns the momenti
  * cluster (query, signed urls, lightbox, MediaSheet upload).
  */
 export function ProfileView({
@@ -89,7 +91,7 @@ export function ProfileView({
 
   return (
     <>
-      {/* Shared Profilo stack: hero → stat line → Sei Stelle → Momenti (frontend 02 §3.5) */}
+      {/* The stack both profile surfaces share (frontend 02 §3.5): see `ProfileBody`. */}
       <ProfileBody
         locale={locale}
         hero={{
@@ -97,6 +99,7 @@ export function ProfileView({
           displayName: profile.display_name,
           avatarPath: profile.avatar_path,
           bio: profile.bio || null,
+          city: profile.city || null,
           auraScore: aura?.score ?? null,
           locale,
           verified: profile.identity_verified,
@@ -106,7 +109,7 @@ export function ProfileView({
         statCounts={statCounts}
         afterHero={
           completeness < 1 ? (
-            <Text className="text-center text-[13px] text-faint">
+            <Text className="type-small text-muted-foreground">
               {t('profile.completeness', locale, { percent: Math.round(completeness * 100) })}
             </Text>
           ) : null
@@ -114,13 +117,13 @@ export function ProfileView({
         dream={dreamSlot}
         afterStats={
           /* Connessioni — hub for established connections + the Richieste inbox (M5). */
-          <View className="-mx-5 border-y border-hair">
-            <SettingsRow
+          <RowGroup>
+            <Row
               title={t('connection.hub.title', locale)}
               accessibilityLabel={t('connection.a11y.hub', locale)}
               onPress={() => router.push('/connections')}
             />
-          </View>
+          </RowGroup>
         }
         stars={stars}
         viewerIsOwner={true}
@@ -145,20 +148,21 @@ export function ProfileView({
         }}
       />
 
-      {/* La mia missione — §4.2 order: bio (hero) → mission → skills → city (#149).
+      {/* La mia missione — §4.2 order: bio (hero) → mission → skills (#149); the city stands
+          beside the handle in the hero since 2026-10-05.
           Il Sogno moved into ProfileBody's dream slot, directly under the hero (#640). */}
       {profile.mission ? (
-        <View className="gap-3">
+        <View className="gap-2">
           <SectionLabel>{t('profile.mission.label', locale)}</SectionLabel>
-          <Text className="text-[15px] leading-relaxed text-foreground">{profile.mission}</Text>
+          <Text className="type-body text-foreground">{profile.mission}</Text>
         </View>
       ) : null}
 
       {/* Chi sei — identity tags */}
       {identity.length > 0 ? (
-        <View className="gap-3">
+        <View className="gap-2">
           <SectionLabel>{t('profile.identity.label', locale)}</SectionLabel>
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {identity.map((tag) => (
               <Tag key={tag} label={tagLabel('identity', tag, locale)} />
             ))}
@@ -168,9 +172,9 @@ export function ProfileView({
 
       {/* Cosa cerchi — seeking tags */}
       {seeking.length > 0 ? (
-        <View className="gap-3">
+        <View className="gap-2">
           <SectionLabel>{t('profile.seeking.label', locale)}</SectionLabel>
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {seeking.map((tag) => (
               <Tag key={tag} label={tagLabel('seeking', tag, locale)} />
             ))}
@@ -180,18 +184,18 @@ export function ProfileView({
 
       {/* Professione + Competenze — curated keys (#149) */}
       {profile.profession ? (
-        <View className="gap-3">
+        <View className="gap-2">
           <SectionLabel>{t('profile.profession.label', locale)}</SectionLabel>
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             <Tag label={tagLabel('profession', profile.profession, locale)} />
           </View>
         </View>
       ) : null}
 
       {skills.length > 0 ? (
-        <View className="gap-3">
+        <View className="gap-2">
           <SectionLabel>{t('profile.skills.label', locale)}</SectionLabel>
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row flex-wrap gap-2">
             {skills.map((key) => (
               <Tag key={key} label={tagLabel('skill', key, locale)} />
             ))}
@@ -199,15 +203,7 @@ export function ProfileView({
         </View>
       ) : null}
 
-      {/* Città — display name only; the geohash never renders anywhere (#149) */}
-      {profile.city ? (
-        <View className="gap-3">
-          <SectionLabel>{t('profile.city.label', locale)}</SectionLabel>
-          <Text className="text-[15px] text-foreground">{profile.city}</Text>
-        </View>
-      ) : null}
-
-      {error ? <Text className="text-sm text-error">{error}</Text> : null}
+      {error ? <Text className="text-[14px] text-error">{error}</Text> : null}
 
       <Lightbox
         moments={moments}

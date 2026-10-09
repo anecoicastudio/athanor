@@ -14,22 +14,22 @@ import {
   sendMessage,
   subscribeMessages,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { dayBucket, memberLabel } from '@athanor/core';
 import { localeTag, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, Text, View, cn } from '@/tw';
 import { Input } from '@/components/Input';
 import { invalidateBlockDependents } from '@/lib/block-cache';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { devWarn } from '@/lib/log';
-import { HIT_SLOP } from '@/lib/a11y';
+import { PRESS_DIM } from '@/lib/press';
 import { Avatar } from '@/components/Avatar';
-import { PlayGlyph } from '@/components/glyphs';
-import { Bubble } from '@/components/chat/Bubble';
+import { AddIcon, CloseIcon, MoreIcon, PlayGlyph, SendIcon } from '@/components/glyphs';
+import { Bubble, serverLine } from '@/components/chat/Bubble';
 import { MessageActionsSheet } from '@/components/chat/MessageActionsSheet';
 import { ModalHeader } from '@/components/ModalHeader';
-import { SectionLabel } from '@/components/SectionLabel';
+import { Tag } from '@/components/Tag';
 import { AURA_UNKNOWN, auraDisplayValue } from '@/lib/aura-display';
 import { isRunEnd } from '@/lib/chat-runs';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -43,12 +43,14 @@ import { useAuraScore } from '@/hooks/use-aura-score';
 import { useDirtyGuard } from '@/hooks/use-dirty-guard';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
-import { FONT_SCALE_CAP } from '@/lib/type-scale';
 import { Screen } from '@/components/Screen';
 import { useToast } from '@/components/ToastHost';
 
 type Row =
   | { type: 'marker'; key: string; label: string }
+  // The ice-breaker prompts, which the server writes as one message each, drawn as one row of
+  // pills (DESIGN §8.8, 2026-10-09).
+  | { type: 'prompts'; key: string; prompts: Message[] }
   | { type: 'msg'; key: string; message: Message };
 
 export default function ChatScreen() {
@@ -134,7 +136,7 @@ export default function ChatScreen() {
    * mount would send the member back to a list lighting a conversation they just finished
    * reading. Two upserts a visit, against a cursor whose whole job is to be cheap.
    *
-   * Fire-and-forget with a logged failure: a cursor that did not move costs a stale pip, and
+   * Fire-and-forget with a logged failure: a cursor that did not move costs a stale dot, and
    * taking the chat down over it would be the worse trade.
    */
   useEffect(() => {
@@ -179,7 +181,14 @@ export default function ChatScreen() {
         out.push({ type: 'marker', key: `m-${dayId}`, label });
         lastDay = dayId;
       }
-      out.push({ type: 'msg', key: m.id, message: m });
+      const previous = out[out.length - 1];
+      if (m.kind === 'prompt') {
+        // Consecutive prompts share the row the first one opened.
+        if (previous?.type === 'prompts') previous.prompts.push(m);
+        else out.push({ type: 'prompts', key: `p-${m.id}`, prompts: [m] });
+      } else {
+        out.push({ type: 'msg', key: m.id, message: m });
+      }
     }
     return out;
   }, [chrono, locale]);
@@ -326,12 +335,12 @@ export default function ChatScreen() {
               handle={peer?.peerHandle ?? null}
               displayName={peer?.peerDisplayName ?? null}
               avatarPath={peer?.peerAvatarPath ?? null}
-              size={36}
+              size={30}
             />
           }
           title={peerName}
           subtitle={
-            <Text className="text-[11px] text-faint" accessibilityLabel={peerAuraA11y}>
+            <Text className="type-small text-muted-foreground" accessibilityLabel={peerAuraA11y}>
               {t('chat.peerAura', locale, { score: peerScore })}
             </Text>
           }
@@ -346,10 +355,13 @@ export default function ChatScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('chat.a11y.menu', locale)}
-              hitSlop={HIT_SLOP}
+              className={cn(
+                '-mr-3 min-h-[44px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+              )}
               onPress={openMenu}
             >
-              <Text className="text-xl text-faint">⋯</Text>
+              <MoreIcon color={galleria.foreground} />
             </Pressable>
           }
         />
@@ -362,7 +374,7 @@ export default function ChatScreen() {
           // exchange — used to hang from the top with the whole viewport of void between
           // the last bubble and the composer. Messages belong at the composer's edge,
           // exactly where the next one will appear (DESIGN §8.8).
-          contentContainerClassName="flex-grow justify-end px-4 py-3"
+          contentContainerClassName="flex-grow justify-end px-5 py-3"
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onContentSizeChange={() => {
             // Auto-scroll to the newest message only when the reader is already at the bottom;
@@ -371,8 +383,15 @@ export default function ChatScreen() {
           }}
           renderItem={({ item, index }) =>
             item.type === 'marker' ? (
-              <View className="my-3 items-center">
-                <SectionLabel>{item.label}</SectionLabel>
+              <View className="my-1.5 items-center">
+                <Text className="type-small text-muted-foreground">{item.label}</Text>
+              </View>
+            ) : item.type === 'prompts' ? (
+              // Inert pills, centred, wrapping: they name the three questions and do nothing.
+              <View className="my-1.5 flex-row flex-wrap justify-center gap-2">
+                {item.prompts.map((prompt) => (
+                  <Tag key={prompt.id} label={serverLine(prompt, locale)} />
+                ))}
               </View>
             ) : (
               <Bubble
@@ -421,12 +440,13 @@ export default function ChatScreen() {
           scrollEventThrottle={64}
         />
 
-        {/* chat bar — send is a FLAT cyan surface (rule #4: cyan is allowed on the send button,
-          but the glow is reserved for moment-grade events; a routine send is not one). */}
+        {/* The compose bar (DESIGN §8.8; Galleria since 2026-10-09, #921): the drawn add, the
+          50pt small field and a 50pt white disc with the drawn send. Nothing in it is cyan. */}
         <View className="border-t border-hair bg-background">
-          {/* staged image (#155) — post-compose's tile idiom: dim while sending, ✕ otherwise. */}
+          {/* The staged image (#155), as the composers draw theirs: a radius-14 tile with a
+            hairline, a dim while it sends, the drawn close otherwise. */}
           {attachment ? (
-            <View className="flex-row items-center gap-3 px-4 pt-3">
+            <View className="flex-row items-center gap-3 px-5 pt-3">
               <View className="relative">
                 {/* Kind branch BEFORE the drawing surface (#318/#154 guard): `onPickMedia`
                   stages stills only, so the frameless arm is unreachable today — but under a
@@ -434,7 +454,7 @@ export default function ChatScreen() {
                   frame to find. */}
                 {attachment.media.kind === 'video' || attachment.media.kind === 'audio' ? (
                   <View
-                    className="h-16 w-16 items-center justify-center rounded-[8px] bg-raise-2"
+                    className="h-16 w-16 items-center justify-center rounded-[14px] border border-hair bg-surface"
                     accessible
                     accessibilityLabel={t(
                       attachment.media.kind === 'audio'
@@ -444,67 +464,74 @@ export default function ChatScreen() {
                     )}
                   >
                     <View
-                      // Drawn, not the ▶ character (#753), so it cannot outgrow the hard 56pt
+                      // Drawn, not the ▶ character (#753), so it cannot outgrow the hard 64pt
                       // tile; the wrapper above is what announces it.
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
                     >
-                      <PlayGlyph size={24} color={semantic.faint} />
+                      <PlayGlyph size={24} color={galleria.foregroundMuted} />
                     </View>
                   </View>
                 ) : (
+                  // An RN `Image` takes no class: the tile's radius and hairline are its style.
                   <Image
                     source={{ uri: attachment.media.uri }}
-                    style={{ width: 64, height: 64, borderRadius: 8 }}
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: galleria.hair,
+                    }}
                     resizeMode="cover"
                   />
                 )}
                 {send.isPending ? (
-                  <View
-                    className="absolute inset-0 items-center justify-center rounded-[8px] bg-surface-muted"
-                    style={{ opacity: 0.6 }}
-                  />
+                  <View className="absolute inset-0 rounded-[14px] bg-background opacity-60" />
                 ) : (
                   <Pressable
-                    className="absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full bg-raise"
+                    className={cn(
+                      'absolute right-[-6px] top-[-6px] h-[20px] w-[20px] items-center justify-center rounded-full border border-hair bg-surface',
+                      PRESS_DIM,
+                    )}
                     onPress={() => setAttachment(null)}
                     accessibilityRole="button"
                     accessibilityLabel={t('chat.a11y.removeAttachment', locale)}
                     hitSlop={12}
                   >
-                    {/* `ornament` (#639): this badge's 20pt box is MEASURED against the thumbnail it
-                        sits on, so the ✕ cannot grow without leaving it. The control is named by
-                        its own accessibilityLabel, so the glyph carries nothing. */}
-                    <Text
-                      className="text-[11px] text-faint"
-                      maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-                    >
-                      ✕
-                    </Text>
+                    {/* This badge's 20pt box is MEASURED against the thumbnail it sits on (#639).
+                        The close is a drawing, so the text size does not move it, and the
+                        control is named by its own accessibilityLabel. */}
+                    <CloseIcon size={12} color={galleria.foreground} />
                   </Pressable>
                 )}
               </View>
               {send.isPending ? (
-                <Text className="text-[13px] text-faint">
+                <Text className="type-small text-muted-foreground">
                   {t('media.uploadingIndeterminate', locale)}
                 </Text>
               ) : null}
             </View>
           ) : null}
-          <View className="flex-row items-end gap-2 px-4 py-3">
-            {/* attach — flat and faint (rule #4: attaching isn't a moment). One image per
-              message; while one is staged the door closes rather than silently replacing it. */}
+          {/* `items-end`: a message of several lines grows the field upward and the two controls
+            stay at its foot. */}
+          <View className="flex-row items-end gap-[10px] px-5 py-3">
+            {/* Attach: the drawn add in a box as tall as the one-line field, so the two are
+              centred on each other. One image per message; while one is staged the door closes
+              rather than silently replacing it. */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('chat.a11y.attach', locale)}
-              hitSlop={HIT_SLOP}
+              accessibilityState={{ disabled: send.isPending || attachment !== null }}
               disabled={send.isPending || attachment !== null}
               onPress={() => setSheetOpen(true)}
-              className={`min-h-[44px] min-w-[44px] items-center justify-center ${
-                send.isPending || attachment !== null ? 'opacity-40' : ''
-              }`}
+              className={cn(
+                'min-h-[50px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+                send.isPending || attachment !== null ? 'opacity-40' : null,
+              )}
             >
-              <Text className="text-[22px] text-faint">+</Text>
+              <AddIcon color={galleria.foreground} />
             </Pressable>
             <Input
               className="flex-1"
@@ -514,25 +541,26 @@ export default function ChatScreen() {
               onChangeText={setDraft}
               multiline
             />
+            {/* A white disc, never `aura` (DESIGN §2.3): 40% while there is nothing to send.
+              Always mounted: a control that mounts beside a `TextInput` on the first character
+              lost typed characters on the search bar (`search/SearchBar`'s docblock). The disc
+              stays a disc (#639): `rounded-full` on a box that grew in one axis is an ellipse,
+              and the arrow is a drawing on a control its label already names. */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('chat.a11y.send', locale)}
+              accessibilityState={{ disabled: !canSend }}
               disabled={!canSend}
               onPress={() =>
                 send.mutate({ body: trimmed.length > 0 ? trimmed : undefined, staged: attachment })
               }
-              className={`h-[44px] w-[44px] items-center justify-center rounded-full bg-aura ${
-                canSend ? '' : 'opacity-40'
-              }`}
+              className={cn(
+                'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground',
+                PRESS_DIM,
+                canSend ? null : 'opacity-40',
+              )}
             >
-              {/* The disc stays a disc (#639): `rounded-full` on a box that grew in one axis is an
-                ellipse. The chevron is decoration on a control the label already names. */}
-              <Text
-                className="text-[20px] text-on-aura"
-                maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-              >
-                ›
-              </Text>
+              <SendIcon size={22} color={galleria.background} />
             </Pressable>
           </View>
         </View>

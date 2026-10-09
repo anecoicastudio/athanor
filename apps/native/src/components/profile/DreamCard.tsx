@@ -1,26 +1,40 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from '@/tw';
+import { galleria } from '@athanor/config';
+import { Pressable, Text } from '@/tw';
 import { t } from '@athanor/i18n';
 import type { Locale, Milestone } from '@athanor/schemas';
-import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
 import { DreamQuote } from '@/components/DreamQuote';
 import { EmptyState } from '@/components/EmptyState';
+import { AddIcon } from '@/components/glyphs';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { SectionLabel } from '@/components/SectionLabel';
 import type { HelpState } from '@/lib/help-picker';
+import { PRESS_DIM } from '@/lib/press';
 import { MilestoneRow } from './MilestoneRow';
 
 /**
- * Il Sogno — the one active dream (frontend `02` §3.1). Two variants:
+ * Il Sogno — the one active dream (frontend `02` §3.1). Three blocks of the screen, returned
+ * side by side so the caller's 26 stands between them:
  *
- * - `own` (default): the owner's editable card. Tap the quote (or the empty-state CTA)
- *   to open the dream editor; the card hosts the tappe list + "+ Aggiungi una tappa" row,
- *   and an optional `incomingSlot` («Aiuti in arrivo») under the tappe.
+ * 1. the card — the profile's ONE bordered card (DESIGN §6): the label and the quote, nothing
+ *    else. The shared `Card`.
+ * 2. «Le tappe del sogno» — a `RowGroup` of `MilestoneRow`s (the tappe sat inside the card,
+ *    under a hairline, until 2026-10-05).
+ * 3. `incomingSlot` — «Aiuti in arrivo», a second group the owner's screen passes in.
+ *
+ * Two variants:
+ *
+ * - `own` (default): the owner's editable dream. Tap the quote (or the empty-state CTA)
+ *   to open the dream editor; the tappe group ends with the «Aggiungi una tappa» row.
  * - `read`: someone else's dream (person-detail). Label is `dream.theirLabel`, the quote
  *   is read-only (no editor), each tappa shows the «Aiuta» affordance via `helpStateById`/
  *   `onHelpMilestone`, and the add-tappa row is hidden. The empty state shows no owner CTA.
  *
- * Both variants render the «Fai accadere questo sogno» rally CTA (flat `light`, never the
- * glow — rule #4) when a dream is present and `onMakeHappen` is wired. Never writes Aura.
+ * «Fai accadere questo sogno» is not here: the card is the label and the quote, and the rally
+ * pill stands in the other member's pinned footer (`(modal)/user/[id]`; it was also drawn
+ * inside this card until 2026-10-07). Never writes Aura.
  */
 export function DreamCard({
   dream,
@@ -35,7 +49,6 @@ export function DreamCard({
   helpStateById,
   onHelpMilestone,
   incomingSlot,
-  onMakeHappen,
 }: {
   dream: string | null;
   locale: Locale;
@@ -49,100 +62,98 @@ export function DreamCard({
   helpStateById?: Record<string, HelpState>;
   onHelpMilestone?: (milestoneId: string) => void;
   incomingSlot?: ReactNode;
-  onMakeHappen?: () => void;
 }) {
   const isRead = variant === 'read';
   const showTappe = milestones !== undefined && dream != null;
 
   return (
-    <View className="gap-3 rounded-card border border-hair bg-raise p-5">
-      <SectionLabel tone="aura">
-        {t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}
-      </SectionLabel>
-      {dream ? (
-        /*
-          Label = the dream, hint = the action (#356, #635). This Pressable masks `DreamQuote`, so
-          a label of «Modifica il tuo sogno» announced the BUTTON and never the quote — the one
-          piece of content on the card. Worse on `read`: the label is not gated on `isRead`, so a
-          screen-reader user on someone else's profile heard "edit YOUR dream" over their dream.
-          Two keys, own and their, mirroring the `dream.ownLabel` / `dream.theirLabel` pair the
-          eyebrow above already uses.
+    <>
+      <Card>
+        <SectionLabel>{t(isRead ? 'dream.theirLabel' : 'dream.ownLabel', locale)}</SectionLabel>
+        {dream ? (
+          /*
+            Label = the dream, hint = the action (#356, #635). This Pressable masks `DreamQuote`,
+            so a label of «Modifica il tuo sogno» announced the BUTTON and never the quote — the
+            one piece of content on the card. Worse on `read`: the label is not gated on
+            `isRead`, so a screen-reader user on someone else's profile heard "edit YOUR dream"
+            over their dream. Two keys, own and their, mirroring the `dream.ownLabel` /
+            `dream.theirLabel` pair the label above already uses.
 
-          The hint rides only on the editable arm. On `read` the Pressable is `disabled` and does
-          nothing, so promising an action there would be the same lie in a quieter register.
-        */
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(isRead ? 'dream.a11y.theirQuote' : 'dream.a11y.ownQuote', locale, {
-            dream,
-          })}
-          accessibilityHint={isRead || !onEdit ? undefined : t('dream.a11y.editQuote', locale)}
-          disabled={isRead || !onEdit}
-          onPress={isRead ? undefined : onEdit}
-        >
-          <DreamQuote text={dream} />
-        </Pressable>
-      ) : (
-        // Ghost, not primary — DESIGN §9's empty-state action is always the ghost (#119).
-        <EmptyState
-          action={
-            !isRead && onEdit ? { label: t('dream.empty.cta', locale), onPress: onEdit } : undefined
-          }
-        >
-          {t('dream.empty.title', locale)}
-        </EmptyState>
-      )}
+            The hint rides only on the editable arm. On `read` the Pressable is `disabled` and
+            does nothing, so promising an action there would be the same lie in a quieter
+            register.
+          */
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(
+              isRead ? 'dream.a11y.theirQuote' : 'dream.a11y.ownQuote',
+              locale,
+              { dream },
+            )}
+            accessibilityHint={isRead || !onEdit ? undefined : t('dream.a11y.editQuote', locale)}
+            className={PRESS_DIM}
+            disabled={isRead || !onEdit}
+            onPress={isRead ? undefined : onEdit}
+          >
+            <DreamQuote text={dream} />
+          </Pressable>
+        ) : (
+          // Ghost, not primary — DESIGN §9's empty-state action is always the ghost (#119).
+          <EmptyState
+            action={
+              !isRead && onEdit
+                ? { label: t('dream.empty.cta', locale), onPress: onEdit }
+                : undefined
+            }
+          >
+            {t('dream.empty.title', locale)}
+          </EmptyState>
+        )}
+      </Card>
 
       {showTappe ? (
-        <View className="mt-2 gap-3 border-t border-hair pt-4">
-          <SectionLabel>{t('milestone.sectionLabel', locale)}</SectionLabel>
-
+        <RowGroup label={t('milestone.sectionLabel', locale)}>
           {milestones.length === 0 ? (
-            <Text className="text-[13px] text-faint">{t('milestone.empty.hint', locale)}</Text>
-          ) : (
-            milestones.map((m) =>
-              isRead ? (
-                <MilestoneRow
-                  key={m.id}
-                  name={m.body}
-                  status={m.status}
-                  locale={locale}
-                  helpState={helpStateById?.[m.id] ?? 'available'}
-                  onHelp={onHelpMilestone ? () => onHelpMilestone(m.id) : undefined}
-                />
-              ) : (
-                <MilestoneRow
-                  key={m.id}
-                  name={m.body}
-                  status={m.status}
-                  locale={locale}
-                  mutating={mutatingMilestoneId === m.id}
-                  onMarkDone={onMarkMilestoneDone ? () => onMarkMilestoneDone(m.id) : undefined}
-                  onDelete={onDeleteMilestone ? () => onDeleteMilestone(m.id) : undefined}
-                />
-              ),
-            )
-          )}
-
-          {!isRead && onAddMilestone ? (
-            <Pressable
-              accessibilityRole="button"
-              className="flex-row items-center gap-3 pt-1"
-              hitSlop={8}
-              onPress={onAddMilestone}
-            >
-              <Text className="text-base text-aura">＋</Text>
-              <Text className="text-[15px] text-faint">{t('milestone.addRow', locale)}</Text>
-            </Pressable>
+            <Text className="py-4 type-small text-muted-foreground">
+              {t('milestone.empty.hint', locale)}
+            </Text>
           ) : null}
-
-          {!isRead ? incomingSlot : null}
-        </View>
+          {milestones.map((m) =>
+            isRead ? (
+              <MilestoneRow
+                key={m.id}
+                name={m.body}
+                status={m.status}
+                locale={locale}
+                helpState={helpStateById?.[m.id] ?? 'available'}
+                onHelp={onHelpMilestone ? () => onHelpMilestone(m.id) : undefined}
+              />
+            ) : (
+              <MilestoneRow
+                key={m.id}
+                name={m.body}
+                status={m.status}
+                locale={locale}
+                mutating={mutatingMilestoneId === m.id}
+                onMarkDone={onMarkMilestoneDone ? () => onMarkMilestoneDone(m.id) : undefined}
+                onDelete={onDeleteMilestone ? () => onDeleteMilestone(m.id) : undefined}
+              />
+            ),
+          )}
+          {/* The add row is a `Row` led by the drawn `add` (a typed «＋» in cyan until
+              2026-10-05), named by its label. */}
+          {!isRead && onAddMilestone ? (
+            <Row
+              leading={<AddIcon color={galleria.foreground} />}
+              title={t('milestone.addRow', locale)}
+              showChevron={false}
+              onPress={onAddMilestone}
+            />
+          ) : null}
+        </RowGroup>
       ) : null}
 
-      {dream && onMakeHappen ? (
-        <Button label={t('dream.makeHappenCta', locale)} variant="light" onPress={onMakeHappen} />
-      ) : null}
-    </View>
+      {!isRead && showTappe ? incomingSlot : null}
+    </>
   );
 }

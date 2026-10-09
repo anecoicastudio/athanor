@@ -8,9 +8,25 @@ import { useAvatarUrl } from '@/lib/media/avatar-url';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 /**
- * Circle avatar (DESIGN.md §8). Renders the member's photo when they have set one, and the
- * initial otherwise — the fallback is a first-class state, not a placeholder for a missing
- * upload, because name and photo are optional by product decision (#75).
+ * The avatar's sizes (DESIGN §9), each with the size of its initial as the prototype draws it.
+ * `size` is typed from this table, so a call site cannot invent a sixth. Until 2026-10-05
+ * (#921) the story ring held one, 60; its disc is the 56 now.
+ */
+const INITIAL_SIZE = {
+  30: 12,
+  44: 15,
+  56: 15,
+  72: 24,
+  104: 34,
+} as const;
+
+export type AvatarSize = keyof typeof INITIAL_SIZE;
+
+/**
+ * Circle avatar (DESIGN.md §9): a `surface` disc with a hairline. Renders the member's photo
+ * when they have set one, and the initial otherwise — the fallback is a first-class state, not
+ * a placeholder for a missing upload, because name and photo are optional by product decision
+ * (#75).
  *
  * The initial comes from `displayName` when there is one and the handle otherwise, so a member
  * called «Stella» is an S rather than the letter their handle happens to start with.
@@ -34,7 +50,7 @@ export function Avatar({
   decorative = false,
 }: {
   handle: string | null;
-  size?: number;
+  size?: AvatarSize;
   /** Optional human name (#76) — sources the initial and the screen-reader label. */
   displayName?: string | null;
   /**
@@ -43,10 +59,15 @@ export function Avatar({
    */
   avatarPath?: string | null;
   /**
-   * A local `file://` URI to draw INSTEAD of the signed key (#636). The profile editor stages a
-   * picked photo without uploading it, so between the pick and Save there is no storage key to
-   * sign — and the old behaviour, uploading on pick to get one, overwrote the member's live
-   * avatar before they had agreed to the change.
+   * A ready uri to draw INSTEAD of the signed key: a local `file://` pick (#636) or a url that
+   * is already signed. The profile editor stages a picked photo without uploading it, so between
+   * the pick and Save there is no storage key to sign — and the old behaviour, uploading on pick
+   * to get one, overwrote the member's live avatar before they had agreed to the change.
+   *
+   * Since 2026-10-09 it has a second caller, `(modal)/dream/[id]`: the public dream read-model
+   * hands over a url that is already signed and never a storage key, so there is no key to
+   * sign there either. Any ready uri is drawn as given, and one that fails to load falls back
+   * to the initial like a signed one.
    */
   previewUri?: string | null;
   /**
@@ -71,7 +92,7 @@ export function Avatar({
 
   return (
     <View
-      className="items-center justify-center overflow-hidden rounded-full bg-surface-muted"
+      className="items-center justify-center overflow-hidden rounded-full border border-hair bg-surface"
       style={{ width: size, height: size }}
       // Labelled, it names the person either way, so a screen reader reads the same thing
       // whether or not the photo resolved. Decorative, it carries no label at all: a label on a
@@ -103,7 +124,7 @@ export function Avatar({
         <Text
           className="font-semibold text-foreground"
           maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
-          style={{ fontSize: Math.round(size * 0.4) }}
+          style={{ fontSize: INITIAL_SIZE[size] }}
         >
           {initial}
         </Text>

@@ -14,7 +14,7 @@ import {
   remoteConfigKeys,
   startCheckout,
 } from '@athanor/api';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import { circleAnnualSavings, formatPrice } from '@athanor/core';
 import { t } from '@athanor/i18n';
 import type { CirclePlan } from '@athanor/schemas';
@@ -230,7 +230,7 @@ export default function CircleScreen() {
       <Screen {...MODAL_A11Y}>
         <ModalHeader title={t('circle.title', locale)} backLabel={t('common.back', locale)} />
         <View className="flex-1 items-center justify-center gap-4 px-5">
-          <ActivityIndicator color={semantic.aura} />
+          <ActivityIndicator color={galleria.foreground} />
         </View>
       </Screen>
     );
@@ -348,7 +348,7 @@ export default function CircleScreen() {
         {/* 1. FeatureCard violet — pitch block */}
         <View className="rounded-card border border-hair bg-raise p-5 gap-4">
           {/* Eyebrow */}
-          <SectionLabel tone="aura">{t('circle.eyebrow', locale)}</SectionLabel>
+          <SectionLabel>{t('circle.eyebrow', locale)}</SectionLabel>
 
           {/* Headline */}
           <Text accessibilityRole="header" className="text-[22px] font-bold text-foreground">
@@ -395,8 +395,8 @@ export default function CircleScreen() {
         {/* 3. Six benefit rows (non-member: all shown, locked visual for Fase-2) */}
         <View className="gap-2">{benefitList(false)}</View>
 
-        {/* 4. Join CTA (non-iOS) — flat cyan, no glow: a subscription checkout is
-            commerce, not a moment-grade event (rule #4 / DESIGN §2.3).
+        {/* 4. Join CTA (non-iOS) — the `primary` pill: a subscription checkout is
+            commerce, an ordinary action (DESIGN §9).
             On iOS the in-app Stripe subscribe button is forbidden (Apple 3.1.1 /
             S-IAP-1); show a neutral, non-steering note instead. Apple IAP deferred. */}
         {Platform.OS === 'ios' ? (
@@ -426,7 +426,7 @@ export default function CircleScreen() {
           </View>
         ) : checkoutGate === 'loading' ? (
           <View className="items-center py-2">
-            <ActivityIndicator color={semantic.aura} />
+            <ActivityIndicator color={galleria.foreground} />
           </View>
         ) : checkoutGate === 'closed' ? (
           // Checkout not open yet (#747): the same quiet line as the iOS arm, no button, no
@@ -440,7 +440,7 @@ export default function CircleScreen() {
               price: formatPrice(prices[plan].unitAmount, prices[plan].currency, locale),
             })}
             onPress={() => void onJoin()}
-            variant="light"
+            variant="primary"
             disabled={checkoutPhase !== 'idle'}
             // `loading` instead of the old '…' label swap: the spinner + busy state are
             // what Button implements for exactly this, and «…» was unpronounceable to

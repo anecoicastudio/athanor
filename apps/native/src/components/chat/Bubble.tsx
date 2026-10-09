@@ -2,13 +2,14 @@ import { useRouter } from 'expo-router';
 import { memberLabel } from '@athanor/core';
 import { type Locale, type MessageKey, t } from '@athanor/i18n';
 import type { Message } from '@athanor/schemas';
-import { Pressable, Text, View } from '@/tw';
+import { Pressable, Text, View, cn } from '@/tw';
 import { HIT_SLOP } from '@/lib/a11y';
+import { PRESS_DIM } from '@/lib/press';
 import { Avatar } from '@/components/Avatar';
 import { MediaFrame } from '@/components/media/MediaFrame';
 
 /** Small enough to sit under a bubble's last line without stealing width from the text. */
-const AVATAR_SIZE = 28;
+const AVATAR_SIZE = 30;
 
 /** Module-scope so the array is not rebuilt on every bubble render of a long thread. */
 const LONG_PRESS_ACTION = [{ name: 'longpress' as const }];
@@ -70,16 +71,32 @@ function BubbleImage({
       url={url}
       isLoading={isLoading}
       locale={locale}
-      className="overflow-hidden rounded-xl bg-raise-2"
+      className="overflow-hidden rounded-[14px] bg-background"
       style={{ width: IMAGE_WIDTH, aspectRatio: IMAGE_RATIO }}
     />
   );
 }
 
 /**
- * One chat message. `me` (own, aura tint — the "me" bubble is an allowed cyan surface, rule #4),
- * `them` (peer, raised surface), or `sys`/`prompt` ice-breakers (centered, server-authored by key).
- * No glow on bubbles (rule #4 — glow is for moment-grade events only).
+ * The words of a server-authored row: the Momento banner (`system`) or one of the three
+ * ice-breaker prompts (`prompt`). `prompt_key` is server-controlled (the four keys exist in both
+ * catalogs); the cast is guarded anyway, so an unknown key falls back to the body rather than
+ * rendering `undefined`. The chat screen draws the prompts itself, as pills, with this.
+ */
+export function serverLine(message: Message, locale: Locale): string {
+  return (
+    (message.prompt_key ? t(message.prompt_key as MessageKey, locale) : undefined) ??
+    message.body ??
+    ''
+  );
+}
+
+/**
+ * One chat message (DESIGN §8.8; Galleria since 2026-10-09, #921). Own: the white fill with
+ * black text, at the right. The peer's: charcoal `surface` with a hairline, at the left. Both
+ * radius 20, the text in body size. A server-authored row (the Momento banner, or a prompt that
+ * reaches this component) is a centred small grey italic line. Nothing here is cyan and nothing
+ * glows: a sent message is not one of the five marks (DESIGN §2.3).
  *
  * Incoming bubbles carry the peer's small avatar (#76). DESIGN.md §8 lists Avatar for the top
  * bar and the profile hero and says nothing about bubbles, so this is a deliberate addition
@@ -127,61 +144,64 @@ export function Bubble({
 }) {
   const router = useRouter();
   if (message.kind === 'system' || message.kind === 'prompt') {
-    // prompt_key is server-controlled (the 4 ice-breaker keys exist in both catalogs); guard the
-    // cast anyway so an unknown key falls back to body rather than rendering `undefined`.
-    const label =
-      (message.prompt_key ? t(message.prompt_key as MessageKey, locale) : undefined) ??
-      message.body ??
-      '';
     return (
-      <View className="my-1 items-center px-6">
-        <Text className="text-center text-[13px] italic leading-5 text-faint">{label}</Text>
+      <View className="my-1.5 items-center px-5">
+        <Text className="text-center type-small italic text-muted-foreground">
+          {serverLine(message, locale)}
+        </Text>
       </View>
     );
   }
   const mine = message.sender_id === myId;
   // A body-less image renders the frame alone; a caption sits under its image in one bubble.
-  // ONE content block for both arms — only the text color differs, so a change to the media
+  // ONE content block for both arms — only the text colour differs, so a change to the media
   // or caption layout cannot land on one side and drift the other.
   const hasMedia = Boolean(message.media_url);
   const content = (textClass: string) => (
     <>
       {hasMedia ? <BubbleImage url={mediaUrl} isLoading={mediaLoading} locale={locale} /> : null}
       {message.body ? (
-        <Text className={`text-[15px] leading-5 ${textClass} ${hasMedia ? 'px-2.5 py-1.5' : ''}`}>
+        <Text className={cn('type-body', textClass, hasMedia ? 'px-2.5 py-1.5' : null)}>
           {message.body}
         </Text>
       ) : null}
     </>
   );
-  const bubblePad = hasMedia ? 'p-1.5' : 'px-4 py-2';
+  // The prototype's `.me` / `.you` padding (10 and 16). A photo takes 6 instead, so its
+  // radius-14 frame follows the bubble's radius-20 corner.
+  const bubblePad = hasMedia ? 'p-1.5' : 'px-4 py-[10px]';
   // The tap only exists where there is something to open. A text bubble stays a plain View for
   // the same reason an unreportable one does: the affordance is what makes a surface an
   // accessibility element, and a bubble with none must not become one.
   const canOpenPhoto = hasMedia && onImagePress != null;
   if (mine) {
-    const own = `rounded-2xl bg-aura ${bubblePad}`;
+    const own = cn('rounded-[20px] bg-foreground', bubblePad);
     return (
-      <View className="my-1 max-w-[80%] self-end">
+      <View className="my-1.5 max-w-[80%] self-end">
         {canOpenPhoto ? (
           <Pressable
-            className={own}
+            className={cn(own, PRESS_DIM)}
             onPress={onImagePress}
             accessibilityRole="button"
             accessibilityLabel={bubbleLabel(message, locale)}
             accessibilityHint={bubbleHint(locale, true, false)}
           >
-            {content('text-on-aura')}
+            {content('text-background')}
           </Pressable>
         ) : (
-          <View className={own}>{content('text-on-aura')}</View>
+          <View className={own}>{content('text-background')}</View>
         )}
       </View>
     );
   }
-  const peerBubble = `flex-1 rounded-2xl border border-hair bg-raise ${bubblePad}`;
+  // `shrink`, not `flex-1` (2026-10-09): the bubble is as wide as its words or its photo, up to
+  // what the row leaves it (the row is capped at 80% and holds the avatar's gutter and the gap),
+  // as the prototype's `.you`. With `flex-1` every incoming bubble took all of it and a photo
+  // stood beside a blank band. Seen that day on the iPhone SE simulator (default
+  // and AX5) and on the moto g17 (font scale 1.0 and 2.0): a one-line message kept all its words.
+  const peerBubble = cn('shrink rounded-[20px] border border-hair bg-surface', bubblePad);
   return (
-    <View className="my-1 max-w-[80%] flex-row items-end gap-2 self-start">
+    <View className="my-1.5 max-w-[80%] flex-row items-end gap-2 self-start">
       {/* The gutter is always AVATAR_SIZE wide; only the last bubble of a run fills it.
           The face taps through to the peer's profile (#356) — same link as the header
           identity block, so a reader deep in a thread never has to scroll up to reach it. */}
@@ -193,6 +213,7 @@ export function Bubble({
               name: memberLabel(peer?.displayName, peer?.handle) ?? '—',
             })}
             hitSlop={HIT_SLOP}
+            className={PRESS_DIM}
             onPress={() => router.push(`/(modal)/user/${message.sender_id}`)}
           >
             <Avatar
@@ -207,7 +228,7 @@ export function Bubble({
       </View>
       {onLongPress || canOpenPhoto ? (
         <Pressable
-          className={peerBubble}
+          className={cn(peerBubble, PRESS_DIM)}
           // Both gestures on ONE Pressable, never two nested ones: on iOS the inner control
           // would be unreachable to VoiceOver (source-audit §21), and a fresh Pressable around
           // the image is exactly the shape that would take the report affordance away from the

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { t } from '@athanor/i18n';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { ModalHeader } from '@/components/ModalHeader';
+import { HeaderClose, ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
+import { Tag } from '@/components/Tag';
 import { useCircleSurface } from '@/hooks/use-circle-surface';
 import { useEntitlement } from '@/hooks/use-entitlement';
 import { useLocale } from '@/hooks/use-locale';
@@ -43,8 +44,13 @@ import {
  * wiring them now would silently pass an ignored param. They show «in arrivo» to be
  * honest about the status.
  *
- * Rule #4: cyan chips (auraSoft) are CORRECT here — selected advanced-filter chips are
- * an active accent / selection affordance, not a glow. No literal hex below.
+ * A selected advanced-filter chip is `Chip`'s foreground fill: rule 4 keeps cyan off
+ * every selected state. No literal hex below.
+ *
+ * Galleria (2026-10-06, #921): no card; the blocks stand on the stage 26 apart, a label 8
+ * above its chips and 6 above its field; the close is the drawn icon; «Azzera» is the outline
+ * pill, 8 under «Applica». The prototype draws this screen as a sheet with a grab handle:
+ * the route is still a pushed modal.
  */
 
 export default function SearchFiltersScreen() {
@@ -103,30 +109,21 @@ export default function SearchFiltersScreen() {
         title={t('search.filterSheet.title', locale)}
         backLabel={t('common.back', locale)}
         fallbackHref="/(modal)/search"
-        right={
-          <Pressable
-            onPress={cancel}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.cancel', locale)}
-            hitSlop={8}
-          >
-            <Text className="text-[22px] text-muted-foreground">×</Text>
-          </Pressable>
-        }
+        right={<HeaderClose label={t('common.cancel', locale)} onPress={cancel} />}
       />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-16"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
         {/* ── Sub ── */}
-        <Text className="text-[14px] leading-relaxed text-muted-foreground">
+        <Text className="type-small text-muted-foreground">
           {t('search.filterSheet.sub', locale)}
         </Text>
 
         {/* ── Aura minima ── */}
-        <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.aura', locale)}</SectionLabel>
+        <View className="gap-2">
+          <SectionLabel>{t('search.filter.section.aura', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {AURA_BUCKETS.map((bucket) => (
               <Chip
@@ -140,8 +137,8 @@ export default function SearchFiltersScreen() {
         </View>
 
         {/* ── Città ── */}
-        <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.city', locale)}</SectionLabel>
+        <View className="gap-1.5">
+          <SectionLabel>{t('search.filter.section.city', locale)}</SectionLabel>
           <Input
             placeholder={t('search.filter.city.placeholder', locale)}
             value={city}
@@ -153,8 +150,8 @@ export default function SearchFiltersScreen() {
         </View>
 
         {/* ── Stella ── */}
-        <View className="gap-3">
-          <SectionLabel tone="foreground">{t('search.filter.section.star', locale)}</SectionLabel>
+        <View className="gap-2">
+          <SectionLabel>{t('search.filter.section.star', locale)}</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {STAR_VALUES.map((s) => (
               <Chip
@@ -168,39 +165,30 @@ export default function SearchFiltersScreen() {
         </View>
 
         {/* ── Disponibilità (disabled — backend param not yet implemented) ── */}
-        <View className="gap-3 opacity-40">
-          <View className="flex-row items-center gap-2">
-            <SectionLabel tone="foreground">
-              {t('search.filter.section.availability', locale)}
-            </SectionLabel>
-            <Text className="text-[11px] text-muted-foreground">
-              ({t('circle.benefit.soon', locale)})
-            </Text>
+        <View className="gap-2 opacity-40">
+          <View className="flex-row flex-wrap items-center gap-x-2">
+            <SectionLabel>{t('search.filter.section.availability', locale)}</SectionLabel>
+            <SectionLabel>({t('circle.benefit.soon', locale)})</SectionLabel>
           </View>
-          <View className="flex-row flex-wrap gap-2">
+          <View
+            className="flex-row flex-wrap gap-2"
+            // `Tag`s, not `Chip`s: intentionally non-interactive until the backend ships.
+            // Both flags: `accessibilityElementsHidden` is iOS-only, so without the Android
+            // sibling these three were hidden on one platform and announced on the other —
+            // the lone unpaired site in the tree (#635).
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             {(['now', 'week', 'project'] as const).map((slot) => (
-              <View
-                key={slot}
-                className="rounded-full border border-hair bg-raise-2 px-5 py-3"
-                // Not a Pressable — intentionally non-interactive until backend ships.
-                // Both flags: `accessibilityElementsHidden` is iOS-only, so without the Android
-                // sibling these three were hidden on one platform and announced on the other —
-                // the lone unpaired site in the tree (#635).
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                <Text className="text-foreground">
-                  {t(`search.filter.availability.${slot}`, locale)}
-                </Text>
-              </View>
+              <Tag key={slot} label={t(`search.filter.availability.${slot}`, locale)} />
             ))}
           </View>
         </View>
 
         {/* ── Footer ── */}
-        <View className="gap-3 pt-2">
-          <Button label={t('common.apply', locale)} variant="light" onPress={handleApply} />
-          <Button label={t('common.reset', locale)} variant="ghost" onPress={handleReset} />
+        <View className="gap-2">
+          <Button label={t('common.apply', locale)} variant="primary" onPress={handleApply} />
+          <Button label={t('common.reset', locale)} variant="outline" onPress={handleReset} />
         </View>
       </ScrollView>
     </Screen>

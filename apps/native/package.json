@@ -1,7 +1,7 @@
 {
   "name": "native",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "start": "expo start --go",
     "start:dev-client": "EXPO_PUBLIC_APP_VARIANT=development expo start --dev-client",

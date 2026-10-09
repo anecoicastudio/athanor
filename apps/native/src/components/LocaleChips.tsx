@@ -14,28 +14,24 @@ import { Chip } from '@/components/Chip';
 export function LocaleChips({
   value,
   onChange,
-  small = false,
 }: {
   value: Locale;
   onChange: (next: Locale) => void;
-  small?: boolean;
 }) {
   return (
     <View
-      className={small ? 'flex-row gap-2' : 'flex-row gap-3'}
+      className="flex-row gap-2"
       accessibilityRole="radiogroup"
       accessibilityLabel={t('settings.lang.title', value)}
     >
       <Chip
         role="radio"
-        small={small}
         label={t('lang.it', value)}
         selected={value === 'it'}
         onPress={() => onChange('it')}
       />
       <Chip
         role="radio"
-        small={small}
         label={t('lang.en', value)}
         selected={value === 'en'}
         onPress={() => onChange('en')}

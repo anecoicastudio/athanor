@@ -31,7 +31,7 @@ function PhaseRow({
           active ? 'bg-aura' : 'bg-raise'
         }`}
       >
-        {/* `ornament` (#639): a step counter in a hard 21pt disc. Growing it would take the
+        {/* `ornament` (#639): a step counter in a hard 24pt disc. Growing it would take the
             circle to an ellipse — height by the line box, width by the advance — and the
             number only restates the row's own position; the phase title and description
             beside it carry the meaning, and the row reads all three as one string. */}

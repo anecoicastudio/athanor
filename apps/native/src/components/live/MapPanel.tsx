@@ -44,13 +44,12 @@ export function MapPanel({
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="gap-2 px-5 pb-4"
       >
-        {/* `Chip small` (#635). Role and label were already right; `selected` was missing, so
+        {/* `Chip` (#635). Role and label were already right; `selected` was missing, so
             the filtered city was cyan and nothing else — and the pill missed 44pt. `Chip` takes
             the same string for its label and its text, which is what these two lines were. */}
         {cityCounts.map(([c, n]) => (
           <Chip
             key={c}
-            small
             label={t('live.map.cityCount', locale, { city: c, n })}
             selected={c === cityFilter}
             onPress={() => setCityFilter(c === cityFilter ? null : c)}

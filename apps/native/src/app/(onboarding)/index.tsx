@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { semantic } from '@athanor/config';
+import { galleria } from '@athanor/config';
 import {
   IDENTITY_TAGS,
   MIN_MEMBER_AGE,
@@ -13,8 +13,9 @@ import {
 import { localeTag, t, tagLabel, type MessageKey } from '@athanor/i18n';
 import { birthDateSchema, type Locale } from '@athanor/schemas';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { Pressable, ScrollView, Text, View, cn } from '@/tw';
 import { Button } from '@/components/Button';
+import { BACK_ON_GUTTER, HeaderBack } from '@/components/ModalHeader';
 import { Field } from '@/components/Field';
 import { Chip } from '@/components/Chip';
 import { ZodiacGlyph } from '@/components/glyphs';
@@ -35,6 +36,7 @@ import { flushOnboardingDraft } from '@/lib/flush-onboarding';
 import { loadDraft, saveDraft } from '@/lib/onboarding-draft';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
 import { useRevealOnFocus } from '@/hooks/use-reveal-on-focus';
+import { PRESS_DIM } from '@/lib/press';
 import { Screen } from '@/components/Screen';
 
 /** identity → birth → seeking → dream → face. The last one is skippable and writes nothing required. */
@@ -217,45 +219,35 @@ export default function OnboardingScreen() {
             {/* The back slot is reserved unconditionally (#164): a conditionally rendered
             arrow moved the row's content between step 0 and 1. The slot is a real 44pt tap
             target (DESIGN §10 — the old bare glyph + hitSlop measured ~38pt wide). Literal
-            `min-h-[44px] min-w-[44px]`, not `h-11`: a spacing step is 3.5px on device, so
-            `h-11` is 38.5pt there while measuring a passing 44px on web — the same trap
-            `Input.tsx` documents. -ml-3 keeps the glyph optically near the gutter. Step 0
-            renders a hidden placeholder, not a disabled button, so screen readers gain no
-            phantom control. */}
-            <View className="-ml-3 min-h-[44px] min-w-[44px]">
+            `min-h-[44px] min-w-[44px]`, not `h-11`: until 2026-10-04 (#921) a spacing step was
+            3.5px on device, so `h-11` was 38.5pt there while measuring a passing 44px on web —
+            the trap `Input.tsx` records. `BACK_ON_GUTTER` keeps the drawing near the gutter.
+            Step 0 leaves the slot empty, not a disabled button, so screen readers gain no
+            phantom control. The control is `HeaderBack`, a drawing whose size the member's
+            text size does not move, so the empty slot is as tall as the full one; while the
+            back was the character `‹` it grew at AX sizes and step 0 held an invisible copy
+            to keep the screen from jumping (#754). */}
+            <View className={cn(BACK_ON_GUTTER, 'min-h-[44px] min-w-[44px]')}>
               {step > 0 ? (
-                <Pressable
+                <HeaderBack
+                  label={t('onboarding.back', locale)}
                   onPress={() => setStep((s) => s - 1)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('onboarding.back', locale)}
-                  className="min-h-[44px] min-w-[44px] items-center justify-center"
-                >
-                  <Text className="text-2xl text-foreground">‹</Text>
-                </Pressable>
-              ) : (
-                // Step 0 reserves the glyph's HEIGHT too, not only the 44pt box: at AX sizes
-                // the scaled ‹ makes the button taller than 44, and an empty slot let the whole
-                // screen below it jump between step 0 and 1 (#754). Invisible and silent — no
-                // phantom control.
-                <View
-                  className="min-h-[44px] min-w-[44px] items-center justify-center opacity-0"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                >
-                  <Text className="text-2xl text-foreground">‹</Text>
-                </View>
-              )}
+                />
+              ) : null}
             </View>
             {/* `shrink`: at AX sizes the link may need two lines rather than push the row
             past the gutter; the back slot is the fixed side now. */}
             <Pressable
               onPress={goLogin}
               accessibilityRole="button"
-              // A 13px label + `hitSlop={8}` reached 33pt tall — under §10. The row is
+              // A line of text + `hitSlop={8}` reached 33pt tall — under §10. The row is
               // already 44 tall (the reserved back slot), so a real box costs no layout.
-              className="min-h-[44px] shrink justify-center"
+              // Hand-rolled rather than `Button ghost`: that link centres its words and pads
+              // them 24pt in, and this one sits on the right gutter and wraps to the right.
+              // Same look: small, foreground, underlined — cyan until 2026-10-04 (#921).
+              className={cn('min-h-[44px] shrink justify-center', PRESS_DIM)}
             >
-              <Text className="text-right text-[13px] font-semibold text-aura">
+              <Text className="text-right type-small text-foreground underline">
                 {t('auth.haveAccount', locale)}
               </Text>
             </Pressable>
@@ -268,24 +260,23 @@ export default function OnboardingScreen() {
 
           {/* The active step, TOP-anchored (#754). It was centred on its own height, so the
           heading sat at a different y on every step and jumped again when the keyboard or the
-          date picker changed the space around it. `pt-8` is the fixed gap under the header —
+          date picker changed the space around it. `pt-[26px]` is the fixed gap under the header —
           with the keyboard up the step's own eyebrow no longer rides up into the step bars.
           `grow` keeps the CTA below at the bottom of a short step. */}
-          <View className="grow pt-8">
+          <View className="grow pt-[26px]">
             <View>
               {step === 0 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
-                    {t('onboarding.identity.title', locale)}
-                  </Text>
-                  <Text className="text-muted-foreground">
-                    {t('onboarding.identity.sub', locale)}
-                  </Text>
-                  <View className="flex-row flex-wrap gap-3">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.identity.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.identity.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.identity.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
                     {IDENTITY_TAGS.map((tag) => (
                       <Chip
                         key={tag}
@@ -296,27 +287,26 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                   {/* Locale picker (PRD §4.1, #158) — inline on the first step, no
-                  step of its own. The small variant keeps it visually apart from
-                  the identity tags above. */}
-                  <View className="gap-3 pt-2">
+                  step of its own, under a label that keeps it apart from the identity
+                  tags above. */}
+                  <View className="gap-2">
                     <SectionLabel>{t('onboarding.locale.label', locale)}</SectionLabel>
-                    <LocaleChips small value={locale} onChange={switchLocale} />
+                    <LocaleChips value={locale} onChange={switchLocale} />
                   </View>
                 </View>
               ) : null}
 
               {step === 1 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
-                    {t('onboarding.birth.title', locale)}
-                  </Text>
-                  <Text className="text-muted-foreground">
-                    {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
-                  </Text>
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.birth.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.birth.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.birth.sub', locale, { age: MIN_MEMBER_AGE })}
+                    </Text>
+                  </View>
                   {Platform.OS === 'web' ? (
                     // QA fallback only: @react-native-community/datetimepicker renders NOTHING
                     // on react-native-web (its src/datetimepicker.js warns «not supported on:
@@ -337,12 +327,17 @@ export default function OnboardingScreen() {
                       />
                     </View>
                   ) : (
+                    // The date pill: a field's shape (`surface`, fully round, at least 50pt,
+                    // no border) on a control that opens the wheel instead of a keyboard.
                     <Pressable
                       onPress={() => setShowPicker(true)}
                       accessibilityRole="button"
-                      className="rounded-card border border-hair bg-raise p-5"
+                      className={cn(
+                        'min-h-[50px] justify-center rounded-full bg-surface px-5 py-3',
+                        PRESS_DIM,
+                      )}
                     >
-                      <Text className="text-[15px] text-foreground">
+                      <Text className="type-body text-foreground">
                         {birthDate
                           ? calendarDay(birthDate, locale)
                           : t('onboarding.birth.pick', locale)}
@@ -372,22 +367,22 @@ export default function OnboardingScreen() {
                     />
                   ) : null}
                   {tooYoung ? (
-                    <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                    <Text className="text-[14px] text-error" accessibilityLiveRegion="polite">
                       {t('onboarding.birth.tooYoung', locale, { age: MIN_MEMBER_AGE })}
                     </Text>
                   ) : null}
                   {sign && !tooYoung ? (
                     <Animated.View style={{ opacity: revealOpacity }}>
-                      <View className="flex-row items-center gap-3 pt-2">
+                      <View className="flex-row items-center gap-3">
                         {/* The drawing is decorative; the line beside it is the announcement. */}
                         <View
                           accessibilityElementsHidden
                           importantForAccessibility="no-hide-descendants"
                         >
-                          <ZodiacGlyph sign={sign} size={32} color={semantic.ink2} />
+                          <ZodiacGlyph sign={sign} size={32} color={galleria.foreground} />
                         </View>
                         <Text
-                          className="text-lg font-semibold text-foreground"
+                          className="type-body font-semibold text-foreground"
                           accessibilityLiveRegion="polite"
                         >
                           {t('onboarding.birth.reveal', locale, {
@@ -401,18 +396,17 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 2 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
-                    {t('onboarding.seeking.title', locale)}
-                  </Text>
-                  <Text className="text-muted-foreground">
-                    {t('onboarding.seeking.sub', locale)}
-                  </Text>
-                  <View className="flex-row flex-wrap gap-3">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.seeking.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.seeking.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.seeking.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
                     {SEEKING_TAGS.map((tag) => (
                       <Chip
                         key={tag}
@@ -426,15 +420,16 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 3 ? (
-                <View className="gap-4">
-                  <SectionLabel tone="aura">{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
-                    {t('onboarding.dream.title', locale)}
-                  </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.dream.sub', locale)}</Text>
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.dream.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.dream.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.dream.sub', locale)}
+                    </Text>
+                  </View>
                   <View ref={reveal.rowRef('dream')}>
                     <Field
                       {...reveal.fieldProps('dream')}
@@ -451,19 +446,20 @@ export default function OnboardingScreen() {
               ) : null}
 
               {step === 4 ? (
-                <View className="gap-4">
-                  <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
-                  <Text
-                    accessibilityRole="header"
-                    className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-                  >
-                    {t('onboarding.face.title', locale)}
-                  </Text>
-                  <Text className="text-muted-foreground">{t('onboarding.face.sub', locale)}</Text>
-                  <View className="items-center gap-4 pt-2">
+                <View className="gap-[26px]">
+                  <View className="gap-2">
+                    <SectionLabel>{t('onboarding.face.eyebrow', locale)}</SectionLabel>
+                    <Text accessibilityRole="header" className="type-h1 text-foreground">
+                      {t('onboarding.face.title', locale)}
+                    </Text>
+                    <Text className="type-small text-muted-foreground">
+                      {t('onboarding.face.sub', locale)}
+                    </Text>
+                  </View>
+                  <View className="items-center gap-2">
                     {/* No Avatar here: it resolves a STORAGE key through a signed URL, and this
                     photo has no key yet — it is a local file that nobody has uploaded. */}
-                    <View className="h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface-muted">
+                    <View className="h-[104px] w-[104px] items-center justify-center overflow-hidden rounded-full border border-hair bg-surface">
                       {avatarUri ? (
                         <Image
                           source={{ uri: avatarUri }}
@@ -474,8 +470,8 @@ export default function OnboardingScreen() {
                         // The empty avatar slot's placeholder. Decorative: the «Aggiungi una
                         // foto» control below is what names this (#635).
                         <Text
-                          className="text-[40px] text-faint"
-                          // `ornament` (#639): a 40px mark inside a hard 116pt disc, already
+                          className="text-[34px] text-muted-foreground"
+                          // `ornament` (#639): a 34px mark inside a hard 104pt disc, already
                           // hidden from assistive tech — scaling it only pushes it out.
                           maxFontSizeMultiplier={FONT_SCALE_CAP.ornament}
                           accessibilityElementsHidden
@@ -485,32 +481,27 @@ export default function OnboardingScreen() {
                         </Text>
                       )}
                     </View>
-                    {/* The only control that performs step 5 — the 116pt avatar above is a
-                    View, not a target. Bare, it was a 15px line box ≈19.5pt tall (§10). */}
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setSheetOpen(true)}
-                      className="min-h-[44px] justify-center px-4"
-                    >
-                      <Text className="text-[15px] font-semibold text-aura">
-                        {avatarUri
+                    {/* The only control that performs step 5 — the 104pt avatar above is a
+                    View, not a target. The shared text link, in its 44pt box (§10); it was a
+                    cyan line until 2026-10-04 (#921). */}
+                    <Button
+                      variant="ghost"
+                      label={
+                        avatarUri
                           ? t('onboarding.face.change', locale)
-                          : t('onboarding.face.add', locale)}
-                      </Text>
-                    </Pressable>
+                          : t('onboarding.face.add', locale)
+                      }
+                      onPress={() => setSheetOpen(true)}
+                    />
                     {avatarUri ? (
-                      <Pressable
-                        accessibilityRole="button"
+                      <Button
+                        variant="ghost"
+                        label={t('onboarding.face.remove', locale)}
                         onPress={() => {
                           setAvatarUri(null);
                           void persist({ avatar_uri: null });
                         }}
-                        className="min-h-[44px] justify-center px-4"
-                      >
-                        <Text className="text-[13px] text-muted-foreground">
-                          {t('onboarding.face.remove', locale)}
-                        </Text>
-                      </Pressable>
+                      />
                     ) : null}
                   </View>
                 </View>
@@ -518,12 +509,12 @@ export default function OnboardingScreen() {
             </View>
           </View>
 
-          {/* CTA pinned at the bottom — cyan «light» button per the prototype. */}
+          {/* CTA pinned at the bottom — the `primary` pill. */}
           {/* Rides along with the revealed field, so «Continua» is never left under the keyboard. */}
-          <View className="mt-6" ref={reveal.submitRef()}>
+          <View className="mt-[26px]" ref={reveal.submitRef()}>
             {step < STEPS - 1 ? (
               <Button
-                variant="light"
+                variant="primary"
                 label={t('onboarding.next', locale)}
                 accessibilityLabel={t('onboarding.next', locale)}
                 disabled={!canNext}
@@ -532,12 +523,12 @@ export default function OnboardingScreen() {
             ) : (
               <View className="gap-3">
                 {finishFailed ? (
-                  <Text className="text-sm text-error" accessibilityLiveRegion="polite">
+                  <Text className="text-[14px] text-error" accessibilityLiveRegion="polite">
                     {t('onboarding.error.submit', locale)}
                   </Text>
                 ) : null}
                 <Button
-                  variant="light"
+                  variant="primary"
                   label={t(session ? 'onboarding.next' : 'onboarding.createAccount', locale)}
                   accessibilityLabel={t(
                     session ? 'onboarding.next' : 'onboarding.createAccount',

@@ -113,14 +113,11 @@ export default function HandleStepScreen() {
           </View>
 
           <View className="grow justify-center">
-            <View className="gap-4">
-              <Text
-                accessibilityRole="header"
-                className="text-[30px] font-bold tracking-[-0.02em] text-foreground"
-              >
+            <View className="gap-[14px]">
+              <Text accessibilityRole="header" className="type-h1 text-foreground">
                 {t('onboarding.handle.title', locale)}
               </Text>
-              <Text className="text-muted-foreground">
+              <Text className="type-small text-muted-foreground">
                 {t(
                   suggested !== null && suggested === handle
                     ? 'onboarding.handle.subSuggested'
@@ -128,23 +125,28 @@ export default function HandleStepScreen() {
                   locale,
                 )}
               </Text>
-              <HandleField
-                value={handle}
-                onChangeText={onChangeHandle}
-                status={status}
-                locale={locale}
-                refusal={refusalNow}
-                // With a name to suggest from, the keyboard stays down: the suggestion and the
-                // button are the screen, and the field is one tap away for whoever wants another.
-                autoFocus={candidates.length === 0}
-                onSubmitEditing={() => void submit()}
-              />
+              {/* The field's visible name. `HandleField` names the input for assistive tech
+                  with the same key; the profile editor draws its own label over it. */}
+              <View className="gap-[6px]">
+                <SectionLabel>{t('handle.label', locale)}</SectionLabel>
+                <HandleField
+                  value={handle}
+                  onChangeText={onChangeHandle}
+                  status={status}
+                  locale={locale}
+                  refusal={refusalNow}
+                  // With a name to suggest from, the keyboard stays down: the suggestion and the
+                  // button are the screen, and the field is one tap away for whoever wants another.
+                  autoFocus={candidates.length === 0}
+                  onSubmitEditing={() => void submit()}
+                />
+              </View>
             </View>
           </View>
 
-          <View className="mt-6">
+          <View className="mt-[26px]">
             <Button
-              variant="light"
+              variant="primary"
               label={t('onboarding.next', locale)}
               accessibilityLabel={t('onboarding.next', locale)}
               disabled={!canSubmit}

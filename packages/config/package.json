@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens": "./src/tokens.ts",
+    "./contrast": "./src/contrast.ts",
     "./tsconfig/*": "./tsconfig/*",
     "./eslint/library": "./eslint/library.js"
   },
