@@ -46,7 +46,7 @@ export function spoken(label: string): string {
     .trim();
 }
 
-/** The glyph for a star's binary state. Callers still choose the colour (`aura` / `faint`). */
+/** The glyph for a star's binary state. Callers still choose the colour (foreground lit, grey unlit). */
 export function star(lit: boolean): string {
   return lit ? STAR.lit : STAR.unlit;
 }

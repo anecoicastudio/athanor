@@ -57,8 +57,8 @@ const DEFAULT_PADDING = 'px-8 pt-24';
  * live in a `ListEmptyComponent`, in a full-screen early return, and inline in a `ScrollView`,
  * and the paddings differ. Same division `MediaFrame` draws for the media surfaces (#135).
  *
- * The retry is `Button variant="ghost"`, which is what `payments`, `my-events`, `aura`,
- * `aura/ledger` and `recap` already use. Deliberately NOT a pill: an error state is the one
+ * The retry is `Button variant="ghost"`, which is what `payments`, `my-events` and `recap`
+ * already use (`aura/ledger` draws this component). Deliberately NOT a pill: an error state is the one
  * place the eye should be pulled by the message, not by the control under it. (Until Galleria
  * the other error branches hand-rolled a cyan framed pill here; the choice predates it.)
  *

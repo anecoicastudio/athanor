@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { t, type MessageKey } from '@athanor/i18n';
-import { Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { useLocale } from '@/hooks/use-locale';
 import { useAnimatedValue } from '@/hooks/use-animated-value';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { Button } from '@/components/Button';
-import { Mandorla } from '@/components/Mandorla';
+import { CelebrationMark } from '@/components/CelebrationMark';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MODAL_A11Y, useAnnounceOnMount } from '@/lib/a11y';
 import { useGuardedBack } from '@/lib/modal-exit';
@@ -17,9 +17,13 @@ import { Screen } from '@/components/Screen';
  * Level-up overlay — fired when the score-engine broadcasts a `tier_up` celebration.
  * Route param `tier` is a tier id (e.g. 'bagliore', 'luce', 'faro', 'costellazione').
  *
- * The overlay pattern match.tsx had until 2026-10-07: centered Animated.View fade + scale
- * entrance, the ✦ inside a hairline <Mandorla> (rule 4 — a moment happened: tier crossed),
- * reduced-motion safe (opacity-in only, no transform, hold ~600ms entrance).
+ * One of the five celebration screens, in the composition they share (DESIGN §2.3, §8.12;
+ * Galleria, 2026-10-09, #921): `CelebrationMark`, one cyan label, the h1, one grey line, the
+ * cyan pill. No card, no glow, and no Aura number. It scrolls because nothing here is capped.
+ *
+ * The screen fades in and the mark flashes once (DESIGN §10's one effect), as on match:
+ * the scale stands around the mark only. Reduced-motion safe: under Reduce Motion the screen
+ * fades and nothing moves.
  *
  * Registered with `animation: 'fade'` (not presentation:'modal') like match.tsx.
  */
@@ -56,30 +60,26 @@ export default function LevelOverlay() {
 
   return (
     <Animated.View {...MODAL_A11Y} style={{ opacity, flex: 1 }}>
-      <Screen className="items-center justify-center pl-8 pr-8">
-        <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
-          {/* the mandorla around the ✦ — a hairline, no glow (rule 4): a moment happened */}
-          <Mandorla size={96}>
-            <Text className="text-3xl text-aura">✦</Text>
-          </Mandorla>
-        </Animated.View>
+      <Screen>
+        <ScrollView contentContainerClassName="grow items-center justify-center gap-[26px] px-5 py-12">
+          <Animated.View style={reduceMotion ? undefined : { transform: [{ scale }] }}>
+            <CelebrationMark />
+          </Animated.View>
 
-        <SectionLabel tone="celebration" className="mt-6">
-          {t('tier.up.eyebrow', locale)}
-        </SectionLabel>
-        <Text
-          accessibilityRole="header"
-          className="mt-2 text-center text-[26px] font-bold text-foreground"
-        >
-          {headline}
-        </Text>
-        <Text className="mt-3 text-center text-[15px] leading-[22px] text-muted-foreground">
-          {t('tier.up.sub', locale)}
-        </Text>
+          <View className="items-center gap-2">
+            <SectionLabel tone="celebration">{t('tier.up.eyebrow', locale)}</SectionLabel>
+            <Text accessibilityRole="header" className="text-center type-h1 text-foreground">
+              {headline}
+            </Text>
+            <Text className="text-center type-small text-muted-foreground">
+              {t('tier.up.sub', locale)}
+            </Text>
+          </View>
 
-        <View className="mt-8 w-full">
-          <Button variant="celebration" label={t('common.continue', locale)} onPress={leave} />
-        </View>
+          <View className="self-stretch">
+            <Button variant="celebration" label={t('common.continue', locale)} onPress={leave} />
+          </View>
+        </ScrollView>
       </Screen>
     </Animated.View>
   );

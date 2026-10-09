@@ -1,6 +1,7 @@
 import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEventType, Locale } from '@athanor/schemas';
-import { Text, View } from '@/tw';
+import { Text, View, cn } from '@/tw';
+import { Row } from '@/components/Row';
 import { timeAgo } from '@/lib/time';
 
 /** Glyph representing each ledger event type (esoteric set). */
@@ -14,19 +15,6 @@ const LEDGER_GLYPH: Record<AuraEventType, string> = {
   post_starred: '✦',
   report_upheld: '⬡',
   decay: '◌',
-};
-
-/** A11y text equivalents for screen readers. */
-const LEDGER_GLYPH_A11Y: Record<AuraEventType, string> = {
-  identity_verified: 'identity',
-  event_attended: 'event',
-  event_organized: 'organized',
-  momento_conversation: 'momento',
-  milestone_help: 'help',
-  own_milestone: 'milestone',
-  post_starred: 'star',
-  report_upheld: 'report',
-  decay: 'decay',
 };
 
 /** Mapped i18n title keys (spec §3.2). */
@@ -43,47 +31,75 @@ const LEDGER_TITLE: Record<AuraEventType, MessageKey> = {
 };
 
 /**
- * One row in the Aura ledger list (spec §3.2).
- * glyph + title + relative time + signed ±N points (tabular-nums).
- * Point colour: aura (>0), muted (decay), error (<0 non-decay). `danger` was the
- * prototype-palette name and never landed in @athanor/config — naming it here is how
- * the wrong class gets written next (#595), and source-audit §26 strips comments, so
- * it cannot see this line.
+ * One row of the Aura ledger (spec §3.2; Galleria, 2026-10-09, #921): the event's glyph, what
+ * happened, how long ago, and the signed points at the right in the middle numeral style.
+ *
+ * The ledger pages, so a row draws its own SEGMENT of its day's group (`first` / `last`:
+ * rounded ends, a hairline above all but the first), as `feed/Comment` does, and the list sets
+ * no gap between rows.
+ *
+ * Points are foreground; a decay is grey, as the canvas draws it. Nothing here is cyan (a
+ * ledger line is not the member's Aura numeral, DESIGN §2.3) and nothing is red: an upheld
+ * report is a fact with a minus sign, not an error state. The sign is typed for both
+ * directions, the minus as U+2212.
+ *
+ * The row is inert and is read out as ONE line, «what, when, points»: the glyph is an ornament
+ * and says nothing. Until that day it was spoken by an English word typed in this file
+ * («identity», «event»), in both languages.
  */
 export function LedgerRow({
   type,
   points,
   createdAt,
   locale,
+  first,
+  last,
 }: {
   type: AuraEventType;
   points: number;
   createdAt: string;
   locale: Locale;
+  /** The first row of its day: the group's rounded top, no hairline above. */
+  first: boolean;
+  /** The last row of its day: the group's rounded foot. */
+  last: boolean;
 }) {
-  const sign = points > 0 ? '+' : '';
-  const tone = points > 0 ? 'text-aura' : type === 'decay' ? 'text-muted-foreground' : 'text-error';
+  const sign = points > 0 ? '+' : points < 0 ? '−' : '';
+  const figure = `${sign}${Math.abs(points)}`;
+  const title = t(LEDGER_TITLE[type], locale);
+  const when = timeAgo(createdAt, locale);
 
   return (
-    <View className="flex-row items-center gap-3 py-2">
-      <Text
-        className="text-[18px] text-faint"
-        accessibilityLabel={LEDGER_GLYPH_A11Y[type]}
-        accessibilityElementsHidden={false}
-      >
-        {LEDGER_GLYPH[type]}
-      </Text>
-      <View className="flex-1 gap-0.5">
-        <Text className="text-[14px] text-foreground">{t(LEDGER_TITLE[type], locale)}</Text>
-        <Text className="text-[12px] text-faint">{timeAgo(createdAt, locale)}</Text>
+    <View
+      className={cn(
+        'bg-surface px-4',
+        first ? 'rounded-t-[28px]' : null,
+        last ? 'rounded-b-[28px]' : null,
+      )}
+    >
+      {first ? null : <View className="h-px bg-hair" />}
+      <View accessible accessibilityLabel={[title, when, figure].join(', ')}>
+        <Row
+          leading={
+            <View className="min-w-6 items-center">
+              <Text className="type-body text-foreground">{LEDGER_GLYPH[type]}</Text>
+            </View>
+          }
+          title={title}
+          description={when}
+          trailing={
+            <Text
+              className={cn(
+                'type-num-m',
+                type === 'decay' ? 'text-muted-foreground' : 'text-foreground',
+              )}
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              {figure}
+            </Text>
+          }
+        />
       </View>
-      <Text
-        className={`text-[13px] font-semibold ${tone}`}
-        style={{ fontVariant: ['tabular-nums'] }}
-      >
-        {sign}
-        {points}
-      </Text>
     </View>
   );
 }

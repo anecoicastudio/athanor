@@ -7,15 +7,16 @@ import { t, type MessageKey } from '@athanor/i18n';
 import type { AuraEvent, Locale } from '@athanor/schemas';
 import { Text, View } from '@/tw';
 import { LedgerRow } from '@/components/aura/LedgerRow';
-import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { EmptyState } from '@/components/EmptyState';
+import { ListPageError } from '@/components/ListPageError';
+import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ShimmerBar } from '@/components/ShimmerBar';
 import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { useAuth } from '@/lib/auth-context';
+import { listState } from '@/lib/list-state';
 import { dayKey, ledgerDayLabel } from '@/lib/time';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
@@ -34,7 +35,7 @@ const FILTERS: LedgerFilter[] = ['all', 'gained', 'decayed'];
 
 function ShimmerRows() {
   return (
-    <View className="gap-4 px-5 pt-4">
+    <View className="gap-3">
       <ShimmerBar width="w-1/3" />
       <ShimmerBar />
       <ShimmerBar />
@@ -44,10 +45,10 @@ function ShimmerRows() {
 }
 
 // ---------------------------------------------------------------------------
-// Filter pill row
+// Filter chip row
 // ---------------------------------------------------------------------------
 
-function FilterPills({
+function FilterChips({
   active,
   onChange,
   locale,
@@ -57,13 +58,13 @@ function FilterPills({
   locale: Locale;
 }) {
   // WRAPS rather than scrolls (#640): a horizontal ScrollView in this flex column grew to
-  // fill the leftover height (325px of pill row). Same reasoning as BallotFilterChips —
-  // DESIGN §6 reserves horizontal carousels for Home's event cards, and three pills fit one
+  // fill the leftover height (325px of chip row). Same reasoning as BallotFilterChips —
+  // DESIGN §6 reserves horizontal carousels for Home's event cards, and three chips fit one
   // line anyway.
   return (
-    <View className="flex-row flex-wrap gap-2 px-5 py-3">
+    <View className="flex-row flex-wrap gap-2">
       {/* `Chip` (#635): these were bare Pressables, so the active filter reached a screen
-          reader as cyan and nothing else — and at py-2 they sat under DESIGN §10's 44pt. */}
+          reader as a colour and nothing else — and at py-2 they sat under DESIGN §10's 44pt. */}
       {FILTERS.map((f) => (
         <Chip
           key={f}
@@ -81,8 +82,13 @@ function FilterPills({
 // ---------------------------------------------------------------------------
 
 /**
- * Aura ledger detail (M6 §3.2).
- * Cursor-paginated SectionList grouped by calendar day. Three filter pills.
+ * Aura ledger detail (M6 §3.2; Galleria, 2026-10-09, #921).
+ * The member's OWN ledger, nobody else's: every read is keyed on the signed-in id.
+ * One grey sentence and three filter chips head a cursor-paginated SectionList grouped by
+ * calendar day, and scroll with it. A day is one group: its label 12 above, its rows as segments that touch
+ * (`LedgerRow` draws its own, since the list pages), 26 before the next day.
+ * Loading, empty and a failed first read take the list's place (`ListState`); a read that
+ * fails with rows on screen says so under them (`ListPageError`).
  * Read-only — no Aura writes (rule #1). Engine is dormant; empty is the normal state.
  */
 export default function LedgerScreen() {
@@ -137,7 +143,7 @@ export default function LedgerScreen() {
     if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
   }
 
-  const isEmpty = !query.isLoading && !query.isError && rows.length === 0;
+  const lastDay = sections[sections.length - 1]?.dayKey;
 
   return (
     <Screen>
@@ -147,66 +153,82 @@ export default function LedgerScreen() {
         backLabel={t('common.back', locale)}
         fallbackHref="/(modal)/aura"
       />
-      <Text className="px-5 text-[12px] text-faint">{t('ledger.sub', locale)}</Text>
-
-      {/* Filter pills */}
-      <FilterPills active={filter} onChange={setFilter} locale={locale} />
-
-      {/* Loading shimmer */}
-      {query.isLoading ? <ShimmerRows /> : null}
-
-      {/* Error */}
-      {query.isError ? (
-        <View className="flex-1 items-center justify-center gap-4 px-8">
-          <EmptyState>{t('aura.error', locale)}</EmptyState>
-          <Button
-            label={t('common.retry', locale)}
-            variant="ghost"
-            onPress={() => void query.refetch()}
-          />
-        </View>
-      ) : null}
-
-      {/* Empty state — engine dormant: this is the expected default */}
-      {isEmpty ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <EmptyState>
-            {filter === 'all' ? t('ledger.empty', locale) : t('ledger.empty.filtered', locale)}
-          </EmptyState>
-        </View>
-      ) : null}
-
-      {/* Loaded: day-grouped SectionList */}
-      {!query.isLoading && !query.isError && !isEmpty ? (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 48 }}
-          renderSectionHeader={({ section }) => (
-            <View className="bg-background py-2">
-              <SectionLabel heading>{section.title}</SectionLabel>
-            </View>
-          )}
-          renderItem={({ item }) => (
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingBottom: 48 }}
+        // The sentence and the chips scroll with the list. Pinned above it, at the largest
+        // text size they left a list of 318pt for rows 218 tall (iPhone SE simulator, Expo Go,
+        // 2026-10-09). The header stays mounted while the list is empty, so a filter with no
+        // row can still be changed.
+        ListHeaderComponent={
+          <View className="gap-[26px] pb-[26px]">
+            <Text className="type-small text-muted-foreground">{t('ledger.sub', locale)}</Text>
+            <FilterChips active={filter} onChange={setFilter} locale={locale} />
+          </View>
+        }
+        renderSectionHeader={({ section }) => (
+          <View className="bg-background pb-3">
+            <SectionLabel heading>{section.title}</SectionLabel>
+          </View>
+        )}
+        renderItem={({ item, index, section }) => (
+          // 26 under a day's group, except the last: the list's own foot follows it.
+          <View
+            className={
+              index === section.data.length - 1 && section.dayKey !== lastDay
+                ? 'pb-[26px]'
+                : undefined
+            }
+          >
             <LedgerRow
               type={item.type}
               points={item.points}
               createdAt={item.createdAt}
               locale={locale}
+              first={index === 0}
+              last={index === section.data.length - 1}
             />
-          )}
-          stickySectionHeadersEnabled
-          onEndReachedThreshold={0.4}
-          onEndReached={handleEndReached}
-          ListFooterComponent={
-            query.isFetchingNextPage ? (
-              <View className="py-6">
-                <ActivityIndicator color={galleria.foreground} />
-              </View>
-            ) : null
-          }
-        />
-      ) : null}
+          </View>
+        )}
+        stickySectionHeadersEnabled
+        onEndReachedThreshold={0.4}
+        onEndReached={handleEndReached}
+        // Engine dormant: empty is the expected default, so it is said, not hidden.
+        ListEmptyComponent={
+          <ListState
+            state={listState({
+              status: query.status,
+              fetchStatus: query.fetchStatus,
+              isEmpty: rows.length === 0,
+              staleWins: true,
+            })}
+            locale={locale}
+            errorLabel={t('aura.error', locale)}
+            emptyLabel={
+              filter === 'all' ? t('ledger.empty', locale) : t('ledger.empty.filtered', locale)
+            }
+            onRetry={() => void query.refetch()}
+            loading={<ShimmerRows />}
+          />
+        }
+        // Rows in hand keep `ListEmptyComponent` from rendering: a failed later page, or a
+        // failed refetch, says so under them.
+        ListFooterComponent={
+          query.isFetchingNextPage ? (
+            <View className="py-6">
+              <ActivityIndicator color={galleria.foreground} />
+            </View>
+          ) : (
+            <ListPageError
+              query={query}
+              hasRows={rows.length > 0}
+              label={t('aura.error', locale)}
+              retryLabel={t('common.retry', locale)}
+            />
+          )
+        }
+      />
     </Screen>
   );
 }
