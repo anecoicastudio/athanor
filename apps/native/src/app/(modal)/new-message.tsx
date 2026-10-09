@@ -10,6 +10,7 @@ import {
 import { t } from '@athanor/i18n';
 import { FlatList, View } from '@/tw';
 import { Input } from '@/components/Input';
+import { ListPageError } from '@/components/ListPageError';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { useToast } from '@/components/ToastHost';
@@ -61,7 +62,7 @@ export default function NewMessageScreen() {
     <Screen>
       <ModalHeader title={t('messages.new', locale)} backLabel={t('common.back', locale)} />
 
-      <View className="px-5 pb-3">
+      <View className="px-5 pb-[26px]">
         <Input
           placeholder={t('connection.list.search', locale)}
           value={search}
@@ -74,13 +75,17 @@ export default function NewMessageScreen() {
       <FlatList
         data={connections}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 pb-10"
+        contentContainerClassName="grow px-5 pb-12"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item, index }) => (
           <ConnectionRow
             item={item}
             locale={locale}
             onPress={() => void pick(item.peerId)}
+            // A tap here starts a chat, it does not open the profile: the row says so, and
+            // draws no chevron (#921).
+            a11yKey="messages.a11y.start"
+            showChevron={false}
             // The row draws its own segment of one group (#921): tell it where it stands.
             first={index === 0}
             last={index === connections.length - 1}
@@ -104,6 +109,14 @@ export default function NewMessageScreen() {
             emptyBody={search.trim() ? undefined : t('connection.list.emptyBody', locale)}
             onRetry={() => void connectionsQuery.refetch()}
             loading={null}
+          />
+        }
+        ListFooterComponent={
+          <ListPageError
+            query={connectionsQuery}
+            hasRows={connections.length > 0}
+            label={t('connection.list.error', locale)}
+            retryLabel={t('common.retry', locale)}
           />
         }
         onEndReachedThreshold={0.5}

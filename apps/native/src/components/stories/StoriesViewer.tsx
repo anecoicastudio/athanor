@@ -381,11 +381,11 @@ export function StoriesViewer({
           ) : (
             <View className="gap-3">
               {/* Real composer (#297): send stays in the viewer. The bar is the post's (Marco,
-                  2026-10-06): the small field and a white 44pt disc with the drawn send, dimmed
-                  and disabled while there is nothing to send, never unmounted (a control that
-                  mounts beside a field on the first character lost keystrokes:
+                  2026-10-06; 50 + 50 since 2026-10-09): the small field and a white 50pt disc with
+                  the drawn send, dimmed and disabled while there is nothing to send, never unmounted
+                  (a control that mounts beside a field on the first character lost keystrokes:
                   `search/SearchBar`'s docblock has the counts). */}
-              <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-[10px]">
                 <Input
                   className="flex-1"
                   size="sm"
@@ -405,7 +405,7 @@ export function StoriesViewer({
                   disabled={!canSend}
                   onPress={sendReply}
                   className={cn(
-                    'h-[44px] w-[44px] items-center justify-center rounded-full bg-foreground',
+                    'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground',
                     PRESS_DIM,
                     canSend ? null : 'opacity-40',
                   )}

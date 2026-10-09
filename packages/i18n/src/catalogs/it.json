@@ -998,6 +998,7 @@
   "messages.error": "Non siamo riusciti a caricare le conversazioni.",
   "messages.preview.fresh": "Il ghiaccio aspetta di rompersi.",
   "messages.a11y.unread": "Non letto",
+  "messages.a11y.start": "Scrivi a {name}",
   "chat.system.iceBreaker": "Momento acceso ✦ Il ghiaccio si rompe da solo — rispondete alle tre domande.",
   "chat.prompt.who": "Chi sei?",
   "chat.prompt.seek": "Cosa cerchi?",

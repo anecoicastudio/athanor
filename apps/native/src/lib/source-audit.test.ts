@@ -2664,17 +2664,17 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
    * inside it is capped to `FONT_SCALE_CAP.ornament` instead.
    */
   const FIXED_HEIGHT_OK: Record<string, string> = {
-    'app/(modal)/chat.tsx:469':
-      'measured 20pt remove-badge on a thumbnail; its ✕ is capped to `ornament`',
-    'app/(modal)/chat.tsx:524':
-      'the send disc — `rounded-full` on a box that grew in one axis is an ellipse; its ' +
-      'chevron is capped to `ornament`',
+    'app/(modal)/chat.tsx:494':
+      'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
+    'app/(modal)/chat.tsx:558':
+      'the 50pt send disc of the compose bar: `rounded-full` on a box that grew in one axis is ' +
+      'an ellipse; a drawn arrow inside, no prose',
     'app/(modal)/post-compose.tsx:389':
       'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
     'app/(modal)/story-compose.tsx:165':
       'the measured 20pt remove-badge on a thumbnail; a drawn close inside, no prose',
     'app/(modal)/post/[id].tsx:394':
-      'the 44pt send disc of the comment bar: `rounded-full` on a box that grew in one axis is ' +
+      'the 50pt send disc of the comment bar: `rounded-full` on a box that grew in one axis is ' +
       'an ellipse; a drawn arrow inside, no prose',
     'components/Switch.tsx:59': 'the 22pt knob of the switch: a drawn disc, no prose inside',
     'app/(onboarding)/index.tsx:462':
@@ -2684,7 +2684,7 @@ describe('a11y: text scales, and the box holding it grows (#639)', () => {
     'components/StepBars.tsx:24': 'a 3px progress rule — no text inside',
     'components/stories/StoriesViewer.tsx:260': 'a 3px progress step — no text inside',
     'components/stories/StoriesViewer.tsx:408':
-      'the 44pt send disc of the reply bar: `rounded-full` on a box that grew in one axis is ' +
+      'the 50pt send disc of the reply bar: `rounded-full` on a box that grew in one axis is ' +
       'an ellipse; a drawn arrow inside, no prose',
     'components/media/MomentTile.tsx:98':
       'the 52pt disc under a video tile’s play: a drawn glyph inside, no prose',
@@ -4644,7 +4644,7 @@ describe('a tag label built from data goes through the shared fallback (#883)', 
  */
 describe('an avatar in a row that names the member stays silent (#884)', () => {
   const AVATAR_SITES: Record<string, { decorative: boolean; why: string }> = {
-    'components/chat/ConversationRow.tsx': { decorative: true, why: 'name Text in the row' },
+    'components/chat/ConversationRow.tsx': { decorative: true, why: 'row label' },
     'components/momenti/SuggestionRow.tsx': { decorative: true, why: 'row label' },
     'components/connections/ConnectionRequestRow.tsx': {
       decorative: true,
@@ -6653,14 +6653,14 @@ describe('the post and the two composers keep the Galleria look (#921)', () => {
     );
   });
 
-  it('the comment bar is the small field and a white 44pt send that stays mounted', () => {
+  it('the comment bar is the small field and a white 50pt send that stays mounted', () => {
     const post = flat(POST);
     expect(post, 'the compose-bar field, multi-line').toMatch(
       /<Input className="flex-1" size="sm"/,
     );
     expect(post).toMatch(/\bmultiline\b/);
-    expect(post, 'a white disc with the drawn send').toMatch(
-      /'h-\[44px\] w-\[44px\] items-center justify-center rounded-full bg-foreground'/,
+    expect(post, 'a white disc with the drawn send, 50 like the field (2026-10-09)').toMatch(
+      /'h-\[50px\] w-\[50px\] items-center justify-center rounded-full bg-foreground'/,
     );
     expect(post).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
     // A control that mounts beside a `TextInput` on the first character lost typed characters
@@ -6900,8 +6900,8 @@ describe('stories, the grid and the media components keep the Galleria look (#92
       /onTouchStart=\{\(\) => setPaused\(true\)\} onTouchEnd=\{\(\) => setPaused\(false\)\} onTouchCancel=\{\(\) => setPaused\(false\)\}/,
     );
     expect(viewer, 'the compose-bar field').toMatch(/<Input className="flex-1" size="sm"/);
-    expect(viewer, 'a white disc with the drawn send').toMatch(
-      /'h-\[44px\] w-\[44px\] items-center justify-center rounded-full bg-foreground'/,
+    expect(viewer, 'a white disc with the drawn send, 50 like the field (2026-10-09)').toMatch(
+      /'h-\[50px\] w-\[50px\] items-center justify-center rounded-full bg-foreground'/,
     );
     expect(viewer).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
     expect(viewer, 'disabled is 40%, never unmounted').toMatch(/canSend \? null : 'opacity-40'/);
@@ -7261,8 +7261,11 @@ describe('connections, the blocked list and the report sheet keep the Galleria l
   it('a connection row is one button; a request row is inert, its two small pills under the name', () => {
     const connection = flat(CONNECTION_ROW);
     expect(connection.match(/\bonPress=/g)?.length, 'the whole row opens the profile').toBe(1);
+    expect(connection, 'named for the profile unless the caller says otherwise').toMatch(
+      /a11yKey = 'connection\.a11y\.open'/,
+    );
     expect(connection).toMatch(
-      /accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name \}\)\} onPress=\{onPress\}/,
+      /accessibilityLabel=\{t\(a11yKey, locale, \{ name \}\)\} showChevron=\{showChevron\} onPress=\{onPress\}/,
     );
     expect(connection, 'a lone-word handle keeps one line (DESIGN §10)').toMatch(
       /titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/,
@@ -7572,5 +7575,297 @@ describe('the member’s profile, the match screen and the connect control keep 
     );
     expect(connect.match(/variant="ghost"/g)?.length).toBe(1);
     expect(connect).not.toMatch(/<Pressable\b/);
+  });
+});
+
+/**
+ * C16: the conversation list, the new-message picker and the chat (DESIGN §8.8; #921). The three
+ * compose bars (chat, the post's comments, the story reply) take one shape here: the 50pt small
+ * field and a 50pt white disc (Marco, 2026-10-09).
+ */
+describe('messages, the new-message picker and chat keep the Galleria look (#921)', () => {
+  const LIST = 'app/(modal)/messages.tsx';
+  const PICKER = 'app/(modal)/new-message.tsx';
+  const CHAT = 'app/(modal)/chat.tsx';
+  const BUBBLE = 'components/chat/Bubble.tsx';
+  const CONVERSATION_ROW = 'components/chat/ConversationRow.tsx';
+  const ACTIONS = 'components/chat/MessageActionsSheet.tsx';
+  const CONNECTION_ROW = 'components/connections/ConnectionRow.tsx';
+  const HEADER = 'components/ModalHeader.tsx';
+  const POST = 'app/(modal)/post/[id].tsx';
+  const VIEWER = 'components/stories/StoriesViewer.tsx';
+  const ALL = [LIST, PICKER, CHAT, BUBBLE, CONVERSATION_ROW, ACTIONS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+  const DISC = "'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground'";
+
+  it('the chat folder is the three files', () => {
+    const folder = FILES.map((p) => rel(p).replace('apps/native/src/', ''))
+      .filter((p) => p.startsWith('components/chat/') && !/\.test\./.test(p))
+      .sort();
+    expect(folder).toEqual([BUBBLE, CONVERSATION_ROW, ACTIONS]);
+  });
+
+  it('nothing here is cyan: a sent message, the send disc and an unread thread are routine', () => {
+    const hits = [...ALL, HEADER].flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the own bubble and the send disc are foreground fills, ' +
+        'an unread thread a foreground dot, the peer’s Aura a grey line',
+    ).toEqual([]);
+  });
+
+  it('none of these screens has a bordered card', () => {
+    expect(ALL.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class or a literal px', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      [...ALL, HEADER].filter(
+        (file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file)),
+      ),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11)',
+    ).toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    // `+` is checked as a JSX text child: the character is also an operator.
+    const typed = ALL.flatMap((file) => [
+      ...[...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+      ...(flat(file).match(/> ?\+ ?<\/Text>/g) ?? []).map((hit) => `${file}  ${hit}`),
+    ]);
+    expect(
+      typed,
+      'a control is a drawing from `components/glyphs` (DESIGN §6 «Interface icons»)',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('every control dims when pressed, and no opacity rides a style object', () => {
+    const undimmed = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        // `raw`, not `attrs`: the class sits inside `className={cn(…)}`, and `attrs` blanks braces.
+        // A sheet's scrim and panel are not controls: they are the two `accessible={false}` ones.
+        .filter(
+          ({ base, raw }) =>
+            base === 'Pressable' && !/\bPRESS_DIM\b/.test(raw) && !/accessible=\{false\}/.test(raw),
+        )
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(undimmed, 'take `PRESS_DIM` from `@/lib/press`, unconditionally').toEqual([]);
+    expect(
+      ALL.filter((file) => /\bopacity\s*:/.test(code(file))),
+      'a dim is a class or a layer, the literal and the `style` spelling alike',
+    ).toEqual([]);
+  });
+
+  it('the conversation list’s header controls are two drawings in 44pt boxes', () => {
+    const list = flat(LIST);
+    expect(list).toMatch(/<PeopleIcon color=\{galleria\.foreground\} \/>/);
+    expect(list).toMatch(/<AddIcon color=\{galleria\.foreground\} \/>/);
+    expect(
+      list.match(/min-h-\[44px\] min-w-\[44px\] items-center justify-center'/g)?.length,
+      'a real box each, not a glyph and a `hitSlop` (DESIGN §10)',
+    ).toBe(2);
+    expect(list, 'the last control stands on the gutter, as `HeaderClose` does').toMatch(
+      /'-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center'/,
+    );
+    expect(list).not.toMatch(/\bhitSlop=/);
+  });
+
+  it('a conversation is a row of one group: the disc, the name, one line, the time, a dot', () => {
+    const row = flat(CONVERSATION_ROW);
+    expect(row, 'the shared row').toMatch(/<Row leading=\{/);
+    expect(row).toMatch(/'bg-surface px-4'/);
+    expect(row).toMatch(/first \? 'rounded-t-\[28px\]' : null/);
+    expect(row).toMatch(/last \? 'rounded-b-\[28px\]' : null/);
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(row, 'the 44 disc is decorative: the row’s label says the name').toMatch(
+      /<Avatar decorative [^>]*size=\{44\} \/>/,
+    );
+    expect(row, 'a lone-word handle keeps one line (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(name\) === 1 \? 1 : undefined\}/,
+    );
+    expect(row, 'the preview is one grey line, read or not').toMatch(
+      /description=\{preview\} descriptionLines=\{1\}/,
+    );
+    expect(row, 'the time is the row’s value').toMatch(/value=\{time\}/);
+    expect(row, 'opening a thread is not a disclosure: no chevron').toMatch(
+      /showChevron=\{false\}/,
+    );
+    expect(row, 'unread is a foreground dot, 8px (Marco, 2026-10-05 and 2026-10-09)').toMatch(
+      /unread \? <View className="h-2 w-2 rounded-full bg-foreground" \/> : undefined/,
+    );
+    expect(
+      row,
+      'one button, so its label carries what the row shows, unread included (#884)',
+    ).toMatch(
+      /accessibilityLabel=\{\[name, preview, time, unread \? t\('messages\.a11y\.unread', locale\) : null\] \.filter\(Boolean\) \.join\(', '\)\}/,
+    );
+    expect(row.match(/\bonPress=/g)?.length, 'the whole row opens the thread').toBe(1);
+    expect(row).not.toMatch(/<Pressable\b/);
+  });
+
+  it('both lists page: each row is told where it stands, and a failed later page says so', () => {
+    expect(flat(LIST)).toContain('first={index === 0} last={index === items.length - 1}');
+    expect(flat(PICKER)).toContain('first={index === 0} last={index === connections.length - 1}');
+    for (const file of [LIST, PICKER]) {
+      expect(flat(file), file).toMatch(/contentContainerClassName="grow px-5 pb-12"/);
+      expect(flat(file), `${file}: rows in hand hide the list's own error arm`).toMatch(
+        /ListFooterComponent=\{ <ListPageError /,
+      );
+    }
+  });
+
+  it('a picker row starts a chat and says so; a connections row still opens the profile', () => {
+    const picker = flat(PICKER);
+    expect(picker, 'the row is named for what a tap does').toMatch(
+      /a11yKey="messages\.a11y\.start" showChevron=\{false\}/,
+    );
+    expect(picker, 'the field stands 26 above the group').toMatch(
+      /<View className="px-5 pb-\[26px\]"> <Input /,
+    );
+    const row = flat(CONNECTION_ROW);
+    expect(row, 'the default is the profile').toMatch(/a11yKey = 'connection\.a11y\.open'/);
+    expect(row).toMatch(/accessibilityLabel=\{t\(a11yKey, locale, \{ name \}\)\}/);
+    expect(flat('app/(modal)/connections.tsx'), 'Connessioni passes neither').not.toMatch(
+      /\ba11yKey=|\bshowChevron=/,
+    );
+  });
+
+  it('the chat header is the identity form: body-medium name, a small grey line, the drawn more', () => {
+    const header = flat(HEADER);
+    expect(
+      /const titleClass = compact \? '([^']*)'/.exec(header)?.[1],
+      'the prototype’s `.t`: 17/500',
+    ).toBe('type-body font-medium text-foreground');
+    expect(header, 'a string subtitle is the small grey line, compact or not').toMatch(
+      /<Text numberOfLines=\{2\} className="type-small text-muted-foreground">/,
+    );
+    expect(header, 'the identity block’s gap is the prototype’s `.line`: 10').toMatch(
+      /className=\{cn\('flex-1 flex-row items-center gap-\[10px\]', PRESS_DIM\)\}/,
+    );
+    const chat = flat(CHAT);
+    expect(chat, 'the peer’s Aura is not the member’s own numeral: grey').toMatch(
+      /<Text className="type-small text-muted-foreground" accessibilityLabel=\{peerAuraA11y\}>/,
+    );
+    expect(chat).toMatch(/<MoreIcon color=\{galleria\.foreground\} \/>/);
+    expect(chat, 'the options control is a 44pt box on the gutter').toMatch(
+      /accessibilityLabel=\{t\('chat\.a11y\.menu', locale\)\} className=\{cn\( ?'-mr-3 min-h-\[44px\] min-w-\[44px\] items-center justify-center', PRESS_DIM,? ?\)\}/,
+    );
+  });
+
+  it('the own bubble is the white fill with black text; the peer’s is charcoal with a hairline', () => {
+    const bubble = flat(BUBBLE);
+    expect(bubble, 'own').toMatch(/cn\('rounded-\[20px\] bg-foreground', bubblePad\)/);
+    expect(bubble.match(/content\('text-background'\)/g)?.length, 'black on white').toBe(2);
+    expect(bubble, 'peer: as wide as its content, never the whole row').toMatch(
+      /cn\('shrink rounded-\[20px\] border border-hair bg-surface', bubblePad\)/,
+    );
+    expect(bubble.match(/content\('text-foreground'\)/g)?.length).toBe(2);
+    expect(bubble, 'the prototype’s padding: 10 and 16').toMatch(
+      /hasMedia \? 'p-1\.5' : 'px-4 py-\[10px\]'/,
+    );
+    expect(bubble, 'a message is body text').toMatch(/cn\('type-body', textClass,/);
+    expect(bubble, 'the photo keeps the tile radius inside the bubble').toMatch(
+      /className="overflow-hidden rounded-\[14px\] bg-background"/,
+    );
+    expect(bubble, 'the server’s sentence is a small grey italic line').toMatch(
+      /<Text className="text-center type-small italic text-muted-foreground">/,
+    );
+  });
+
+  it('the three ice-breaker prompts are one centred row of inert pills', () => {
+    const chat = flat(CHAT);
+    expect(chat, 'consecutive prompts share a row').toMatch(/type: 'prompts'/);
+    expect(chat).toMatch(
+      /<View className="my-1\.5 flex-row flex-wrap justify-center gap-2"> \{item\.prompts\.map\(\(prompt\) => \( <Tag key=\{prompt\.id\} label=\{serverLine\(prompt, locale\)\} \/> \)\)\} <\/View>/,
+    );
+    expect(chat, 'the day is a small grey line, not a label').toMatch(
+      /<Text className="type-small text-muted-foreground">\{item\.label\}<\/Text>/,
+    );
+    expect(chat).not.toMatch(/<SectionLabel\b/);
+  });
+
+  it('the three compose bars are the 50pt field and a 50pt white send that stays mounted', () => {
+    const input = code('components/Input.tsx');
+    expect(
+      /sm: '([^']*)'/.exec(input)?.[1],
+      'the compose-bar field: 50 like the form pill, radius 25 so several lines stay a box',
+    ).toBe('min-h-[50px] rounded-[25px] pb-3 pl-5 pr-5 pt-[13px]');
+    for (const file of [CHAT, POST, VIEWER]) {
+      const src = flat(file);
+      expect(src, file).toMatch(/<Input className="flex-1" size="sm"/);
+      expect(src, `${file}: a white disc`).toContain(DISC);
+      expect(src, file).toMatch(/<SendIcon size=\{22\} color=\{galleria\.background\} \/>/);
+      expect(src, `${file}: no 44pt disc is left`).not.toMatch(
+        /h-\[44px\] w-\[44px\] items-center justify-center rounded-full/,
+      );
+    }
+    const chat = flat(CHAT);
+    // A control that mounts beside a `TextInput` on the first character lost typed characters
+    // (`search/SearchBar`'s docblock has the counts): disabled and dimmed, never unmounted.
+    expect(chat, 'disabled is 40%, never unmounted').toMatch(/canSend \? null : 'opacity-40'/);
+    expect(chat).toMatch(/accessibilityState=\{\{ disabled: !canSend \}\}/);
+    expect(chat, 'the bar’s gap and gutter').toMatch(
+      /<View className="flex-row items-end gap-\[10px\] px-5 py-3">/,
+    );
+    expect(chat, 'attach is the drawn add').toMatch(/<AddIcon color=\{galleria\.foreground\} \/>/);
+  });
+
+  it('a staged photo is a radius-14 tile with a hairline, a drawn close and a layer for the dim', () => {
+    const chat = flat(CHAT);
+    expect(chat, 'an RN `Image` takes no class: radius and hairline in `style`').toMatch(
+      /borderRadius: 14, borderWidth: 1, borderColor: galleria\.hair,? \}\}/,
+    );
+    expect(chat, 'the no-poster arm').toMatch(
+      /className="h-16 w-16 items-center justify-center rounded-\[14px\] border border-hair bg-surface"/,
+    );
+    expect(chat, 'the remove badge').toMatch(
+      /'absolute right-\[-6px\] top-\[-6px\] h-\[20px\] w-\[20px\] items-center justify-center rounded-full border border-hair bg-surface'/,
+    );
+    expect(chat).toMatch(/<CloseIcon size=\{12\} color=\{galleria\.foreground\} \/>/);
+    expect(chat, 'while it uploads').toMatch(
+      /<View className="absolute inset-0 rounded-\[14px\] bg-background opacity-60" \/>/,
+    );
+  });
+
+  it('the message sheet is the charcoal panel over a dim layer, its actions shared rows', () => {
+    const sheet = flat(ACTIONS);
+    expect(sheet).toMatch(
+      /<View pointerEvents="none" className="absolute inset-0 bg-background opacity-70" \/>/,
+    );
+    expect(sheet, 'no grab handle, no border (Marco, 2026-10-06)').toMatch(
+      /className="max-h-\[88%\] rounded-t-\[28px\] bg-surface px-1 pb-12 pt-7"/,
+    );
+    expect(sheet).toMatch(
+      /<Text accessibilityRole="header" className="type-h2 px-4 text-center text-foreground">/,
+    );
+    expect(sheet, 'report, then the way out').toMatch(
+      /<RowGroup> <Row title=\{t\('chat\.message\.report', locale\)\} showChevron=\{false\} onPress=\{onReport\} \/> <Row title=\{t\('common\.cancel', locale\)\} showChevron=\{false\} onPress=\{onClose\} \/> <\/RowGroup>/,
+    );
+    expect(sheet, 'the local row is gone').not.toMatch(/function Row\b/);
   });
 });

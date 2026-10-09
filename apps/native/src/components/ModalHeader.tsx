@@ -20,7 +20,8 @@ import { wordLines } from '@/lib/word-lines';
  * Shapes it covers:
  * - pushed screen: the drawn back + title (+ `right` actions)
  * - sheet: `leading="none"` + title (+ `subtitle`) + `right={<HeaderClose …/>}`
- * - identity header (chat): `avatar` + compact 15/600 title + `subtitle`; `onIdentityPress`
+ * - identity header (chat): `avatar` + the name in body medium (17/500) + `subtitle`, the
+ *   avatar 10 from the text (the prototype's `.line`); `onIdentityPress`
  *   makes avatar+title+subtitle ONE pressable block (the identity IS the link, #356 — no
  *   second ↗-style affordance beside it, or VoiceOver announces two identical targets)
  * - search: `titleSlot` replaces the title text entirely
@@ -55,11 +56,11 @@ export function ModalHeader({
   identityHint,
   right,
 }: {
-  /** `type-title` (24/600) — or compact 15/600 when `avatar` is present. */
+  /** `type-title` (24/600) — or body medium (17/500) when `avatar` is present. */
   title?: string;
   /** Replaces the title text entirely (e.g. the search bar). */
   titleSlot?: ReactNode;
-  /** String gets the recipe's style (14 faint; 11 faint next to an avatar); a node renders as-is. */
+  /** A string is the small grey line (`type-small`), two lines at most; a node renders as-is. */
   subtitle?: ReactNode;
   avatar?: ReactNode;
   /** Left affordance: the drawn back (default), the drawn close (immersive media), or nothing (sheets, tab roots). */
@@ -85,7 +86,7 @@ export function ModalHeader({
   const showLeading = leading !== 'none';
   const compact = avatar != null;
   const titleClass = compact
-    ? 'text-[15px] font-semibold text-foreground'
+    ? 'type-body font-medium text-foreground'
     : 'type-title text-foreground';
   const identity = (
     <>
@@ -109,10 +110,7 @@ export function ModalHeader({
             {title}
           </Text>
           {subtitle == null ? null : typeof subtitle === 'string' ? (
-            <Text
-              numberOfLines={2}
-              className={compact ? 'text-[11px] text-faint' : 'text-[14px] text-faint'}
-            >
+            <Text numberOfLines={2} className="type-small text-muted-foreground">
               {subtitle}
             </Text>
           ) : (
@@ -156,9 +154,9 @@ export function ModalHeader({
           accessibilityRole="button"
           accessibilityLabel={identityLabel}
           accessibilityHint={identityHint}
-          // 36pt avatar + 4pt each side = the 44pt target, without growing the header.
+          // 4pt of slop above and below the block, without growing the header.
           hitSlop={{ top: 4, bottom: 4 }}
-          className="flex-1 flex-row items-center gap-3"
+          className={cn('flex-1 flex-row items-center gap-[10px]', PRESS_DIM)}
         >
           {identity}
         </Pressable>
