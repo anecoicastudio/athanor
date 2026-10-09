@@ -21,9 +21,10 @@ import { useInsideCard } from '@/components/Card';
  *
  * - `md` (default) — a form field on a form screen: at least 50pt, the height of the pill
  *   `Button` it usually stands above. The six form spellings above all collapse here.
- * - `sm` — the compose bar: a `flex-1` field sharing a bottom row with a 44pt send
- *   button (chat, post comments, story replies), so it is at least 44pt. It may be
- *   `multiline`, and its radius is 22 rather than full: at one line that is the same pill,
+ * - `sm` — the compose bar: a `flex-1` field sharing a bottom row with a 50pt send disc
+ *   (chat, post comments, story replies). Since 2026-10-09 (#921) it is at least 50pt too,
+ *   as the prototype draws the bar; until then it was 44 beside a 44pt disc. It may be
+ *   `multiline`, and its radius is 25 rather than full: at one line that is the same pill,
  *   and a message of several lines stays a rounded box rather than a capsule. A multi-line
  *   FORM field is not this component: use `Field`, which is why `multiline` is refused on
  *   `md` in the type.
@@ -74,22 +75,23 @@ import { useInsideCard } from '@/components/Card';
  *   it in a file the walk actually reads.
  *
  * It is `md`-only, enforced in the type rather than in prose: a compose bar puts its controls
- * BESIDE the field instead (chat's `+` and `›`).
+ * BESIDE the field instead (chat's drawn add and send).
  *
  * A field with a `trailing` control must sit under a `keyboardShouldPersistTaps="handled"`
  * scroll parent. With the default `"never"` the ScrollView eats the first tap to dismiss
  * the keyboard and the control appears dead.
  *
  * Measured on 2026-10-04 on an iPhone SE simulator (iOS 26.3, Expo Go) and a moto g17
- * (Android 15, dev client): `md` 50 and `sm` 44 at the default text size on both; at the
- * largest size the simulator gave 70.5 and 62.5, and the phone at a font scale of 2.0 gave
- * 64.4 and 56.4.
+ * (Android 15, dev client): `md` 50 at the default text size on both; at the largest size
+ * 70.5 on the simulator, and 64.4 on the phone at a font scale of 2.0. `sm` in its 50pt
+ * shape, on 2026-10-09: 50 at the default size on the same simulator and on the phone, beside
+ * its 50pt disc, and 65.6 on the phone at a font scale of 2.0.
  */
 type Size = 'md' | 'sm';
 
 const SIZE_CLASSES: Record<Size, string> = {
   md: 'min-h-[50px] rounded-full pb-3 pl-5 pr-5 pt-3',
-  sm: 'min-h-[44px] rounded-[22px] pb-2 pl-4 pr-4 pt-2',
+  sm: 'min-h-[50px] rounded-[25px] pb-3 pl-5 pr-5 pt-[13px]',
 };
 
 /**

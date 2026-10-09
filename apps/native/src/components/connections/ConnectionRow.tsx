@@ -12,6 +12,10 @@ import { wordLines } from '@/lib/word-lines';
  * request row it is the control itself. The disc's `Avatar` is `decorative` because the row
  * carries the name.
  *
+ * The new-message picker renders it too, where a tap starts a chat: `a11yKey` names the row for
+ * that («Scrivi a {name}») and `showChevron={false}` takes the chevron off (2026-10-09). The
+ * defaults are the Connessioni list's.
+ *
  * Both lists that render it are paged, so each row draws its own SEGMENT of the group instead
  * of standing in a `RowGroup` (`feed/Comment`'s recipe, 2026-10-06): `first` rounds the top,
  * `last` the foot, and every row but the first draws the hairline above itself. The list has
@@ -21,12 +25,17 @@ export function ConnectionRow({
   item,
   locale,
   onPress,
+  a11yKey = 'connection.a11y.open',
+  showChevron = true,
   first = true,
   last = true,
 }: {
   item: ConnectionListItem;
   locale: Locale;
   onPress: () => void;
+  /** What a tap does, said with the name: open the profile (default) or start a chat. */
+  a11yKey?: 'connection.a11y.open' | 'messages.a11y.start';
+  showChevron?: boolean;
   first?: boolean;
   last?: boolean;
 }) {
@@ -53,7 +62,8 @@ export function ConnectionRow({
         title={name}
         // A lone-word handle ellipsizes (DESIGN §10); the row's label keeps it whole.
         titleLines={wordLines(name) === 1 ? 1 : undefined}
-        accessibilityLabel={t('connection.a11y.open', locale, { name })}
+        accessibilityLabel={t(a11yKey, locale, { name })}
+        showChevron={showChevron}
         onPress={onPress}
       />
     </View>

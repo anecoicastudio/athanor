@@ -391,7 +391,7 @@ export default function PostDetailScreen() {
             accessibilityState={{ disabled: cannotSend }}
             onPress={() => sendComment.mutate({ id: Crypto.randomUUID(), body: draft.trim() })}
             className={cn(
-              'h-[44px] w-[44px] items-center justify-center rounded-full bg-foreground',
+              'h-[50px] w-[50px] items-center justify-center rounded-full bg-foreground',
               PRESS_DIM,
               cannotSend ? 'opacity-40' : null,
             )}

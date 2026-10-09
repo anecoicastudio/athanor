@@ -116,8 +116,8 @@ export const galleria = {
    */
   raise2: '#2C2C2E',
   /**
-   * @deprecated Legacy alias — `surface`. It fills the Avatar fallback disc, the tab bar and
-   * the scrim of chat's hand-rolled message sheet; black would lose the disc on the stage.
+   * @deprecated Legacy alias — `surface`. Two files of Athanor Live still read it
+   * (`live/AttendeeStack`, `event/[id]`), until their chunk converts them.
    */
   surfaceMuted: '#1D1D1F',
   /** @deprecated Legacy alias — body copy is `foreground`. */

@@ -27,6 +27,14 @@ describe('isRunEnd', () => {
     expect(isRunEnd([marker, msg('a')], 0)).toBe(false);
   });
 
+  it('treats the row of ice-breaker prompts like a marker: it ends a run and has no face', () => {
+    // The chat screen folds the three prompt messages into one row of pills (DESIGN §8.8).
+    const prompts: RunRow = { type: 'prompts' };
+    const rows = [msg('a'), prompts, msg('a')];
+    expect(isRunEnd(rows, 0)).toBe(true);
+    expect(isRunEnd(rows, 1)).toBe(false);
+  });
+
   it('is false past the end of the list rather than throwing', () => {
     expect(isRunEnd([msg('a')], 7)).toBe(false);
     expect(isRunEnd([], 0)).toBe(false);

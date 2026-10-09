@@ -9,15 +9,19 @@ import {
   markConversationRead,
   subscribeConversations,
 } from '@athanor/api';
+import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { FlatList, Pressable, Text, View } from '@/tw';
+import { FlatList, Pressable, View, cn } from '@/tw';
+import { ListPageError } from '@/components/ListPageError';
 import { ListState } from '@/components/ListState';
 import { ModalHeader } from '@/components/ModalHeader';
 import { ConversationRow } from '@/components/chat/ConversationRow';
+import { AddIcon, PeopleIcon } from '@/components/glyphs';
 import { useNow } from '@/hooks/use-now';
 import { useLocale } from '@/hooks/use-locale';
 import { listState } from '@/lib/list-state';
 import { devWarn } from '@/lib/log';
+import { PRESS_DIM } from '@/lib/press';
 import { supabase } from '@/lib/supabase';
 import { Screen } from '@/components/Screen';
 
@@ -76,23 +80,28 @@ export default function MessagesScreen() {
       <ModalHeader
         title={t('messages.title', locale)}
         backLabel={t('common.back', locale)}
+        // Two drawn controls in 44pt boxes, 4 apart, the last on the gutter (DESIGN §6
+        // «Interface icons»; #921): the member profile's header has the same pair of boxes.
         right={
-          <View className="flex-row items-center gap-5">
+          <View className="flex-row items-center gap-1">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('connection.a11y.hub', locale)}
-              hitSlop={8}
+              className={cn('min-h-[44px] min-w-[44px] items-center justify-center', PRESS_DIM)}
               onPress={() => router.push('/connections')}
             >
-              <Text className="text-2xl text-faint">◎</Text>
+              <PeopleIcon color={galleria.foreground} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('messages.new', locale)}
-              hitSlop={8}
+              className={cn(
+                '-mr-3 min-h-[44px] min-w-[44px] items-center justify-center',
+                PRESS_DIM,
+              )}
               onPress={() => router.push('/new-message')}
             >
-              <Text className="text-2xl text-foreground">+</Text>
+              <AddIcon color={galleria.foreground} />
             </Pressable>
           </View>
         }
@@ -101,14 +110,17 @@ export default function MessagesScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 pb-10"
-        renderItem={({ item }) => (
+        contentContainerClassName="grow px-5 pb-12"
+        renderItem={({ item, index }) => (
           <ConversationRow
             item={item}
             locale={locale}
             now={now}
             unread={item.unread}
             onPress={() => openConversation(item.id)}
+            // The row draws its own segment of one group (#921): tell it where it stands.
+            first={index === 0}
+            last={index === items.length - 1}
           />
         )}
         ListEmptyComponent={
@@ -125,6 +137,14 @@ export default function MessagesScreen() {
             emptyBody={t('messages.empty.body', locale)}
             onRetry={() => void query.refetch()}
             loading={null}
+          />
+        }
+        ListFooterComponent={
+          <ListPageError
+            query={query}
+            hasRows={items.length > 0}
+            label={t('messages.error', locale)}
+            retryLabel={t('common.retry', locale)}
           />
         }
         onEndReachedThreshold={0.5}
