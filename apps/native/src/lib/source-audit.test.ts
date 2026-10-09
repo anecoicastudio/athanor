@@ -8159,8 +8159,8 @@ describe('the plan and the progress notes keep the Galleria look (#921)', () => 
         '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11); no line here ' +
         'is a reason under a field, so none takes the fixed 14 either',
     ).toEqual([]);
-    // Tailwind's `tabular-nums` emits nothing on device (same measurement): the numeral class
-    // carries it, and a figure in body text asks for it through `fontVariant`.
+    // No `tabular-nums` utility here: the numeral class carries the variant (`-rn-font-variant`
+    // in `global.css`), and a figure in body text asks for it through `fontVariant`.
     expect(
       ALL.filter((file) => /(?<!fontVariant: \[')\btabular-nums\b/.test(code(file))),
       'the `tabular-nums` utility',

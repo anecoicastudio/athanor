@@ -201,7 +201,8 @@ export default function RealizationPlanScreen() {
     });
   // Where each fold starts in the scroll's content, as laid out: a refused save scrolls to one.
   // A shut fold is opened first and scrolled to once it has been laid out open (`pendingReveal`):
-  // scrolled to while still shut, the last fold stopped at the foot of the shorter list.
+  // scrolled to while still shut, the last fold stopped at the foot of the shorter list (iPhone
+  // SE simulator, Expo Go, 2026-10-09).
   const scroller = useRef<RNScrollView>(null);
   const phaseTops = useRef<Record<string, number>>({});
   const pendingReveal = useRef<string | null>(null);
