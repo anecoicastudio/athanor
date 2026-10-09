@@ -59,10 +59,15 @@ export function Avatar({
    */
   avatarPath?: string | null;
   /**
-   * A local `file://` URI to draw INSTEAD of the signed key (#636). The profile editor stages a
-   * picked photo without uploading it, so between the pick and Save there is no storage key to
-   * sign — and the old behaviour, uploading on pick to get one, overwrote the member's live
-   * avatar before they had agreed to the change.
+   * A ready uri to draw INSTEAD of the signed key: a local `file://` pick (#636) or a url that
+   * is already signed. The profile editor stages a picked photo without uploading it, so between
+   * the pick and Save there is no storage key to sign — and the old behaviour, uploading on pick
+   * to get one, overwrote the member's live avatar before they had agreed to the change.
+   *
+   * Since 2026-10-09 it has a second caller, `(modal)/dream/[id]`: the public dream read-model
+   * hands over a url that is already signed and never a storage key, so there is no key to
+   * sign there either. Any ready uri is drawn as given, and one that fails to load falls back
+   * to the initial like a signed one.
    */
   previewUri?: string | null;
   /**

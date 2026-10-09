@@ -20,6 +20,11 @@ import { Screen } from '@/components/Screen';
  * only dreams.text via upsertActiveDream; never Aura (rule #1). Copy via @athanor/i18n.
  * The (modal) route IS the sheet: the Foundation Sheet host M3 once planned was never built,
  * and no open issue revives it (as of 2026-09-26).
+ *
+ * Galleria (#921, 2026-10-09; DESIGN §8.12): three blocks 26 apart on the stage, no card. A
+ * small grey sentence, the dream field, the white pill. The field is in the dream register
+ * (DESIGN §4) and keeps `Field`'s `lg` floor (Marco, 2026-10-09: the canvas draws it 220 tall).
+ * It has no label above it, so it is named by the screen's title.
  */
 export default function DreamEditorScreen() {
   const leave = useGuardedBack();
@@ -90,16 +95,15 @@ export default function DreamEditorScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-6 px-5 pb-12"
+        contentContainerClassName="gap-[26px] px-5 pb-12"
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-[15px] leading-relaxed text-faint">
-          {t('dream.editor.sub', locale)}
-        </Text>
+        <Text className="type-small text-muted-foreground">{t('dream.editor.sub', locale)}</Text>
 
         <Field
           size="lg"
           register="dream"
+          accessibilityLabel={t('dream.editor.title', locale)}
           error={error ? t('dream.error.empty', locale) : null}
           multiline
           maxLength={500}

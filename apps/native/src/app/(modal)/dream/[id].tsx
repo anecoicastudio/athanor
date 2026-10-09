@@ -1,23 +1,24 @@
-import { useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicDreamById, publicDreamKeys } from '@athanor/api';
 import { memberLabel } from '@athanor/core';
 import { t } from '@athanor/i18n';
-import type { PublicDreamAuthor } from '@athanor/schemas';
-import { Pressable, ScrollView, Text, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
+import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
 import { DreamQuote } from '@/components/DreamQuote';
 import { ListState } from '@/components/ListState';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ModalHeader } from '@/components/ModalHeader';
+import { Row } from '@/components/Row';
+import { RowGroup } from '@/components/RowGroup';
 import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
 import { MilestoneRow } from '@/components/profile/MilestoneRow';
 import { useLocale } from '@/hooks/use-locale';
 import { supabase } from '@/lib/supabase';
+import { wordLines } from '@/lib/word-lines';
 
 /**
  * `/dream/{id}` deep-link viewer (#544) — the native side of the public dream contract
@@ -25,6 +26,11 @@ import { supabase } from '@/lib/supabase';
  * intercepts the link; this screen mirrors `apps/web/components/public-dream-view.tsx`:
  * the dream is the subject (quote leads, in the dream register — Hanken italic here,
  * DESIGN.md §4), the member is a byline linking on to their profile, the tappe follow.
+ *
+ * Galleria (#921, 2026-10-09; DESIGN §8.12): three blocks 26 apart. The dream is the screen's
+ * one bordered card, its label and the quote. The byline is one row of a group: the 44 disc, the
+ * name, the handle in grey under it, the chevron. The tappe are a group of `MilestoneRow`s in
+ * read mode, as on a profile.
  *
  * Same read-model as the web page (`getPublicDreamById`), one deliberate divergence: under
  * the authenticated client `dreams_select_authenticated` gates on `field_visible('dream')`,
@@ -35,6 +41,12 @@ import { supabase } from '@/lib/supabase';
  * The byline navigates via the `[handle]` catcher rather than `(modal)/user/[id]` because
  * the public read-model deliberately carries no profile id — the catcher owns the
  * handle→id resolution and its failure state.
+ *
+ * Its disc is the shared `Avatar` fed through `previewUri`: the read-model hands over a url that
+ * is already signed and never a storage key, so there is nothing for `Avatar` to sign, and a url
+ * that fails to load falls back to the initial there. The disc is `decorative` because the row
+ * says the name: the row is one button, «Apri il profilo di {name}» (#356: never an action with
+ * no name).
  */
 export default function DreamDeepLinkScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,114 +82,73 @@ export default function DreamDeepLinkScreen() {
     // answer, same as the web page: the dream is not available, offer the way home (the link
     // likely arrived from outside, so there may be no stack to go back through).
     return (
-      <Screen className="items-center justify-center gap-6 pl-8 pr-8">
-        <Text className="text-center text-base text-muted-foreground">
-          {t('publicDream.unavailable', locale)}
-        </Text>
-        <Button
-          variant="outline"
-          label={t('notFound.home', locale)}
-          onPress={() => router.replace('/(tabs)')}
-        />
+      <Screen>
+        <View className="flex-1 items-center justify-center gap-[26px] px-5">
+          <Text className="text-center type-body text-muted-foreground">
+            {t('publicDream.unavailable', locale)}
+          </Text>
+          <Button
+            variant="outline"
+            label={t('notFound.home', locale)}
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </View>
       </Screen>
     );
   }
 
   const author = dream.author;
+  // What the row shows and says: the name they chose, or the handle when they chose none.
+  const authorName = author ? (memberLabel(author.displayName, author.handle) ?? '') : '';
 
   return (
     <Screen>
       <ModalHeader title={t('publicDream.title', locale)} backLabel={t('common.back', locale)} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12 pt-2">
-        <View className="gap-6">
+      <ScrollView className="flex-1" contentContainerClassName="gap-[26px] px-5 pb-12">
+        <Card>
           {author ? (
             <SectionLabel>
               {t('publicDream.titleWithAuthor', locale, { handle: author.handle })}
             </SectionLabel>
           ) : null}
           <DreamQuote text={dream.text} />
-          {author ? (
-            <AuthorByline
-              author={author}
-              label={t('publicDream.authorLink', locale)}
+        </Card>
+
+        {author ? (
+          <RowGroup>
+            <Row
+              leading={
+                <Avatar
+                  decorative
+                  handle={author.handle}
+                  displayName={author.displayName}
+                  previewUri={author.avatarUrl ?? null}
+                  size={44}
+                />
+              }
+              title={authorName}
+              // A lone-word handle ellipsizes (DESIGN §10); the row's label keeps it whole.
+              titleLines={wordLines(authorName) === 1 ? 1 : undefined}
+              // The handle is the second line only under a chosen name: alone, it is the title.
+              description={author.displayName?.trim() ? `@${author.handle}` : undefined}
+              descriptionLines={1}
+              accessibilityLabel={t('connection.a11y.open', locale, { name: authorName })}
               onPress={() =>
                 router.push({ pathname: '/[handle]', params: { handle: `@${author.handle}` } })
               }
             />
-          ) : null}
-        </View>
+          </RowGroup>
+        ) : null}
 
         {dream.milestones.length > 0 ? (
-          <View className="gap-3">
-            <SectionLabel>{t('publicProfile.milestonesLabel', locale)}</SectionLabel>
-            <View className="gap-2">
-              {/* Read mode — no handlers, so the row renders glyph + name + state only. */}
-              {dream.milestones.map((m) => (
-                <MilestoneRow key={m.id} name={m.body} status={m.status} locale={locale} />
-              ))}
-            </View>
-          </View>
+          <RowGroup label={t('publicProfile.milestonesLabel', locale)}>
+            {/* Read mode — no handlers, so the row renders glyph + name + state only. */}
+            {dream.milestones.map((m) => (
+              <MilestoneRow key={m.id} name={m.body} status={m.status} locale={locale} />
+            ))}
+          </RowGroup>
         ) : null}
       </ScrollView>
     </Screen>
-  );
-}
-
-/**
- * The web page's byline, on native: photo (already-signed url — the read-model never exposes
- * a storage key, so `Avatar`'s path-signing pipeline does not apply) or the initial, then the
- * names. One pressable block, like the chat identity header — the identity IS the link.
- */
-function AuthorByline({
-  author,
-  label,
-  onPress,
-}: {
-  author: PublicDreamAuthor;
-  label: string;
-  onPress: () => void;
-}) {
-  // The URL that failed, rather than a bare flag (same recovery as Avatar): a refetch can
-  // re-sign the url, and a different string is a fresh attempt without a `setState` in an
-  // effect (#691).
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const failed = author.avatarUrl != null && failedUrl === author.avatarUrl;
-  // `||`, not `??`: an empty-string display name must fall through to the handle (Avatar.tsx
-  // makes the same call), or the disc renders blank.
-  const initial = (author.displayName || author.handle).trim().charAt(0).toUpperCase();
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      // #356: the pressable masks its children for screen readers, so the label carries the
-      // identity and the action goes in the hint — never «Vai al profilo» with no name.
-      accessibilityLabel={memberLabel(author.displayName, author.handle) ?? undefined}
-      accessibilityHint={label}
-      hitSlop={8}
-      className="flex-row items-center gap-3"
-    >
-      <View
-        className="items-center justify-center overflow-hidden rounded-full border border-hair"
-        style={{ width: 40, height: 40 }}
-      >
-        {author.avatarUrl && !failed ? (
-          <Image
-            source={{ uri: author.avatarUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            onError={() => setFailedUrl(author.avatarUrl ?? null)}
-          />
-        ) : (
-          <Text className="text-lg font-light text-aura">{initial}</Text>
-        )}
-      </View>
-      <View>
-        {author.displayName ? (
-          <Text className="text-[14px] text-foreground">{author.displayName}</Text>
-        ) : null}
-        <Text className="text-[14px] tracking-widest text-aura">@{author.handle}</Text>
-      </View>
-    </Pressable>
   );
 }
