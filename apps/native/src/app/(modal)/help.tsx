@@ -53,10 +53,10 @@ const HELP_TYPES: HelpType[] = ['skill', 'connection', 'opportunity'];
  * Galleria (#921, 2026-10-09; DESIGN §8.12): no card on either step, blocks 26 apart. The
  * picker is a small grey sentence over one group of `MilestoneRow`s, each row a button with
  * «Aiuta» drawn as the small outline pill. The offer step is the need in body text, the three
- * kind chips, the message field (`Field`'s `lg` floor, named by the screen's title since it has
- * no label above it), the no-money line in small grey and the white pill. A refused second offer
- * says so 8 above the pill. The canvas draws a grab handle on this sheet; the app's sheets have
- * none (Marco, 2026-10-06).
+ * kind chips, the message field (`Field`'s `lg` floor), the no-money line in small grey and the
+ * white pill. The chips' group already carries the screen's title as its name, so the field is
+ * not given the same one. A refused second offer says so 8 above the pill. The canvas draws a
+ * grab handle on this sheet; the app's sheets have none (Marco, 2026-10-06).
  */
 export default function HelpScreen() {
   const leave = useGuardedBack();
@@ -258,7 +258,6 @@ export default function HelpScreen() {
         <Field
           size="lg"
           multiline
-          accessibilityLabel={t('help.sheet.title', locale)}
           maxLength={500}
           editable={!saving}
           placeholder={t('help.message.placeholder', locale)}

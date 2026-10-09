@@ -8061,11 +8061,13 @@ describe('the dream screens and the offer-help sheet keep the Galleria look (#92
     ).toEqual([]);
   });
 
-  it('a field with no label above it is named', () => {
+  it('the dream field has no label above it, so the screen’s title names it', () => {
     expect(flat(EDITOR)).toMatch(/accessibilityLabel=\{t\('dream\.editor\.title', locale\)\}/);
-    expect(flat(HELP)).toMatch(
-      /<Field size="lg" multiline accessibilityLabel=\{t\('help\.sheet\.title', locale\)\}/,
-    );
+    // On the help sheet the chips' group already says the title: the field does not repeat it.
+    expect(
+      (flat(HELP).match(/accessibilityLabel=\{t\('help\.sheet\.title', locale\)\}/g) ?? []).length,
+      'one element named by the title, the radiogroup',
+    ).toBe(1);
   });
 
   it('the publish bar is pinned under a hairline, and a refusal stands by what it refuses', () => {
