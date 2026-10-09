@@ -117,7 +117,7 @@ export function Field({
           // inline padding (#749) and an iOS multi-line one drops logical block padding — see
           // `Input`'s docblock for both measurements.
           'border pb-3 pl-5 pr-5 pt-3 text-foreground',
-          // Inside a `Card` the field's own fill is the card's and the field would vanish at rest;
+          // On a charcoal block (a `Card`, a `WellScope`) the field's fill is the block's own, unseen;
           // there it is a black well (`useInsideCard`, #921 2026-10-04).
           insideCard ? 'bg-background' : 'bg-surface',
           multiline ? cn('rounded-[24px]', SIZE_CLASSES[size]) : 'min-h-[50px] rounded-full',

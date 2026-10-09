@@ -521,15 +521,21 @@ export default function AnnualFundScreen() {
               </Text>
             ) : (
               <View className="gap-4">
-                {updates.map((update) => (
-                  <ProgressUpdateCard
-                    key={update.id}
-                    update={update}
-                    phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
-                    locale={locale}
-                    now={nowMs}
-                  />
-                ))}
+                {/* One group (#921, 2026-10-09): each note draws its own segment, so the view
+                    that holds them sets no gap. */}
+                <View>
+                  {updates.map((update, i) => (
+                    <ProgressUpdateCard
+                      key={update.id}
+                      update={update}
+                      phase={publicPhases.find((p) => p.id === update.plan_phase_id) ?? null}
+                      locale={locale}
+                      now={nowMs}
+                      first={i === 0}
+                      last={i === updates.length - 1}
+                    />
+                  ))}
+                </View>
                 {updatesPage.hasNextPage ? (
                   <Button
                     label={t('fund.progress.more', locale)}

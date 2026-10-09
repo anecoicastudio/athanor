@@ -8084,3 +8084,302 @@ describe('the dream screens and the offer-help sheet keep the Galleria look (#92
     );
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// The realization plan and the progress notes (#921, 2026-10-09). The plan's one bordered card
+// is the budget. A draft phase is a folding charcoal group with its fields as black wells; a
+// published plan lists its phases as blocks of one group. The notes are one group too, each
+// drawing its own segment, on the winner's trail and on the fund screen alike.
+// ---------------------------------------------------------------------------------------
+describe('the plan and the progress notes keep the Galleria look (#921)', () => {
+  const PLAN = 'app/(modal)/plan.tsx';
+  const PROGRESS = 'app/(modal)/progress.tsx';
+  const ANNUAL = 'app/(modal)/annual.tsx';
+  const PHASE = 'components/fund/PlanPhaseCard.tsx';
+  const UPDATE = 'components/fund/ProgressUpdateCard.tsx';
+  const SCREENS = [PLAN, PROGRESS];
+  const ALL = [PLAN, PROGRESS, PHASE, UPDATE];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('nothing here is cyan: money planned and work told are not one of the five marks', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the budget and a phase’s cost are foreground, a ' +
+        'note’s phase line grey, «Salva la correzione» a foreground link',
+    ).toEqual([]);
+  });
+
+  it('the budget is the plan’s one bordered card, and its figure the middle numeral', () => {
+    expect((code(PLAN).match(/<Card\b/g) ?? []).length, 'one card on the plan').toBe(1);
+    expect(flat(PLAN), 'the label, then what there is').toMatch(
+      /<Card> <SectionLabel>\{t\('fund\.plan\.budget\.label', locale\)\}<\/SectionLabel> <Text className="type-num-m text-foreground">\{formatFundTotal\(payable, locale\)\}<\/Text>/,
+    );
+    expect([PROGRESS, PHASE, UPDATE].filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-(?:t-|b-)?(?:\[28px\]|card|hero)[^'"`]*\bborder\b(?!-)|\bborder\b(?!-)[^'"`]*rounded-(?:t-|b-)?(?:\[28px\]|card|hero)/.test(
+          code(file),
+        ),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): the shared `Card` draws it',
+    ).toEqual([]);
+  });
+
+  it('the plan states its money and bends none of it', () => {
+    const plan = code(PLAN);
+    // Rule 6: what there is, what the phases promise, what is left. Each is computed by
+    // `@athanor/core` or summed from the draft, and the screen rounds or caps nothing.
+    expect(plan).toMatch(
+      /payableCents\(edition\?\.confirmed_pool_cents \?\? 0, edition\?\.split_pct \?\? 0\)/,
+    );
+    expect(plan).toMatch(/const costed = costedCents\(phases\);/);
+    expect(plan).toMatch(/remainingPayableCents\(/);
+    expect(
+      [PLAN, PHASE].filter((file) =>
+        /\bMath\.(?:min|max|floor|ceil)\b|\bclamp\w*\(/.test(code(file)),
+      ),
+      'a ceiling is the database’s to refuse, shown as itself',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b|(?<![\w-])text-\[\d+px\]/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b|font-(?:extrabold|bold|semibold)\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11); no line here ' +
+        'is a reason under a field, so none takes the fixed 14 either',
+    ).toEqual([]);
+    // Tailwind's `tabular-nums` emits nothing on device (same measurement): the numeral class
+    // carries it, and a figure in body text asks for it through `fontVariant`.
+    expect(
+      ALL.filter((file) => /(?<!fontVariant: \[')\btabular-nums\b/.test(code(file))),
+      'the `tabular-nums` utility',
+    ).toEqual([]);
+  });
+
+  it('no file here types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'one `›`, the fold’s: the same character a row draws (Marco, 2026-10-04), turned down ' +
+        'while the fold is shut and up while it is open',
+    ).toEqual([`${PHASE}  ›`]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('a field is `Field`, and every hand-built control is a button that dims', () => {
+    const raw = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'TextInput' || base === 'Image' || base === 'Input')
+        .map(({ base, line }) => `${file}:${line} <${base}>`),
+    );
+    expect(raw, 'the raw `TextInput`s of these screens became `Field`s').toEqual([]);
+    const pressables = (file: string) =>
+      jsxOpeningTags(code(file)).filter(({ base }) => base === 'Pressable');
+    // The fold's summary, the «Quando» button and «Togli questa fase»; on the trail, the one
+    // recipe its four links share. Everything else is a shared pill, chip or link.
+    expect(ALL.map((file) => [file, pressables(file).length])).toEqual([
+      [PLAN, 0],
+      [PROGRESS, 1],
+      [PHASE, 3],
+      [UPDATE, 0],
+    ]);
+    const bare = ALL.flatMap((file) =>
+      pressables(file)
+        .filter(({ raw: tag }) => !/accessibilityRole="button"/.test(tag) || !/PRESS_DIM/.test(tag))
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(bare, 'a role, and the shared pressed state (`lib/press`)').toEqual([]);
+  });
+
+  it('blocks stand 26 apart in both scrolls, on the gutter', () => {
+    for (const file of SCREENS) {
+      const scrolls = [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map(
+        (m) => m[1] as string,
+      );
+      expect(scrolls, file).toEqual(['gap-[26px] px-5 pb-12']);
+    }
+    // 26 between blocks, 8 in a group, 6 under a label; 14 inside a fold and 10 inside a block
+    // of a group (the prototype's `.in-fold` and `.row.col`); 12 beside a row's chevron or
+    // figure; 20 between two links.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '1.5', '[14px]', '[10px]', '3', '5'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(gaps, 'the prototype’s rhythm').toEqual([]);
+    // A height typed here is a floor: the fold's row, a 44pt target, the date button's pill.
+    const heights = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])((?:min-)?h-(?:\[\d+px\]|\d+))(?![\w-])/g)]
+        .map((m) => m[1] as string)
+        .filter((h) => !['min-h-[60px]', 'min-h-[44px]', 'min-h-[50px]'].includes(h))
+        .map((h) => `${file}  ${h}`),
+    );
+    expect(heights, 'a field’s height is `Field`’s `size` (Marco, 2026-10-09)').toEqual([]);
+  });
+
+  it('a helper sentence is small and grey', () => {
+    for (const [file, key] of [
+      [PLAN, 'fund.plan.lead'],
+      [PLAN, 'fund.plan.budget.hint'],
+      [PLAN, 'fund.plan.phases.hint'],
+      [PLAN, 'fund.plan.zeroAura'],
+      [PROGRESS, 'fund.progress.compose.lead'],
+      [PROGRESS, 'fund.progress.public'],
+      [PROGRESS, 'fund.progress.zeroAura'],
+    ] as const) {
+      expect(flat(file), `${file} ${key}`).toMatch(
+        new RegExp(
+          `<Text className="type-small text-muted-foreground"> ?\\{t\\('${key.replace(/\./g, '\\.')}', locale\\)\\} ?</Text>`,
+        ),
+      );
+    }
+  });
+
+  it('a draft phase is a fold: one charcoal group, a row that says whether it is open', () => {
+    const phase = flat(PHASE);
+    expect(phase, 'radius 28, no border, 16 inside').toMatch(
+      /<WellScope> <View className="rounded-\[28px\] bg-surface px-4"> <Pressable /,
+    );
+    expect(phase, 'the row is at least 60 and tells assistive tech its state').toMatch(
+      /accessibilityState=\{\{ expanded: open \}\}/,
+    );
+    expect(phase).toMatch(
+      /className=\{cn\( ?'min-h-\[60px\] flex-row items-center justify-between gap-3 py-2', PRESS_DIM,? ?\)\}/,
+    );
+    expect(phase, 'named by the line it shows, not by its chevron').toMatch(
+      /accessibilityLabel=\{summary\}/,
+    );
+    expect(phase, 'the fields stand 14 apart under the row').toMatch(
+      /\{open \? \( <View className="gap-\[14px\] pb-\[18px\] pt-1">/,
+    );
+    expect((phase.match(/<Field\b/g) ?? []).length, 'title, cost, verification').toBe(3);
+    expect(phase, '«Togli questa fase» is an underlined link').toMatch(
+      /<Text className="type-small text-foreground underline"> ?\{t\('fund\.plan\.phase\.remove', locale\)\} ?<\/Text>/,
+    );
+    // Marco, 2026-10-09: shut at rest, several may be open, a new phase opens, and a save
+    // refused for an unfinished phase opens that phase and brings it up.
+    const plan = flat(PLAN);
+    expect(plan).toMatch(/useState<ReadonlySet<string>>\(\(\) => new Set\(\)\)/);
+    expect(plan).toMatch(/open=\{openKeys\.has\(phase\.key\)\}/);
+    expect(plan, 'a refused save names the phase by opening it').toMatch(
+      /const unfinished = phases\.find\(\(p\) => !phaseComplete\(p\)\);/,
+    );
+    expect(plan).toMatch(/scroller\.current\?\.scrollTo\(\{ y: top - 12, animated: false \}\)/);
+    expect(plan, 'a shut fold is scrolled to once it is laid out open').toMatch(
+      /if \(pendingReveal\.current === phase\.key\) \{ pendingReveal\.current = null; revealPhase\(phase\.key\); \}/,
+    );
+  });
+
+  it('a field in a fold or in a note is a black well, through the card’s own flag', () => {
+    expect(code('components/Card.tsx')).toMatch(/export function WellScope\(/);
+    expect(flat('components/Card.tsx')).toMatch(
+      /return <InsideCard\.Provider value=\{true\}>\{children\}<\/InsideCard\.Provider>;/,
+    );
+    expect(flat(UPDATE), 'the correction field of a note').toMatch(/<WellScope>/);
+    // The «Quando» button is not a `Field`, so it writes the well itself, in the pill's shape.
+    expect(flat(PHASE)).toMatch(
+      /className=\{cn\( ?'min-h-\[50px\] justify-center rounded-full bg-background px-5 py-\[13px\]', PRESS_DIM,? ?\)\}/,
+    );
+    expect(flat(PHASE), 'named by its label and its date').toMatch(
+      /accessibilityLabel=\{\[dateLabel, when\]\.join\(', '\)\}/,
+    );
+  });
+
+  it('a published plan lists its phases as blocks of one group, nothing to open', () => {
+    expect(flat(PLAN)).toMatch(
+      /<RowGroup> \{phases\.map\(\(phase, index\) => \( <PlanPhaseFacts key=\{phase\.key\} phase=\{phase\} index=\{index\} locale=\{locale\} \/> \)\)\} <\/RowGroup>/,
+    );
+    expect(code(PHASE)).toMatch(/export function PlanPhaseFacts\(/);
+    expect(flat(PHASE), 'a block of a group: its own padding down, none across').toMatch(
+      /const large = stacksTrailing\(useWindowDimensions\(\)\.fontScale\); return \( <View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(code(PHASE), 'publication is a second component, not a mode').not.toMatch(/readOnly/);
+    expect(code(PLAN)).not.toMatch(/readOnly/);
+  });
+
+  it('the plan’s two pills share a row that wraps, under a hairline', () => {
+    expect(flat(PLAN)).toMatch(
+      /<ButtonRow className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('fund\.plan\.save', locale\)\} onPress=\{onSave\} variant="primary" disabled=\{busy\} \/> \{plan && phases\.length > 0 \? \( <Button label=\{t\('fund\.plan\.publish\.cta', locale\)\} onPress=\{onPublish\} variant="outline" disabled=\{busy\} \/> \) : null\} <\/ButtonRow>/,
+    );
+    expect(flat(PROGRESS)).toMatch(
+      /<View className="border-t border-hair px-5 pb-3 pt-3"> <Button label=\{t\('fund\.progress\.compose\.cta', locale\)\}/,
+    );
+    expect(flat(PLAN), 'the draft line is a tag, not a sentence').toMatch(/<Tag label=\{/);
+  });
+
+  it('a note draws its own segment of one group, wherever it is listed', () => {
+    const update = flat(UPDATE);
+    expect(update).toMatch(
+      /className=\{cn\( ?'bg-surface px-4', first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null,? ?\)\}/,
+    );
+    expect(update).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(update, 'the block of a group: 10 inside, 14 above and below').toMatch(
+      /<View className="gap-\[10px\] py-\[14px\]">/,
+    );
+    expect(update, 'the phase is a grey line beside the time').toMatch(
+      /type-small text-muted-foreground[^>]*> ?\{t\('fund\.progress\.phase', locale, \{ n: String\(phase\.sort\), title: phase\.title \}\)\}/,
+    );
+    // Segments must touch: the view that holds them sets no gap, on the trail and on the fund
+    // screen alike.
+    expect(flat(PROGRESS)).toMatch(/<View> \{mine\.map\(\(update, i\) => /);
+    expect(flat(PROGRESS)).toMatch(/first=\{i === 0\} last=\{i === mine\.length - 1\}/);
+    expect(flat(ANNUAL)).toMatch(/<View> \{updates\.map\(\(update, i\) => /);
+    expect(flat(ANNUAL)).toMatch(/first=\{i === 0\} last=\{i === updates\.length - 1\}/);
+  });
+
+  it('a note’s controls are underlined links, and a withdrawn note says so in their place', () => {
+    const progress = flat(PROGRESS);
+    expect(progress, 'one recipe: foreground, underlined, never grey and never cyan').toMatch(
+      /<Text className="type-small text-foreground underline">\{label\}<\/Text>/,
+    );
+    for (const key of [
+      'fund.progress.edit',
+      'fund.progress.withdraw',
+      'fund.progress.edit.save',
+      'fund.progress.edit.cancel',
+    ]) {
+      expect(progress, key).toMatch(
+        new RegExp(`link\\( ?t\\('${key.replace(/\./g, '\\.')}', locale\\),`),
+      );
+    }
+    expect(progress, 'the pair is 20 apart and wraps').toMatch(
+      /<View className=\{cn\('flex-row flex-wrap gap-x-5', large \? null : '-my-3'\)\}>/,
+    );
+    expect(flat(UPDATE), 'a status is words (DESIGN §8.12), grey').toMatch(
+      /\{update\.deleted_at \? \( <Text className="type-small text-muted-foreground"> ?\{t\('fund\.progress\.withdrawn', locale\)\} ?<\/Text> \) : \( footer \)\}/,
+    );
+  });
+
+  it('a label stands 6 above its field, and the note is the field its screen is about', () => {
+    expect(flat(PROGRESS)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('fund\.progress\.compose\.label', locale\)\}<\/SectionLabel> <Field size="lg" multiline /,
+    );
+    expect(flat(PROGRESS), 'chips stand 8 under their label and 8 apart').toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('fund\.progress\.compose\.phase\.label', locale\)\}<\/SectionLabel> <View className="flex-row flex-wrap gap-2">/,
+    );
+    expect(flat(PLAN)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{label\}<\/SectionLabel> \{published \? \( <Text className="type-body text-foreground">\{value \|\| '—'\}<\/Text> \) : \( <> <Field multiline accessibilityLabel=\{label\} /,
+    );
+  });
+});

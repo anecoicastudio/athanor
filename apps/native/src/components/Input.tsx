@@ -174,7 +174,7 @@ export function Input({
     <TextInput
       className={cn(
         'border text-[17px] text-foreground',
-        // Inside a `Card` the field's own fill is the card's and the field would vanish at rest;
+        // On a charcoal block (a `Card`, a `WellScope`) the field's fill is the block's own, unseen;
         // there it is a black well (`useInsideCard`, #921 2026-10-04).
         insideCard ? 'bg-background' : 'bg-surface',
         trailing ? TRAILING_CLASSES : SIZE_CLASSES[size],
