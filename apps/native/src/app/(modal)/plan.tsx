@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert } from 'react-native';
+import { Alert, type ScrollView as RNScrollView } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addRealizationPlanPhase,
@@ -16,16 +16,21 @@ import {
   updateRealizationPlanPhase,
 } from '@athanor/api';
 import { formatFundTotal, payableCents, remainingPayableCents } from '@athanor/core';
-import { galleria } from '@athanor/config';
 import { t } from '@athanor/i18n';
-import { ScrollView, Text, TextInput, View } from '@/tw';
+import { ScrollView, Text, View } from '@/tw';
 import { Button } from '@/components/Button';
+import { ButtonRow } from '@/components/ButtonRow';
+import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { Field } from '@/components/Field';
 import { KeyboardAvoiding } from '@/components/KeyboardAvoiding';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { ModalHeader } from '@/components/ModalHeader';
+import { RowGroup } from '@/components/RowGroup';
 import { Screen } from '@/components/Screen';
 import { SectionLabel } from '@/components/SectionLabel';
-import { PlanPhaseCard } from '@/components/fund/PlanPhaseCard';
+import { Tag } from '@/components/Tag';
+import { PlanPhaseCard, PlanPhaseFacts } from '@/components/fund/PlanPhaseCard';
 import { useToast } from '@/components/ToastHost';
 import { isDraftDirty } from '@/lib/dirty-guard';
 import { useAuth } from '@/lib/auth-context';
@@ -72,6 +77,12 @@ const EMPTY_PROSE: ProseDraft = {
  * Publication is one-way. After it the plan is the public commitment tranches release
  * against, the cycle enters realization, and every field here becomes read-only because the
  * database will refuse a write regardless.
+ *
+ * The look (Galleria, Marco 2026-10-09, #921): blocks 26 apart on the stage. The budget is
+ * the screen's one bordered card, its figure the middle numeral in foreground. A draft phase
+ * is a fold (`fund/PlanPhaseCard`); a published plan lists its phases as blocks of one group
+ * and its four prose fields as text. Nothing here is cyan: planning money is not one of the
+ * five marks (DESIGN §2.3).
  */
 export default function RealizationPlanScreen() {
   const { session } = useAuth();
@@ -177,7 +188,30 @@ export default function RealizationPlanScreen() {
   );
 
   const proseComplete = objective.trim().length > 0 && expectedResult.trim().length > 0;
-  const phasesAllComplete = phases.every(phaseComplete);
+
+  // Which folds are open, by the phase's key (Marco, 2026-10-09): none at rest, any number at
+  // once. A phase the member just added opens, and so does one a refused save found unfinished.
+  // A saved phase takes its row's id as its key, so the fold of a new phase shuts on save.
+  const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const togglePhase = (key: string) =>
+    setOpenKeys((keys) => {
+      const next = new Set(keys);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  // Where each fold starts in the scroll's content, as laid out: a refused save scrolls to one.
+  // A shut fold is opened first and scrolled to once it has been laid out open (`pendingReveal`):
+  // scrolled to while still shut, the last fold stopped at the foot of the shorter list (iPhone
+  // SE simulator, Expo Go, 2026-10-09).
+  const scroller = useRef<RNScrollView>(null);
+  const phaseTops = useRef<Record<string, number>>({});
+  const pendingReveal = useRef<string | null>(null);
+  // A cut and not a glide (§10). Every fold stands below the budget and the four prose fields,
+  // so `top - 12` is never negative.
+  const revealPhase = useCallback((key: string) => {
+    const top = phaseTops.current[key];
+    if (top !== undefined) scroller.current?.scrollTo({ y: top - 12, animated: false });
+  }, []);
 
   // Monotonic, never derived from the list. A key computed from the current phases can be
   // handed out twice — remove one of two new phases and the next add recomputes the key the
@@ -188,11 +222,13 @@ export default function RealizationPlanScreen() {
   // manual memo would have to list it and re-make itself every render anyway. Its only call site
   // is an `onPress`, and the compiler memoizes what is worth memoizing.
   const addPhase = () => {
+    // A local key that is not an id: this phase has no row yet.
+    const key = `new-${nextPhaseKey.current++}`;
+    setOpenKeys((keys) => new Set(keys).add(key));
     setPhases((current) => [
       ...current,
       {
-        // A local key that is not an id: this phase has no row yet.
-        key: `new-${nextPhaseKey.current++}`,
+        key,
         id: null,
         title: '',
         scheduledFor: dayKey(new Date().toISOString()),
@@ -259,12 +295,21 @@ export default function RealizationPlanScreen() {
       showToast(t('fund.plan.error.incomplete', locale));
       return;
     }
-    if (!phasesAllComplete) {
+    const unfinished = phases.find((p) => !phaseComplete(p));
+    if (unfinished) {
       showToast(t('fund.plan.error.phaseIncomplete', locale));
+      // The toast says what a phase needs; a shut fold would not say which one. Open it and
+      // bring its row to the top of the list.
+      if (openKeys.has(unfinished.key)) {
+        revealPhase(unfinished.key);
+      } else {
+        pendingReveal.current = unfinished.key;
+        setOpenKeys((keys) => new Set(keys).add(unfinished.key));
+      }
       return;
     }
     saveMutation.mutate();
-  }, [proseComplete, phasesAllComplete, locale, showToast, saveMutation]);
+  }, [proseComplete, phases, openKeys, revealPhase, locale, showToast, saveMutation]);
 
   const onPublish = useCallback(() => {
     Alert.alert(t('fund.plan.publish.title', locale), t('fund.plan.publish.body', locale), [
@@ -291,9 +336,7 @@ export default function RealizationPlanScreen() {
     return (
       <Screen>
         {header}
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={galleria.foreground} />
-        </View>
+        <LoadingScreen nested />
       </Screen>
     );
   }
@@ -322,26 +365,24 @@ export default function RealizationPlanScreen() {
     );
   }
 
+  // A label 6 above its field and the hint 6 under it. Once the plan is published the field is
+  // its text, and the hint — an instruction to whoever is writing — has nobody left to address.
   const proseField = (
     label: string,
-    hint: string | null,
+    hint: string,
     value: string,
     onChangeText: (v: string) => void,
   ) => (
-    <View className="gap-2">
+    <View className="gap-1.5">
       <SectionLabel>{label}</SectionLabel>
       {published ? (
-        <Text className="text-[15px] leading-6 text-foreground">{value || '—'}</Text>
+        <Text className="type-body text-foreground">{value || '—'}</Text>
       ) : (
-        <TextInput
-          className="rounded-card border border-hair bg-raise p-5 text-[15px] leading-6 text-foreground"
-          value={value}
-          onChangeText={onChangeText}
-          multiline
-          placeholderTextColor={galleria.foregroundMuted}
-        />
+        <>
+          <Field multiline accessibilityLabel={label} value={value} onChangeText={onChangeText} />
+          <Text className="type-small text-muted-foreground">{hint}</Text>
+        </>
       )}
-      {hint ? <Text className="text-[12px] text-muted-foreground">{hint}</Text> : null}
     </View>
   );
 
@@ -349,7 +390,10 @@ export default function RealizationPlanScreen() {
     <Screen
       footer={
         published ? undefined : (
-          <View className="gap-2 px-5 pb-2">
+          // Two pills side by side under a hairline, as the profile's footer has them: saving
+          // the draft is the white pill and publishing the outline beside it (DESIGN §9). The
+          // row wraps when the two do not fit (§10).
+          <ButtonRow className="border-t border-hair px-5 pb-3 pt-3">
             <Button
               label={t('fund.plan.save', locale)}
               onPress={onSave}
@@ -362,51 +406,57 @@ export default function RealizationPlanScreen() {
                 onPress={onPublish}
                 variant="outline"
                 disabled={busy}
-                // The second action beside a primary is the outline (DESIGN §9): saving the
-                // draft is the white pill, and a second white pill under it would be a twin.
               />
             ) : null}
-          </View>
+          </ButtonRow>
         )
       }
     >
       {header}
       <KeyboardAvoiding>
-        <ScrollView className="flex-1" contentContainerClassName="gap-8 px-5 pb-12">
-          <View className="gap-2">
-            <Text className="text-[14px] leading-5 text-foreground">
-              {t('fund.plan.lead', locale)}
-            </Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {published
-                ? t('fund.plan.published', locale, {
-                    date: calendarDay(dayKey(plan.published_at as string), locale),
-                  })
-                : t('fund.plan.draft', locale)}
-            </Text>
+        <ScrollView
+          ref={scroller}
+          className="flex-1"
+          contentContainerClassName="gap-[26px] px-5 pb-12"
+        >
+          <Text className="type-small text-muted-foreground">{t('fund.plan.lead', locale)}</Text>
+
+          {/* Whose eyes the plan is for, as a tag: a draft only its author sees, or the day it
+              went public and the one sentence about what that means. */}
+          <View className="items-start gap-2">
+            <Tag
+              label={
+                published
+                  ? t('fund.plan.published', locale, {
+                      date: calendarDay(dayKey(plan.published_at as string), locale),
+                    })
+                  : t('fund.plan.draft', locale)
+              }
+            />
             {published ? (
-              <Text className="text-[12px] text-muted-foreground">
+              <Text className="type-small text-muted-foreground">
                 {t('fund.plan.publishedNote', locale)}
               </Text>
             ) : null}
           </View>
 
-          {/* The money, stated plainly: what there is, what the phases promise, what is left. */}
-          <View className="gap-2 rounded-card border border-hair bg-raise p-5">
+          {/* The money, stated plainly: what there is, what the phases promise, what is left.
+              The two sums stand on a line each: side by side they do not fit the card. */}
+          <Card>
             <SectionLabel>{t('fund.plan.budget.label', locale)}</SectionLabel>
-            <Text className="text-[28px] font-extrabold tabular-nums text-aura">
-              {formatFundTotal(payable, locale)}
-            </Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {t('fund.plan.allocated', locale, { amt: formatFundTotal(costed, locale) })}
-            </Text>
-            <Text className="text-[12px] text-muted-foreground">
-              {t('fund.plan.remaining', locale, { amt: formatFundTotal(remaining, locale) })}
-            </Text>
-            <Text className="text-[12px] leading-5 text-muted-foreground">
+            <Text className="type-num-m text-foreground">{formatFundTotal(payable, locale)}</Text>
+            <View>
+              <Text className="type-small text-muted-foreground">
+                {t('fund.plan.allocated', locale, { amt: formatFundTotal(costed, locale) })}
+              </Text>
+              <Text className="type-small text-muted-foreground">
+                {t('fund.plan.remaining', locale, { amt: formatFundTotal(remaining, locale) })}
+              </Text>
+            </View>
+            <Text className="type-small text-muted-foreground">
               {t('fund.plan.budget.hint', locale)}
             </Text>
-          </View>
+          </Card>
 
           {proseField(
             t('fund.plan.objective.label', locale),
@@ -433,23 +483,46 @@ export default function RealizationPlanScreen() {
             setSuppliers,
           )}
 
-          <View className="gap-3">
+          <View className="gap-2">
             <SectionLabel>{t('fund.plan.phases.title', locale)}</SectionLabel>
-            <Text className="text-[12px] leading-5 text-muted-foreground">
+            <Text className="type-small text-muted-foreground">
               {t('fund.plan.phases.hint', locale)}
             </Text>
             {phases.length === 0 ? (
-              <Text className="text-[14px] text-muted-foreground">
+              <Text className="type-small text-muted-foreground">
                 {t('fund.plan.phases.empty', locale)}
               </Text>
-            ) : (
-              phases.map((phase, index) => (
+            ) : null}
+          </View>
+
+          {published ? (
+            phases.length > 0 ? (
+              <RowGroup>
+                {phases.map((phase, index) => (
+                  <PlanPhaseFacts key={phase.key} phase={phase} index={index} locale={locale} />
+                ))}
+              </RowGroup>
+            ) : null
+          ) : (
+            phases.map((phase, index) => (
+              // Each fold is a block of the screen, 26 from the next. The wrapper is there to
+              // be measured: its `y` is where a refused save scrolls to.
+              <View
+                key={phase.key}
+                onLayout={(e) => {
+                  phaseTops.current[phase.key] = e.nativeEvent.layout.y;
+                  if (pendingReveal.current === phase.key) {
+                    pendingReveal.current = null;
+                    revealPhase(phase.key);
+                  }
+                }}
+              >
                 <PlanPhaseCard
-                  key={phase.key}
                   phase={phase}
                   index={index}
                   locale={locale}
-                  readOnly={published}
+                  open={openKeys.has(phase.key)}
+                  onToggle={() => togglePhase(phase.key)}
                   onChange={(next) =>
                     setPhases((current) => current.map((p) => (p.key === phase.key ? next : p)))
                   }
@@ -457,19 +530,20 @@ export default function RealizationPlanScreen() {
                     setPhases((current) => current.filter((p) => p.key !== phase.key))
                   }
                 />
-              ))
-            )}
-            {!published ? (
-              <Button
-                label={t('fund.plan.phase.add', locale)}
-                onPress={addPhase}
-                variant="ghost"
-                disabled={busy}
-              />
-            ) : null}
-          </View>
+              </View>
+            ))
+          )}
 
-          <Text className="text-[12px] text-muted-foreground">
+          {!published ? (
+            <Button
+              label={t('fund.plan.phase.add', locale)}
+              onPress={addPhase}
+              variant="outline"
+              disabled={busy}
+            />
+          ) : null}
+
+          <Text className="type-small text-muted-foreground">
             {t('fund.plan.zeroAura', locale)}
           </Text>
         </ScrollView>
