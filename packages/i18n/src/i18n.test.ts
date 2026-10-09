@@ -917,3 +917,20 @@ describe('the handle step never asks for a name (#908)', () => {
     expect(en['onboarding.handle.subSuggested']).toMatch(/name/i);
   });
 });
+
+/**
+ * Galleria (#921): nothing on a profile stands for an Aura tier, so the level-up's one grey
+ * line cannot promise a brighter mandorla there (Marco's ruling 5, 2026-10-03; this wording,
+ * 2026-10-09). `tier.bagliore` is a tier's name and stays.
+ */
+describe('the level-up line describes no look (#921)', () => {
+  test('it names nothing the profile draws, in either locale', () => {
+    expect(it['tier.up.sub']).not.toMatch(/mandorla|profilo|brilla/i);
+    expect(en['tier.up.sub']).not.toMatch(/mandorla|profile|shine|glow/i);
+  });
+
+  test('it still says reputation is earned and never bought (rule 1)', () => {
+    expect(it['tier.up.sub']).toBe('La reputazione si accende contribuendo. Non si compra.');
+    expect(en['tier.up.sub']).toBe("Reputation lights up by contributing. It can't be bought.");
+  });
+});

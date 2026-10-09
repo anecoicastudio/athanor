@@ -8383,3 +8383,268 @@ describe('the plan and the progress notes keep the Galleria look (#921)', () => 
     );
   });
 });
+
+/**
+ * Galleria, chunk C18a (#921, 2026-10-09): the Aura screen, its ledger, the star sheet and the
+ * level-up. Marco's rulings that day: the Aura numeral stands alone, cyan, over the grey
+ * tagline; the six sources are bare blocks on the stage with their figure in foreground; the
+ * three rules and the ledger link are one group of rows; `tier.up.sub` is one short sentence
+ * pair. `trust` and `verify` are the second half of the chunk and are not read here.
+ */
+describe('the Aura screen, its ledger, the star sheet and the level-up keep the Galleria look (#921)', () => {
+  const AURA = 'app/(modal)/aura.tsx';
+  const LEDGER = 'app/(modal)/aura/ledger.tsx';
+  const STAR_SHEET = 'app/(modal)/star.tsx';
+  const LEVEL = 'app/(modal)/level.tsx';
+  const SOURCE = 'components/aura/AuraSourceRow.tsx';
+  const LEDGER_ROW = 'components/aura/LedgerRow.tsx';
+  const RULE = 'components/aura/RuleRow.tsx';
+  const VALUE = 'components/AuraValue.tsx';
+  const SCREENS = [AURA, LEDGER, STAR_SHEET, LEVEL];
+  const ALL = [...SCREENS, SOURCE, LEDGER_ROW, RULE, VALUE];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('cyan is the member’s own numeral and the level-up’s three marks, nothing else', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3). The own Aura numeral is one, a new level is a ' +
+        'celebration; a source’s figure, a ledger row’s points, a rule’s glyph and a lit star ' +
+        'are foreground',
+    ).toEqual([
+      `${AURA}  <AuraValue`,
+      `${LEVEL}  <CelebrationMark`,
+      `${LEVEL}  tone="celebration"`,
+      `${LEVEL}  variant="celebration"`,
+      `${VALUE}  text-aura`,
+    ]);
+  });
+
+  it('the numeral is the numeral style, and only the Aura screen mounts it', () => {
+    expect(flat(VALUE)).toMatch(/className=\{cn\('type-num text-aura', className\)\}/);
+    expect(code(VALUE), 'the inline size lost its last caller on 2026-10-05').not.toMatch(
+      /\bsize\b|fontSize/,
+    );
+    const users = FILES.filter((p) => !isTest(p))
+      .filter((p) => /<AuraValue\b/.test(stripComments(read(p))))
+      .map((p) => rel(p).replace('apps/native/src/', ''));
+    expect(users, 'another member’s Aura is a plain foreground `Text` (rule 3)').toEqual([AURA]);
+    const aura = flat(AURA);
+    // A JSX comment between two siblings survives `stripComments` as `{ }`.
+    expect(aura, 'the numeral alone over its grey line, 8 apart, no frame').toMatch(
+      /<View className="items-center gap-2 py-2"> (?:\{ ?\} )?\{full === undefined \|\| query\.isError \? \( <Text accessibilityLabel=\{t\('aura\.unknown', locale\)\} className="type-num text-muted-foreground" > \{AURA_UNKNOWN\} <\/Text> \) : \( <AuraValue value=\{score\} flashOnIncrease \/> \)\} <Text className="text-center type-small text-muted-foreground"> ?\{t\('aura\.tagline', locale\)\} ?<\/Text> <\/View>/,
+    );
+  });
+
+  it('none of these draws a card or the vertical frame', () => {
+    expect(
+      ALL.filter((file) => /<Card\b|<Mandorla\b|\bMandorla\b(?!Mark)/.test(code(file))),
+      'nothing on a profile or on the Aura screen stands for a tier (Marco, 2026-10-03); a ' +
+        'celebration draws `CelebrationMark`',
+    ).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-(?:t-|b-)?(?:\[28px\]|card|hero)[^'"`]*\bborder\b(?!-)|\bborder\b(?!-)[^'"`]*rounded-(?:t-|b-)?(?:\[28px\]|card|hero)/.test(
+          code(file),
+        ),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6)',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b|(?<![\w-])text-\[\d+px\]/g;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl|full)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|bg-aura-soft\b|(?:text|bg)-faint\b|text-ink-2\b|font-(?:extrabold|bold|semibold)\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    const sized = ALL.flatMap((file) =>
+      (code(file).match(NAMED_SIZE) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      sized,
+      'a named size resolves at a rem of 14 on device (measured on the iPhone SE simulator, ' +
+        '2026-10-04; DESIGN §6). One literal: the star’s own glyph, 72 as the canvas draws it',
+    ).toEqual([`${STAR_SHEET}  text-[72px]`]);
+    expect(ALL.filter((file) => LEGACY_SHAPE.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<!fontVariant: \[')\btabular-nums\b/.test(code(file))),
+      'the `tabular-nums` utility emits nothing on device: ask through `fontVariant`',
+    ).toEqual([]);
+  });
+
+  it('no file here types a control, builds a pressable or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(typed, 'a row draws its own chevron; back is `ModalHeader`’s').toEqual([]);
+    const pressables = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'Pressable')
+        .map(({ line }) => `${file}:${line}`),
+    );
+    expect(pressables, 'every control here is a shared `Row`, `Chip` or `Button`').toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('blocks stand 26 apart, on the gutter', () => {
+    const scrolls = (file: string) =>
+      [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map((m) => m[1] as string);
+    expect(scrolls(AURA)).toEqual(['gap-[26px] px-5 pb-12']);
+    expect(scrolls(STAR_SHEET)).toEqual(['gap-[26px] px-5 pb-12']);
+    expect(scrolls(LEVEL)).toEqual(['grow items-center justify-center gap-[26px] px-5 py-12']);
+    expect(flat(LEDGER), 'the sentence and the chips head the list and scroll with it').toMatch(
+      /ListHeaderComponent=\{ <View className="gap-\[26px\] pb-\[26px\]"> <Text className="type-small text-muted-foreground">\{t\('ledger\.sub', locale\)\}<\/Text> <FilterChips /,
+    );
+    // 26 between blocks, 8 in a group and between chips, 12 between sources and beside a
+    // row's figure, 4 between a source's line and its bar.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '3', '1'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(gaps, 'the prototype’s rhythm').toEqual([]);
+    expect(
+      ALL.filter((file) => /(?<![\w-])m[tby]?-(?:\d|\[)/.test(code(file))),
+      'a block’s distance is its parent’s gap, not a margin of its own',
+    ).toEqual([]);
+  });
+
+  it('a source is a bare block: its name, its figure in foreground, the bar under them', () => {
+    const source = flat(SOURCE);
+    expect(source).toMatch(
+      /<View className="gap-1" accessible accessibilityLabel=\{\[label, String\(value\)\]\.join\(', '\)\}> <View className="flex-row items-baseline justify-between gap-3"> <Text className="flex-1 type-body text-foreground">\{label\}<\/Text> <Text className="type-small text-foreground" style=\{\{ fontVariant: \['tabular-nums'\] \}\}> ?\{value\} ?<\/Text> <\/View> <ProgressBar width=\{width\} \/> <\/View>/,
+    );
+    expect(code(SOURCE), 'a bucket is a subtotal, not a change: no sign').not.toMatch(
+      /\bsign\b|'\+'/,
+    );
+    expect(code(SOURCE), 'the bar is the row: `showBar` lost its last caller').not.toMatch(
+      /showBar/,
+    );
+    expect(flat(AURA), 'sources 12 apart, 8 under their label, the label a heading').toMatch(
+      /<View className="gap-2"> <SectionLabel heading>\{t\('aura\.sources\.title', locale\)\}<\/SectionLabel> <View className="gap-3">/,
+    );
+  });
+
+  it('the three rules and the ledger link are one group of rows', () => {
+    const aura = flat(AURA);
+    expect(aura).toMatch(
+      /<RowGroup label=\{t\('aura\.protection\.title', locale\)\}> <RuleRow glyph="◎"/,
+    );
+    expect((aura.match(/<RuleRow\b/g) ?? []).length).toBe(3);
+    expect(aura, 'the drawn scales take the row’s ink, not cyan').toMatch(
+      /<ScalesGlyph size=\{20\} color=\{galleria\.foreground\} \/>/,
+    );
+    expect(aura, 'the catalog types the link’s own chevron, so the row draws none').toMatch(
+      /<Row title=\{t\('aura\.ledger\.cta', locale\)\} showChevron=\{false\} onPress=\{\(\) => router\.push\('\/aura\/ledger'\)\} \/> <\/RowGroup>/,
+    );
+    const rule = flat(RULE);
+    expect(
+      rule,
+      'the shared row, the glyph before the text and hidden from assistive tech',
+    ).toMatch(
+      /<Row leading=\{ <View className="min-w-6 items-center" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" >/,
+    );
+    expect(rule).toMatch(/<Text className="type-body text-foreground">\{glyph\}<\/Text>/);
+    expect(rule).toMatch(/title=\{title\} description=\{desc\} \/>/);
+  });
+
+  it('the idle window is the engine’s, read from core (rule 10)', () => {
+    expect(code(AURA)).toMatch(/import \{[^}]*\bDECAY\b[^}]*\} from '@athanor\/core';/);
+    expect(code(AURA)).toMatch(/elapsed > DECAY\.IDLE_DAYS_BEFORE/);
+    expect(code(AURA), 'no second copy of the 30 days').not.toMatch(/\b30\b|IDLE_THRESHOLD/);
+    expect(flat(AURA)).toMatch(
+      /<Text className="type-small text-muted-foreground"> ?\{t\('aura\.decay\.caption', locale, \{ days: idleDays \}\)\} ?<\/Text>/,
+    );
+  });
+
+  it('a ledger row draws its own segment of its day’s group and says itself in one line', () => {
+    const row = flat(LEDGER_ROW);
+    expect(row).toMatch(
+      /className=\{cn\( ?'bg-surface px-4', first \? 'rounded-t-\[28px\]' : null, last \? 'rounded-b-\[28px\]' : null,? ?\)\}/,
+    );
+    expect(row).toMatch(/\{first \? null : <View className="h-px bg-hair" \/>\}/);
+    expect(
+      row,
+      'an inert `Row` ignores a label: the wrapper carries it (#921, 2026-10-05)',
+    ).toMatch(
+      /<View accessible accessibilityLabel=\{\[title, when, figure\]\.join\(', '\)\}> <Row leading=\{/,
+    );
+    expect(row, 'points are the middle numeral: foreground, decay alone grey').toMatch(
+      /className=\{cn\( ?'type-num-m', type === 'decay' \? 'text-muted-foreground' : 'text-foreground',? ?\)\}/,
+    );
+    expect(
+      code(LEDGER_ROW),
+      'a penalty is not an error state, and nothing here is red',
+    ).not.toMatch(/text-error/);
+    expect(
+      code(LEDGER_ROW),
+      'the glyph was spoken by English words typed here (rule 5); the joined label replaces them',
+    ).not.toMatch(/LEDGER_GLYPH_A11Y|'identity'|'organized'/);
+    const ledger = flat(LEDGER);
+    expect(ledger).toMatch(/first=\{index === 0\} last=\{index === section\.data\.length - 1\}/);
+    expect(ledger, 'a day’s label is a heading, 12 above its group').toMatch(
+      /<View className="bg-background pb-3"> <SectionLabel heading>\{section\.title\}<\/SectionLabel> <\/View>/,
+    );
+    expect(ledger, 'a failed later page says so under the rows it leaves on screen').toMatch(
+      /<ListPageError query=\{query\} hasRows=\{rows\.length > 0\}/,
+    );
+  });
+
+  it('the star sheet says the state by glyph and by word, never by cyan', () => {
+    const star = flat(STAR_SHEET);
+    expect(star, 'lit is foreground, unlit and unknown grey').toMatch(
+      /className=\{cn\( ?'text-\[72px\]', earned \? 'text-foreground' : 'text-muted-foreground',? ?\)\}/,
+    );
+    expect(star, 'a decorative glyph does not grow with the text (DESIGN §10)').toMatch(
+      /maxFontSizeMultiplier=\{FONT_SCALE_CAP\.ornament\}/,
+    );
+    expect(star, 'the group is the heading: the name and the state, as one line').toMatch(
+      /<View className="items-center gap-3" accessible=\{true\} accessibilityRole="header" accessibilityLabel=\{t\(/,
+    );
+    expect(star, 'a one-word name takes one line and never breaks inside the word (§10)').toMatch(
+      /<Text numberOfLines=\{wordLines\(starName\)\} className="text-center type-h1 text-foreground" ?> ?\{starName\} ?<\/Text>/,
+    );
+    expect(star, 'the back alone: `ModalHeader` would add an empty heading before it').toMatch(
+      /<View className="flex-row px-5 pb-4 pt-3"> <HeaderBack className=\{BACK_ON_GUTTER\} label=\{t\('common\.back', locale\)\} onPress=\{back\} \/> <\/View>/,
+    );
+    expect(star).not.toMatch(/<ModalHeader\b/);
+    expect(star, 'the state word is a tag, quiet unless lit').toMatch(
+      /<Tag quiet=\{!earned\} label=\{t\(unknown \? 'star\.unknown' : earned \? 'star\.lit' : 'star\.unlit', locale\)\} \/>/,
+    );
+    expect(star).toMatch(
+      /<Text className="type-body text-foreground">\{t\(criteriaKey, locale\)\}<\/Text>/,
+    );
+    expect(star).toMatch(
+      /<View className="gap-2"> <Text className="type-small text-muted-foreground"> ?\{t\('star\.next\.progress', locale, \{ done, total, unit \}\)\} ?<\/Text> <ProgressBar width=\{progressWidth\} \/> <\/View>/,
+    );
+  });
+
+  it('a new level is the shared celebration: the mark flashes, one grey line, the cyan pill', () => {
+    const level = flat(LEVEL);
+    expect(level, 'the mark flashes; under Reduce Motion it does not move (DESIGN §10)').toMatch(
+      /<Animated\.View style=\{reduceMotion \? undefined : \{ transform: \[\{ scale \}\] \}\}> <CelebrationMark \/> <\/Animated\.View>/,
+    );
+    expect(level, 'the title is the heading, not the label (DESIGN §10)').toMatch(
+      /<View className="items-center gap-2"> <SectionLabel tone="celebration">\{t\('tier\.up\.eyebrow', locale\)\}<\/SectionLabel> <Text accessibilityRole="header" className="text-center type-h1 text-foreground"> ?\{headline\} ?<\/Text> <Text className="text-center type-small text-muted-foreground"> ?\{t\('tier\.up\.sub', locale\)\} ?<\/Text> <\/View>/,
+    );
+    expect(level).toMatch(
+      /<View className="self-stretch"> <Button variant="celebration" label=\{t\('common\.continue', locale\)\} onPress=\{leave\} \/> <\/View>/,
+    );
+    expect(level, 'the gutter is the scroll’s 20, not the screen’s').not.toMatch(/\bp[lr]-8\b/);
+    // The line's wording (Marco, 2026-10-09) is pinned beside the catalogs, in
+    // `packages/i18n/src/i18n.test.ts`, so this file reads nothing outside `apps/native`.
+  });
+});
