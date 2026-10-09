@@ -4669,6 +4669,7 @@ describe('an avatar in a row that names the member stays silent (#884)', () => {
     'app/(modal)/settings.tsx': { decorative: true, why: 'name Text beside it' },
     'components/momenti/MomentoCard.tsx': { decorative: true, why: 'name Text beside it' },
     'app/(modal)/chat.tsx': { decorative: true, why: 'the header title, or the identity label' },
+    'app/(modal)/dream/[id].tsx': { decorative: true, why: 'row label' },
     'components/profile/ProfileHero.tsx': { decorative: false, why: 'the profile’s own face' },
     'components/profile/ProfileEditForm.tsx': { decorative: false, why: 'whose photo this is' },
     'components/home/MomentiCard.tsx': { decorative: true, why: 'name Text beside it' },
@@ -7867,5 +7868,217 @@ describe('messages, the new-message picker and chat keep the Galleria look (#921
       /<RowGroup> <Row title=\{t\('chat\.message\.report', locale\)\} showChevron=\{false\} onPress=\{onReport\} \/> <Row title=\{t\('common\.cancel', locale\)\} showChevron=\{false\} onPress=\{onClose\} \/> <\/RowGroup>/,
     );
     expect(sheet, 'the local row is gone').not.toMatch(/function Row\b/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// The dream screens and the offer-help sheet (#921, 2026-10-09). The dream's own screen has the
+// one bordered card, the dream; its author and its tappe are groups of rows. The three forms and
+// the help sheet stand on the stage: a grey sentence, a label 6 above its field, blocks 26 apart.
+// ---------------------------------------------------------------------------------------
+describe('the dream screens and the offer-help sheet keep the Galleria look (#921)', () => {
+  const DREAM = 'app/(modal)/dream/[id].tsx';
+  const EDITOR = 'app/(modal)/dream-editor.tsx';
+  const MILESTONE = 'app/(modal)/milestone.tsx';
+  const PROJECT = 'app/(modal)/project-compose.tsx';
+  const HELP = 'app/(modal)/help.tsx';
+  const FORMS = [EDITOR, MILESTONE, PROJECT, HELP];
+  const ALL = [DREAM, ...FORMS];
+  const code = (file: string) => stripComments(read(`${SRC}${file}`));
+  const flat = (file: string) => code(file).replace(/\s+/g, ' ');
+  /** Cyan or green by class, token, literal or the old palette; a glow by helper or shadow. */
+  const CYAN_OR_GREEN =
+    /(?<![\w-])(?:text|bg|border|fill|stroke)-(?:aura|on-aura|success|green|emerald)[\w/-]*|\bgalleria\.(?:aura|onAura|success)\w*|\bsemantic\b|#2BD0D2|\bauraGlow\b|(?<![\w-])shadow-[\w/[\]-]+|\bboxShadow\b|<AuraValue\b|variant="celebration"|tone="celebration"|<CelebrationMark\b/gi;
+
+  it('nothing here is cyan: a dream read, written or helped is not a celebration', () => {
+    const hits = ALL.flatMap((file) =>
+      (code(file).match(CYAN_OR_GREEN) ?? []).map((hit) => `${file}  ${hit}`),
+    );
+    expect(
+      hits,
+      'cyan is five marks (DESIGN §2.3): the author’s handle is a grey line, the initial in ' +
+        'the disc foreground, every action a white or outline pill',
+    ).toEqual([]);
+  });
+
+  it('the dream is the one bordered card, and only its own screen has it', () => {
+    expect((code(DREAM).match(/<Card\b/g) ?? []).length, 'one card on the dream screen').toBe(1);
+    expect(flat(DREAM), 'the card is the label and the quote').toMatch(
+      /<Card> \{author \? \( <SectionLabel> \{t\('publicDream\.titleWithAuthor', locale, \{ handle: author\.handle \}\)\} <\/SectionLabel> \) : null\} <DreamQuote text=\{dream\.text\} \/> <\/Card>/,
+    );
+    expect(FORMS.filter((file) => /<Card\b/.test(code(file)))).toEqual([]);
+    expect(
+      ALL.filter((file) =>
+        /rounded-\[28px\][^'"`]*\bborder\b|\bborder\b[^'"`]*rounded-\[28px\]/.test(code(file)),
+      ),
+      'a radius-28 block with a border is the card (DESIGN §6): the shared `Card` draws it',
+    ).toEqual([]);
+  });
+
+  it('a file of these screens sizes its text with a type class, or the fixed 14 of a reason', () => {
+    const NAMED_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)\b/;
+    const LEGACY_SHAPE =
+      /(?<![\w-])(?:leading-[\w[\].-]+|tracking-[\w[\].-]+|uppercase\b|italic\b|rounded-(?:t-)?(?:card|hero|ctl|sm|lg|xl|2xl|full)\b|bg-raise(?:-2)?\b|bg-surface-muted\b|(?:text|bg)-faint\b|text-ink-2\b)|\bgalleria\.(?:faint|raise\w*|surfaceMuted|ink2)\b/;
+    expect(
+      ALL.filter((file) => NAMED_SIZE.test(code(file)) || LEGACY_SHAPE.test(code(file))),
+      'a named size or radius resolves at a rem of 14 on device and `leading-*` emits nothing ' +
+        '(measured on the iPhone SE simulator, 2026-10-04; DESIGN §6 and §11); a disc is `Avatar`',
+    ).toEqual([]);
+    // The only literal size on these screens is the reason under a field (DESIGN §4), in `error`.
+    const literal = ALL.flatMap((file) =>
+      [...code(file).matchAll(/className="([^"]*\btext-\[\d+px\][^"]*)"/g)]
+        .map((m) => m[1] as string)
+        .filter((cls) => cls !== 'text-[14px] text-error')
+        .map((cls) => `${file}  ${cls}`),
+    );
+    expect(literal, 'every other line takes a `type-*` class').toEqual([]);
+    const reasons = ALL.flatMap((file) =>
+      [...code(file).matchAll(/className="([^"]*\btext-error\b[^"]*)"/g)]
+        .map((m) => m[1] as string)
+        .filter((cls) => cls !== 'text-[14px] text-error')
+        .map((cls) => `${file}  ${cls}`),
+    );
+    expect(reasons, 'a reason is the fixed 14, whichever way it is spelled').toEqual([]);
+  });
+
+  it('no file of these screens types a control or puts an alpha on a colour class', () => {
+    const typed = ALL.flatMap((file) =>
+      [...code(file)].filter((ch) => '✕×‹›＋⋯◎'.includes(ch)).map((ch) => `${file}  ${ch}`),
+    );
+    expect(
+      typed,
+      'a control is a drawing from `components/glyphs`; a row’s chevron is `Row`’s own',
+    ).toEqual([]);
+    const alpha = ALL.flatMap((file) =>
+      (
+        code(file).match(
+          /(?<![\w-])(?:bg|text|border|fill|stroke)-[a-z][\w-]*\/(?:\d+|\[[^\]]+\])/g,
+        ) ?? []
+      ).map((hit) => `${file}  ${hit}`),
+    );
+    expect(alpha, 'draw a dim as an `opacity-*` layer of its own').toEqual([]);
+  });
+
+  it('no file here builds its own pressable: rows, chips and pills are the shared ones', () => {
+    const own = ALL.flatMap((file) =>
+      jsxOpeningTags(code(file))
+        .filter(({ base }) => base === 'Pressable' || base === 'TextInput' || base === 'Image')
+        .map(({ base, line }) => `${file}:${line} <${base}>`),
+    );
+    expect(
+      own,
+      'the author is a `Row` with an `Avatar`, a field is `Field` or `Input`, a choice a `Chip`',
+    ).toEqual([]);
+  });
+
+  it('blocks stand 26 apart in every scroll, on the gutter', () => {
+    for (const file of ALL) {
+      const scrolls = [...flat(file).matchAll(/contentContainerClassName="([^"]*)"/g)].map(
+        (m) => m[1] as string,
+      );
+      expect(scrolls.length, `${file}: no scroll found`).toBeGreaterThan(0);
+      // `project-compose` ends in a pinned bar, so its scroll keeps the composers' `pb-8`.
+      const want = file === PROJECT ? 'gap-[26px] px-5 pb-8' : 'gap-[26px] px-5 pb-12';
+      expect(scrolls, file).toEqual(scrolls.map(() => want));
+    }
+    // A block with its own gap is a group (8), a label over a field (6) or chips (8): no other.
+    const gaps = ALL.flatMap((file) =>
+      [...code(file).matchAll(/(?<![\w-])gap-(?:x-|y-)?(\[[^\]]+\]|[\d.]+)/g)]
+        .map((m) => m[1] as string)
+        .filter((gap) => !['[26px]', '2', '1.5'].includes(gap))
+        .map((gap) => `${file}  gap-${gap}`),
+    );
+    expect(
+      gaps,
+      'the prototype’s rhythm: 26 between blocks, 8 in a group, 6 under a label',
+    ).toEqual([]);
+  });
+
+  it('the author is one row of a group, named by what a tap does', () => {
+    const dream = flat(DREAM);
+    expect(dream).toMatch(
+      /<RowGroup> <Row leading=\{ <Avatar decorative handle=\{author\.handle\} displayName=\{author\.displayName\} previewUri=\{author\.avatarUrl \?\? null\} size=\{44\} \/> \}/,
+    );
+    expect(dream, 'the row says whose profile opens').toMatch(
+      /accessibilityLabel=\{t\('connection\.a11y\.open', locale, \{ name: authorName \}\)\}/,
+    );
+    expect(dream, 'a lone-word handle ellipsizes (DESIGN §10)').toMatch(
+      /titleLines=\{wordLines\(authorName\) === 1 \? 1 : undefined\}/,
+    );
+  });
+
+  it('the tappe are a group of rows, on the dream and in the picker', () => {
+    // A JSX comment between two siblings survives `stripComments` as `{ }`.
+    expect(flat(DREAM)).toMatch(
+      /<RowGroup label=\{t\('publicProfile\.milestonesLabel', locale\)\}> (?:\{ ?\} )?\{dream\.milestones\.map\(\(m\) => \( <MilestoneRow key=\{m\.id\} name=\{m\.body\} status=\{m\.status\} locale=\{locale\} \/> \)\)\} <\/RowGroup>/,
+    );
+    expect(flat(HELP)).toMatch(
+      /<RowGroup> \{options\.map\(\(m\) => \( <MilestoneRow key=\{m\.id\} name=\{m\.body\} status=\{m\.status\} locale=\{locale\} helpState="available" onHelp=\{\(\) => setPicked\(m\)\} \/> \)\)\} <\/RowGroup>/,
+    );
+  });
+
+  it('a helper sentence is small and grey, and the need it answers is body', () => {
+    for (const [file, key] of [
+      [EDITOR, 'dream.editor.sub'],
+      [MILESTONE, 'milestone.sheet.desc'],
+      [PROJECT, 'create.project.desc'],
+      [HELP, 'help.pick.hint'],
+      [HELP, 'help.noMoney'],
+    ] as const) {
+      expect(flat(file), `${file} ${key}`).toMatch(
+        new RegExp(
+          `<Text className="type-small text-muted-foreground"> ?\\{t\\('${key.replace(/\./g, '\\.')}', locale\\)\\} ?</Text>`,
+        ),
+      );
+    }
+    expect(flat(HELP), 'the canvas draws the need as plain body text').toMatch(
+      /<Text className="type-body text-foreground"> \{t\('help\.sheet\.needEcho', locale, \{ need: needEcho \}\)\} <\/Text>/,
+    );
+  });
+
+  it('a label stands 6 above its field, and the dream field keeps its register', () => {
+    expect(flat(MILESTONE)).toMatch(
+      /<View className="gap-1\.5"> <SectionLabel>\{t\('milestone\.field\.label', locale\)\}<\/SectionLabel> <Field /,
+    );
+    const project = flat(PROJECT);
+    expect(project).toMatch(
+      /<View className="gap-1\.5" ref=\{reveal\.rowRef\('title'\)\}> <SectionLabel>\{t\('project\.compose\.titleLabel', locale\)\}<\/SectionLabel> <Input /,
+    );
+    expect(project).toMatch(
+      /<View className="gap-1\.5" ref=\{reveal\.rowRef\('description'\)\}> <SectionLabel>\{t\('project\.compose\.descLabel', locale\)\}<\/SectionLabel> <Field /,
+    );
+    expect(project, 'chips stand 8 under their label and 8 apart').toMatch(
+      /<View className="gap-2"> <SectionLabel>\{t\('project\.compose\.catLabel', locale\)\}<\/SectionLabel> <View className="flex-row flex-wrap gap-2">/,
+    );
+    expect(flat(EDITOR), 'the dream is written in the dream register (DESIGN §4)').toMatch(
+      /<Field size="lg" register="dream" /,
+    );
+    // Marco, 2026-10-09: the multi-line fields keep `Field`'s two heights (the canvas draws 220,
+    // 160 and 120), so no call site sets one.
+    expect(
+      ALL.filter((file) => /(?<![\w-])(?:min-)?h-(?:\[\d+px\]|\d+)/.test(code(file))),
+      'a field’s height is `Field`’s `size`',
+    ).toEqual([]);
+  });
+
+  it('a field with no label above it is named', () => {
+    expect(flat(EDITOR)).toMatch(/accessibilityLabel=\{t\('dream\.editor\.title', locale\)\}/);
+    expect(flat(HELP)).toMatch(
+      /<Field size="lg" multiline accessibilityLabel=\{t\('help\.sheet\.title', locale\)\}/,
+    );
+  });
+
+  it('the publish bar is pinned under a hairline, and a refusal stands by what it refuses', () => {
+    const project = flat(PROJECT);
+    expect(project).toMatch(/<View className="border-t border-hair bg-background px-5 py-3">/);
+    expect(
+      project,
+      'the server’s refusal is in the title’s group, with the empty-title one',
+    ).toMatch(
+      /\{titleMissing \? \( <Text className="text-\[14px\] text-error">\{t\('project\.compose\.error', locale\)\}<\/Text> \) : null\} \{error \? <Text className="text-\[14px\] text-error">\{error\}<\/Text> : null\} <\/View>/,
+    );
+    expect(flat(HELP), 'the refusal stands 8 above the pill it refuses').toMatch(
+      /<View className="gap-2"> \{error === 'already' \? \( <Text className="text-\[14px\] text-error">\{t\('help\.alreadyOffered', locale\)\}<\/Text> \) : null\} <Button /,
+    );
   });
 });
