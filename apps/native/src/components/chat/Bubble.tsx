@@ -195,8 +195,9 @@ export function Bubble({
     );
   }
   // `shrink`, not `flex-1` (2026-10-09): the bubble is as wide as its words or its photo, up to
-  // the row's 80%, as the prototype's `.you`. With `flex-1` every incoming bubble took the whole
-  // 80% and a photo stood beside a blank band. Seen that day on the iPhone SE simulator (default
+  // what the row leaves it (the row is capped at 80% and holds the avatar's gutter and the gap),
+  // as the prototype's `.you`. With `flex-1` every incoming bubble took all of it and a photo
+  // stood beside a blank band. Seen that day on the iPhone SE simulator (default
   // and AX5) and on the moto g17 (font scale 1.0 and 2.0): a one-line message kept all its words.
   const peerBubble = cn('shrink rounded-[20px] border border-hair bg-surface', bubblePad);
   return (

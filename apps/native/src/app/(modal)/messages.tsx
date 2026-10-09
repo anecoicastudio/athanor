@@ -48,8 +48,8 @@ export default function MessagesScreen() {
   }, [queryClient]);
 
   /**
-   * Opening a thread clears its pip (#637). The cache is edited first and the write follows,
-   * because the pip has to go out under the finger — and because nothing would bring the answer
+   * Opening a thread clears its dot (#637). The cache is edited first and the write follows,
+   * because the dot has to go out under the finger — and because nothing would bring the answer
    * back on its own: the realtime channel watches `conversations`, not `conversation_reads`, and
    * RN wires no focusManager, so returning from the chat refetches nothing.
    *

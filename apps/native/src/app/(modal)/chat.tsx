@@ -136,7 +136,7 @@ export default function ChatScreen() {
    * mount would send the member back to a list lighting a conversation they just finished
    * reading. Two upserts a visit, against a cursor whose whole job is to be cheap.
    *
-   * Fire-and-forget with a logged failure: a cursor that did not move costs a stale pip, and
+   * Fire-and-forget with a logged failure: a cursor that did not move costs a stale dot, and
    * taking the chat down over it would be the worse trade.
    */
   useEffect(() => {
